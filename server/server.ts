@@ -515,7 +515,7 @@ io.on('connection', (socket: Socket) => {
   });
 });
 
-const PORT = 3001;
-httpServer.listen(PORT, () => {
+const PORT = parseInt(process.env.PORT || '10000', 10);
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
