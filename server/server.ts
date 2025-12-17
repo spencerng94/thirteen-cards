@@ -22,6 +22,7 @@ interface Player {
   hand: Card[];
   isHost: boolean;
   hasPassed: boolean;
+  finishedRank: number | null; // 1, 2, 3...
 }
 
 interface PlayTurn {
@@ -36,7 +37,8 @@ interface GameRoom {
   players: Player[];
   currentPlayerIndex: number;
   currentPlayPile: PlayTurn[];
-  lastPlayerToPlayId: string | null; // Tracks who played the last valid set to handle pass clearing
+  lastPlayerToPlayId: string | null; 
+  finishedPlayers: string[]; // Track IDs in order
 }
 
 const app = express();
@@ -75,7 +77,6 @@ const generateRoomCode = (): string => {
 };
 
 const getCardScore = (card: Card): number => {
-  // 2 is highest (15), 3 is lowest (3). Suits break ties.
   return card.rank * 10 + card.suit;
 };
 
@@ -266,7 +267,8 @@ const getPublicState = (room: GameRoom) => {
     currentPlayerId: room.status === 'PLAYING' ? room.players[room.currentPlayerIndex].id : null,
     currentPlayPile: room.currentPlayPile,
     lastPlayerToPlayId: room.lastPlayerToPlayId,
-    winnerId: null, // Should calculate if winner exists
+    finishedPlayers: room.finishedPlayers,
+    winnerId: room.finishedPlayers.length > 0 ? room.finishedPlayers[0] : null,
     players: room.players.map(p => ({
       id: p.id, 
       name: p.name,
@@ -274,9 +276,26 @@ const getPublicState = (room: GameRoom) => {
       cardCount: p.hand.length,
       isHost: p.isHost,
       isTurn: room.status === 'PLAYING' && room.players[room.currentPlayerIndex]?.id === p.id,
-      hasPassed: p.hasPassed
+      hasPassed: p.hasPassed,
+      finishedRank: p.finishedRank
     }))
   };
+};
+
+const getNextActivePlayerIndex = (room: GameRoom, startIndex: number): number => {
+    let nextIndex = (startIndex + 1) % room.players.length;
+    let loopCount = 0;
+    
+    // Find next player who is NOT finished and HAS NOT passed
+    // NOTE: In standard rules, if you finish, you are effectively "passed" for the round until the round clears
+    while (
+        (room.players[nextIndex].hand.length === 0 || room.players[nextIndex].hasPassed) 
+        && loopCount < room.players.length
+    ) {
+      nextIndex = (nextIndex + 1) % room.players.length;
+      loopCount++;
+    }
+    return nextIndex;
 };
 
 io.on('connection', (socket: Socket) => {
@@ -303,7 +322,8 @@ io.on('connection', (socket: Socket) => {
         avatar: avatar || '😊',
         hand: [],
         isHost: true,
-        hasPassed: false
+        hasPassed: false,
+        finishedRank: null
     };
 
     rooms[roomId] = {
@@ -312,7 +332,8 @@ io.on('connection', (socket: Socket) => {
         players: [newPlayer],
         currentPlayerIndex: 0,
         currentPlayPile: [],
-        lastPlayerToPlayId: null
+        lastPlayerToPlayId: null,
+        finishedPlayers: []
     };
 
     socketRoomMap[socket.id] = roomId;
@@ -346,7 +367,8 @@ io.on('connection', (socket: Socket) => {
       avatar: avatar || '😊',
       hand: [],
       isHost: false,
-      hasPassed: false
+      hasPassed: false,
+      finishedRank: null
     };
 
     room.players.push(newPlayer);
@@ -362,14 +384,19 @@ io.on('connection', (socket: Socket) => {
     if (!room || room.players[0].socketId !== socket.id) return; // Only host
     if (room.players.length < 2) return; // Need at least 2
 
+    // Reset State
+    room.finishedPlayers = [];
+    room.players.forEach(p => {
+        p.finishedRank = null;
+        p.hasPassed = false;
+        p.hand = [];
+    });
+
     // Deal
     dealCards(room.players);
     
     // Determine who goes first (Player with 3 of Spades)
-    // If multiple decks or odd logic, fallback to index 0, but standard is 3 Spades.
     let startingIndex = 0;
-    
-    // Find who has 3 Spades (Rank 3, Suit Spades = 0)
     for(let i=0; i<room.players.length; i++) {
         const has3S = room.players[i].hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
         if(has3S) {
@@ -421,32 +448,47 @@ io.on('connection', (socket: Socket) => {
     });
     room.lastPlayerToPlayId = player.id;
 
-    // Check Win
+    // --- Win Condition Logic ---
     if (player.hand.length === 0) {
-      room.status = 'FINISHED';
-      // Broadcast winner
-      const finalState = getPublicState(room);
-      finalState.winnerId = player.id;
-      io.to(roomId).emit('game_state', finalState);
-      return;
+      // Mark as finished
+      player.finishedRank = room.finishedPlayers.length + 1;
+      room.finishedPlayers.push(player.id);
+      
+      // Check if Game Over (Only 1 player left or 0 players left)
+      const activePlayers = room.players.filter(p => p.hand.length > 0);
+      
+      if (activePlayers.length <= 1) {
+          // If 1 player left, they are last place
+          if (activePlayers.length === 1) {
+              const loser = activePlayers[0];
+              loser.finishedRank = room.players.length;
+              room.finishedPlayers.push(loser.id);
+          }
+          
+          room.status = 'FINISHED';
+          io.to(roomId).emit('game_state', getPublicState(room));
+          return;
+      }
+      
+      // Game continues...
     }
 
-    // Next turn logic
-    let nextIndex = (room.currentPlayerIndex + 1) % room.players.length;
-    let loopCount = 0;
+    // Determine next active player
+    const nextIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex);
+    const nextPlayer = room.players[nextIndex];
+
+    // If we looped all the way back to the person who played last, or if everyone else has passed
+    // But wait: if the person who played last (lastPlayerToPlayId) is FINISHED, they can't start the new round.
+    // If lastPlayerToPlayId is finished, and everyone else active has passed...
     
-    while (room.players[nextIndex].hasPassed && loopCount < room.players.length) {
-      nextIndex = (nextIndex + 1) % room.players.length;
-      loopCount++;
-    }
-
-    if (room.players[nextIndex].id === room.lastPlayerToPlayId) {
-        room.currentPlayPile = [];
-        room.players.forEach(p => p.hasPassed = false);
-        room.currentPlayerIndex = nextIndex;
-    } else {
-        room.currentPlayerIndex = nextIndex;
-    }
+    // Logic: get list of active players who haven't passed.
+    const potentialPlayers = room.players.filter(p => p.hand.length > 0 && !p.hasPassed);
+    
+    // If no one can play (empty list), the round is over.
+    // But this shouldn't happen immediately after a play unless it's a new logic.
+    // Standard: I play. Next person's turn. 
+    
+    room.currentPlayerIndex = nextIndex;
 
     io.to(roomId).emit('game_state', getPublicState(room));
     io.to(player.socketId).emit('player_hand', player.hand);
@@ -464,24 +506,58 @@ io.on('connection', (socket: Socket) => {
 
     player.hasPassed = true;
 
-    let nextIndex = (room.currentPlayerIndex + 1) % room.players.length;
-    let loopCount = 0;
-
-    while (room.players[nextIndex].hasPassed && loopCount < room.players.length) {
-       nextIndex = (nextIndex + 1) % room.players.length;
-       loopCount++;
-    }
-
-    if (room.players[nextIndex].id === room.lastPlayerToPlayId || loopCount >= room.players.length) {
-        // Round winner (person who played last valid hand) starts new round
-        // Find index of last player
-        const winnerIndex = room.players.findIndex(p => p.id === room.lastPlayerToPlayId);
-        room.currentPlayerIndex = winnerIndex !== -1 ? winnerIndex : nextIndex;
+    // Find next potential player
+    let nextIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex);
+    let nextPlayer = room.players[nextIndex];
+    
+    // Check if the Round is Over
+    // The round is over if 'nextPlayer' is the person who played the last valid set.
+    // OR if everyone active has passed.
+    
+    // Check if everyone except one person has passed? 
+    // Or simpler: Check if we are back to 'lastPlayerToPlayId'
+    
+    const lastPlayerPlayed = room.players.find(p => p.id === room.lastPlayerToPlayId);
+    
+    // Scenario 1: The person who played last is still in the game.
+    // If we rotate back to them, they win the round.
+    if (lastPlayerPlayed && lastPlayerPlayed.hand.length > 0) {
+        if (nextPlayer.id === room.lastPlayerToPlayId) {
+            // They win the round.
+            room.currentPlayPile = [];
+            room.players.forEach(p => p.hasPassed = false);
+            room.currentPlayerIndex = room.players.findIndex(p => p.id === room.lastPlayerToPlayId);
+        } else {
+            room.currentPlayerIndex = nextIndex;
+        }
+    } 
+    // Scenario 2: The person who played last is FINISHED.
+    else {
+        // If everyone currently active has passed, the round is over.
+        // We check if there are ANY active players who have NOT passed.
+        const activeNonPassed = room.players.filter(p => p.hand.length > 0 && !p.hasPassed);
         
-        room.currentPlayPile = [];
-        room.players.forEach(p => p.hasPassed = false);
-    } else {
-        room.currentPlayerIndex = nextIndex;
+        if (activeNonPassed.length === 0) {
+            // Round over. The person who played the finishing move "won" the round, 
+            // but they are gone. So the person sitting to their right (next in rotation) starts.
+            // We need to find the next active player relative to the 'lastPlayerToPlayId' index.
+            
+            // Find index of the finished player who played last
+            const lastIdx = room.players.findIndex(p => p.id === room.lastPlayerToPlayId);
+            
+            // Find next active player after them
+            let newLeaderIndex = (lastIdx + 1) % room.players.length;
+            while (room.players[newLeaderIndex].hand.length === 0) {
+                newLeaderIndex = (newLeaderIndex + 1) % room.players.length;
+            }
+            
+            room.currentPlayPile = [];
+            room.players.forEach(p => p.hasPassed = false);
+            room.currentPlayerIndex = newLeaderIndex;
+        } else {
+            // There are still people fighting for the round
+            room.currentPlayerIndex = nextIndex;
+        }
     }
 
     io.to(roomId).emit('game_state', getPublicState(room));

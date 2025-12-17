@@ -1,32 +1,66 @@
 import React from 'react';
 import { Card, CardCoverStyle } from './Card';
+import { BackgroundTheme } from '../types';
 
 interface SettingsModalProps {
   onClose: () => void;
   onExitGame: () => void;
   currentCoverStyle: CardCoverStyle;
   onChangeCoverStyle: (style: CardCoverStyle) => void;
+  currentTheme: BackgroundTheme;
+  onChangeTheme: (theme: BackgroundTheme) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
   onClose, 
   onExitGame,
   currentCoverStyle,
-  onChangeCoverStyle 
+  onChangeCoverStyle,
+  currentTheme,
+  onChangeTheme
 }) => {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
       <div 
-        className="bg-gray-900 border-2 border-yellow-600/50 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl flex flex-col" 
+        className="bg-gray-900 border-2 border-white/10 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl flex flex-col" 
         onClick={e => e.stopPropagation()}
       >
         <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gradient-to-r from-gray-900 to-gray-800">
-          <h2 className="text-yellow-400 font-bold text-xl tracking-wider uppercase">Settings</h2>
+          <h2 className="text-white font-bold text-xl tracking-wider uppercase">Settings</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors text-xl font-bold px-2">✕</button>
         </div>
         
-        <div className="p-6 space-y-8 bg-gray-900/95">
+        <div className="p-6 space-y-6 bg-gray-900/95 max-h-[80vh] overflow-y-auto">
           
+          {/* Theme Selector */}
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-400 mb-4 tracking-wide text-center">Arena Theme</label>
+            <div className="grid grid-cols-3 gap-3">
+               {[
+                 { id: 'GREEN', name: 'Forest', color: 'bg-green-900' },
+                 { id: 'CYBER_BLUE', name: 'Cyber', color: 'bg-blue-900' },
+                 { id: 'CRIMSON_VOID', name: 'Crimson', color: 'bg-red-900' }
+               ].map((theme) => (
+                 <button 
+                    key={theme.id}
+                    onClick={() => onChangeTheme(theme.id as BackgroundTheme)}
+                    className={`
+                      relative h-16 rounded-xl border-2 transition-all overflow-hidden group
+                      ${currentTheme === theme.id ? 'border-white ring-2 ring-white/20 scale-105' : 'border-white/10 opacity-60 hover:opacity-100'}
+                    `}
+                 >
+                    <div className={`absolute inset-0 ${theme.color} opacity-80`}></div>
+                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-30"></div>
+                    <span className="relative z-10 text-[10px] font-black uppercase tracking-widest text-white shadow-black drop-shadow-md">
+                      {theme.name}
+                    </span>
+                 </button>
+               ))}
+            </div>
+          </div>
+
+          <div className="border-t border-gray-800"></div>
+
           {/* Card Style Selector */}
           <div>
             <label className="block text-xs font-bold uppercase text-gray-400 mb-4 tracking-wide text-center">Card Deck Style</label>
@@ -43,7 +77,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          <div className="border-t border-gray-800 my-4"></div>
+          <div className="border-t border-gray-800"></div>
 
           {/* Exit Game */}
           <div>

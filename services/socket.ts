@@ -14,7 +14,6 @@ export const connectSocket = () => {
 };
 
 export const disconnectSocket = () => {
-  if (socket.connected) {
-    socket.disconnect();
-  }
+  // Always call disconnect to ensure pending connection attempts are aborted
+  socket.disconnect();
 };

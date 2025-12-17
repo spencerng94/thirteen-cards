@@ -37,6 +37,7 @@ export interface Player {
   isHost: boolean;
   isTurn?: boolean;
   hasPassed?: boolean;
+  finishedRank?: number | null; // 1 = 1st, 2 = 2nd, etc. Null if still playing.
 }
 
 export enum GameStatus {
@@ -58,7 +59,8 @@ export interface GameState {
   currentPlayerId: string | null;
   currentPlayPile: PlayTurn[]; // History of the current round
   lastPlayerToPlayId: string | null;
-  winnerId: string | null;
+  winnerId: string | null; // Kept for backward compat, but logic relies on players.finishedRank now
+  finishedPlayers: string[]; // Array of player IDs in order of finishing
   isFirstTurnOfGame?: boolean;
 }
 
@@ -73,3 +75,5 @@ export enum SocketEvents {
   PLAYER_HAND = 'player_hand', // Private event for receiving cards
   ERROR = 'error'
 }
+
+export type BackgroundTheme = 'GREEN' | 'CYBER_BLUE' | 'CRIMSON_VOID';

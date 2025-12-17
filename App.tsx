@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
-import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit } from './types';
+import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme } from './types';
 import { GameTable } from './components/GameTable';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { Lobby } from './components/Lobby';
@@ -19,6 +19,8 @@ const App: React.FC = () => {
   const [playerAvatar, setPlayerAvatar] = useState('😎');
   const [gameMode, setGameMode] = useState<GameMode>(null);
   const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('BLUE');
+  const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('GREEN');
+  const [initialRoomCode, setInitialRoomCode] = useState<string | null>(null);
   
   // Multiplayer State
   const [connected, setConnected] = useState(false);
@@ -31,6 +33,22 @@ const App: React.FC = () => {
   const [spOpponentHands, setSpOpponentHands] = useState<Record<string, Card[]>>({});
   
   const [error, setError] = useState<string | null>(null);
+
+  // --- Initial URL Parse (Share Link) ---
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (room && room.length === 4) {
+      setInitialRoomCode(room.toUpperCase());
+    }
+  }, []);
+
+  // --- Safety Redirect for Invalid Game State ---
+  useEffect(() => {
+    if (view === 'GAME_TABLE' && !gameMode) {
+      setView('WELCOME');
+    }
+  }, [view, gameMode]);
 
   // --- Multiplayer Setup ---
   useEffect(() => {
@@ -98,8 +116,8 @@ const App: React.FC = () => {
 
     // Map hands to players based on fixed slots
     const players: Player[] = [
-      { id: myId, name: name, avatar: avatar, cardCount: 13, isHost: true, hasPassed: false },
-      ...bots.map((b) => ({ id: b.id, name: b.name, avatar: b.avatar, cardCount: 13, isHost: false, hasPassed: false }))
+      { id: myId, name: name, avatar: avatar, cardCount: 13, isHost: true, hasPassed: false, finishedRank: null },
+      ...bots.map((b) => ({ id: b.id, name: b.name, avatar: b.avatar, cardCount: 13, isHost: false, hasPassed: false, finishedRank: null }))
     ];
 
     setSpMyHand(hands[0]);
@@ -119,6 +137,7 @@ const App: React.FC = () => {
       currentPlayPile: [],
       lastPlayerToPlayId: null,
       winnerId: null,
+      finishedPlayers: [],
       isFirstTurnOfGame: true
     });
     
@@ -130,7 +149,7 @@ const App: React.FC = () => {
     if (gameMode !== 'SINGLE_PLAYER' || !spGameState || spGameState.status !== GameStatus.PLAYING) return;
     
     const currentPlayer = spGameState.players.find(p => p.id === spGameState.currentPlayerId);
-    if (currentPlayer && currentPlayer.id.startsWith('bot-')) {
+    if (currentPlayer && currentPlayer.id.startsWith('bot-') && !currentPlayer.finishedRank) {
       const timer = setTimeout(() => {
         handleBotTurn(currentPlayer.id);
       }, 1000 + Math.random() * 1000); // Randomized delay
@@ -140,6 +159,8 @@ const App: React.FC = () => {
 
   const handleBotTurn = (botId: string) => {
     const hand = spOpponentHands[botId];
+    if (!hand || hand.length === 0) return; // Should not happen if filtered correctly
+
     const move = findBestMove(hand, spGameState!.currentPlayPile, spGameState!.isFirstTurnOfGame);
 
     if (move) {
@@ -164,25 +185,55 @@ const App: React.FC = () => {
 
     // Update Hand
     let newHandCount = 0;
+    let handIsEmpty = false;
+
     if (playerId === 'player-me') {
        const newHand = spMyHand.filter(c => !cards.some(played => played.id === c.id));
        setSpMyHand(newHand);
        newHandCount = newHand.length;
+       if (newHandCount === 0) handIsEmpty = true;
     } else {
        const newHand = spOpponentHands[playerId].filter(c => !cards.some(played => played.id === c.id));
        setSpOpponentHands(prev => ({ ...prev, [playerId]: newHand }));
        newHandCount = newHand.length;
+       if (newHandCount === 0) handIsEmpty = true;
     }
 
-    // Check Win
-    if (newHandCount === 0) {
-      setSpGameState(prev => ({
-        ...prev!,
-        status: GameStatus.FINISHED,
-        winnerId: playerId
-      }));
-      setView('VICTORY');
-      return;
+    // Prepare Update Data
+    let updatedPlayers = spGameState.players.map(p => 
+        p.id === playerId ? { ...p, cardCount: newHandCount } : p
+    );
+    let updatedFinishedPlayers = [...spGameState.finishedPlayers];
+
+    // Check Finished Status
+    if (handIsEmpty) {
+        updatedFinishedPlayers.push(playerId);
+        updatedPlayers = updatedPlayers.map(p => 
+            p.id === playerId ? { ...p, finishedRank: updatedFinishedPlayers.length } : p
+        );
+
+        // Check Game Over (0 or 1 active player left)
+        const activeCount = updatedPlayers.filter(p => !p.finishedRank).length;
+        if (activeCount <= 1) {
+             // Assign last place if needed
+             if (activeCount === 1) {
+                 updatedPlayers = updatedPlayers.map(p => {
+                     if (!p.finishedRank) {
+                         return { ...p, finishedRank: updatedPlayers.length };
+                     }
+                     return p;
+                 });
+             }
+             
+             setSpGameState(prev => ({
+                 ...prev!,
+                 status: GameStatus.FINISHED,
+                 players: updatedPlayers,
+                 finishedPlayers: updatedFinishedPlayers
+             }));
+             setView('VICTORY');
+             return;
+        }
     }
 
     // Create Play Entry
@@ -192,17 +243,16 @@ const App: React.FC = () => {
         comboType: getComboType(cards)
     };
 
-    // Update State
-    const updatedPlayers = spGameState.players.map(p => 
-      p.id === playerId ? { ...p, cardCount: newHandCount } : p
-    );
+    // Determine Next Player
+    const nextPlayerId = getNextActivePlayerId({ ...spGameState, players: updatedPlayers }, playerId);
 
     setSpGameState(prev => ({
         ...prev!,
         players: updatedPlayers,
         currentPlayPile: [...prev!.currentPlayPile, playEntry],
-        currentPlayerId: getNextPlayerId(prev!, playerId),
+        currentPlayerId: nextPlayerId,
         lastPlayerToPlayId: playerId,
+        finishedPlayers: updatedFinishedPlayers,
         isFirstTurnOfGame: false // Clear flag after any valid play
     }));
   };
@@ -214,15 +264,43 @@ const App: React.FC = () => {
       p.id === playerId ? { ...p, hasPassed: true } : p
     );
 
-    let nextPlayerId = getNextPlayerId({ ...spGameState, players: updatedPlayers }, playerId);
+    let nextPlayerId = getNextActivePlayerId({ ...spGameState, players: updatedPlayers }, playerId);
     let nextStatePlayers = updatedPlayers;
     let nextPlayPile = spGameState.currentPlayPile;
+    
+    // Check if the round is over
+    // 1. If nextPlayerId IS the lastPlayerToPlayId (wrapped around to winner)
+    // 2. OR if everyone active has passed (and last player is gone)
+    
+    // Simple check: Find last player to play
+    const lastPlayer = spGameState.players.find(p => p.id === spGameState.lastPlayerToPlayId);
+    
+    let roundOver = false;
+    let newLeaderId = nextPlayerId;
 
-    // Logic: If next player is the one who last played (everyone else passed)
-    if (nextPlayerId === spGameState.lastPlayerToPlayId) {
-        // Reset round
+    if (lastPlayer && !lastPlayer.finishedRank) {
+        // If last player is still here, they win if it gets back to them
+        if (nextPlayerId === spGameState.lastPlayerToPlayId) {
+            roundOver = true;
+        }
+    } else {
+        // Last player is gone. Check if everyone active has passed.
+        const activeNonPassed = updatedPlayers.filter(p => !p.finishedRank && !p.hasPassed);
+        if (activeNonPassed.length === 0) {
+            roundOver = true;
+            // The person to the left of the last finisher starts
+            // (In our simpler logic: getNextActivePlayerId relative to lastPlayerToPlayId)
+            if (spGameState.lastPlayerToPlayId) {
+                newLeaderId = getNextActivePlayerId({ ...spGameState, players: updatedPlayers }, spGameState.lastPlayerToPlayId);
+            }
+        }
+    }
+
+    if (roundOver) {
         nextPlayPile = [];
         nextStatePlayers = nextStatePlayers.map(p => ({ ...p, hasPassed: false }));
+        // If round is over, the winner (or next active) leads
+        nextPlayerId = newLeaderId;
     }
 
     setSpGameState(prev => ({
@@ -233,13 +311,17 @@ const App: React.FC = () => {
     }));
   };
 
-  const getNextPlayerId = (state: GameState, currentId: string): string => {
+  // SP Helper
+  const getNextActivePlayerId = (state: GameState, currentId: string): string => {
     const idx = state.players.findIndex(p => p.id === currentId);
     let nextIdx = (idx + 1) % state.players.length;
     let loopCount = 0;
 
-    // Find next non-passed player
-    while (state.players[nextIdx].hasPassed && loopCount < state.players.length) {
+    // Find next player who is NOT finished and HAS NOT passed
+    while (
+        (!!state.players[nextIdx].finishedRank || state.players[nextIdx].hasPassed) 
+        && loopCount < state.players.length
+    ) {
       nextIdx = (nextIdx + 1) % state.players.length;
       loopCount++;
     }
@@ -277,9 +359,23 @@ const App: React.FC = () => {
     if (gameMode === 'MULTI_PLAYER') {
       disconnectSocket();
     }
+    // Explicitly reset connection state to UI responsiveness
+    setConnected(false);
+
+    // Batch updates where possible (React 18 does this automatically)
     setSpGameState(null);
     setMpGameState(null);
     setGameMode(null);
+    setInitialRoomCode(null);
+    
+    // Clear URL params
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (e) {
+      console.warn("Navigation failed, likely due to sandboxed environment:", e);
+    }
+    
+    // Force view to welcome
     setView('WELCOME');
   };
 
@@ -302,6 +398,16 @@ const App: React.FC = () => {
   // --- Render View Content ---
 
   const renderContent = () => {
+    // Safety check: if we are supposed to be at game table but data is missing or mode is null, go home
+    if (view === 'GAME_TABLE' && !gameMode) {
+      return (
+         <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white gap-4">
+             <div className="w-10 h-10 border-2 border-white/20 border-t-yellow-500 rounded-full animate-spin"></div>
+             <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Exiting...</span>
+         </div>
+      );
+    }
+
     if (view === 'WELCOME') {
         return <WelcomeScreen onStart={handleStart} />;
     }
@@ -338,20 +444,26 @@ const App: React.FC = () => {
             </div>
           );
         }
-        // Pass error as null to suppress inline error in Lobby, since we use the global toast now
-        return <Lobby playerName={playerName} gameState={mpGameState} error={null} playerAvatar={playerAvatar} />;
+        return (
+          <Lobby 
+            playerName={playerName} 
+            gameState={mpGameState} 
+            error={null} 
+            playerAvatar={playerAvatar}
+            initialRoomCode={initialRoomCode}
+            backgroundTheme={backgroundTheme}
+            onBack={handleGoHome}
+          />
+        );
     }
 
     if (view === 'VICTORY') {
         const state = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
-        const winner = state?.players.find(p => p.id === state.winnerId);
-        const winnerName = winner?.name || 'Unknown';
-        const isMe = state?.winnerId === (gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me');
-        
+        // Pass all players to Victory Screen for Leaderboard
         return (
             <VictoryScreen 
-                winnerName={winnerName} 
-                isMe={isMe} 
+                players={state?.players || []}
+                myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'}
                 onPlayAgain={handlePlayAgain}
                 onGoHome={handleGoHome}
             />
@@ -363,7 +475,16 @@ const App: React.FC = () => {
         const hand = gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand;
         const myId = gameMode === 'MULTI_PLAYER' ? (socket.id || '') : 'player-me';
 
-        if (!state) return <div className="min-h-screen flex items-center justify-center bg-black text-white">Loading Game...</div>;
+        // Check if state is invalid, if so show loading or redirect
+        if (!state) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white gap-4">
+                 <div className="w-10 h-10 border-2 border-white/20 border-t-yellow-500 rounded-full animate-spin"></div>
+                 <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Loading Game...</span>
+                 <button onClick={handleGoHome} className="text-xs text-red-400 hover:text-red-300 underline">Cancel</button>
+              </div>
+            );
+        }
 
         return (
           <GameTable 
@@ -375,6 +496,8 @@ const App: React.FC = () => {
             cardCoverStyle={cardCoverStyle}
             onChangeCoverStyle={setCardCoverStyle}
             onExitGame={handleGoHome}
+            backgroundTheme={backgroundTheme}
+            onChangeBackgroundTheme={setBackgroundTheme}
           />
         );
     }

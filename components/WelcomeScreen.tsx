@@ -5,7 +5,6 @@ interface WelcomeScreenProps {
   onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER', coverStyle: CardCoverStyle, avatar: string) => void;
 }
 
-// Reduced list to prevent excessive scrolling
 const AVATARS = [
   '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', 
   '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦄',
@@ -17,27 +16,34 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-900 via-black to-black text-white flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white/5 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-yellow-600">
-        <h1 className="text-4xl md:text-5xl font-extrabold text-center mb-1 text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-md">Tiến Lên</h1>
-        <p className="text-center text-gray-400 mb-6 tracking-widest uppercase text-xs">The Ultimate Card Game</p>
+    <div className="min-h-screen w-full bg-[#050505] relative overflow-hidden flex flex-col items-center justify-center p-4">
+      {/* Background Gradients */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-96 bg-green-900/20 blur-[100px] rounded-full pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+
+      <div className="max-w-md w-full bg-black/40 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative z-10">
+        
+        <div className="text-center mb-8">
+            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 drop-shadow-lg tracking-tighter">Tiến Lên</h1>
+            <p className="text-center text-green-500/80 font-bold uppercase text-[10px] tracking-[0.3em]">Ultimate Card Arena</p>
+        </div>
 
         <div className="space-y-6">
           {/* Avatar Selection */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-2 tracking-wide text-center">Choose Avatar</label>
-            <div className="bg-black/30 p-3 rounded-xl border border-white/5">
-                <div className="flex justify-center mb-3">
-                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-4xl shadow-lg border-2 border-white/20 animate-bounce">
+            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-2 tracking-widest text-center">Identity</label>
+            <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
+                <div className="flex justify-center mb-4">
+                    <div className="w-20 h-20 bg-gradient-to-br from-white/10 to-transparent rounded-full flex items-center justify-center text-4xl shadow-inner border border-white/10 animate-bounce">
                         {selectedAvatar}
                     </div>
                 </div>
-                <div className="grid grid-cols-5 gap-2 pr-1">
+                <div className="grid grid-cols-5 gap-2">
                     {AVATARS.map((avatar) => (
                         <button
                             key={avatar}
                             onClick={() => setSelectedAvatar(avatar)}
-                            className={`aspect-square flex items-center justify-center rounded-lg text-xl hover:bg-white/10 transition-colors ${selectedAvatar === avatar ? 'bg-white/20 ring-1 ring-yellow-400' : ''}`}
+                            className={`aspect-square flex items-center justify-center rounded-xl text-xl hover:bg-white/10 transition-colors ${selectedAvatar === avatar ? 'bg-white/10 ring-1 ring-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : ''}`}
                         >
                             {avatar}
                         </button>
@@ -48,25 +54,25 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
           {/* Name Input */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-2 tracking-wide">Player Name</label>
+            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-2 tracking-widest">Player Handle</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-black/40 border border-gray-700 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 focus:outline-none text-white placeholder-gray-600 transition-all font-bold"
-              placeholder="Enter your name"
+              className="w-full px-4 py-3 rounded-xl bg-black/50 border border-white/10 focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 focus:outline-none text-white placeholder-gray-700 transition-all font-bold tracking-wide"
+              placeholder="ENTER NAME"
             />
           </div>
 
           {/* Card Style Selector */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-3 tracking-wide text-center">Choose Card Style</label>
+            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-3 tracking-widest text-center">Deck Aesthetic</label>
             <div className="flex justify-center gap-4">
                {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
                  <div 
                     key={style}
                     onClick={() => setCoverStyle(style)}
-                    className={`cursor-pointer transition-transform hover:scale-105 ${coverStyle === style ? 'ring-4 ring-yellow-500 rounded-xl scale-105' : 'opacity-70 hover:opacity-100'}`}
+                    className={`cursor-pointer transition-transform hover:scale-105 ${coverStyle === style ? 'ring-2 ring-green-500 rounded-xl scale-105 shadow-lg shadow-green-900/50' : 'opacity-50 hover:opacity-100'}`}
                  >
                    <Card faceDown coverStyle={style} small className="!w-12 !h-16" />
                  </div>
@@ -78,17 +84,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
           <div className="flex flex-col gap-3 mt-8">
              <button
               onClick={() => onStart(name || 'Guest', 'MULTI_PLAYER', coverStyle, selectedAvatar)}
-              className="group w-full py-3 md:py-4 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-extrabold text-lg rounded-xl shadow-[0_4px_0_rgb(161,98,7)] active:shadow-none active:translate-y-1 transition-all"
+              className="group w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
             >
-              MULTIPLAYER
-              <span className="block text-[10px] font-normal opacity-70 group-hover:opacity-100">Join friends online</span>
+              Enter Multiplayer
             </button>
             <button
               onClick={() => onStart(name || 'Guest', 'SINGLE_PLAYER', coverStyle, selectedAvatar)}
-              className="group w-full py-3 md:py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-extrabold text-lg rounded-xl shadow-[0_4px_0_rgb(21,128,61)] active:shadow-none active:translate-y-1 transition-all"
+              className="group w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-all"
             >
-              SINGLE PLAYER
-              <span className="block text-[10px] font-normal opacity-70 group-hover:opacity-100">Practice vs AI</span>
+              Practice vs Bots
             </button>
           </div>
         </div>
