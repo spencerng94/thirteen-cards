@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GameState, SocketEvents, BackgroundTheme } from '../types';
 import { socket } from '../services/socket';
-import { AdPlaceholder } from './AdPlaceholder';
+import { AdBanner } from './AdBanner';
 
 interface LobbyProps {
   playerName: string;
@@ -167,7 +167,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                 ))}
             </div>
             
-            <AdPlaceholder />
+            <AdBanner />
 
             {/* Actions */}
             <div className="mt-2 flex flex-col gap-2">

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Player } from '../types';
-import { AdPlaceholder } from './AdPlaceholder';
+import { AdBanner } from './AdBanner';
 
 interface VictoryScreenProps {
   players: Player[]; // Full list of players to show leaderboard
@@ -81,7 +81,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onP
             ))}
         </div>
 
-        <AdPlaceholder />
+        <AdBanner />
 
         <div className="flex flex-col gap-3">
           <button 
