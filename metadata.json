@@ -1,0 +1,5 @@
+{
+  "name": "Tien Len - 13",
+  "description": "A real-time multiplayer implementation of the Vietnamese card game '13' (Tiến Lên) featuring 3 and 4 player scaling.",
+  "requestFramePermissions": []
+}
