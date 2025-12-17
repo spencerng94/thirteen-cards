@@ -40,9 +40,13 @@ interface GameRoom {
 
 const app = express();
 const httpServer = createServer(app);
+
+// Use environment variable for CORS origin
+const corsOrigin = process.env.FRONTEND_URL || "*";
+
 const io = new Server(httpServer, {
   cors: {
-    origin: "*", // Allow all for prototype
+    origin: corsOrigin, 
     methods: ["GET", "POST"]
   }
 });
