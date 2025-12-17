@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
@@ -41,13 +42,21 @@ interface GameRoom {
 const app = express();
 const httpServer = createServer(app);
 
-// Use environment variable for CORS origin
-const corsOrigin = process.env.FRONTEND_URL || "*";
+// Use environment variable for CORS origin with local fallback
+const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
+
+// Configure Express CORS
+app.use(cors({
+  origin: allowedOrigin,
+  methods: ["GET", "POST"],
+  credentials: true
+}));
 
 const io = new Server(httpServer, {
   cors: {
-    origin: corsOrigin, 
-    methods: ["GET", "POST"]
+    origin: allowedOrigin, 
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 

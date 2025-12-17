@@ -278,10 +278,6 @@ export const GameTable: React.FC<GameTableProps> = ({
                     <div className="w-12 h-12 md:w-14 md:h-14 bg-black/40 rounded-full flex items-center justify-center text-2xl md:text-3xl border border-white/20 shadow-inner overflow-hidden">
                         {player.avatar || '😊'}
                     </div>
-                    {/* Card count badge */}
-                    <div className="absolute -top-1 -right-1 w-5 h-5 md:w-6 md:h-6 bg-red-600 rounded-full text-[10px] md:text-xs font-bold flex items-center justify-center border border-gray-900 text-white shadow-md">
-                        {player.cardCount}
-                    </div>
                 </div>
                 
                 <div className="text-white font-bold text-xs md:text-sm tracking-wide max-w-[70px] md:max-w-[80px] truncate text-center">{player.name}</div>
@@ -293,25 +289,30 @@ export const GameTable: React.FC<GameTableProps> = ({
                 )}
              </div>
              
-             {/* Opponent Hand Visual (Small Icons for side players on mobile) */}
-             <div className={`flex -space-x-8 md:-space-x-12 opacity-100 filter drop-shadow-lg scale-90 md:scale-100 origin-center ${pos !== 'top' ? 'hidden md:flex' : 'flex'}`}>
-               {Array.from({ length: Math.min(player.cardCount, 5) }).map((_, i) => (
-                 <div key={i} className="transform transition-transform hover:-translate-y-2">
-                     <Card faceDown coverStyle={cardCoverStyle} small className="!w-10 !h-14 md:!w-12 md:!h-16" />
-                 </div>
-               ))}
-               {player.cardCount > 5 && (
-                   <div className="w-10 h-14 md:w-12 md:h-16 flex items-center justify-center text-white text-xs font-bold bg-black/50 rounded-xl ml-4 backdrop-blur-sm border border-white/10">
-                       +{player.cardCount - 5}
-                   </div>
-               )}
+             {/* Simplified Opponent Hand Visual - Space Efficient */}
+             <div className="relative">
+                <div className="relative group">
+                    {/* Visual stack hint for depth */}
+                    {player.cardCount > 1 && (
+                         <div className="absolute top-0.5 left-1 rotate-6 w-full h-full opacity-60">
+                            <Card faceDown coverStyle={cardCoverStyle} small className="!w-8 !h-11 md:!w-10 md:!h-14 bg-black/50" />
+                         </div>
+                    )}
+                    
+                    {/* Main Card Icon */}
+                    <Card 
+                        faceDown 
+                        coverStyle={cardCoverStyle} 
+                        small 
+                        className="!w-8 !h-11 md:!w-10 md:!h-14 shadow-lg ring-1 ring-white/10" 
+                    />
+                    
+                    {/* Count Badge */}
+                    <div className="absolute -bottom-2 -right-2 md:-bottom-3 md:-right-3 w-5 h-5 md:w-6 md:h-6 bg-yellow-500 text-black text-[10px] md:text-xs font-black rounded-full flex items-center justify-center border-2 border-gray-900 shadow-xl z-20">
+                        {player.cardCount}
+                    </div>
+                </div>
              </div>
-
-             {/* Mobile Only: Simplified Pile for Left/Right Players to save space */}
-              <div className={`md:hidden flex flex-col items-center justify-center bg-black/20 rounded p-1 border border-white/5 ${pos === 'top' ? 'hidden' : 'block'}`}>
-                   <Card faceDown coverStyle={cardCoverStyle} small className="!w-8 !h-10" />
-                   <span className="text-[10px] font-bold text-gray-400 mt-0.5">x{player.cardCount}</span>
-              </div>
           </div>
         );
       })}
