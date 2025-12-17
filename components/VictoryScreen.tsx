@@ -28,8 +28,15 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onP
           case 1: return '🏆';
           case 2: return '🥈';
           case 3: return '🥉';
-          default: return '💩';
+          default: return '🏁';
       }
+  };
+
+  const getOrdinalLabel = (rank: number) => {
+    if (rank === 1) return 'Winner';
+    if (rank === 2) return '2nd Place';
+    if (rank === 3) return '3rd Place';
+    return `${rank}th Place`;
   };
 
   return (
@@ -61,24 +68,27 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onP
 
         {/* Leaderboard */}
         <div className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-            {sortedPlayers.map((p, idx) => (
-                <div 
-                    key={p.id} 
-                    className={`flex items-center justify-between p-4 border-b border-white/5 last:border-0 ${p.id === myId ? 'bg-white/10' : ''}`}
-                >
-                    <div className="flex items-center gap-4">
-                        <span className="text-2xl">{getMedal(idx + 1)}</span>
-                        <div className="flex flex-col items-start">
-                            <span className={`font-bold ${p.id === myId ? 'text-green-400' : 'text-white'}`}>
-                                {p.name} {p.id === myId && '(You)'}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="text-xs font-mono text-gray-400 uppercase tracking-widest">
-                        {idx === 0 ? 'Winner' : `${idx + 1} Place`}
-                    </div>
-                </div>
-            ))}
+            {sortedPlayers.map((p, idx) => {
+                const rank = idx + 1;
+                return (
+                  <div 
+                      key={p.id} 
+                      className={`flex items-center justify-between p-4 border-b border-white/5 last:border-0 ${p.id === myId ? 'bg-white/10' : ''}`}
+                  >
+                      <div className="flex items-center gap-4">
+                          <span className="text-2xl">{getMedal(rank)}</span>
+                          <div className="flex flex-col items-start">
+                              <span className={`font-bold ${p.id === myId ? 'text-green-400' : 'text-white'}`}>
+                                  {p.name} {p.id === myId && '(You)'}
+                              </span>
+                          </div>
+                      </div>
+                      <div className="text-xs font-mono text-gray-400 uppercase tracking-widest">
+                          {getOrdinalLabel(rank)}
+                      </div>
+                  </div>
+                );
+            })}
         </div>
 
         <AdBanner />

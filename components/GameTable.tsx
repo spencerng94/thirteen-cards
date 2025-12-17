@@ -86,12 +86,17 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   // Bomb Effect Detector
   useEffect(() => {
-    if (lastPlayedMove) {
-      if (['QUAD', '3_PAIRS', '4_PAIRS'].includes(lastPlayedMove.comboType)) {
-        setBombEffect("BOMB!");
-        const timer = setTimeout(() => setBombEffect(null), 2000);
-        return () => clearTimeout(timer);
-      }
+    if (lastPlayedMove && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(lastPlayedMove.comboType)) {
+      setBombEffect("BOMB!");
+      const timer = setTimeout(() => {
+        setBombEffect(null);
+      }, 2000);
+      return () => {
+        clearTimeout(timer);
+      };
+    } else {
+      // If a non-bomb move is played, immediately hide any lingering bomb effect
+      setBombEffect(null);
     }
   }, [lastPlayedMove]);
 
