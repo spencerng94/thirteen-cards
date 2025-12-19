@@ -179,11 +179,22 @@ export const Lobby: React.FC<LobbyProps> = ({
                 {gameState.players.map((p) => (
                     <div key={p.id} className="relative group">
                         <div className={`
-                            flex flex-col items-center p-5 rounded-[2rem] border transition-all duration-500 h-full
+                            relative flex flex-col items-center p-5 rounded-[2rem] border transition-all duration-500 h-full
                             ${p.id === socket.id 
                                 ? 'bg-white/[0.05] border-yellow-500/20 shadow-[0_15px_30px_rgba(0,0,0,0.3)]' 
                                 : 'bg-black/30 border-white/5'}
                         `}>
+                             {/* Remove Bot Button - Positioned in the absolute top-right of the card */}
+                             {p.isBot && isHost && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); removeBot(p.id); }}
+                                    className="absolute top-3 right-3 w-7 h-7 rounded-full bg-red-600/90 text-white flex items-center justify-center border border-white/20 shadow-xl hover:bg-red-500 active:scale-90 transition-all z-20"
+                                    title="Remove Bot"
+                                >
+                                    <span className="text-xs font-black">✕</span>
+                                </button>
+                             )}
+
                              <div className="relative mb-4">
                                  {/* Avatar Orbital Glow */}
                                  <div className={`absolute inset-[-10px] blur-xl rounded-full opacity-0 group-hover:opacity-20 transition-opacity ${p.isBot ? 'bg-emerald-500' : 'bg-yellow-500'}`}></div>
@@ -197,17 +208,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                                  )}
                                  {p.isBot && (
                                      <div className="absolute -top-1 -right-2 bg-gradient-to-br from-emerald-500 to-teal-700 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-[0_4px_10px_rgba(16,185,129,0.3)] ring-2 ring-black/50">CPU</div>
-                                 )}
-
-                                 {/* Remove Bot Button - Positioned in top-right */}
-                                 {p.isBot && isHost && (
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); removeBot(p.id); }}
-                                        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-red-600 text-white flex items-center justify-center border-2 border-black shadow-xl hover:bg-red-500 active:scale-90 transition-all z-20"
-                                        title="Remove Bot"
-                                    >
-                                        <span className="text-xs font-black">✕</span>
-                                    </button>
                                  )}
                              </div>
 
