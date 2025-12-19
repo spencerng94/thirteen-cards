@@ -1,4 +1,3 @@
-
 // Import useState from react
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
@@ -21,6 +20,29 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [quickFinish, setQuickFinish] = useState(false);
   const [difficulty, setDifficulty] = useState<AiDifficulty>('MEDIUM');
 
+  const SectionHeader = ({ children }: { children: React.ReactNode }) => (
+    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-400 flex items-center justify-center gap-3 mb-4">
+      <span className="w-12 h-[1px] bg-yellow-400/30"></span>
+      {children}
+      <span className="w-12 h-[1px] bg-yellow-400/30"></span>
+    </p>
+  );
+
+  const getDifficultyStyles = (d: AiDifficulty, active: boolean) => {
+    if (!active) return "text-gray-500 hover:text-gray-300";
+    
+    switch (d) {
+      case 'EASY':
+        return "bg-green-600 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)]";
+      case 'MEDIUM':
+        return "bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)]";
+      case 'HARD':
+        return "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]";
+      default:
+        return "bg-green-600 text-white shadow-lg";
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-green-900 relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000">
       {/* Background Gradients - Matching Game Board Green */}
@@ -29,14 +51,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
       <div className="max-w-md w-full bg-black/40 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative z-10">
         
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center mb-2">
             <BrandLogo size="xl" />
         </div>
 
         <div className="space-y-6">
           {/* Avatar Selection */}
           <div className="mt-0">
-            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-2 tracking-widest text-center">Identity</label>
+            <SectionHeader>Player Icon</SectionHeader>
             <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
                 <div className="flex justify-center mb-4">
                     <div className="w-20 h-20 bg-gradient-to-br from-white/10 to-transparent rounded-full flex items-center justify-center text-4xl shadow-inner border border-white/10 animate-bounce">
@@ -59,7 +81,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
           {/* Name Input */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-2 tracking-widest text-center">Player Handle</label>
+            <SectionHeader>Player Handle</SectionHeader>
             <input
               type="text"
               value={name}
@@ -71,13 +93,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
           {/* Difficulty Selection */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-2 tracking-widest text-center">AI Difficulty</label>
+            <SectionHeader>AI Difficulty</SectionHeader>
             <div className="grid grid-cols-3 gap-2 bg-black/30 p-1.5 rounded-xl border border-white/5">
                 {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map((d) => (
                     <button
                         key={d}
                         onClick={() => setDifficulty(d)}
-                        className={`py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-green-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                        className={`py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${getDifficultyStyles(d, difficulty === d)}`}
                     >
                         {d}
                     </button>
@@ -87,7 +109,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
           {/* Card Style Selector */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-3 tracking-widest text-center">Deck Aesthetic</label>
+            <SectionHeader>Deck Aesthetic</SectionHeader>
             <div className="flex justify-center gap-4">
                {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
                  <div 

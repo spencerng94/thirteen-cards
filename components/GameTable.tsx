@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
 import { SettingsModal } from './SettingsModal';
 import { audioService } from '../services/audio';
+import { findBestMove } from '../utils/gameLogic';
 
 interface GameTableProps {
   gameState: GameState;
@@ -109,10 +110,23 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [gameState.currentPlayPile.length, lastPlayedMove]);
 
-  const sortedHand = [...myHand].sort((a, b) => {
+  const sortedHand = useMemo(() => [...myHand].sort((a, b) => {
     if (a.rank !== b.rank) return a.rank - b.rank;
     return a.suit - b.suit;
-  });
+  }), [myHand]);
+
+  const myIndex = gameState.players.findIndex(p => p.id === myId);
+  const me = gameState.players.find(p => p.id === myId);
+  const isMyTurn = gameState.currentPlayerId === myId;
+  const iAmFinished = !!me?.finishedRank;
+
+  // Logic to determine if a pass is mandatory
+  const mustPass = useMemo(() => {
+    if (!isMyTurn || iAmFinished || gameState.currentPlayPile.length === 0) return false;
+    // Use the HARD difficulty check to exhaustively find any possible move
+    const possibleMove = findBestMove(sortedHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame, 'HARD');
+    return possibleMove === null;
+  }, [isMyTurn, iAmFinished, sortedHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
   const toggleSelectCard = (id: string) => {
     const newSelected = new Set(selectedCardIds);
@@ -155,11 +169,6 @@ export const GameTable: React.FC<GameTableProps> = ({
     return '-space-x-[55px] md:-space-x-14';
   };
 
-  const myIndex = gameState.players.findIndex(p => p.id === myId);
-  const me = gameState.players.find(p => p.id === myId);
-  const isMyTurn = gameState.currentPlayerId === myId;
-  const iAmFinished = !!me?.finishedRank;
-
   let bgBase = '';
   let gradientStops = '';
 
@@ -182,7 +191,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   const currentStatusText = iAmFinished 
     ? `Spectating • Placed ${getOrdinal(me?.finishedRank || 0)}`
     : isMyTurn 
-        ? "Your Turn" 
+        ? (mustPass ? "No Moves Possible" : "Your Turn")
         : (gameState.players.find(p => p.id === gameState.currentPlayerId)?.hasPassed ? "Resolving..." : `Wait for ${gameState.players.find(p => p.id === gameState.currentPlayerId)?.name}...`);
 
   return (
@@ -332,8 +341,26 @@ export const GameTable: React.FC<GameTableProps> = ({
         <div className="flex flex-col items-center gap-3 w-full justify-center px-8 pointer-events-auto">
             {!iAmFinished && (
                 <div className="flex justify-center gap-4 h-12 md:h-14">
-                    <button onClick={handlePass} disabled={!isMyTurn || gameState.currentPlayPile.length === 0} className="flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs bg-white/5 border border-white/10 text-gray-400 disabled:opacity-30 transition-all hover:bg-white/10 shadow-lg">Pass</button>
-                    <button onClick={handlePlaySelected} disabled={!isMyTurn || selectedCardIds.size === 0} className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl">Play Cards</button>
+                    <button 
+                      onClick={handlePass} 
+                      disabled={!isMyTurn || gameState.currentPlayPile.length === 0} 
+                      className={`
+                        flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border transition-all shadow-lg
+                        ${mustPass 
+                          ? 'bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
+                          : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
+                        disabled:opacity-30
+                      `}
+                    >
+                      Pass
+                    </button>
+                    <button 
+                      onClick={handlePlaySelected} 
+                      disabled={!isMyTurn || selectedCardIds.size === 0} 
+                      className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl"
+                    >
+                      Play Cards
+                    </button>
                 </div>
             )}
         </div>

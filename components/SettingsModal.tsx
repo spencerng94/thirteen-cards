@@ -34,6 +34,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   soundEnabled,
   setSoundEnabled
 }) => {
+  const getDifficultyStyles = (d: AiDifficulty, active: boolean) => {
+    if (!active) return "text-gray-500 hover:text-gray-300";
+    
+    switch (d) {
+      case 'EASY':
+        return "bg-green-600 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)]";
+      case 'MEDIUM':
+        return "bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)]";
+      case 'HARD':
+        return "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]";
+      default:
+        return "bg-green-600 text-white shadow-lg";
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
       <div 
@@ -84,7 +99,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <button
                             key={d}
                             onClick={() => onChangeDifficulty(d)}
-                            className={`py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${currentDifficulty === d ? 'bg-green-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                            className={`py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${getDifficultyStyles(d, currentDifficulty === d)}`}
                         >
                             {d}
                         </button>
