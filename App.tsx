@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme, AiDifficulty } from './types';
@@ -139,8 +138,16 @@ const App: React.FC = () => {
     if (handIsEmpty) {
         updatedFinished.push(pid);
         updatedPlayers = updatedPlayers.map(p => p.id === pid ? { ...p, finishedRank: updatedFinished.length } : p);
+        
+        // Quick Finish logic: If player finishes, game ends immediately
         if (pid === 'player-me' && spQuickFinish) {
-            setSpGameState(prev => ({ ...prev!, status: GameStatus.FINISHED, players: updatedPlayers }));
+            setSpGameState(prev => ({ ...prev!, status: GameStatus.FINISHED, players: updatedPlayers, finishedPlayers: updatedFinished }));
+            setView('VICTORY'); return;
+        }
+
+        // Automatic end if only one active player remains
+        if (updatedPlayers.filter(p => !p.finishedRank).length <= 1) {
+            setSpGameState(prev => ({ ...prev!, status: GameStatus.FINISHED, players: updatedPlayers, finishedPlayers: updatedFinished }));
             setView('VICTORY'); return;
         }
     }

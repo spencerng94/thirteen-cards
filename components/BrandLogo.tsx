@@ -70,21 +70,21 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
             <feComposite in="lit1" in2="bevel2" operator="arithmetic" k1="0" k2="1" k3="0.7" k4="0" result="finalGold" />
           </filter>
 
-          {/* Re-Engineered Intensified Luxurious Gold Bloom */}
-          <filter id="goldBloom" x="-250%" y="-250%" width="600%" height="600%">
-            {/* Layer 1: Brilliant Core - Tight and high intensity */}
-            <feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="tightBlur" />
-            <feFlood floodColor="#fff8e1" floodOpacity="0.7" result="coreColor" />
+          {/* Re-Engineered Toned-Down Luxurious Gold Bloom */}
+          <filter id="goldBloom" x="-150%" y="-150%" width="400%" height="400%">
+            {/* Layer 1: Brilliant Core - Tight and high intensity, now more controlled */}
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" result="tightBlur" />
+            <feFlood floodColor="#fff8e1" floodOpacity="0.4" result="coreColor" />
             <feComposite in="coreColor" in2="tightBlur" operator="in" result="coreGlow" />
             
             {/* Layer 2: Rich Mid-Tier Spill - The 'Luxurious' body of the glow */}
-            <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="midBlur" />
-            <feFlood floodColor="#ffc107" floodOpacity="0.45" result="midColor" />
+            <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="midBlur" />
+            <feFlood floodColor="#ffc107" floodOpacity="0.25" result="midColor" />
             <feComposite in="midColor" in2="midBlur" operator="in" result="midGlow" />
             
             {/* Layer 3: Broad Ambient Atmosphere - Soft wide-area warmth */}
-            <feGaussianBlur in="SourceAlpha" stdDeviation="22" result="broadBlur" />
-            <feFlood floodColor="#ff8f00" floodOpacity="0.3" result="ambientColor" />
+            <feGaussianBlur in="SourceAlpha" stdDeviation="15" result="broadBlur" />
+            <feFlood floodColor="#ff8f00" floodOpacity="0.15" result="ambientColor" />
             <feComposite in="ambientColor" in2="broadBlur" operator="in" result="ambientGlow" />
             
             <feMerge>
@@ -100,7 +100,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
         <g style={{ 
             filter: `
                 drop-shadow(0 20px 25px rgba(0, 0, 0, 0.8)) 
-                drop-shadow(0 0 50px rgba(255, 179, 0, 0.2))
+                drop-shadow(0 0 30px rgba(255, 179, 0, 0.15))
             ` 
         }}>
           {/* Main Rendering Group */}
