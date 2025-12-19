@@ -59,7 +59,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
           {/* Name Input */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-2 tracking-widest">Player Handle</label>
+            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-2 tracking-widest text-center">Player Handle</label>
             <input
               type="text"
               value={name}
