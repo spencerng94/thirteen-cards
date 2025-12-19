@@ -30,6 +30,8 @@ export interface Card {
   id: string; // Unique ID for React keys and tracking
 }
 
+export type AiDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
 export interface Player {
   id: string;
   name: string;
@@ -40,6 +42,7 @@ export interface Player {
   hasPassed?: boolean;
   finishedRank?: number | null; // 1 = 1st, 2 = 2nd, etc. Null if still playing.
   isBot?: boolean;
+  difficulty?: AiDifficulty;
 }
 
 export enum GameStatus {
@@ -76,8 +79,8 @@ export enum SocketEvents {
   PLAY_CARDS = 'play_cards',
   PASS_TURN = 'pass_turn',
   PLAYER_HAND = 'player_hand', // Private event for receiving cards
+  UPDATE_BOT_DIFFICULTY = 'update_bot_difficulty',
   ERROR = 'error'
 }
 
 export type BackgroundTheme = 'GREEN' | 'CYBER_BLUE' | 'CRIMSON_VOID';
-export type AiDifficulty = 'EASY' | 'MEDIUM' | 'HARD';

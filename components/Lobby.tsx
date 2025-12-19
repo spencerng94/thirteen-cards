@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { GameState, SocketEvents, BackgroundTheme } from '../types';
+import { GameState, SocketEvents, BackgroundTheme, AiDifficulty } from '../types';
 import { socket } from '../services/socket';
 
 interface LobbyProps {
@@ -94,6 +94,11 @@ export const Lobby: React.FC<LobbyProps> = ({
     socket.emit(SocketEvents.ADD_BOT, { roomId: gameState.roomId });
   };
 
+  const updateBotDifficulty = (botId: string, difficulty: AiDifficulty) => {
+    if (!gameState) return;
+    socket.emit(SocketEvents.UPDATE_BOT_DIFFICULTY, { roomId: gameState.roomId, botId, difficulty });
+  };
+
   const startGame = () => {
     if (!gameState) return;
     socket.emit(SocketEvents.START_GAME, { roomId: gameState.roomId });
@@ -153,7 +158,34 @@ export const Lobby: React.FC<LobbyProps> = ({
                                      <div className="absolute -top-1 -right-2 bg-emerald-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide shadow-lg">CPU</div>
                                  )}
                              </div>
-                             <div className="text-white font-bold text-sm tracking-wide truncate max-w-full">{p.name} {p.id === socket.id && '(You)'}</div>
+                             <div className="text-white font-bold text-sm tracking-wide truncate max-w-full text-center">{p.name} {p.id === socket.id && '(You)'}</div>
+                             
+                             {p.isBot && (
+                                 <div className="mt-3 w-full flex flex-col gap-1.5">
+                                     <label className="text-[7px] font-black uppercase text-gray-500 tracking-[0.2em] text-center">CPU Skill</label>
+                                     <div className="flex gap-1 bg-black/40 p-0.5 rounded-lg border border-white/5">
+                                         {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map((d) => (
+                                             <button
+                                                 key={d}
+                                                 disabled={!isHost}
+                                                 onClick={(e) => {
+                                                     e.stopPropagation();
+                                                     updateBotDifficulty(p.id, d);
+                                                 }}
+                                                 className={`
+                                                     flex-1 py-1 rounded-[4px] text-[7px] font-black uppercase tracking-tighter transition-all
+                                                     ${(p.difficulty || 'MEDIUM') === d 
+                                                         ? 'bg-emerald-600 text-white shadow-[0_0_8px_rgba(16,185,129,0.4)] ring-1 ring-white/10' 
+                                                         : 'text-gray-600 hover:text-gray-400'}
+                                                     ${!isHost ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}
+                                                 `}
+                                             >
+                                                 {d[0]}
+                                             </button>
+                                         ))}
+                                     </div>
+                                 </div>
+                             )}
                         </div>
                     </div>
                 ))}
