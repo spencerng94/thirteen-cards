@@ -80,3 +80,4 @@ export enum SocketEvents {
 }
 
 export type BackgroundTheme = 'GREEN' | 'CYBER_BLUE' | 'CRIMSON_VOID';
+export type AiDifficulty = 'EASY' | 'MEDIUM' | 'HARD';

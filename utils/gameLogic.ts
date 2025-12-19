@@ -1,4 +1,4 @@
-import { Card, Rank, Suit, Player, GameState, GameStatus, PlayTurn } from '../types';
+import { Card, Rank, Suit, PlayTurn, AiDifficulty } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 // --- Types ---
@@ -23,11 +23,8 @@ export const getComboType = (cards: Card[]): ComboType => {
   const len = sorted.length;
   
   if (len === 0) return 'INVALID';
-
-  // Single
   if (len === 1) return 'SINGLE';
 
-  // Same rank (Pair, Triple, Quad)
   const isSameRank = sorted.every(c => c.rank === sorted[0].rank);
   if (isSameRank) {
     if (len === 2) return 'PAIR';
@@ -36,7 +33,6 @@ export const getComboType = (cards: Card[]): ComboType => {
     return 'INVALID';
   }
 
-  // Run
   let isRun = true;
   for (let i = 0; i < len - 1; i++) {
     if (sorted[i].rank === Rank.Two || sorted[i+1].rank === Rank.Two) {
@@ -50,7 +46,6 @@ export const getComboType = (cards: Card[]): ComboType => {
   }
   if (isRun && len >= 3) return 'RUN';
 
-  // 3 Pairs
   if (len === 6) {
     const isPairs = 
       sorted[0].rank === sorted[1].rank &&
@@ -74,13 +69,11 @@ export const validateMove = (
   playPile: PlayTurn[],
   isFirstTurnOfGame: boolean = false
 ): { isValid: boolean; reason: string } => {
-  
   const pType = getComboType(playedCards);
   if (pType === 'INVALID') {
     return { isValid: false, reason: 'Invalid card combination.' };
   }
 
-  // 1. First Turn Rule: Must play 3 of Spades
   if (isFirstTurnOfGame) {
     const has3Spades = playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
     if (!has3Spades) {
@@ -88,7 +81,6 @@ export const validateMove = (
     }
   }
 
-  // 2. Leading (Empty Pile)
   if (playPile.length === 0) {
     return { isValid: true, reason: 'Valid lead.' };
   }
@@ -99,14 +91,12 @@ export const validateMove = (
   const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastPlayedCards);
 
-  // Bombing 2s
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two) {
     if (pType === 'QUAD' || pType === '3_PAIRS') {
       return { isValid: true, reason: 'Bomb!' };
     }
   }
 
-  // Bomb vs Bomb
   if (lType === 'QUAD' && pType === 'QUAD') {
      return getCardScore(pHigh) > getCardScore(lHigh) 
        ? { isValid: true, reason: 'Higher Quad' } 
@@ -118,7 +108,6 @@ export const validateMove = (
        : { isValid: false, reason: 'Must play higher sequence of pairs.' };
   }
 
-  // Standard Comparison
   if (pType !== lType) {
     return { isValid: false, reason: `Must play a ${lType}.` };
   }
@@ -133,7 +122,6 @@ export const validateMove = (
   }
 };
 
-// --- Setup ---
 export const generateDeck = (): Card[] => {
   const deck: Card[] = [];
   for (let s = 0; s < 4; s++) {
@@ -165,64 +153,157 @@ export const dealCards = (): Card[][] => {
   return hands;
 };
 
-// --- AI ---
+// --- AI HELPER UTILS ---
+
+const getAllPairs = (hand: Card[]) => {
+  const pairs: Card[][] = [];
+  for (let i = 0; i < hand.length - 1; i++) {
+    if (hand[i].rank === hand[i+1].rank) {
+      pairs.push([hand[i], hand[i+1]]);
+      i++; 
+    }
+  }
+  return pairs;
+};
+
+const getAllTriples = (hand: Card[]) => {
+  const triples: Card[][] = [];
+  for (let i = 0; i < hand.length - 2; i++) {
+    if (hand[i].rank === hand[i+2].rank) {
+      triples.push([hand[i], hand[i+1], hand[i+2]]);
+      i += 2;
+    }
+  }
+  return triples;
+};
+
+const findLongestRun = (hand: Card[]) => {
+  const uniqueRanks = Array.from(new Set(hand.filter(c => c.rank !== Rank.Two).map(c => c.rank))).sort((a, b) => a - b);
+  if (uniqueRanks.length < 3) return null;
+
+  let longest: number[] = [];
+  let current: number[] = [uniqueRanks[0]];
+
+  for (let i = 1; i < uniqueRanks.length; i++) {
+    if (uniqueRanks[i] === uniqueRanks[i-1] + 1) {
+      current.push(uniqueRanks[i]);
+    } else {
+      if (current.length >= 3 && current.length > longest.length) longest = [...current];
+      current = [uniqueRanks[i]];
+    }
+  }
+  if (current.length >= 3 && current.length > longest.length) longest = [...current];
+
+  if (longest.length >= 3) {
+    const result: Card[] = [];
+    const usedRanks = new Set();
+    for (const rank of longest) {
+        // Prefer lowest suit for AI to keep better cards
+        result.push(hand.find(c => c.rank === rank)!);
+    }
+    return result;
+  }
+  return null;
+};
+
+// --- MAIN AI LOGIC ---
+
 export const findBestMove = (
   hand: Card[], 
   playPile: PlayTurn[],
-  isFirstTurnOfGame: boolean = false
+  isFirstTurnOfGame: boolean = false,
+  difficulty: AiDifficulty = 'MEDIUM'
 ): Card[] | null => {
   const sortedHand = sortCards(hand);
-  
-  // If first turn, MUST include 3S
-  let validCandidates = sortedHand;
-  
-  // 1. Leading
+
+  // 1. CHANCE TO SKIP (EASY ONLY)
+  if (difficulty === 'EASY' && playPile.length > 0 && Math.random() < 0.45) return null;
+
+  // 2. LEADING
   if (playPile.length === 0) {
-    // If first turn of game, find the 3S
     if (isFirstTurnOfGame) {
         const threeSpades = sortedHand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
-        // Fallback (should exist)
-        if (!threeSpades) return [sortedHand[0]]; 
-
-        // Try to play Pair with 3S
-        const pair = sortedHand.filter(c => c.rank === Rank.Three);
-        if (pair.length >= 2) return [threeSpades, pair.find(c => c.id !== threeSpades.id)!];
-
-        // Else play single 3S
+        if (!threeSpades) return [sortedHand[0]];
+        
+        // Strategy: Lead with a pair if possible to clear cards faster
+        const pairWith3S = sortedHand.filter(c => c.rank === Rank.Three);
+        if (pairWith3S.length >= 2) return [threeSpades, pairWith3S.find(c => c.id !== threeSpades.id)!];
         return [threeSpades];
     }
+
+    // HARD AI: Strategic Leading
+    if (difficulty === 'HARD') {
+      const run = findLongestRun(sortedHand);
+      if (run) return run;
+      const triples = getAllTriples(sortedHand);
+      if (triples.length > 0) return triples[0];
+      const pairs = getAllPairs(sortedHand);
+      if (pairs.length > 0) return pairs[0];
+    }
+
+    // MEDIUM AI: Occasional Combo Leads
+    if (difficulty === 'MEDIUM') {
+      const pairs = getAllPairs(sortedHand);
+      if (pairs.length > 0 && Math.random() > 0.5) return pairs[0];
+    }
+
+    // EASY or Default: Smallest single to keep the hand flexible
     return [sortedHand[0]];
   }
 
-  // 2. Responding
-  const lastPlayedCards = playPile[playPile.length - 1].cards;
+  // 3. RESPONDING
+  const lastTurn = playPile[playPile.length - 1];
+  const lastPlayedCards = lastTurn.cards;
   const lType = getComboType(lastPlayedCards);
-  
-  // Try Singles
+  const lHigh = getHighestCard(lastPlayedCards);
+
+  // EASY AI: Weak responding - Ignores complex combos frequently
+  if (difficulty === 'EASY' && !['SINGLE', 'PAIR'].includes(lType)) return null;
+
+  // HARD AI: Bomb Detection (QUAD Bomb only for single 2s in this basic version)
+  if (difficulty === 'HARD' && lType === 'SINGLE' && lHigh.rank === Rank.Two) {
+    for (let i = 0; i < sortedHand.length - 3; i++) {
+      if (sortedHand[i].rank === sortedHand[i+3].rank) return sortedHand.slice(i, i+4);
+    }
+  }
+
+  // Search by type
   if (lType === 'SINGLE') {
       for (const card of sortedHand) {
-          const attempt = [card];
-          if (validateMove(attempt, playPile, isFirstTurnOfGame).isValid) return attempt;
-      }
-  }
-  
-  // Try Pairs
-  if (lType === 'PAIR') {
-      for (let i = 0; i < sortedHand.length - 1; i++) {
-          const attempt = [sortedHand[i], sortedHand[i+1]];
-          if (attempt[0].rank === attempt[1].rank) {
-              if (validateMove(attempt, playPile, isFirstTurnOfGame).isValid) return attempt;
+          if (validateMove([card], playPile, isFirstTurnOfGame).isValid) {
+            // HARD AI: Strategic usage of high cards
+            if (difficulty === 'HARD') {
+                // Don't waste a 2 if the opponent has many cards left, wait for a critical moment
+                if (card.rank === Rank.Two && sortedHand.length > 4 && Math.random() < 0.6) continue;
+                // If opponent is low on cards, play the 2 immediately to seize control
+                const targetPlayer = playPile[0].playerId; // Just a proxy for "who is playing"
+                // (Advanced version would check actual player hand counts here)
+            }
+            return [card];
           }
       }
   }
+  
+  if (lType === 'PAIR') {
+      const allPairs = getAllPairs(sortedHand);
+      for (const pair of allPairs) {
+          if (validateMove(pair, playPile, isFirstTurnOfGame).isValid) return pair;
+      }
+  }
 
-  // Try Triples
   if (lType === 'TRIPLE') {
-    for (let i = 0; i < sortedHand.length - 2; i++) {
-        const attempt = [sortedHand[i], sortedHand[i+1], sortedHand[i+2]];
-        if (attempt[0].rank === attempt[1].rank && attempt[1].rank === attempt[2].rank) {
-            if (validateMove(attempt, playPile, isFirstTurnOfGame).isValid) return attempt;
-        }
+    const allTriples = getAllTriples(sortedHand);
+    for (const triple of allTriples) {
+        if (validateMove(triple, playPile, isFirstTurnOfGame).isValid) return triple;
+    }
+  }
+
+  if (lType === 'RUN' && difficulty !== 'EASY') {
+    const targetLen = lastPlayedCards.length;
+    // Sliding window search for run of exact same length
+    for (let i = 0; i <= sortedHand.length - targetLen; i++) {
+        const window = sortedHand.slice(i, i + targetLen);
+        if (validateMove(window, playPile, isFirstTurnOfGame).isValid) return window;
     }
   }
   

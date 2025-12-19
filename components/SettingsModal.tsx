@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardCoverStyle } from './Card';
-import { BackgroundTheme } from '../types';
+import { BackgroundTheme, AiDifficulty } from '../types';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -12,6 +12,8 @@ interface SettingsModalProps {
   isSinglePlayer?: boolean;
   spQuickFinish?: boolean;
   setSpQuickFinish?: (val: boolean) => void;
+  currentDifficulty?: AiDifficulty;
+  onChangeDifficulty?: (d: AiDifficulty) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -23,7 +25,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onChangeTheme,
   isSinglePlayer,
   spQuickFinish,
-  setSpQuickFinish
+  setSpQuickFinish,
+  currentDifficulty,
+  onChangeDifficulty
 }) => {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
@@ -36,11 +40,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors text-xl font-bold px-2">✕</button>
         </div>
         
-        <div className="p-6 space-y-6 bg-gray-900/95 max-h-[80vh] overflow-y-auto">
+        <div className="p-6 space-y-6 bg-gray-900/95 max-h-[80vh] overflow-y-auto scrollbar-thin">
           
+          {/* Difficulty Selector (Single Player Only) */}
+          {isSinglePlayer && currentDifficulty && onChangeDifficulty && (
+             <div>
+                <label className="block text-[10px] font-black uppercase text-gray-500 mb-3 tracking-[0.2em] text-center">Bot Intelligence</label>
+                <div className="grid grid-cols-3 gap-2 bg-black/30 p-1 rounded-xl border border-white/5">
+                    {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map((d) => (
+                        <button
+                            key={d}
+                            onClick={() => onChangeDifficulty(d)}
+                            className={`py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${currentDifficulty === d ? 'bg-green-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                        >
+                            {d}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-2 text-[8px] text-gray-600 uppercase text-center font-bold tracking-widest italic">
+                    Affects decision making and strategy
+                </div>
+             </div>
+          )}
+
           {/* Theme Selector */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-4 tracking-wide text-center">Arena Theme</label>
+            <label className="block text-[10px] font-black uppercase text-gray-500 mb-3 tracking-[0.2em] text-center">Arena Theme</label>
             <div className="grid grid-cols-3 gap-3">
                {[
                  { id: 'GREEN', name: 'Forest', color: 'bg-green-900' },
@@ -69,7 +94,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Card Style Selector */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-4 tracking-wide text-center">Card Deck Style</label>
+            <label className="block text-[10px] font-black uppercase text-gray-500 mb-3 tracking-[0.2em] text-center">Card Deck Style</label>
             <div className="flex justify-center gap-4">
                {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
                  <div 
@@ -86,10 +111,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {isSinglePlayer && setSpQuickFinish && (
             <>
               <div className="border-t border-gray-800"></div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-white/5">
                 <div>
-                    <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wide">Quick Finish</h3>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-tight">End game when you finish your hand</p>
+                    <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest">Quick Finish</h3>
+                    <p className="text-[9px] text-gray-500 uppercase tracking-tight font-bold">Instantly end match when you win</p>
                 </div>
                 <button 
                     onClick={() => setSpQuickFinish(!spQuickFinish)}
@@ -107,14 +132,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div>
              <button
                onClick={onExitGame}
-               className="w-full py-3 bg-red-900/50 hover:bg-red-800/80 border border-red-700/50 text-red-200 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+               className="w-full py-4 bg-red-900/40 hover:bg-red-800/60 border border-red-700/30 text-red-200 font-black text-xs uppercase tracking-[0.2em] rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95 shadow-lg shadow-black/50"
              >
-               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                </svg>
-               LEAVE GAME
+               Abandon Match
              </button>
-             <p className="text-center text-[10px] text-gray-500 mt-2">Current progress will be lost immediately.</p>
+             <p className="text-center text-[9px] font-bold text-gray-600 mt-3 uppercase tracking-widest">Current progress will be lost immediately.</p>
           </div>
         </div>
       </div>

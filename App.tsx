@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
-import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme } from './types';
+import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme, AiDifficulty } from './types';
 import { GameTable } from './components/GameTable';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { Lobby } from './components/Lobby';
@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('GREEN');
   const [initialRoomCode, setInitialRoomCode] = useState<string | null>(null);
   const [spQuickFinish, setSpQuickFinish] = useState(false);
+  const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('MEDIUM');
   
   // Multiplayer State
   const [connected, setConnected] = useState(false);
@@ -156,7 +157,7 @@ const App: React.FC = () => {
   const handleBotTurn = (botId: string) => {
     const hand = spOpponentHands[botId];
     if (!hand || hand.length === 0) return;
-    const move = findBestMove(hand, spGameState!.currentPlayPile, spGameState!.isFirstTurnOfGame);
+    const move = findBestMove(hand, spGameState!.currentPlayPile, spGameState!.isFirstTurnOfGame, aiDifficulty);
     if (move) {
       handleLocalPlay(botId, move);
     } else {
@@ -350,12 +351,13 @@ const App: React.FC = () => {
 
   // --- Handlers ---
 
-  const handleStart = (name: string, mode: GameMode, style: CardCoverStyle, avatar: string, quickFinish?: boolean) => {
+  const handleStart = (name: string, mode: GameMode, style: CardCoverStyle, avatar: string, quickFinish?: boolean, difficulty?: AiDifficulty) => {
     setPlayerName(name);
     setGameMode(mode);
     setCardCoverStyle(style);
     setPlayerAvatar(avatar);
     if (quickFinish !== undefined) setSpQuickFinish(quickFinish);
+    if (difficulty !== undefined) setAiDifficulty(difficulty);
     
     if (mode === 'MULTI_PLAYER') {
       connectSocket();
@@ -504,6 +506,8 @@ const App: React.FC = () => {
             spQuickFinish={spQuickFinish}
             setSpQuickFinish={setSpQuickFinish}
             isSinglePlayer={gameMode === 'SINGLE_PLAYER'}
+            aiDifficulty={aiDifficulty}
+            onChangeDifficulty={setAiDifficulty}
           />
         );
     }

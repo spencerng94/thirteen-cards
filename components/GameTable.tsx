@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme } from '../types';
+import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
 import { SettingsModal } from './SettingsModal';
@@ -18,6 +18,8 @@ interface GameTableProps {
   isSinglePlayer?: boolean;
   spQuickFinish?: boolean;
   setSpQuickFinish?: (val: boolean) => void;
+  aiDifficulty?: AiDifficulty;
+  onChangeDifficulty?: (d: AiDifficulty) => void;
 }
 
 // Helper for ordinals
@@ -74,7 +76,9 @@ export const GameTable: React.FC<GameTableProps> = ({
   onChangeBackgroundTheme,
   isSinglePlayer,
   spQuickFinish,
-  setSpQuickFinish
+  setSpQuickFinish,
+  aiDifficulty,
+  onChangeDifficulty
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showHistory, setShowHistory] = useState(false);
@@ -236,6 +240,8 @@ export const GameTable: React.FC<GameTableProps> = ({
             isSinglePlayer={isSinglePlayer}
             spQuickFinish={spQuickFinish}
             setSpQuickFinish={setSpQuickFinish}
+            currentDifficulty={aiDifficulty}
+            onChangeDifficulty={onChangeDifficulty}
         />
       )}
 
@@ -290,10 +296,8 @@ export const GameTable: React.FC<GameTableProps> = ({
             layoutClasses = "flex-col";
         }
         else if (pos === 'top') {
-            // Profile box centered (width is 24 units = 96px, so we translate left by half i.e. 48px)
-            // This ensures the BOX center aligns with the VIEWPORT center.
             positionClasses = "absolute top-3 left-1/2 -translate-x-[48px] md:-translate-x-[56px] z-20";
-            layoutClasses = "flex-row"; // Cards flow to the right of the profile box
+            layoutClasses = "flex-row";
         }
         else if (pos === 'right') {
             positionClasses = "absolute right-2 top-1/2 -translate-y-1/2 z-20";
@@ -395,7 +399,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       {/* --- Me / Controls Bar --- */}
       <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 md:landscape:gap-2 landscape:gap-1 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12 md:landscape:pt-12 landscape:pt-6">
         
-        {/* STATUS Indicator (Reduced padding and font size in landscape mobile) */}
+        {/* STATUS Indicator */}
         <div className={`
             flex px-6 py-2 landscape:px-4 landscape:py-1.5 md:landscape:px-6 md:landscape:py-2 rounded-full font-bold tracking-widest landscape:tracking-wider md:landscape:tracking-widest text-xs landscape:text-[10px] md:landscape:text-xs sm:text-sm uppercase shadow-2xl transition-all duration-300 border backdrop-blur-xl whitespace-nowrap pointer-events-auto mb-1 landscape:mb-0 md:landscape:mb-1
             ${isMyTurn 

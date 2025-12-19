@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
+import { AiDifficulty } from '../types';
 
 interface WelcomeScreenProps {
-  onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean) => void;
+  onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean, difficulty?: AiDifficulty) => void;
 }
 
 const AVATARS = [
@@ -18,6 +19,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [coverStyle, setCoverStyle] = useState<CardCoverStyle>('BLUE');
   const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
   const [quickFinish, setQuickFinish] = useState(false);
+  const [difficulty, setDifficulty] = useState<AiDifficulty>('MEDIUM');
 
   return (
     <div className="min-h-screen w-full bg-green-900 relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000">
@@ -67,6 +69,22 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             />
           </div>
 
+          {/* Difficulty Selection */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-2 tracking-widest text-center">AI Difficulty</label>
+            <div className="grid grid-cols-3 gap-2 bg-black/30 p-1.5 rounded-xl border border-white/5">
+                {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map((d) => (
+                    <button
+                        key={d}
+                        onClick={() => setDifficulty(d)}
+                        className={`py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-green-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                        {d}
+                    </button>
+                ))}
+            </div>
+          </div>
+
           {/* Card Style Selector */}
           <div>
             <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-3 tracking-widest text-center">Deck Aesthetic</label>
@@ -97,7 +115,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             </button>
             <div className="space-y-2">
                 <button
-                onClick={() => onStart(name || 'Guest', 'SINGLE_PLAYER', coverStyle, selectedAvatar, quickFinish)}
+                onClick={() => onStart(name || 'Guest', 'SINGLE_PLAYER', coverStyle, selectedAvatar, quickFinish, difficulty)}
                 className="group w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-all"
                 >
                 Practice vs Bots
