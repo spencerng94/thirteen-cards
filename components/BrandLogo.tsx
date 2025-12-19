@@ -48,42 +48,48 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
             <feComposite operator="in" in2="SourceGraphic" />
           </filter>
 
-          {/* 3D Bevel and Studio Lighting Filter */}
+          {/* 3D Bevel and Studio Lighting Filter - Intensified Speculars */}
           <filter id="gold3DBevel" x="-50%" y="-50%" width="200%" height="200%" colorInterpolationFilters="sRGB">
             {/* Height Map from Alpha */}
             <feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="blur" />
             
-            {/* Primary Bevel Lighting (Top Left) */}
-            <feSpecularLighting in="blur" surfaceScale="14" specularConstant="2.0" specularExponent="40" lightingColor="#ffffff" result="spec1">
+            {/* Primary Bevel Lighting (Top Left) - Higher Scale & Constant */}
+            <feSpecularLighting in="blur" surfaceScale="18" specularConstant="2.5" specularExponent="45" lightingColor="#ffffff" result="spec1">
               <fePointLight x="-1200" y="-1200" z="2500" />
             </feSpecularLighting>
             <feComposite in="spec1" in2="SourceAlpha" operator="in" result="bevel1" />
 
             {/* Rim Lighting (Bottom Right) for warm gold bounce */}
-            <feSpecularLighting in="blur" surfaceScale="10" specularConstant="1.5" specularExponent="25" lightingColor="#ffd54f" result="spec2">
+            <feSpecularLighting in="blur" surfaceScale="12" specularConstant="1.8" specularExponent="30" lightingColor="#ffd54f" result="spec2">
               <fePointLight x="1800" y="1800" z="1800" />
             </feSpecularLighting>
             <feComposite in="spec2" in2="SourceAlpha" operator="in" result="bevel2" />
 
             {/* Combine Lighting with Source */}
-            <feComposite in="SourceGraphic" in2="bevel1" operator="arithmetic" k1="0" k2="1" k3="1.2" k4="0" result="lit1" />
-            <feComposite in="lit1" in2="bevel2" operator="arithmetic" k1="0" k2="1" k3="0.6" k4="0" result="finalGold" />
+            <feComposite in="SourceGraphic" in2="bevel1" operator="arithmetic" k1="0" k2="1" k3="1.3" k4="0" result="lit1" />
+            <feComposite in="lit1" in2="bevel2" operator="arithmetic" k1="0" k2="1" k3="0.7" k4="0" result="finalGold" />
           </filter>
 
-          {/* Refined Luxurious Soft Gold Bloom */}
-          <filter id="goldBloom" x="-200%" y="-200%" width="500%" height="500%">
-            {/* Layer 1: Tight luminous core glow */}
-            <feGaussianBlur in="SourceAlpha" stdDeviation="3.5" result="tightBlur" />
-            <feFlood floodColor="#ffecb3" floodOpacity="0.45" result="coreColor" />
+          {/* Re-Engineered Intensified Luxurious Gold Bloom */}
+          <filter id="goldBloom" x="-250%" y="-250%" width="600%" height="600%">
+            {/* Layer 1: Brilliant Core - Tight and high intensity */}
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="tightBlur" />
+            <feFlood floodColor="#fff8e1" floodOpacity="0.7" result="coreColor" />
             <feComposite in="coreColor" in2="tightBlur" operator="in" result="coreGlow" />
             
-            {/* Layer 2: Broad soft premium ambient spill */}
-            <feGaussianBlur in="SourceAlpha" stdDeviation="15" result="broadBlur" />
-            <feFlood floodColor="#ffa000" floodOpacity="0.2" result="ambientColor" />
+            {/* Layer 2: Rich Mid-Tier Spill - The 'Luxurious' body of the glow */}
+            <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="midBlur" />
+            <feFlood floodColor="#ffc107" floodOpacity="0.45" result="midColor" />
+            <feComposite in="midColor" in2="midBlur" operator="in" result="midGlow" />
+            
+            {/* Layer 3: Broad Ambient Atmosphere - Soft wide-area warmth */}
+            <feGaussianBlur in="SourceAlpha" stdDeviation="22" result="broadBlur" />
+            <feFlood floodColor="#ff8f00" floodOpacity="0.3" result="ambientColor" />
             <feComposite in="ambientColor" in2="broadBlur" operator="in" result="ambientGlow" />
             
             <feMerge>
               <feMergeNode in="ambientGlow" />
+              <feMergeNode in="midGlow" />
               <feMergeNode in="coreGlow" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
@@ -93,8 +99,8 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
         {/* Global Heavy Metal Drop Shadow for Tangible Weight */}
         <g style={{ 
             filter: `
-                drop-shadow(0 20px 20px rgba(0, 0, 0, 0.75)) 
-                drop-shadow(0 0 40px rgba(255, 179, 0, 0.12))
+                drop-shadow(0 20px 25px rgba(0, 0, 0, 0.8)) 
+                drop-shadow(0 0 50px rgba(255, 179, 0, 0.2))
             ` 
         }}>
           {/* Main Rendering Group */}
