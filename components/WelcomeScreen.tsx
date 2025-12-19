@@ -51,7 +51,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
       <div className="max-w-md w-full bg-black/40 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative z-10">
         
-        <div className="flex flex-col items-center mb-2">
+        <div className="flex flex-col items-center mb-10">
             <BrandLogo size="xl" />
         </div>
 
