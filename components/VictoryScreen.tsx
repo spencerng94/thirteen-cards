@@ -1,17 +1,15 @@
+
 import React from 'react';
 import { Player } from '../types';
 
 interface VictoryScreenProps {
-  players: Player[]; // Full list of players to show leaderboard
+  players: Player[];
   myId: string;
   onPlayAgain: () => void;
   onGoHome: () => void;
 }
 
 export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onPlayAgain, onGoHome }) => {
-  // Sort players by finishedRank. 
-  // Note: finishedRank might be null for the loser if server logic didn't set it explicitly before finish,
-  // but logic should handle it. If null, treat as last.
   const sortedPlayers = [...players].sort((a, b) => {
     const rankA = a.finishedRank || 99;
     const rankB = b.finishedRank || 99;
@@ -23,89 +21,133 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onP
   const isWinner = myRank === 1;
 
   const getMedal = (rank: number) => {
-      switch(rank) {
-          case 1: return '🏆';
-          case 2: return '🥈';
-          case 3: return '🥉';
-          case 4: return '💩';
-          default: return '🏁';
-      }
+    switch(rank) {
+      case 1: return '🏆';
+      case 2: return '🥈';
+      case 3: return '🥉';
+      default: return '💩';
+    }
   };
 
-  const getOrdinalLabel = (rank: number) => {
-    if (rank === 1) return 'Winner';
-    if (rank === 2) return '2nd Place';
-    if (rank === 3) return '3rd Place';
-    if (rank === 4) return '4th Place';
-    return `${rank}th Place`;
+  const getRankColor = (rank: number) => {
+    switch(rank) {
+      case 1: return 'from-yellow-400 via-yellow-200 to-yellow-600';
+      case 2: return 'from-gray-300 via-white to-gray-500';
+      case 3: return 'from-orange-400 via-orange-200 to-orange-700';
+      default: return 'from-gray-700 to-gray-900';
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 to-black flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-10 w-32 h-32 bg-yellow-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-10 right-10 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl animate-pulse delay-700"></div>
-      </div>
+    <div className="min-h-screen w-full bg-slate-950 relative overflow-hidden flex flex-col items-center justify-center p-4 transition-all duration-1000">
+      {/* Dynamic Background Gradients */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-green-900/20 via-slate-950 to-black pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
 
-      <div className="relative z-10 max-w-lg w-full bg-white/10 backdrop-blur-lg border border-white/20 p-8 rounded-3xl shadow-2xl text-center flex flex-col gap-6 transform transition-all duration-500">
+      {/* Winner Spotlight Glow */}
+      {isWinner && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl aspect-square bg-yellow-500/10 blur-[150px] animate-pulse pointer-events-none"></div>
+      )}
+
+      <div className="max-w-md w-full z-10 flex flex-col items-center gap-8">
         
-        <div>
+        {/* Header Section */}
+        <div className="text-center space-y-4">
+          <div className="relative inline-block">
             {isWinner ? (
-                <div className="text-7xl mb-2 animate-bounce">👑</div>
-            ) : myRank === 4 ? (
-                <div className="text-7xl mb-2 animate-bounce">💩</div>
+              <div className="text-8xl mb-4 drop-shadow-[0_0_30px_rgba(234,179,8,0.5)] animate-bounce">👑</div>
             ) : (
-                <div className="text-7xl mb-2 grayscale opacity-80">🏁</div>
+              <div className="text-8xl mb-4 grayscale opacity-50">🏁</div>
             )}
+          </div>
+          
+          <h1 className="text-5xl font-black tracking-tighter uppercase italic">
+            <span className="block text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+              Match
+            </span>
+            <span className="block text-white drop-shadow-lg -mt-2">
+              Complete
+            </span>
+          </h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500">Official Standings</p>
         </div>
 
-        <div>
-            <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200 mb-2 filter drop-shadow-lg">
-                MATCH COMPLETE
-            </h1>
-            <p className="text-gray-300 font-light uppercase tracking-widest text-sm">
-                Final Standings
-            </p>
-        </div>
+        {/* Leaderboard Section */}
+        <div className="w-full space-y-3">
+          {sortedPlayers.map((p, idx) => {
+            const rank = idx + 1;
+            const isMe = p.id === myId;
+            const rankColor = getRankColor(rank);
 
-        {/* Leaderboard */}
-        <div className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-            {sortedPlayers.map((p, idx) => {
-                const rank = idx + 1;
-                return (
-                  <div 
-                      key={p.id} 
-                      className={`flex items-center justify-between p-4 border-b border-white/5 last:border-0 ${p.id === myId ? 'bg-white/10' : ''}`}
-                  >
-                      <div className="flex items-center gap-4">
-                          <span className="text-2xl">{getMedal(rank)}</span>
-                          <div className="flex flex-col items-start">
-                              <span className={`font-bold ${p.id === myId ? 'text-green-400' : 'text-white'}`}>
-                                  {p.name} {p.id === myId && '(You)'}
-                              </span>
-                          </div>
-                      </div>
-                      <div className="text-xs font-mono text-gray-400 uppercase tracking-widest">
-                          {getOrdinalLabel(rank)}
-                      </div>
+            return (
+              <div 
+                key={p.id}
+                className={`
+                  relative group overflow-hidden transition-all duration-500 rounded-2xl border
+                  ${isMe ? 'scale-105 z-20 shadow-[0_0_30px_rgba(34,197,94,0.2)]' : 'scale-100 opacity-80'}
+                  ${rank === 1 ? 'border-yellow-500/30' : 'border-white/5'}
+                `}
+              >
+                {/* Glassmorphism Background */}
+                <div className={`absolute inset-0 bg-black/40 backdrop-blur-xl`}></div>
+                
+                {/* Left Accent Bar for winners */}
+                {rank <= 3 && (
+                   <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${rankColor}`}></div>
+                )}
+
+                <div className="relative p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="relative flex items-center justify-center">
+                      <div className="text-3xl filter drop-shadow-md group-hover:scale-110 transition-transform">{p.avatar || '😊'}</div>
+                      <div className="absolute -top-2 -left-2 text-xl">{getMedal(rank)}</div>
+                    </div>
+                    
+                    <div className="flex flex-col">
+                      <span className={`font-black text-sm uppercase tracking-widest ${isMe ? 'text-green-400' : 'text-gray-200'}`}>
+                        {p.name} {isMe && '(YOU)'}
+                      </span>
+                      <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">
+                        {p.isBot ? 'CPU AI UNIT' : 'PLAYER UNIT'}
+                      </span>
+                    </div>
                   </div>
-                );
-            })}
+
+                  <div className={`text-right ${rank === 1 ? 'animate-pulse' : ''}`}>
+                    <div className={`text-xs font-black uppercase tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${rankColor}`}>
+                       {rank === 1 ? 'WINNER' : `${rank}${rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'} PLACE`}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Shine effect for winner */}
+                {rank === 1 && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        <div className="flex flex-col gap-3">
+        {/* Action Buttons */}
+        <div className="w-full space-y-3 mt-4">
           <button 
             onClick={onPlayAgain}
-            className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-green-500/50 transition-all active:scale-95"
+            className="w-full group relative overflow-hidden py-4 rounded-xl transition-all duration-300 active:scale-95 shadow-2xl"
           >
-            Play Again
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-600 group-hover:scale-110 transition-transform"></div>
+            <span className="relative z-10 text-white font-black uppercase tracking-widest flex items-center justify-center gap-2">
+              Play Again <span className="text-xl">⚔️</span>
+            </span>
           </button>
           
           <button 
             onClick={onGoHome}
-            className="w-full py-4 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white font-semibold rounded-xl border border-white/10 transition-all active:scale-95"
+            className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white font-black text-[10px] uppercase tracking-[0.3em] rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
           >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
             Return to Menu
           </button>
         </div>

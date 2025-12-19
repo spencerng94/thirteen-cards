@@ -118,7 +118,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
                 onClick={() => onStart(name || 'Guest', 'SINGLE_PLAYER', coverStyle, selectedAvatar, quickFinish, difficulty)}
                 className="group w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-all"
                 >
-                Practice vs Bots
+                Practice vs Bots 🤖
                 </button>
                 <div className="flex items-center justify-center gap-2 px-2">
                     <button 

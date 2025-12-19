@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
 import { SettingsModal } from './SettingsModal';
+import { audioService } from '../services/audio';
 
 interface GameTableProps {
   gameState: GameState;
@@ -20,22 +22,22 @@ interface GameTableProps {
   setSpQuickFinish?: (val: boolean) => void;
   aiDifficulty?: AiDifficulty;
   onChangeDifficulty?: (d: AiDifficulty) => void;
+  soundEnabled: boolean;
+  setSoundEnabled: (val: boolean) => void;
 }
 
-// Helper for ordinals
 const getOrdinal = (n: number) => {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 };
 
-// --- History Modal Component ---
 const HistoryModal: React.FC<{ gameState: GameState; onClose: () => void }> = ({ gameState, onClose }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4" onClick={onClose}>
     <div className="bg-black/80 border border-white/10 w-full max-w-md max-h-[80vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col backdrop-blur-xl" onClick={e => e.stopPropagation()}>
       <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
         <h3 className="text-yellow-400 font-bold text-lg tracking-wider uppercase">Round Log</h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+        <button onClick={onClose} className="text-gray-400 hover:text-white px-2 py-1">✕</button>
       </div>
       <div className="overflow-y-auto p-4 space-y-4 scrollbar-thin">
         {gameState.currentPlayPile.length === 0 ? (
@@ -78,7 +80,9 @@ export const GameTable: React.FC<GameTableProps> = ({
   spQuickFinish,
   setSpQuickFinish,
   aiDifficulty,
-  onChangeDifficulty
+  onChangeDifficulty,
+  soundEnabled,
+  setSoundEnabled
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showHistory, setShowHistory] = useState(false);
@@ -91,16 +95,19 @@ export const GameTable: React.FC<GameTableProps> = ({
     : null;
 
   useEffect(() => {
-    if (lastPlayedMove && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(lastPlayedMove.comboType)) {
-      setBombEffect("BOMB!");
-      const timer = setTimeout(() => {
-        setBombEffect(null);
-      }, 2000);
-      return () => clearTimeout(timer);
-    } else {
-      setBombEffect(null);
+    if (lastPlayedMove) {
+      if (['QUAD', '3_PAIRS', '4_PAIRS'].includes(lastPlayedMove.comboType)) {
+        setBombEffect("BOMB!");
+        audioService.playBomb();
+        const timer = setTimeout(() => setBombEffect(null), 2000);
+        return () => clearTimeout(timer);
+      } else {
+        audioService.playPlay();
+      }
+    } else if (gameState.currentPlayPile.length === 0 && gameState.lastPlayerToPlayId) {
+        audioService.playPass();
     }
-  }, [lastPlayedMove]);
+  }, [gameState.currentPlayPile.length, lastPlayedMove]);
 
   const sortedHand = [...myHand].sort((a, b) => {
     if (a.rank !== b.rank) return a.rank - b.rank;
@@ -117,11 +124,16 @@ export const GameTable: React.FC<GameTableProps> = ({
     setSelectedCardIds(newSelected);
   };
 
-  const playSelectedCards = () => {
+  const handlePlaySelected = () => {
     const cardsToPlay = sortedHand.filter(c => selectedCardIds.has(c.id));
     if (cardsToPlay.length === 0) return;
     onPlayCards(cardsToPlay);
     setSelectedCardIds(new Set()); 
+  };
+
+  const handlePass = () => {
+    onPassTurn();
+    audioService.playPass();
   };
 
   const getPlayerPosition = (index: number, totalPlayers: number, myIndex: number) => {
@@ -178,50 +190,29 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${gradientStops} pointer-events-none transition-colors duration-1000`}></div>
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
 
-      {/* --- Top Left: Status Column --- */}
-      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-1.5 sm:gap-2 pointer-events-none items-start">
-        <div className="hidden lg:block mb-1">
-            <div className="flex flex-col">
-                <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter">
-                    THIRTEEN
-                </h1>
-            </div>
-        </div>
-
-        {/* 1. PLAYED BY Indicator (Top Left Stack) */}
+      {/* Top Left: Title & Status */}
+      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
+        <h1 className="hidden lg:block text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter">
+            THIRTEEN
+        </h1>
         {lastPlayedMove && (
-            <div className="flex pointer-events-auto">
-                <div className="bg-black/75 backdrop-blur-xl border border-white/10 text-gray-300 text-[8px] sm:text-[9px] uppercase px-2 py-1 sm:px-3 sm:py-1.5 rounded-full whitespace-nowrap shadow-xl font-bold tracking-widest flex items-center gap-1.5 sm:gap-2">
-                    <span className="opacity-70 italic">Played by</span>
-                    <span className="text-yellow-400 text-[10px] sm:text-xs">{gameState.players.find(p => p.id === lastPlayedMove.playerId)?.name}</span>
-                </div>
+            <div className="bg-black/75 backdrop-blur-xl border border-white/10 text-gray-300 text-[8px] sm:text-[9px] uppercase px-3 py-1.5 rounded-full shadow-xl font-bold tracking-widest flex items-center gap-2 pointer-events-auto">
+                <span className="opacity-70 italic">Played by</span>
+                <span className="text-yellow-400 text-[10px] sm:text-xs">{gameState.players.find(p => p.id === lastPlayedMove.playerId)?.name}</span>
             </div>
         )}
       </div>
 
-      {/* --- Top Right: Controls --- */}
-      <div className="absolute top-3 right-3 z-50 flex flex-col-reverse sm:flex-row landscape:flex-row gap-3 items-end sm:items-center landscape:items-center">
-          <button 
-            onClick={() => setShowInstructions(true)}
-            className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-yellow-400 font-serif font-bold text-lg flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105"
-          >
-            ?
-          </button>
-          
-          <button 
-            onClick={() => setShowSettings(true)}
-            className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105"
-          >
+      {/* Top Right: Controls */}
+      <div className="absolute top-3 right-3 z-50 flex flex-col-reverse sm:flex-row gap-3 items-end sm:items-center">
+          <button onClick={() => setShowInstructions(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-yellow-400 font-serif font-bold text-lg flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105">?</button>
+          <button onClick={() => setShowSettings(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105">
              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
              </svg>
           </button>
-          
-          <button 
-            onClick={() => setShowHistory(true)}
-            className="bg-white/5 hover:bg-white/10 text-gray-200 text-xs md:text-[10px] px-4 py-2 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-2 transition-all shadow-lg font-bold tracking-wide uppercase hover:scale-105"
-          >
+          <button onClick={() => setShowHistory(true)} className="bg-white/5 hover:bg-white/10 text-gray-200 text-xs px-4 py-2 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-2 transition-all shadow-lg font-bold tracking-wide uppercase hover:scale-105">
             <span className="hidden sm:inline opacity-70">Round Log</span>
             <span className="bg-yellow-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm">{gameState.currentPlayPile.length}</span>
           </button>
@@ -242,10 +233,12 @@ export const GameTable: React.FC<GameTableProps> = ({
             setSpQuickFinish={setSpQuickFinish}
             currentDifficulty={aiDifficulty}
             onChangeDifficulty={onChangeDifficulty}
+            soundEnabled={soundEnabled}
+            setSoundEnabled={setSoundEnabled}
         />
       )}
 
-      {/* --- Bomb Effect Overlay --- */}
+      {/* Bomb Overlay */}
       {bombEffect && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none">
             <div className="animate-bounce">
@@ -256,14 +249,14 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       )}
 
-      {/* --- Table Center (Active Move) --- */}
-      <div className="absolute top-[45%] md:top-[50%] landscape:top-[42%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-32 md:w-full md:max-w-lg md:h-64 flex items-center justify-center pointer-events-none z-10">
+      {/* Table Center */}
+      <div className="absolute top-[45%] md:top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-32 md:w-full md:max-w-lg md:h-64 flex items-center justify-center pointer-events-none z-10">
          {!lastPlayedMove ? (
-            <div className="text-white/5 font-bold text-xl uppercase tracking-[0.2em] pl-[0.2em] border-2 md:border-4 border-dashed border-white/5 rounded-full w-40 h-40 md:w-48 md:h-48 landscape:w-32 landscape:h-32 flex items-center justify-center animate-pulse text-center backdrop-blur-sm">
+            <div className="text-white/5 font-bold text-xl uppercase tracking-[0.2em] border-2 border-dashed border-white/5 rounded-full w-40 h-40 md:w-48 md:h-48 flex items-center justify-center animate-pulse text-center backdrop-blur-sm">
                {isMyTurn ? "Your Lead" : "Waiting"}
             </div>
          ) : (
-            <div className="relative scale-90 md:scale-110 lg:scale-125 xl:scale-135 2xl:scale-150 landscape:scale-[0.7] lg:landscape:scale-120 xl:landscape:scale-125 2xl:landscape:scale-130 transition-transform duration-500">
+            <div className="relative scale-90 md:scale-110 lg:scale-125 transition-transform duration-500">
                  <div className="relative z-10 filter drop-shadow-[0_20px_25px_rgba(0,0,0,0.6)]">
                     {lastPlayedMove.cards.map((card, idx) => (
                         <div
@@ -283,34 +276,23 @@ export const GameTable: React.FC<GameTableProps> = ({
          )}
       </div>
 
-      {/* --- Opponents --- */}
+      {/* Opponents Rendering */}
       {gameState.players.map((player, idx) => {
         if (player.id === myId) return null;
         const pos = getPlayerPosition(idx, gameState.players.length, myIndex);
-        
-        let positionClasses = "";
+        let posClasses = "";
         let layoutClasses = "flex-row"; 
-
-        if (pos === 'left') {
-            positionClasses = "absolute left-2 top-1/2 -translate-y-1/2 z-20";
-            layoutClasses = "flex-col";
-        }
-        else if (pos === 'top') {
-            positionClasses = "absolute top-3 left-1/2 -translate-x-[48px] md:-translate-x-[56px] z-20";
-            layoutClasses = "flex-row";
-        }
-        else if (pos === 'right') {
-            positionClasses = "absolute right-2 top-1/2 -translate-y-1/2 z-20";
-            layoutClasses = "flex-col";
-        }
+        if (pos === 'left') { posClasses = "absolute left-2 top-1/2 -translate-y-1/2 z-20"; layoutClasses = "flex-col"; }
+        else if (pos === 'top') { posClasses = "absolute top-3 left-1/2 -translate-x-[48px] z-20"; layoutClasses = "flex-row"; }
+        else if (pos === 'right') { posClasses = "absolute right-2 top-1/2 -translate-y-1/2 z-20"; layoutClasses = "flex-col"; }
 
         return (
-          <div key={player.id} className={`flex items-center gap-3 landscape:scale-[0.85] ${positionClasses} ${layoutClasses}`}>
+          <div key={player.id} className={`flex items-center gap-3 landscape:scale-[0.85] ${posClasses} ${layoutClasses}`}>
              <div className={`
                flex flex-col items-center justify-center p-2 rounded-2xl backdrop-blur-md border transition-all duration-300 shadow-2xl
                ${gameState.currentPlayerId === player.id ? 'bg-black/60 border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.1)] scale-105' : 'bg-black/20 border-white/5'}
                ${player.hasPassed ? 'opacity-50 grayscale' : ''}
-               w-24 h-24 md:w-28 md:h-28 landscape:w-22 landscape:h-22
+               w-24 h-24 md:w-28 md:h-28
              `}>
                 <div className="relative">
                     <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-white/10 to-transparent rounded-full flex items-center justify-center text-xl md:text-2xl border border-white/10 shadow-inner overflow-hidden">
@@ -320,41 +302,17 @@ export const GameTable: React.FC<GameTableProps> = ({
                         <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,1)]"></div>
                     )}
                 </div>
-                
-                <div className="text-white font-bold text-[10px] tracking-wide max-w-full truncate px-1 text-center leading-tight mt-2.5 pb-1">
-                  {player.name}
-                </div>
-                
+                <div className="text-white font-bold text-[10px] tracking-wide max-w-full truncate px-1 text-center mt-2.5 pb-1">{player.name}</div>
                 <div className="absolute -bottom-2 flex gap-1">
-                    {player.finishedRank ? (
-                        <div className="px-1.5 py-0.5 bg-yellow-500 text-black rounded font-black text-[8px] uppercase shadow-md">
-                            {getOrdinal(player.finishedRank)}
-                        </div>
-                    ) : player.hasPassed && (
-                        <div className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded shadow-md tracking-wider">
-                            PASS
-                        </div>
-                    )}
+                    {player.finishedRank ? <div className="px-1.5 py-0.5 bg-yellow-500 text-black rounded font-black text-[8px] uppercase">{getOrdinal(player.finishedRank)}</div> : player.hasPassed && <div className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded">PASS</div>}
                 </div>
              </div>
-             
              {!player.finishedRank && (
                  <div className="relative">
                     <div className="relative group">
-                        {player.cardCount > 1 && (
-                             <div className="absolute top-0.5 left-1 rotate-6 w-full h-full opacity-60">
-                                <Card faceDown coverStyle={cardCoverStyle} small className="!w-8 !h-11 md:!w-9 md:!h-13 bg-black/50" />
-                             </div>
-                        )}
-                        <Card 
-                            faceDown 
-                            coverStyle={cardCoverStyle} 
-                            small 
-                            className="!w-8 !h-11 md:!w-9 md:!h-13 shadow-2xl ring-1 ring-white/5" 
-                        />
-                        <div className="absolute -bottom-2 -right-2 w-5 h-5 bg-yellow-500 text-black text-[10px] font-black rounded-full flex items-center justify-center border-2 border-black shadow-xl z-20">
-                            {player.cardCount}
-                        </div>
+                        {player.cardCount > 1 && <div className="absolute top-0.5 left-1 rotate-6 w-full h-full opacity-60"><Card faceDown coverStyle={cardCoverStyle} small className="!w-8 !h-11 md:!w-9 md:!h-13 bg-black/50" /></div>}
+                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-8 !h-11 md:!w-9 md:!h-13 shadow-2xl ring-1 ring-white/5" />
+                        <div className="absolute -bottom-2 -right-2 w-5 h-5 bg-yellow-500 text-black text-[10px] font-black rounded-full flex items-center justify-center border-2 border-black shadow-xl z-20">{player.cardCount}</div>
                     </div>
                  </div>
              )}
@@ -362,98 +320,40 @@ export const GameTable: React.FC<GameTableProps> = ({
         );
       })}
 
-      {/* --- Action Buttons (Floating Corners - Mobile Landscape ONLY) --- */}
-      {!iAmFinished && (
-        <>
-          <button 
-              onClick={onPassTurn}
-              disabled={!isMyTurn || gameState.currentPlayPile.length === 0}
-              className="
-                  fixed bottom-4 left-4 z-[100]
-                  landscape:flex md:landscape:hidden hidden
-                  group w-28 h-10 items-center justify-center rounded-xl font-bold uppercase tracking-wider text-xs transition-all duration-200
-                  bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 hover:border-white/20 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]
-                  disabled:opacity-30 disabled:cursor-not-allowed
-              "
-          >
-              Pass
-          </button>
-          <button 
-              onClick={playSelectedCards}
-              disabled={!isMyTurn || selectedCardIds.size === 0}
-              className="
-                  fixed bottom-4 right-4 z-[100]
-                  landscape:flex md:landscape:hidden hidden
-                  group w-28 h-10 items-center justify-center rounded-xl font-black uppercase tracking-wider text-xs transition-all duration-200
-                  text-white bg-gradient-to-r from-green-600 to-emerald-600
-                  hover:from-green-500 hover:to-emerald-500
-                  hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95
-                  disabled:opacity-50 disabled:cursor-not-allowed
-              "
-          >
-              Play Cards
-          </button>
-        </>
-      )}
-
-      {/* --- Me / Controls Bar --- */}
-      <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 md:landscape:gap-2 landscape:gap-1 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12 md:landscape:pt-12 landscape:pt-6">
-        
-        {/* STATUS Indicator */}
+      {/* Main Action Bar */}
+      <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
         <div className={`
-            flex px-6 py-2 landscape:px-4 landscape:py-1.5 md:landscape:px-6 md:landscape:py-2 rounded-full font-bold tracking-widest landscape:tracking-wider md:landscape:tracking-widest text-xs landscape:text-[10px] md:landscape:text-xs sm:text-sm uppercase shadow-2xl transition-all duration-300 border backdrop-blur-xl whitespace-nowrap pointer-events-auto mb-1 landscape:mb-0 md:landscape:mb-1
-            ${isMyTurn 
-                ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 landscape:scale-100 md:landscape:scale-105 animate-pulse' 
-                : 'bg-black/60 border-white/10 text-gray-400'}
-            ${!isMyTurn && iAmFinished ? 'text-yellow-400 border-yellow-500/30' : ''}
+            flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-1
+            ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
         `}>
           {currentStatusText}
         </div>
 
-        {/* Actions Row - Centrally grouped for Portrait and Tablet/Desktop Landscape */}
-        <div className="flex flex-col items-center gap-3 w-full justify-center px-8 pointer-events-auto portrait:flex md:landscape:flex hidden">
+        <div className="flex flex-col items-center gap-3 w-full justify-center px-8 pointer-events-auto">
             {!iAmFinished && (
                 <div className="flex justify-center gap-4 h-12 md:h-14">
-                    <button 
-                        onClick={onPassTurn}
-                        disabled={!isMyTurn || gameState.currentPlayPile.length === 0}
-                        className="flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs bg-white/5 border border-white/10 text-gray-400 disabled:opacity-30 transition-all hover:bg-white/10 shadow-lg"
-                    >
-                        Pass
-                    </button>
-                    <button 
-                        onClick={playSelectedCards}
-                        disabled={!isMyTurn || selectedCardIds.size === 0}
-                        className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl"
-                    >
-                        Play Cards
-                    </button>
+                    <button onClick={handlePass} disabled={!isMyTurn || gameState.currentPlayPile.length === 0} className="flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs bg-white/5 border border-white/10 text-gray-400 disabled:opacity-30 transition-all hover:bg-white/10 shadow-lg">Pass</button>
+                    <button onClick={handlePlaySelected} disabled={!isMyTurn || selectedCardIds.size === 0} className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl">Play Cards</button>
                 </div>
             )}
         </div>
 
-        {/* My Hand */}
         {!iAmFinished && (
             <div className="w-full flex justify-center pb-2 px-1 overflow-visible landscape:scale-[0.8] origin-bottom">
-                <div className={`
-                    flex justify-center mx-auto
-                    ${getHandSpacingClass(sortedHand.length)} 
-                    py-2 md:py-4 landscape:py-0
-                `}>
-                    {sortedHand.map((card, idx) => (
-                        <div 
-                            key={card.id}
-                            style={{ zIndex: idx }}
-                            className="transition-all duration-300 hover:z-50 shrink-0 transform origin-bottom hover:-translate-y-6 cursor-pointer"
-                        >
-                            <Card
-                            card={card}
-                            selected={selectedCardIds.has(card.id)}
-                            onClick={() => toggleSelectCard(card.id)}
-                            className="shadow-2xl transition-transform duration-200"
-                            />
-                        </div>
-                    ))}
+                <div className={`flex justify-center mx-auto ${getHandSpacingClass(sortedHand.length)} py-2 md:py-4`}>
+                    {sortedHand.map((card, idx) => {
+                        const isFirstTurn3S = gameState.isFirstTurnOfGame && card.rank === Rank.Three && card.suit === Suit.Spades;
+                        return (
+                            <div key={card.id} style={{ zIndex: idx }} className="transition-all duration-300 hover:z-50 shrink-0 transform origin-bottom hover:-translate-y-6 cursor-pointer">
+                                <Card
+                                    card={card}
+                                    selected={selectedCardIds.has(card.id)}
+                                    onClick={() => toggleSelectCard(card.id)}
+                                    className={`shadow-2xl transition-transform duration-200 ${isFirstTurn3S ? 'ring-2 ring-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.9)] animate-pulse' : ''}`}
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         )}

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
@@ -14,6 +15,8 @@ interface SettingsModalProps {
   setSpQuickFinish?: (val: boolean) => void;
   currentDifficulty?: AiDifficulty;
   onChangeDifficulty?: (d: AiDifficulty) => void;
+  soundEnabled: boolean;
+  setSoundEnabled: (val: boolean) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -27,7 +30,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   spQuickFinish,
   setSpQuickFinish,
   currentDifficulty,
-  onChangeDifficulty
+  onChangeDifficulty,
+  soundEnabled,
+  setSoundEnabled
 }) => {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
@@ -42,6 +47,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         
         <div className="p-6 space-y-6 bg-gray-900/95 max-h-[80vh] overflow-y-auto scrollbar-thin">
           
+          {/* Sound Toggle */}
+          <div className="flex items-center justify-between bg-black/20 p-4 rounded-xl border border-white/5">
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/5 rounded-lg border border-white/10 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                        {soundEnabled ? (
+                            <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" />
+                        ) : (
+                            <path d="M23 9l-6 6M17 9l6 6" />
+                        )}
+                    </svg>
+                </div>
+                <div>
+                    <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest">Sound Effects</h3>
+                    <p className="text-[9px] text-gray-500 uppercase tracking-tight font-bold">In-game alerts and actions</p>
+                </div>
+            </div>
+            <button 
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${soundEnabled ? 'bg-emerald-600' : 'bg-gray-800'}`}
+            >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div>
+            </button>
+          </div>
+
+          <div className="border-t border-gray-800"></div>
+
           {/* Difficulty Selector (Single Player Only) */}
           {isSinglePlayer && currentDifficulty && onChangeDifficulty && (
              <div>
@@ -56,9 +89,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             {d}
                         </button>
                     ))}
-                </div>
-                <div className="mt-2 text-[8px] text-gray-600 uppercase text-center font-bold tracking-widest italic">
-                    Affects decision making and strategy
                 </div>
              </div>
           )}
@@ -139,7 +169,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                </svg>
                Abandon Match
              </button>
-             <p className="text-center text-[9px] font-bold text-gray-600 mt-3 uppercase tracking-widest">Current progress will be lost immediately.</p>
           </div>
         </div>
       </div>
