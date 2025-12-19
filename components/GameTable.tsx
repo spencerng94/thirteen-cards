@@ -20,6 +20,13 @@ interface GameTableProps {
   setSpQuickFinish?: (val: boolean) => void;
 }
 
+// Helper for ordinals
+const getOrdinal = (n: number) => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
 // --- History Modal Component ---
 const HistoryModal: React.FC<{ gameState: GameState; onClose: () => void }> = ({ gameState, onClose }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4" onClick={onClose}>
@@ -157,7 +164,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   }
 
   const currentStatusText = iAmFinished 
-    ? `Spectating • Placed ${me?.finishedRank}th`
+    ? `Spectating • Placed ${getOrdinal(me?.finishedRank || 0)}`
     : isMyTurn 
         ? "Your Turn" 
         : (gameState.players.find(p => p.id === gameState.currentPlayerId)?.hasPassed ? "Resolving..." : `Wait for ${gameState.players.find(p => p.id === gameState.currentPlayerId)?.name}...`);
@@ -264,7 +271,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                {isMyTurn ? "Your Lead" : "Waiting"}
             </div>
          ) : (
-            <div className="relative scale-90 md:scale-110 lg:scale-150 xl:scale-175 2xl:scale-[2] landscape:scale-[0.7] lg:landscape:scale-130 xl:landscape:scale-150 2xl:landscape:scale-175">
+            <div className="relative scale-90 md:scale-110 lg:scale-125 xl:scale-135 2xl:scale-150 landscape:scale-[0.7] lg:landscape:scale-120 xl:landscape:scale-125 2xl:landscape:scale-130 transition-transform duration-500">
                  <div className="relative z-10 filter drop-shadow-[0_20px_25px_rgba(0,0,0,0.6)]">
                     {lastPlayedMove.cards.map((card, idx) => (
                         <div
@@ -331,7 +338,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                 <div className="absolute -bottom-2 flex gap-1">
                     {player.finishedRank ? (
                         <div className="px-1.5 py-0.5 bg-yellow-500 text-black rounded font-black text-[8px] uppercase shadow-md">
-                            {player.finishedRank === 1 ? '1st' : player.finishedRank === 2 ? '2nd' : player.finishedRank === 3 ? '3rd' : 'DN'}
+                            {getOrdinal(player.finishedRank)}
                         </div>
                     ) : player.hasPassed && (
                         <div className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded shadow-md tracking-wider">
