@@ -5,7 +5,7 @@ import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
 import { SettingsModal } from './SettingsModal';
 import { audioService } from '../services/audio';
-import { findBestMove } from '../utils/gameLogic';
+import { canPlayAnyMove, sortCards } from '../utils/gameLogic';
 
 interface GameTableProps {
   gameState: GameState;
@@ -110,23 +110,18 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [gameState.currentPlayPile.length, lastPlayedMove]);
 
-  const sortedHand = useMemo(() => [...myHand].sort((a, b) => {
-    if (a.rank !== b.rank) return a.rank - b.rank;
-    return a.suit - b.suit;
-  }), [myHand]);
+  const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
 
-  const myIndex = gameState.players.findIndex(p => p.id === myId);
   const me = gameState.players.find(p => p.id === myId);
+  const myIndex = gameState.players.findIndex(p => p.id === myId);
   const isMyTurn = gameState.currentPlayerId === myId;
   const iAmFinished = !!me?.finishedRank;
 
-  // Logic to determine if a pass is mandatory
+  // Use the exhaustive 'canPlayAnyMove' instead of randomized 'findBestMove'
   const mustPass = useMemo(() => {
     if (!isMyTurn || iAmFinished || gameState.currentPlayPile.length === 0) return false;
-    // Use the HARD difficulty check to exhaustively find any possible move
-    const possibleMove = findBestMove(sortedHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame, 'HARD');
-    return possibleMove === null;
-  }, [isMyTurn, iAmFinished, sortedHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
+    return !canPlayAnyMove(myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame);
+  }, [isMyTurn, iAmFinished, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
   const toggleSelectCard = (id: string) => {
     const newSelected = new Set(selectedCardIds);

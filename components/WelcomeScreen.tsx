@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -20,10 +21,10 @@ const GlassPanel: React.FC<{ children: React.ReactNode; className?: string }> = 
 );
 
 const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p className="text-[10px] font-black uppercase tracking-[0.5em] text-yellow-500/80 flex items-center justify-center gap-4 mb-4">
-    <span className="w-10 h-[1px] bg-gradient-to-r from-transparent to-yellow-500/30"></span>
+  <p className="text-[10px] font-black uppercase tracking-[0.5em] text-yellow-300 flex items-center justify-center gap-4 mb-4">
+    <span className="w-10 h-[1px] bg-gradient-to-r from-transparent to-yellow-300/40"></span>
     {children}
-    <span className="w-10 h-[1px] bg-gradient-to-l from-transparent to-yellow-500/30"></span>
+    <span className="w-10 h-[1px] bg-gradient-to-l from-transparent to-yellow-300/40"></span>
   </p>
 );
 
@@ -41,7 +42,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
       case 'EASY':
         return "bg-green-600/90 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border-green-400/30";
       case 'MEDIUM':
-        return "bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)] border-yellow-300/30";
+        return "bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)] border-yellow-300/30";
       case 'HARD':
         return "bg-red-600/90 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)] border-red-400/30";
       default:

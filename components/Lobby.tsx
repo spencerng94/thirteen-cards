@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty } from '../types';
 import { socket } from '../services/socket';
@@ -94,6 +95,11 @@ export const Lobby: React.FC<LobbyProps> = ({
     socket.emit(SocketEvents.ADD_BOT, { roomId: gameState.roomId });
   };
 
+  const removeBot = (botId: string) => {
+    if (!gameState) return;
+    socket.emit(SocketEvents.REMOVE_BOT, { roomId: gameState.roomId, botId });
+  };
+
   const updateBotDifficulty = (botId: string, difficulty: AiDifficulty) => {
     if (!gameState) return;
     socket.emit(SocketEvents.UPDATE_BOT_DIFFICULTY, { roomId: gameState.roomId, botId, difficulty });
@@ -146,7 +152,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                 </div>
                 
                 <div className="text-center relative">
-                    <h2 className="text-yellow-500/80 text-[10px] font-black uppercase tracking-[0.6em] mb-1">Access Protocol</h2>
+                    <h2 className="text-yellow-500/80 text-[10px] font-black uppercase tracking-[0.6em] mb-1">MULTIPLAYER LOBBY</h2>
                     <div 
                         className="text-7xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/40 tracking-[0.15em] drop-shadow-[0_0_20px_rgba(255,255,255,0.1)] cursor-pointer active:scale-95 transition-transform"
                         onClick={copyInviteLink}
@@ -191,6 +197,17 @@ export const Lobby: React.FC<LobbyProps> = ({
                                  )}
                                  {p.isBot && (
                                      <div className="absolute -top-1 -right-2 bg-gradient-to-br from-emerald-500 to-teal-700 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-[0_4px_10px_rgba(16,185,129,0.3)] ring-2 ring-black/50">CPU</div>
+                                 )}
+
+                                 {/* Remove Bot Button - Positioned in top-right */}
+                                 {p.isBot && isHost && (
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); removeBot(p.id); }}
+                                        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-red-600 text-white flex items-center justify-center border-2 border-black shadow-xl hover:bg-red-500 active:scale-90 transition-all z-20"
+                                        title="Remove Bot"
+                                    >
+                                        <span className="text-xs font-black">✕</span>
+                                    </button>
                                  )}
                              </div>
 
@@ -261,7 +278,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                         <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                         
                         <span className="relative z-10 text-white flex items-center justify-center gap-4 drop-shadow-md">
-                           Engage Match <span className="text-2xl group-hover:rotate-12 transition-transform">🚀</span>
+                           Start Game <span className="text-2xl group-hover:rotate-12 transition-transform">🚀</span>
                         </span>
                     </button>
                 ) : (
@@ -330,7 +347,7 @@ export const Lobby: React.FC<LobbyProps> = ({
            </div>
 
            <div className="space-y-4">
-             <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] px-1">Access Protocol</p>
+             <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] px-1">MULTIPLAYER LOBBY</p>
              <div className="flex gap-3">
                 <input 
                   type="text" 

@@ -74,6 +74,7 @@ export enum SocketEvents {
   CREATE_ROOM = 'create_room',
   JOIN_ROOM = 'join_room',
   ADD_BOT = 'add_bot',
+  REMOVE_BOT = 'remove_bot',
   START_GAME = 'start_game',
   GAME_STATE = 'game_state',
   PLAY_CARDS = 'play_cards',

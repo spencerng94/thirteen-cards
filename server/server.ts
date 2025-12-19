@@ -174,6 +174,19 @@ io.on('connection', (socket: Socket) => {
     broadcastState(roomId);
   });
 
+  socket.on('remove_bot', ({ roomId, botId }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    
+    // Check if requester is host
+    const requester = room.players.find(p => p.socketId === socket.id);
+    if (!requester?.isHost) return;
+
+    // Filter out the bot
+    room.players = room.players.filter(p => p.id !== botId);
+    broadcastState(roomId);
+  });
+
   socket.on('update_bot_difficulty', ({ roomId, botId, difficulty }) => {
     const room = rooms[roomId];
     if (!room) return;
