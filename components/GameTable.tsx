@@ -168,7 +168,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
 
       {/* --- Top Left: Status Column --- */}
-      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-40 flex flex-col gap-1.5 sm:gap-2 pointer-events-none items-start">
+      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-1.5 sm:gap-2 pointer-events-none items-start">
         <div className="hidden lg:block mb-1">
             <div className="flex flex-col">
                 <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter">
@@ -183,7 +183,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         {/* 1. PLAYED BY Indicator (Top Left Stack) */}
         {lastPlayedMove && (
             <div className="flex pointer-events-auto">
-                <div className="bg-black/70 backdrop-blur-xl border border-white/10 text-gray-300 text-[8px] sm:text-[9px] uppercase px-2 py-1 sm:px-3 sm:py-1.5 rounded-full whitespace-nowrap shadow-xl font-bold tracking-widest flex items-center gap-1.5 sm:gap-2">
+                <div className="bg-black/75 backdrop-blur-xl border border-white/10 text-gray-300 text-[8px] sm:text-[9px] uppercase px-2 py-1 sm:px-3 sm:py-1.5 rounded-full whitespace-nowrap shadow-xl font-bold tracking-widest flex items-center gap-1.5 sm:gap-2">
                     <span className="opacity-70 italic">Played by</span>
                     <span className="text-yellow-400 text-[10px] sm:text-xs">{gameState.players.find(p => p.id === lastPlayedMove.playerId)?.name}</span>
                 </div>
@@ -297,9 +297,10 @@ export const GameTable: React.FC<GameTableProps> = ({
             layoutClasses = "flex-col";
         }
         else if (pos === 'top') {
-            // Updated positioning and layout for top player in portrait/mobile
-            positionClasses = "absolute top-2 left-1/2 -translate-x-1/2 sm:top-3 z-20";
-            layoutClasses = "flex-row"; // Cards now on the right of the profile box
+            // Profile box centered (width is 24 units = 96px, so we translate left by half i.e. 48px)
+            // This ensures the BOX center aligns with the VIEWPORT center.
+            positionClasses = "absolute top-3 left-1/2 -translate-x-[48px] md:-translate-x-[56px] z-20";
+            layoutClasses = "flex-row"; // Cards flow to the right of the profile box
         }
         else if (pos === 'right') {
             positionClasses = "absolute right-2 top-1/2 -translate-y-1/2 z-20";
