@@ -18,7 +18,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
   return (
     <div className={`${dimensions} ${className} relative flex items-center justify-center select-none transition-all duration-1000 ease-in-out hover:scale-[1.05] active:scale-95 group`}>
       <svg 
-        viewBox="0 0 1024 950" 
+        viewBox="0 0 1024 860" 
         className="w-full h-full"
         xmlns="http://www.w3.org/2000/svg"
       >

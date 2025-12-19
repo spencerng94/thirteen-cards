@@ -6,6 +6,7 @@ import { GameTable } from './components/GameTable';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { Lobby } from './components/Lobby';
 import { VictoryScreen } from './components/VictoryScreen';
+import { ConnectingScreen } from './components/ConnectingScreen';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
@@ -184,6 +185,12 @@ const App: React.FC = () => {
     if (mode === 'MULTI_PLAYER') { connectSocket(); setView('LOBBY'); } else initSinglePlayer(name, avatar);
   };
 
+  function handleGoHome() {
+    if (gameMode === 'MULTI_PLAYER') disconnectSocket();
+    setConnected(false); setSpGameState(null); setMpGameState(null); setGameMode(null); setInitialRoomCode(null);
+    setView('WELCOME');
+  }
+
   return (
     <>
       {error && (
@@ -195,7 +202,7 @@ const App: React.FC = () => {
       )}
       {view === 'WELCOME' && <WelcomeScreen onStart={handleStart} />}
       {view === 'LOBBY' && (
-        !connected ? <div className="min-h-screen bg-slate-950 flex items-center justify-center">Connecting...</div>
+        !connected ? <ConnectingScreen onCancel={handleGoHome} />
         : <Lobby playerName={playerName} gameState={mpGameState} error={null} playerAvatar={playerAvatar} initialRoomCode={initialRoomCode} backgroundTheme={backgroundTheme} onBack={handleGoHome} />
       )}
       {view === 'VICTORY' && <VictoryScreen players={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)?.players || []} myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'} onPlayAgain={() => gameMode === 'SINGLE_PLAYER' ? initSinglePlayer(playerName, playerAvatar) : setView('LOBBY')} onGoHome={handleGoHome} />}
@@ -213,12 +220,6 @@ const App: React.FC = () => {
       )}
     </>
   );
-
-  function handleGoHome() {
-    if (gameMode === 'MULTI_PLAYER') disconnectSocket();
-    setConnected(false); setSpGameState(null); setMpGameState(null); setGameMode(null); setInitialRoomCode(null);
-    setView('WELCOME');
-  }
 };
 
 export default App;

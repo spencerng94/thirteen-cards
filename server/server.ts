@@ -5,7 +5,7 @@ import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 
-// Simple in-memory types (mirroring client types for simplicity in this file)
+// Types Mirroring Client
 enum Suit { Spades = 0, Clubs = 1, Diamonds = 2, Hearts = 3 }
 enum Rank { Three = 3, Four = 4, Five = 5, Six = 6, Seven = 7, Eight = 8, Nine = 9, Ten = 10, Jack = 11, Queen = 12, King = 13, Ace = 14, Two = 15 }
 
@@ -15,6 +15,8 @@ interface Card {
   id: string;
 }
 
+type AiDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
 interface Player {
   id: string;
   name: string;
@@ -23,8 +25,9 @@ interface Player {
   hand: Card[];
   isHost: boolean;
   hasPassed: boolean;
-  finishedRank: number | null; // 1, 2, 3...
+  finishedRank: number | null;
   isBot?: boolean;
+  difficulty?: AiDifficulty;
 }
 
 interface PlayTurn {
@@ -40,7 +43,7 @@ interface GameRoom {
   currentPlayerIndex: number;
   currentPlayPile: PlayTurn[];
   lastPlayerToPlayId: string | null; 
-  finishedPlayers: string[]; // Track IDs in order
+  finishedPlayers: string[];
   isFirstTurnOfGame: boolean;
 }
 
@@ -48,112 +51,194 @@ const BOT_AVATARS = ['🤖', '👾', '👽', '🤡', '👹', '👺', '👻'];
 
 const app = express();
 const httpServer = createServer(app);
-
-// Use environment variable for CORS origin with local fallback
 const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
 
-// Configure Express CORS
-app.use(cors({
-  origin: allowedOrigin,
-  methods: ["GET", "POST"],
-  credentials: true
-}));
+app.use(cors({ origin: allowedOrigin, credentials: true }));
 
 const io = new Server(httpServer, {
-  cors: {
-    origin: allowedOrigin, 
-    methods: ["GET", "POST"],
-    credentials: true
-  }
+  cors: { origin: allowedOrigin, methods: ["GET", "POST"], credentials: true }
 });
 
 const rooms: Record<string, GameRoom> = {};
-const socketRoomMap: Record<string, string> = {}; 
 
-// --- Logic Helpers ---
-
+// Logic Helpers
 const generateRoomCode = (): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
-  for (let i = 0; i < 4; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
+  for (let i = 0; i < 4; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
   return result;
 };
 
-const getCardScore = (card: Card): number => {
-  return card.rank * 10 + card.suit;
-};
+const getGameState = (room: GameRoom) => ({
+  roomId: room.id,
+  status: room.status,
+  players: room.players.map(p => ({
+    id: p.id,
+    name: p.name,
+    avatar: p.avatar,
+    cardCount: p.hand.length,
+    isHost: p.isHost,
+    hasPassed: p.hasPassed,
+    finishedRank: p.finishedRank,
+    isBot: p.isBot,
+    difficulty: p.difficulty
+  })),
+  currentPlayerId: room.status === 'PLAYING' ? room.players[room.currentPlayerIndex]?.id : null,
+  currentPlayPile: room.currentPlayPile,
+  lastPlayerToPlayId: room.lastPlayerToPlayId,
+  finishedPlayers: room.finishedPlayers,
+  isFirstTurnOfGame: room.isFirstTurnOfGame
+});
 
-const sortCards = (cards: Card[]): Card[] => {
-  return [...cards].sort((a, b) => getCardScore(a) - getCardScore(b));
-};
-
-type ComboType = 'SINGLE' | 'PAIR' | 'TRIPLE' | 'QUAD' | 'RUN' | '3_PAIRS' | 'INVALID';
-
-const getComboType = (cards: Card[]): ComboType => {
-  const sorted = sortCards(cards);
-  const len = sorted.length;
+const broadcastState = (roomId: string) => {
+  const room = rooms[roomId];
+  if (!room) return;
+  const state = getGameState(room);
+  io.to(roomId).emit('game_state', state);
   
-  if (len === 0) return 'INVALID';
-  if (len === 1) return 'SINGLE';
+  // Send private hands
+  room.players.forEach(p => {
+    if (!p.isBot) io.to(p.socketId).emit('player_hand', p.hand);
+  });
+};
 
-  const isSameRank = sorted.every(c => c.rank === sorted[0].rank);
-  if (isSameRank) {
-    if (len === 2) return 'PAIR';
-    if (len === 3) return 'TRIPLE';
-    if (len === 4) return 'QUAD';
-    return 'INVALID';
-  }
+io.on('connection', (socket: Socket) => {
+  console.log('User connected:', socket.id);
 
-  let isRun = true;
-  for (let i = 0; i < len - 1; i++) {
-    if (sorted[i].rank === Rank.Two || sorted[i+1].rank === Rank.Two) {
-      isRun = false; 
-      break;
-    }
-    if (sorted[i+1].rank !== sorted[i].rank + 1) {
-      isRun = false;
-      break;
-    }
-  }
-  if (isRun && len >= 3) return 'RUN';
+  socket.on('create_room', ({ name, avatar }) => {
+    const roomId = generateRoomCode();
+    rooms[roomId] = {
+      id: roomId,
+      status: 'LOBBY',
+      players: [{
+        id: socket.id,
+        name,
+        avatar,
+        socketId: socket.id,
+        hand: [],
+        isHost: true,
+        hasPassed: false,
+        finishedRank: null
+      }],
+      currentPlayerIndex: 0,
+      currentPlayPile: [],
+      lastPlayerToPlayId: null,
+      finishedPlayers: [],
+      isFirstTurnOfGame: true
+    };
+    socket.join(roomId);
+    broadcastState(roomId);
+  });
 
-  if (len === 6) {
-    const isPairs = 
-      sorted[0].rank === sorted[1].rank &&
-      sorted[2].rank === sorted[3].rank &&
-      sorted[4].rank === sorted[5].rank;
+  socket.on('join_room', ({ roomId, name, avatar }) => {
+    const room = rooms[roomId];
+    if (!room) return socket.emit('error', 'Room not found.');
+    if (room.status !== 'LOBBY') return socket.emit('error', 'Game already started.');
+    if (room.players.length >= 4) return socket.emit('error', 'Room is full.');
+
+    room.players.push({
+      id: socket.id,
+      name,
+      avatar,
+      socketId: socket.id,
+      hand: [],
+      isHost: false,
+      hasPassed: false,
+      finishedRank: null
+    });
+    socket.join(roomId);
+    broadcastState(roomId);
+  });
+
+  socket.on('add_bot', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.players.length >= 4) return;
     
-    if (isPairs) {
-      if (sorted[2].rank === sorted[0].rank + 1 && sorted[4].rank === sorted[2].rank + 1) {
-        if (sorted[5].rank !== Rank.Two) {
-            return '3_PAIRS';
-        }
+    // Check if requester is host
+    const requester = room.players.find(p => p.socketId === socket.id);
+    if (!requester?.isHost) return;
+
+    const botId = `bot-${uuidv4()}`;
+    room.players.push({
+      id: botId,
+      name: `CPU ${room.players.length}`,
+      avatar: BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)],
+      socketId: 'bot',
+      hand: [],
+      isHost: false,
+      hasPassed: false,
+      finishedRank: null,
+      isBot: true,
+      difficulty: 'MEDIUM' // Default difficulty initialized
+    });
+    broadcastState(roomId);
+  });
+
+  socket.on('update_bot_difficulty', ({ roomId, botId, difficulty }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    // Check if requester is host
+    const requester = room.players.find(p => p.socketId === socket.id);
+    if (!requester?.isHost) return;
+
+    const bot = room.players.find(p => p.id === botId);
+    if (bot && bot.isBot) {
+      bot.difficulty = difficulty;
+      broadcastState(roomId);
+    }
+  });
+
+  socket.on('start_game', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.players.length < 2) return;
+    
+    const requester = room.players.find(p => p.socketId === socket.id);
+    if (!requester?.isHost) return;
+
+    // Deck Generation & Dealing
+    const deck: Card[] = [];
+    for (let s = 0; s < 4; s++) {
+      for (let r = 3; r <= 15; r++) {
+        deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
       }
     }
-  }
-
-  return 'INVALID';
-};
-
-const getHighestCard = (cards: Card[]): Card => {
-    const sorted = sortCards(cards);
-    return sorted[sorted.length - 1];
-};
-
-const validateMove = (
-  playedCards: Card[], 
-  currentPlayPile: PlayTurn[], 
-  playerHand: Card[],
-  isFirstTurnOfGame: boolean
-): { isValid: boolean; reason: string } => {
-  
-  const handIds = new Set(playerHand.map(c => c.id));
-  for (const c of playedCards) {
-    if (!handIds.has(c.id)) {
-      return { isValid: false, reason: "You don't have these cards." };
+    // Shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
     }
-  }
 
-  const
+    // Deal
+    room.players.forEach((p, i) => {
+      p.hand = deck.slice(i * 13, (i + 1) * 13);
+      p.hasPassed = false;
+      p.finishedRank = null;
+    });
+
+    // Find who has 3 of Spades
+    let starterIndex = 0;
+    room.players.forEach((p, i) => {
+      if (p.hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starterIndex = i;
+    });
+
+    room.status = 'PLAYING';
+    room.currentPlayerIndex = starterIndex;
+    room.isFirstTurnOfGame = true;
+    room.currentPlayPile = [];
+    room.finishedPlayers = [];
+    room.lastPlayerToPlayId = null;
+
+    broadcastState(roomId);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+    // Cleanup room logic would go here in a production app
+  });
+});
+
+const PORT = process.env.PORT || 3001;
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
