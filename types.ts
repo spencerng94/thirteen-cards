@@ -1,3 +1,4 @@
+
 // Card Suits
 export enum Suit {
   Spades = 0,   // Lowest
@@ -38,6 +39,7 @@ export interface Player {
   isTurn?: boolean;
   hasPassed?: boolean;
   finishedRank?: number | null; // 1 = 1st, 2 = 2nd, etc. Null if still playing.
+  isBot?: boolean;
 }
 
 export enum GameStatus {
@@ -68,6 +70,7 @@ export interface GameState {
 export enum SocketEvents {
   CREATE_ROOM = 'create_room',
   JOIN_ROOM = 'join_room',
+  ADD_BOT = 'add_bot',
   START_GAME = 'start_game',
   GAME_STATE = 'game_state',
   PLAY_CARDS = 'play_cards',

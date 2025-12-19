@@ -179,11 +179,8 @@ export const GameTable: React.FC<GameTableProps> = ({
         <div className="hidden lg:block mb-1">
             <div className="flex flex-col">
                 <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter">
-                    Tiến Lên
+                    THIRTEEN
                 </h1>
-                <span className="text-[10px] text-yellow-500/80 font-bold tracking-[0.3em] uppercase ml-1">
-                    Arena
-                </span>
             </div>
         </div>
 
@@ -196,17 +193,6 @@ export const GameTable: React.FC<GameTableProps> = ({
                 </div>
             </div>
         )}
-
-        {/* 2. STATUS Indicator (YOUR TURN / WAIT FOR...) (Top Left Stack, Under Played By) */}
-        <div className={`
-            flex px-3 py-1 sm:px-4 sm:py-1.5 rounded-full font-bold tracking-widest text-[8px] sm:text-[9px] uppercase shadow-xl transition-all duration-500 border backdrop-blur-xl whitespace-nowrap pointer-events-auto
-            ${isMyTurn 
-                ? 'bg-green-500/20 text-green-400 border-green-500/40 shadow-[0_0_20px_rgba(34,197,94,0.15)] animate-pulse' 
-                : 'bg-black/50 border-white/10 text-gray-500'}
-            ${!isMyTurn && iAmFinished ? 'text-yellow-400 border-yellow-500/30' : ''}
-        `}>
-          {currentStatusText}
-        </div>
       </div>
 
       {/* --- Top Right: Controls --- */}
@@ -223,7 +209,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105"
           >
              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125(0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
              </svg>
           </button>
@@ -407,7 +393,19 @@ export const GameTable: React.FC<GameTableProps> = ({
       )}
 
       {/* --- Me / Controls Bar --- */}
-      <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
+      <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 md:landscape:gap-2 landscape:gap-1 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12 md:landscape:pt-12 landscape:pt-6">
+        
+        {/* STATUS Indicator (Reduced padding and font size in landscape mobile) */}
+        <div className={`
+            flex px-6 py-2 landscape:px-4 landscape:py-1.5 md:landscape:px-6 md:landscape:py-2 rounded-full font-bold tracking-widest landscape:tracking-wider md:landscape:tracking-widest text-xs landscape:text-[10px] md:landscape:text-xs sm:text-sm uppercase shadow-2xl transition-all duration-300 border backdrop-blur-xl whitespace-nowrap pointer-events-auto mb-1 landscape:mb-0 md:landscape:mb-1
+            ${isMyTurn 
+                ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 landscape:scale-100 md:landscape:scale-105 animate-pulse' 
+                : 'bg-black/60 border-white/10 text-gray-400'}
+            ${!isMyTurn && iAmFinished ? 'text-yellow-400 border-yellow-500/30' : ''}
+        `}>
+          {currentStatusText}
+        </div>
+
         {/* Actions Row - Centrally grouped for Portrait and Tablet/Desktop Landscape */}
         <div className="flex flex-col items-center gap-3 w-full justify-center px-8 pointer-events-auto portrait:flex md:landscape:flex hidden">
             {!iAmFinished && (

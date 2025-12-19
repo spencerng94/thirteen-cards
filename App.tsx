@@ -421,18 +421,45 @@ const App: React.FC = () => {
     if (view === 'LOBBY') {
         if (!connected) {
           return (
-            <div className="min-h-screen bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-900 via-black to-black text-white flex flex-col items-center justify-center p-6 gap-8">
-               <div className="relative">
-                 <div className="w-20 h-20 border-4 border-white/10 border-t-yellow-500 rounded-full animate-spin"></div>
-                 <div className="absolute inset-0 flex items-center justify-center"><span className="text-2xl">⚡</span></div>
+            <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 gap-8 relative overflow-hidden transition-colors duration-1000">
+               {/* Ambient Background Orbs */}
+               <div className="absolute top-1/4 left-1/4 w-[50vw] h-[50vw] bg-yellow-500/10 blur-[120px] rounded-full animate-pulse pointer-events-none"></div>
+               <div className="absolute bottom-1/4 right-1/4 w-[40vw] h-[40vw] bg-emerald-500/10 blur-[100px] rounded-full animate-pulse delay-700 pointer-events-none"></div>
+               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+
+               <div className="relative z-10 flex flex-col items-center">
+                 {/* Visual Loading Centerpiece */}
+                 <div className="relative mb-12">
+                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border border-white/5 flex items-center justify-center relative">
+                        {/* Rotating Rings */}
+                        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-yellow-500/40 border-l-yellow-500/40 animate-spin"></div>
+                        <div className="absolute inset-2 rounded-full border border-transparent border-b-emerald-500/30 border-r-emerald-500/30 animate-[spin_3s_linear_infinite_reverse]"></div>
+                        
+                        <div className="text-3xl md:text-4xl filter drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">⚡</div>
+                    </div>
+                 </div>
+
+                 <div className="text-center space-y-4 max-w-xs">
+                    <div>
+                        <h2 className="text-4xl font-black tracking-tighter uppercase text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-gray-500">
+                            Connecting
+                        </h2>
+                        <div className="h-0.5 w-12 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto mt-1"></div>
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.3em] leading-relaxed">
+                        Initializing secure arena link to global servers
+                    </p>
+                 </div>
                </div>
-               <div className="text-center">
-                 <div className="text-2xl font-black tracking-widest uppercase mb-2 animate-pulse text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600">Connecting</div>
-                 <div className="text-xs text-gray-500 font-bold uppercase tracking-[0.2em]">Establishing secure link...</div>
-               </div>
-               <button onClick={handleGoHome} className="group px-8 py-3 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 rounded-full text-red-400 font-bold text-xs tracking-widest uppercase transition-all hover:scale-105 active:scale-95 flex items-center gap-2">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                 Cancel
+
+               <button 
+                  onClick={handleGoHome} 
+                  className="relative z-10 group px-10 py-3 bg-white/5 hover:bg-red-950/20 border border-white/10 hover:border-red-500/30 rounded-full text-gray-400 hover:text-red-400 font-bold text-[10px] tracking-[0.2em] uppercase transition-all hover:scale-105 active:scale-95 flex items-center gap-3 backdrop-blur-sm"
+               >
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50 group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+                 Cancel Connection
                </button>
             </div>
           );

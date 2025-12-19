@@ -1,5 +1,8 @@
+
+// Import useState from react
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
+import { BrandLogo } from './BrandLogo';
 
 interface WelcomeScreenProps {
   onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean) => void;
@@ -16,19 +19,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
   const [quickFinish, setQuickFinish] = useState(false);
 
-  // Helper to get button theme classes based on card aesthetic
-  const getButtonTheme = (style: CardCoverStyle) => {
-    switch (style) {
-      case 'RED':
-        return 'from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-red-900/20';
-      case 'PATTERN':
-        return 'from-yellow-600 to-amber-600 hover:from-yellow-500 hover:to-amber-500 shadow-yellow-900/20';
-      case 'BLUE':
-      default:
-        return 'from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/20';
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-green-900 relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000">
       {/* Background Gradients - Matching Game Board Green */}
@@ -37,15 +27,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
       <div className="max-w-md w-full bg-black/40 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative z-10">
         
-        <div className="text-center mb-8">
-            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 drop-shadow-lg tracking-tighter">Tiến Lên</h1>
-            <p className="text-center text-green-500/80 font-bold uppercase text-[10px] tracking-[0.3em]">Thirteen Card Arena</p>
+        <div className="flex flex-col items-center">
+            <BrandLogo size="xl" />
         </div>
 
         <div className="space-y-6">
           {/* Avatar Selection */}
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-2 tracking-widest text-center">Identity</label>
+          <div className="mt-0">
+            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-2 tracking-widest text-center">Identity</label>
             <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
                 <div className="flex justify-center mb-4">
                     <div className="w-20 h-20 bg-gradient-to-br from-white/10 to-transparent rounded-full flex items-center justify-center text-4xl shadow-inner border border-white/10 animate-bounce">
@@ -68,7 +57,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
           {/* Name Input */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-2 tracking-widest">Player Handle</label>
+            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-2 tracking-widest">Player Handle</label>
             <input
               type="text"
               value={name}
@@ -80,7 +69,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
           {/* Card Style Selector */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-3 tracking-widest text-center">Deck Aesthetic</label>
+            <label className="block text-[10px] font-bold uppercase text-[#d4af37] mb-3 tracking-widest text-center">Deck Aesthetic</label>
             <div className="flex justify-center gap-4">
                {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
                  <div 
@@ -98,9 +87,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
           <div className="flex flex-col gap-3 mt-8">
              <button
               onClick={() => onStart(name || 'Guest', 'MULTI_PLAYER', coverStyle, selectedAvatar)}
-              className={`group w-full py-4 bg-gradient-to-r ${getButtonTheme(coverStyle)} text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-lg active:scale-95 transition-all duration-300`}
+              className="group w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.2)] active:scale-95 transition-all duration-300 relative overflow-hidden"
             >
-              Enter Multiplayer
+              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                Enter Multiplayer
+                <span className="text-lg">⚔️</span>
+              </span>
             </button>
             <div className="space-y-2">
                 <button
