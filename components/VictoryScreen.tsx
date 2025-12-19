@@ -28,6 +28,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onP
           case 1: return '🏆';
           case 2: return '🥈';
           case 3: return '🥉';
+          case 4: return '💩';
           default: return '🏁';
       }
   };
@@ -36,6 +37,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onP
     if (rank === 1) return 'Winner';
     if (rank === 2) return '2nd Place';
     if (rank === 3) return '3rd Place';
+    if (rank === 4) return '4th Place';
     return `${rank}th Place`;
   };
 
@@ -52,6 +54,8 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onP
         <div>
             {isWinner ? (
                 <div className="text-7xl mb-2 animate-bounce">👑</div>
+            ) : myRank === 4 ? (
+                <div className="text-7xl mb-2 animate-bounce">💩</div>
             ) : (
                 <div className="text-7xl mb-2 grayscale opacity-80">🏁</div>
             )}

@@ -9,6 +9,9 @@ interface SettingsModalProps {
   onChangeCoverStyle: (style: CardCoverStyle) => void;
   currentTheme: BackgroundTheme;
   onChangeTheme: (theme: BackgroundTheme) => void;
+  isSinglePlayer?: boolean;
+  spQuickFinish?: boolean;
+  setSpQuickFinish?: (val: boolean) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -17,7 +20,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   currentCoverStyle,
   onChangeCoverStyle,
   currentTheme,
-  onChangeTheme
+  onChangeTheme,
+  isSinglePlayer,
+  spQuickFinish,
+  setSpQuickFinish
 }) => {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
@@ -76,6 +82,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                ))}
             </div>
           </div>
+
+          {isSinglePlayer && setSpQuickFinish && (
+            <>
+              <div className="border-t border-gray-800"></div>
+              <div className="flex items-center justify-between">
+                <div>
+                    <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wide">Quick Finish</h3>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-tight">End game when you finish your hand</p>
+                </div>
+                <button 
+                    onClick={() => setSpQuickFinish(!spQuickFinish)}
+                    className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${spQuickFinish ? 'bg-green-600' : 'bg-gray-800'}`}
+                >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${spQuickFinish ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                </button>
+              </div>
+            </>
+          )}
 
           <div className="border-t border-gray-800"></div>
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 
 interface WelcomeScreenProps {
-  onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER', coverStyle: CardCoverStyle, avatar: string) => void;
+  onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean) => void;
 }
 
 const AVATARS = [
@@ -14,6 +14,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [name, setName] = useState('');
   const [coverStyle, setCoverStyle] = useState<CardCoverStyle>('BLUE');
   const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
+  const [quickFinish, setQuickFinish] = useState(false);
 
   // Helper to get button theme classes based on card aesthetic
   const getButtonTheme = (style: CardCoverStyle) => {
@@ -101,12 +102,25 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             >
               Enter Multiplayer
             </button>
-            <button
-              onClick={() => onStart(name || 'Guest', 'SINGLE_PLAYER', coverStyle, selectedAvatar)}
-              className="group w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-all"
-            >
-              Practice vs Bots
-            </button>
+            <div className="space-y-2">
+                <button
+                onClick={() => onStart(name || 'Guest', 'SINGLE_PLAYER', coverStyle, selectedAvatar, quickFinish)}
+                className="group w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-all"
+                >
+                Practice vs Bots
+                </button>
+                <div className="flex items-center justify-center gap-2 px-2">
+                    <button 
+                        onClick={() => setQuickFinish(!quickFinish)}
+                        className="flex items-center gap-2 text-[10px] font-bold text-gray-500 hover:text-gray-400 transition-colors uppercase tracking-widest group"
+                    >
+                        <div className={`w-8 h-4 rounded-full relative transition-colors duration-200 ${quickFinish ? 'bg-green-600' : 'bg-gray-800'}`}>
+                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform duration-200 ${quickFinish ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
+                        </div>
+                        Quick Finish Mode
+                    </button>
+                </div>
+            </div>
           </div>
         </div>
       </div>

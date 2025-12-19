@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('BLUE');
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('GREEN');
   const [initialRoomCode, setInitialRoomCode] = useState<string | null>(null);
+  const [spQuickFinish, setSpQuickFinish] = useState(false);
   
   // Multiplayer State
   const [connected, setConnected] = useState(false);
@@ -98,8 +99,6 @@ const App: React.FC = () => {
     
     // Find the player with 3 of Spades
     let startingPlayerIndex = 0;
-    
-    // Check all hands
     for (let i = 0; i < 4; i++) {
         if (hands[i].some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) {
             startingPlayerIndex = i;
@@ -114,7 +113,6 @@ const App: React.FC = () => {
       { id: 'bot-3', name: 'Bot 3', avatar: BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)] }
     ];
 
-    // Map hands to players based on fixed slots
     const players: Player[] = [
       { id: myId, name: name, avatar: avatar, cardCount: 13, isHost: true, hasPassed: false, finishedRank: null },
       ...bots.map((b) => ({ id: b.id, name: b.name, avatar: b.avatar, cardCount: 13, isHost: false, hasPassed: false, finishedRank: null }))
@@ -127,13 +125,11 @@ const App: React.FC = () => {
       'bot-3': hands[3]
     });
 
-    const startingPlayerId = players[startingPlayerIndex].id;
-
     setSpGameState({
       roomId: 'LOCAL_MATCH',
       status: GameStatus.PLAYING,
       players: players,
-      currentPlayerId: startingPlayerId,
+      currentPlayerId: players[startingPlayerIndex].id,
       currentPlayPile: [],
       lastPlayerToPlayId: null,
       winnerId: null,
@@ -152,17 +148,15 @@ const App: React.FC = () => {
     if (currentPlayer && currentPlayer.id.startsWith('bot-') && !currentPlayer.finishedRank) {
       const timer = setTimeout(() => {
         handleBotTurn(currentPlayer.id);
-      }, 1000 + Math.random() * 1000); // Randomized delay
+      }, 1000 + Math.random() * 1000);
       return () => clearTimeout(timer);
     }
   }, [spGameState, gameMode]);
 
   const handleBotTurn = (botId: string) => {
     const hand = spOpponentHands[botId];
-    if (!hand || hand.length === 0) return; // Should not happen if filtered correctly
-
+    if (!hand || hand.length === 0) return;
     const move = findBestMove(hand, spGameState!.currentPlayPile, spGameState!.isFirstTurnOfGame);
-
     if (move) {
       handleLocalPlay(botId, move);
     } else {
@@ -173,7 +167,6 @@ const App: React.FC = () => {
   const handleLocalPlay = (playerId: string, cards: Card[]) => {
     if (!spGameState) return;
 
-    // Validate if human
     if (playerId === 'player-me') {
        const res = validateMove(cards, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame);
        if (!res.isValid) {
@@ -183,7 +176,6 @@ const App: React.FC = () => {
        }
     }
 
-    // Update Hand
     let newHandCount = 0;
     let handIsEmpty = false;
 
@@ -199,32 +191,49 @@ const App: React.FC = () => {
        if (newHandCount === 0) handIsEmpty = true;
     }
 
-    // Prepare Update Data
     let updatedPlayers = spGameState.players.map(p => 
         p.id === playerId ? { ...p, cardCount: newHandCount } : p
     );
     let updatedFinishedPlayers = [...spGameState.finishedPlayers];
 
-    // Check Finished Status
     if (handIsEmpty) {
         updatedFinishedPlayers.push(playerId);
         updatedPlayers = updatedPlayers.map(p => 
             p.id === playerId ? { ...p, finishedRank: updatedFinishedPlayers.length } : p
         );
 
-        // Check Game Over (0 or 1 active player left)
+        // --- Quick Finish Logic ---
+        if (playerId === 'player-me' && spQuickFinish) {
+            // Automatically rank all bots based on current card counts
+            const remainingBots = updatedPlayers
+                .filter(p => !p.finishedRank)
+                .sort((a, b) => a.cardCount - b.cardCount);
+            
+            let nextRank = updatedFinishedPlayers.length + 1;
+            for (const bot of remainingBots) {
+                updatedPlayers = updatedPlayers.map(p => 
+                    p.id === bot.id ? { ...p, finishedRank: nextRank++ } : p
+                );
+            }
+
+            setSpGameState(prev => ({
+                ...prev!,
+                status: GameStatus.FINISHED,
+                players: updatedPlayers,
+                finishedPlayers: updatedPlayers.sort((a,b) => (a.finishedRank||99)-(b.finishedRank||99)).map(p => p.id)
+            }));
+            setView('VICTORY');
+            return;
+        }
+
         const activeCount = updatedPlayers.filter(p => !p.finishedRank).length;
         if (activeCount <= 1) {
-             // Assign last place if needed
              if (activeCount === 1) {
                  updatedPlayers = updatedPlayers.map(p => {
-                     if (!p.finishedRank) {
-                         return { ...p, finishedRank: updatedPlayers.length };
-                     }
+                     if (!p.finishedRank) return { ...p, finishedRank: updatedPlayers.length };
                      return p;
                  });
              }
-             
              setSpGameState(prev => ({
                  ...prev!,
                  status: GameStatus.FINISHED,
@@ -236,7 +245,6 @@ const App: React.FC = () => {
         }
     }
 
-    // Create Play Entry
     const playEntry = {
         playerId,
         cards,
@@ -244,16 +252,29 @@ const App: React.FC = () => {
     };
 
     // Determine Next Player
-    const nextPlayerId = getNextActivePlayerId({ ...spGameState, players: updatedPlayers }, playerId);
+    let nextPlayerId = getNextActivePlayerId(updatedPlayers, playerId);
+    let nextPlayPile = [...spGameState.currentPlayPile, playEntry];
+    let nextStatePlayers = updatedPlayers;
+
+    // Check if the finisher's move automatically wins the round because everyone else had already passed
+    if (handIsEmpty) {
+      const othersStillInRound = updatedPlayers.filter(p => !p.finishedRank && p.id !== playerId && !p.hasPassed);
+      if (othersStillInRound.length === 0) {
+        // Round clears immediately
+        nextPlayPile = [];
+        nextStatePlayers = nextStatePlayers.map(p => ({ ...p, hasPassed: false }));
+        nextPlayerId = getNextActivePlayerId(nextStatePlayers, playerId, true); // ignorePass: true
+      }
+    }
 
     setSpGameState(prev => ({
         ...prev!,
-        players: updatedPlayers,
-        currentPlayPile: [...prev!.currentPlayPile, playEntry],
+        players: nextStatePlayers,
+        currentPlayPile: nextPlayPile,
         currentPlayerId: nextPlayerId,
         lastPlayerToPlayId: playerId,
         finishedPlayers: updatedFinishedPlayers,
-        isFirstTurnOfGame: false // Clear flag after any valid play
+        isFirstTurnOfGame: false
     }));
   };
 
@@ -264,34 +285,29 @@ const App: React.FC = () => {
       p.id === playerId ? { ...p, hasPassed: true } : p
     );
 
-    let nextPlayerId = getNextActivePlayerId({ ...spGameState, players: updatedPlayers }, playerId);
+    let nextPlayerId = getNextActivePlayerId(updatedPlayers, playerId);
     let nextStatePlayers = updatedPlayers;
     let nextPlayPile = spGameState.currentPlayPile;
     
-    // Check if the round is over
-    // 1. If nextPlayerId IS the lastPlayerToPlayId (wrapped around to winner)
-    // 2. OR if everyone active has passed (and last player is gone)
-    
-    // Simple check: Find last player to play
-    const lastPlayer = spGameState.players.find(p => p.id === spGameState.lastPlayerToPlayId);
+    const lastPlayerToPlay = spGameState.players.find(p => p.id === spGameState.lastPlayerToPlayId);
     
     let roundOver = false;
     let newLeaderId = nextPlayerId;
 
-    if (lastPlayer && !lastPlayer.finishedRank) {
-        // If last player is still here, they win if it gets back to them
+    // A round is over if it rotates back to the person who played last,
+    // or if the only people left have already passed.
+    if (lastPlayerToPlay && !lastPlayerToPlay.finishedRank) {
         if (nextPlayerId === spGameState.lastPlayerToPlayId) {
             roundOver = true;
         }
     } else {
-        // Last player is gone. Check if everyone active has passed.
+        // Last player to play has already finished and left.
+        // Round is over if all remaining non-finished players have passed.
         const activeNonPassed = updatedPlayers.filter(p => !p.finishedRank && !p.hasPassed);
         if (activeNonPassed.length === 0) {
             roundOver = true;
-            // The person to the left of the last finisher starts
-            // (In our simpler logic: getNextActivePlayerId relative to lastPlayerToPlayId)
             if (spGameState.lastPlayerToPlayId) {
-                newLeaderId = getNextActivePlayerId({ ...spGameState, players: updatedPlayers }, spGameState.lastPlayerToPlayId);
+                newLeaderId = getNextActivePlayerId(updatedPlayers, spGameState.lastPlayerToPlayId, true);
             }
         }
     }
@@ -299,7 +315,6 @@ const App: React.FC = () => {
     if (roundOver) {
         nextPlayPile = [];
         nextStatePlayers = nextStatePlayers.map(p => ({ ...p, hasPassed: false }));
-        // If round is over, the winner (or next active) leads
         nextPlayerId = newLeaderId;
     }
 
@@ -311,31 +326,36 @@ const App: React.FC = () => {
     }));
   };
 
-  // SP Helper
-  const getNextActivePlayerId = (state: GameState, currentId: string): string => {
-    const idx = state.players.findIndex(p => p.id === currentId);
-    let nextIdx = (idx + 1) % state.players.length;
-    let loopCount = 0;
-
-    // Find next player who is NOT finished and HAS NOT passed
-    while (
-        (!!state.players[nextIdx].finishedRank || state.players[nextIdx].hasPassed) 
-        && loopCount < state.players.length
-    ) {
-      nextIdx = (nextIdx + 1) % state.players.length;
-      loopCount++;
+  /**
+   * Helper to find the next valid player ID.
+   * @param players List of players
+   * @param currentId Starting ID
+   * @param ignorePass Whether to ignore the 'hasPassed' flag (used when starting new rounds)
+   */
+  const getNextActivePlayerId = (players: Player[], currentId: string, ignorePass: boolean = false): string => {
+    const idx = players.findIndex(p => p.id === currentId);
+    if (idx === -1) return players[0].id;
+    
+    for (let i = 1; i <= players.length; i++) {
+      const nextIdx = (idx + i) % players.length;
+      const p = players[nextIdx];
+      if (p.finishedRank) continue;
+      if (!ignorePass && p.hasPassed) continue;
+      return p.id;
     }
     
-    return state.players[nextIdx].id;
+    // If we're searching within a round and no one is left, return current player (they win the round)
+    return currentId;
   };
 
   // --- Handlers ---
 
-  const handleStart = (name: string, mode: GameMode, style: CardCoverStyle, avatar: string) => {
+  const handleStart = (name: string, mode: GameMode, style: CardCoverStyle, avatar: string, quickFinish?: boolean) => {
     setPlayerName(name);
     setGameMode(mode);
     setCardCoverStyle(style);
     setPlayerAvatar(avatar);
+    if (quickFinish !== undefined) setSpQuickFinish(quickFinish);
     
     if (mode === 'MULTI_PLAYER') {
       connectSocket();
@@ -346,11 +366,9 @@ const App: React.FC = () => {
   };
 
   const handlePlayAgain = () => {
-    // Reset Single Player Game
     if (gameMode === 'SINGLE_PLAYER') {
         initSinglePlayer(playerName, playerAvatar);
     } else {
-        // Simple fallback for MP for now
         setView('LOBBY');
     }
   };
@@ -359,23 +377,16 @@ const App: React.FC = () => {
     if (gameMode === 'MULTI_PLAYER') {
       disconnectSocket();
     }
-    // Explicitly reset connection state to UI responsiveness
     setConnected(false);
-
-    // Batch updates where possible (React 18 does this automatically)
     setSpGameState(null);
     setMpGameState(null);
     setGameMode(null);
     setInitialRoomCode(null);
-    
-    // Clear URL params
     try {
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (e) {
-      console.warn("Navigation failed, likely due to sandboxed environment:", e);
+      console.warn("Navigation failed:", e);
     }
-    
-    // Force view to welcome
     setView('WELCOME');
   };
 
@@ -395,10 +406,7 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Render View Content ---
-
   const renderContent = () => {
-    // Safety check: if we are supposed to be at game table but data is missing or mode is null, go home
     if (view === 'GAME_TABLE' && !gameMode) {
       return (
          <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white gap-4">
@@ -408,9 +416,7 @@ const App: React.FC = () => {
       );
     }
 
-    if (view === 'WELCOME') {
-        return <WelcomeScreen onStart={handleStart} />;
-    }
+    if (view === 'WELCOME') return <WelcomeScreen onStart={handleStart} />;
 
     if (view === 'LOBBY') {
         if (!connected) {
@@ -418,56 +424,27 @@ const App: React.FC = () => {
             <div className="min-h-screen bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-900 via-black to-black text-white flex flex-col items-center justify-center p-6 gap-8">
                <div className="relative">
                  <div className="w-20 h-20 border-4 border-white/10 border-t-yellow-500 rounded-full animate-spin"></div>
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl">⚡</span>
-                 </div>
+                 <div className="absolute inset-0 flex items-center justify-center"><span className="text-2xl">⚡</span></div>
                </div>
-               
                <div className="text-center">
-                 <div className="text-2xl font-black tracking-widest uppercase mb-2 animate-pulse text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600">
-                    Connecting
-                 </div>
-                 <div className="text-xs text-gray-500 font-bold uppercase tracking-[0.2em]">
-                    Establishing secure link...
-                 </div>
+                 <div className="text-2xl font-black tracking-widest uppercase mb-2 animate-pulse text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600">Connecting</div>
+                 <div className="text-xs text-gray-500 font-bold uppercase tracking-[0.2em]">Establishing secure link...</div>
                </div>
-               
-               <button 
-                 onClick={handleGoHome}
-                 className="group px-8 py-3 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 rounded-full text-red-400 font-bold text-xs tracking-widest uppercase transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
-               >
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                 </svg>
+               <button onClick={handleGoHome} className="group px-8 py-3 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 rounded-full text-red-400 font-bold text-xs tracking-widest uppercase transition-all hover:scale-105 active:scale-95 flex items-center gap-2">
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                  Cancel
                </button>
             </div>
           );
         }
         return (
-          <Lobby 
-            playerName={playerName} 
-            gameState={mpGameState} 
-            error={null} 
-            playerAvatar={playerAvatar}
-            initialRoomCode={initialRoomCode}
-            backgroundTheme={backgroundTheme}
-            onBack={handleGoHome}
-          />
+          <Lobby playerName={playerName} gameState={mpGameState} error={null} playerAvatar={playerAvatar} initialRoomCode={initialRoomCode} backgroundTheme={backgroundTheme} onBack={handleGoHome} />
         );
     }
 
     if (view === 'VICTORY') {
         const state = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
-        // Pass all players to Victory Screen for Leaderboard
-        return (
-            <VictoryScreen 
-                players={state?.players || []}
-                myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'}
-                onPlayAgain={handlePlayAgain}
-                onGoHome={handleGoHome}
-            />
-        );
+        return <VictoryScreen players={state?.players || []} myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'} onPlayAgain={handlePlayAgain} onGoHome={handleGoHome} />;
     }
 
     if (view === 'GAME_TABLE') {
@@ -475,7 +452,6 @@ const App: React.FC = () => {
         const hand = gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand;
         const myId = gameMode === 'MULTI_PLAYER' ? (socket.id || '') : 'player-me';
 
-        // Check if state is invalid, if so show loading or redirect
         if (!state) {
             return (
               <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white gap-4">
@@ -491,13 +467,16 @@ const App: React.FC = () => {
             gameState={state} 
             myId={myId} 
             myHand={hand} 
-            onPlayCards={onPlayCards}
-            onPassTurn={onPassTurn}
-            cardCoverStyle={cardCoverStyle}
-            onChangeCoverStyle={setCardCoverStyle}
-            onExitGame={handleGoHome}
-            backgroundTheme={backgroundTheme}
+            onPlayCards={onPlayCards} 
+            onPassTurn={onPassTurn} 
+            cardCoverStyle={cardCoverStyle} 
+            onChangeCoverStyle={setCardCoverStyle} 
+            onExitGame={handleGoHome} 
+            backgroundTheme={backgroundTheme} 
             onChangeBackgroundTheme={setBackgroundTheme}
+            spQuickFinish={spQuickFinish}
+            setSpQuickFinish={setSpQuickFinish}
+            isSinglePlayer={gameMode === 'SINGLE_PLAYER'}
           />
         );
     }
@@ -507,25 +486,20 @@ const App: React.FC = () => {
 
   return (
     <>
-      {/* Global Premium Error Toast */}
       {error && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm pointer-events-none">
             <div className="relative overflow-hidden bg-gradient-to-br from-red-500/85 via-red-800/85 to-red-950/90 backdrop-blur-md border border-red-400/30 text-white px-6 py-4 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center gap-4 transition-all">
                 <div className="p-2 bg-red-500/20 rounded-full shrink-0 border border-red-400/20">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 </div>
                 <div className="flex flex-col">
                     <span className="font-bold text-xs tracking-wider uppercase text-red-200">System Notice</span>
                     <span className="font-semibold tracking-wide text-sm drop-shadow-sm leading-tight">{error}</span>
                 </div>
-                {/* Decorative glow */}
                 <div className="absolute -top-10 -right-10 w-20 h-20 bg-red-400/30 blur-2xl rounded-full"></div>
             </div>
         </div>
       )}
-
       {renderContent()}
     </>
   );
