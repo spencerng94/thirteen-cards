@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty } from '../types';
 import { socket } from '../services/socket';
@@ -334,10 +333,10 @@ export const Lobby: React.FC<LobbyProps> = ({
              </div>
              <button 
                onClick={createRoom}
-               className="group w-full relative overflow-hidden py-5 rounded-2xl bg-blue-600 hover:bg-blue-500 transition-all shadow-[0_10px_30px_rgba(37,99,235,0.3)] active:scale-95"
+               className="group w-full relative overflow-hidden py-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 transition-all shadow-[0_10px_30px_rgba(16,185,129,0.3)] active:scale-95"
              >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-                <span className="relative z-10 text-white font-black uppercase tracking-[0.3em] text-xs">Initialize Server</span>
+                <span className="relative z-10 text-white font-black uppercase tracking-[0.3em] text-xs">CREATE LOBBY</span>
              </button>
            </div>
 
