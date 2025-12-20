@@ -166,7 +166,7 @@ export const validateMove = (
   if (getCardScore(pHigh) > getCardScore(lHigh)) {
     return { isValid: true, reason: 'Beat.' };
   } else {
-    return { isValid: false, reason: 'Your combo is too weak.' };
+    return { isValid: false, reason: 'INVALID COMBO' };
   }
 };
 

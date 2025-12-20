@@ -223,14 +223,14 @@ export const GameTable: React.FC<GameTableProps> = ({
     ? `Spectating • Placed ${getOrdinal(me?.finishedRank || 0)}`
     : isMyTurn 
         ? (mustPass ? "No Moves Possible" : "Your Turn")
-        : (gameState.players.find(p => p.id === gameState.currentPlayerId)?.hasPassed ? "Resolving..." : `Wait for ${gameState.players.find(p => p.id === gameState.currentPlayerId)?.name}...`);
+        : "Waiting...";
 
   return (
     <div className={`fixed inset-0 w-full h-full ${bgBase} overflow-hidden font-sans select-none flex flex-col justify-between transition-colors duration-1000`}>
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${gradientStops} pointer-events-none transition-colors duration-1000`}></div>
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
 
-      {/* Top Left: Title & Status */}
+      {/* Top Left: Title & History Button */}
       <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
         <h1 className="hidden lg:block text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter">
             THIRTEEN
@@ -242,7 +242,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             </div>
         )}
 
-        {/* Smart Combo Detection Bar - Now in Top Left */}
+        {/* Smart Combo Detection Bar */}
         {smartCombos && (
           <div className="flex flex-col gap-2 mt-4 pointer-events-auto animate-in fade-in slide-in-from-left-4 duration-500 max-w-[140px] sm:max-w-[180px]">
             <p className="text-[8px] font-black uppercase tracking-[0.3em] text-yellow-500/60 ml-1">Valid Combos</p>
@@ -397,9 +397,11 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {/* Action Bar */}
       <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
+        {/* Status Indicator: Pillar in Portrait, Pill in Top Right in Landscape */}
         <div className={`
-            flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-1
+            flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-1 z-50 transition-all
             ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
+            landscape:fixed landscape:top-[68px] landscape:right-3 landscape:px-4 landscape:py-2 landscape:text-[10px] landscape:mb-0
         `}>
           {currentStatusText}
         </div>
@@ -412,6 +414,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                       disabled={!isMyTurn || gameState.currentPlayPile.length === 0} 
                       className={`
                         flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border transition-all shadow-lg
+                        landscape:fixed landscape:bottom-6 landscape:left-6 landscape:z-50
                         ${mustPass 
                           ? 'bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
                           : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
@@ -423,7 +426,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                     <button 
                       onClick={handlePlaySelected} 
                       disabled={!isMyTurn || selectedCardIds.size === 0} 
-                      className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl"
+                      className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl landscape:fixed landscape:bottom-6 landscape:right-6 landscape:z-50"
                     >
                       Play Cards
                     </button>

@@ -87,8 +87,9 @@ export const Card: React.FC<CardProps> = ({
             className={`
             relative rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] border-2 ${bgClass} ${borderClass}
             ${small ? 'w-10 h-14' : 'w-20 h-28 sm:w-24 sm:h-36'}
-            flex items-center justify-center overflow-hidden transition-all duration-300 transform-gpu
-            hover:scale-105 hover:-translate-y-1 group
+            flex items-center justify-center overflow-hidden transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) transform-gpu
+            hover:scale-110 hover:-translate-y-2 hover:rotate-1 group
+            animate-[card-pop_0.4s_ease-out]
             ${className}
             `}
         >
@@ -120,26 +121,28 @@ export const Card: React.FC<CardProps> = ({
     <div
       onClick={onClick}
       className={`
-        relative bg-[#fafafa] border border-gray-200/80 rounded-xl select-none cursor-pointer transition-all duration-300 transform-gpu
+        relative bg-[#fafafa] border border-gray-200/80 rounded-xl select-none cursor-pointer transform-gpu
         ${small ? 'w-10 h-14 text-xs' : 'w-20 h-28 sm:w-24 sm:h-36 text-base'}
         ${selected 
-          ? '-translate-y-10 shadow-[0_30px_60px_rgba(0,0,0,0.6)] ring-4 ring-yellow-400/90 z-20 scale-110' 
-          : 'shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:-translate-y-4 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] hover:z-10'}
+          ? '-translate-y-12 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-50 scale-125' 
+          : 'shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:-translate-y-6 hover:rotate-2 hover:shadow-[0_25px_50px_rgba(0,0,0,0.45)] hover:z-30'}
         ${className}
+        transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)
+        animate-[card-pop_0.5s_cubic-bezier(0.34,1.56,0.64,1)]
         group
       `}
     >
       {/* 3D Depth Highlight */}
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/80 via-transparent to-black/5 pointer-events-none"></div>
+      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/90 via-transparent to-black/10 pointer-events-none"></div>
       
       {/* Top Left Corner */}
-      <div className={`absolute top-1 left-1 font-black flex flex-col items-center leading-none ${colorClass} ${small ? 'text-[10px]' : 'text-xl'}`}>
+      <div className={`absolute top-1.5 left-1.5 font-black flex flex-col items-center leading-none ${colorClass} ${small ? 'text-[10px]' : 'text-xl'}`}>
         <div className="tracking-tighter drop-shadow-sm">{rankLabel}</div>
         <div className={`${small ? 'text-[8px]' : 'text-[0.7em]'} mt-0.5`}>{suitSymbol}</div>
       </div>
       
       {/* Bottom Right Corner (Inverted) */}
-      <div className={`absolute bottom-1 right-1 font-black rotate-180 flex flex-col items-center leading-none ${colorClass} ${small ? 'text-[10px]' : 'text-xl'}`}>
+      <div className={`absolute bottom-1.5 right-1.5 font-black rotate-180 flex flex-col items-center leading-none ${colorClass} ${small ? 'text-[10px]' : 'text-xl'}`}>
         <div className="tracking-tighter drop-shadow-sm">{rankLabel}</div>
         <div className={`${small ? 'text-[8px]' : 'text-[0.7em]'} mt-0.5`}>{suitSymbol}</div>
       </div>
@@ -148,23 +151,33 @@ export const Card: React.FC<CardProps> = ({
       <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${colorClass}`}>
         <div className={`
           ${small ? 'text-xl' : 'text-5xl'} 
-          ${isHighValue ? 'drop-shadow-[0_0_12px_rgba(0,0,0,0.2)] scale-110' : 'opacity-90'} 
-          transition-transform duration-500 group-hover:scale-125
+          ${isHighValue ? 'drop-shadow-[0_0_15px_rgba(0,0,0,0.25)] scale-110' : 'opacity-90'} 
+          transition-transform duration-700 group-hover:scale-125
         `}>
           {suitSymbol}
         </div>
       </div>
       
       {/* Premium Glossy Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 rounded-xl pointer-events-none transition-opacity duration-500"></div>
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 rounded-xl pointer-events-none transition-opacity duration-700"></div>
 
       {/* Selected Indicator Glow */}
       {selected && (
-        <div className="absolute inset-0 rounded-xl bg-yellow-400/10 animate-pulse pointer-events-none"></div>
+        <div className="absolute inset-[-10px] rounded-[1.5rem] bg-yellow-400/20 blur-xl animate-pulse pointer-events-none z-[-1]"></div>
       )}
       
       {/* Subtle Scratch/Texture overlay for "used" luxury feel */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] rounded-xl"></div>
+      <div className="absolute inset-0 opacity-[0.05] pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] rounded-xl"></div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes card-pop {
+          0% { opacity: 0; transform: scale(0.6) translateY(40px) rotate(-5deg); filter: blur(4px); }
+          100% { opacity: 1; transform: scale(1) translateY(0) rotate(0deg); filter: blur(0); }
+        }
+        .cubic-bezier {
+            transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+      `}} />
     </div>
   );
 };
