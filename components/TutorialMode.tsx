@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Card as CardComp } from './Card';
 import { Rank, Suit, Card } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { InstructionsModal } from './InstructionsModal';
 
 interface TutorialModeProps {
   onExit: () => void;
@@ -19,6 +20,7 @@ interface Step {
 export const TutorialMode: React.FC<TutorialModeProps> = ({ onExit }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showRules, setShowRules] = useState(false);
 
   const steps: Step[] = useMemo(() => [
     {
@@ -123,6 +125,8 @@ export const TutorialMode: React.FC<TutorialModeProps> = ({ onExit }) => {
     <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-black pointer-events-none"></div>
       
+      {showRules && <InstructionsModal onClose={() => setShowRules(false)} />}
+
       <div className="max-w-2xl w-full z-10 flex flex-col gap-8 items-center">
         
         {/* Progress Dots */}
@@ -169,12 +173,23 @@ export const TutorialMode: React.FC<TutorialModeProps> = ({ onExit }) => {
             >
               {step.actionLabel}
             </button>
-            <button 
-              onClick={onExit}
-              className="text-gray-600 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors"
-            >
-              Skip Tutorial
-            </button>
+            <div className="flex gap-8 items-center mt-2">
+              <button 
+                onClick={() => setShowRules(true)}
+                className="text-blue-400 hover:text-blue-300 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                View Full Rules
+              </button>
+              <button 
+                onClick={onExit}
+                className="text-gray-600 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+              >
+                Skip Tutorial
+              </button>
+            </div>
           </div>
         </div>
       </div>
