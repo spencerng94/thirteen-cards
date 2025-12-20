@@ -193,11 +193,11 @@ export const GameTable: React.FC<GameTableProps> = ({
   };
 
   const getHandSpacingClass = (count: number) => {
-    if (count <= 3) return 'space-x-2 md:space-x-4';
-    if (count <= 5) return '-space-x-2 md:-space-x-4';
-    if (count <= 8) return '-space-x-8 md:-space-x-10';
-    if (count <= 10) return '-space-x-10 md:-space-x-12';
-    return '-space-x-[55px] md:-space-x-14';
+    if (count <= 3) return 'space-x-4 md:space-x-6 lg:space-x-8';
+    if (count <= 5) return 'space-x-1 md:space-x-3 lg:space-x-4';
+    if (count <= 8) return '-space-x-6 md:-space-x-8 lg:-space-x-10';
+    if (count <= 10) return '-space-x-10 md:-space-x-12 lg:-space-x-14';
+    return '-space-x-[54px] md:-space-x-14 lg:-space-x-16';
   };
 
   let bgBase = '';
@@ -398,7 +398,6 @@ export const GameTable: React.FC<GameTableProps> = ({
       {/* Action Bar */}
       <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
         {/* Status Indicator */}
-        {/* Reverted to standard centered behavior for large devices; special class for mobile landscape */}
         <div className={`
             flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-1 z-50 transition-all
             ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
@@ -436,7 +435,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
 
         {!iAmFinished && (
-            <div className="w-full flex justify-center pb-2 px-1 overflow-visible landscape:scale-[0.8] origin-bottom">
+            <div className="w-full flex justify-center pb-2 px-6 overflow-visible landscape:scale-[0.8] origin-bottom">
                 <div className={`flex justify-center mx-auto ${getHandSpacingClass(sortedHand.length)} py-2 md:py-4`}>
                     {sortedHand.map((card, idx) => {
                         const isFirstTurn3S = gameState.isFirstTurnOfGame && card.rank === Rank.Three && card.suit === Suit.Spades;

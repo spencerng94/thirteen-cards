@@ -76,9 +76,15 @@ export const TutorialMode: React.FC<TutorialModeProps> = ({ onExit }) => {
       title: "Chopping (Bombs)",
       content: "Special hands called 'Bombs' can beat a 2! For example, 3 consecutive pairs (like 4-4, 5-5, 6-6) can 'chop' a single 2 out of turn.",
       cards: [
-        { rank: Rank.Two, suit: Suit.Hearts, id: 'pig' }
+        { rank: Rank.Four, suit: Suit.Spades, id: 'b1' },
+        { rank: Rank.Four, suit: Suit.Hearts, id: 'b2' },
+        { rank: Rank.Five, suit: Suit.Clubs, id: 'b3' },
+        { rank: Rank.Five, suit: Suit.Diamonds, id: 'b4' },
+        { rank: Rank.Six, suit: Suit.Spades, id: 'b5' },
+        { rank: Rank.Six, suit: Suit.Hearts, id: 'b6' }
       ],
-      actionLabel: "Chop the Pig!"
+      targetCardIds: ['b1', 'b2', 'b3', 'b4', 'b5', 'b6'],
+      actionLabel: "Select the Bomb (3 Pairs)"
     },
     {
       title: "Ready to Play",
@@ -137,13 +143,14 @@ export const TutorialMode: React.FC<TutorialModeProps> = ({ onExit }) => {
             {step.content}
           </p>
 
-          <div className="flex justify-center gap-4 py-8 min-h-[160px]">
+          <div className="flex justify-center flex-wrap gap-4 py-8 min-h-[160px]">
             {step.cards.map((c) => (
               <div key={c.id} className="transform transition-transform hover:scale-110">
                 <CardComp 
                   card={c} 
                   selected={selectedIds.has(c.id)}
                   onClick={() => handleToggle(c.id)}
+                  small={step.cards.length > 5}
                 />
               </div>
             ))}
