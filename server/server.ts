@@ -224,13 +224,24 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
     }
   }
 
-  // After someone finishes, if the round ends, move turn to next active
-  const remainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
-  if (player.hand.length === 0 && remainingInRound.length === 0) {
+  // After someone plays, check if the round should end immediately
+  const activeRemainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
+  
+  if (activeRemainingInRound.length === 0) {
+     // Round ends if everyone else has already passed or finished
      room.currentPlayPile = [];
      room.players.forEach(p => p.hasPassed = false);
-     room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
+     
+     if (player.hand.length === 0) {
+        // If I played the last cards and finished, I can't start the next round
+        // Find the next available non-finished player
+        room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
+     } else {
+        // I keep the lead for the next round
+        room.currentPlayerIndex = room.players.indexOf(player);
+     }
   } else {
+     // Normal turn progression
      room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   }
 
@@ -246,10 +257,23 @@ const handlePass = (roomId: string, playerId: string) => {
   if (player) player.hasPassed = true;
 
   let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
-  if (room.players[nextIdx].id === room.lastPlayerToPlayId) {
+  
+  // A round ends if:
+  // 1. The next person to play is the one who played last
+  // 2. Or the loop returns to the current player (meaning everyone else passed/finished)
+  const lastPlayer = room.players.find(p => p.id === room.lastPlayerToPlayId);
+  const isLastPlayerActive = lastPlayer && !lastPlayer.finishedRank;
+
+  if (room.players[nextIdx].id === room.lastPlayerToPlayId || nextIdx === room.currentPlayerIndex) {
     room.currentPlayPile = [];
     room.players.forEach(p => p.hasPassed = false);
+    
+    // If the person who should lead is finished, give the lead to the next active player
+    if (!isLastPlayerActive) {
+      nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
+    }
   }
+  
   room.currentPlayerIndex = nextIdx;
   broadcastState(roomId);
   checkBotTurn(roomId);
