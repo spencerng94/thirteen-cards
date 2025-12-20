@@ -99,7 +99,7 @@ const MainActionButton: React.FC<MainActionButtonProps> = ({ onClick, variant, l
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [name, setName] = useState('');
-  const [coverStyle, setCoverStyle] = useState<CardCoverStyle>('BLUE');
+  const [coverStyle, setCoverStyle] = useState<CardCoverStyle>('RED');
   const [selectedAvatar, setSelectedAvatar] = useState<string>(() => AVATARS[Math.floor(Math.random() * AVATARS.length)]);
   const [quickFinish, setQuickFinish] = useState(true);
   const [difficulty, setDifficulty] = useState<AiDifficulty>('MEDIUM');
@@ -195,7 +195,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
                     `}
                  >
                    {coverStyle === style && (
-                      <div className="absolute inset-[-15px] bg-yellow-500/10 blur-2xl rounded-full"></div>
+                      <div className="absolute inset-[-15px] bg-yellow-500/10 blur-2xl rounded-full animate-pulse"></div>
                    )}
                    <Card faceDown coverStyle={style} small className={`!w-14 !h-20 ${coverStyle === style ? 'ring-2 ring-yellow-500 shadow-2xl' : ''}`} />
                  </div>

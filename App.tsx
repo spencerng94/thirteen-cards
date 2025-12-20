@@ -22,7 +22,7 @@ const App: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
   const [playerAvatar, setPlayerAvatar] = useState('😎');
   const [gameMode, setGameMode] = useState<GameMode>(null);
-  const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('BLUE');
+  const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('RED');
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('GREEN');
   const [initialRoomCode, setInitialRoomCode] = useState<string | null>(null);
   const [spQuickFinish, setSpQuickFinish] = useState(true);
