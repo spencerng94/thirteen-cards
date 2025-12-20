@@ -397,11 +397,12 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {/* Action Bar */}
       <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
-        {/* Status Indicator: Pillar in Portrait, Pill in Top Right in Landscape */}
+        {/* Status Indicator */}
+        {/* Reverted to standard centered behavior for large devices; special class for mobile landscape */}
         <div className={`
             flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-1 z-50 transition-all
             ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
-            landscape:fixed landscape:top-[68px] landscape:right-3 landscape:px-4 landscape:py-2 landscape:text-[10px] landscape:mb-0
+            mobile-landscape-status
         `}>
           {currentStatusText}
         </div>
@@ -414,7 +415,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                       disabled={!isMyTurn || gameState.currentPlayPile.length === 0} 
                       className={`
                         flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border transition-all shadow-lg
-                        landscape:fixed landscape:bottom-6 landscape:left-6 landscape:z-50
+                        mobile-landscape-pass
                         ${mustPass 
                           ? 'bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
                           : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
@@ -426,7 +427,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                     <button 
                       onClick={handlePlaySelected} 
                       disabled={!isMyTurn || selectedCardIds.size === 0} 
-                      className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl landscape:fixed landscape:bottom-6 landscape:right-6 landscape:z-50"
+                      className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl mobile-landscape-play"
                     >
                       Play Cards
                     </button>
@@ -455,10 +456,38 @@ export const GameTable: React.FC<GameTableProps> = ({
         )}
       </div>
       
-      {/* Scrollable fix for mobile smart bar */}
+      {/* Scrollable fix for mobile smart bar & Mobile Landscape Scoped Overrides */}
       <style dangerouslySetInnerHTML={{ __html: `
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Scoped strictly to Mobile Landscape (max-width typically covers phones) */
+        @media (orientation: landscape) and (max-width: 932px) {
+            .mobile-landscape-pass {
+                position: fixed !important;
+                bottom: 24px !important;
+                left: 24px !important;
+                z-index: 50 !important;
+                margin: 0 !important;
+            }
+            .mobile-landscape-play {
+                position: fixed !important;
+                bottom: 24px !important;
+                right: 24px !important;
+                z-index: 50 !important;
+                margin: 0 !important;
+            }
+            .mobile-landscape-status {
+                position: fixed !important;
+                top: 68px !important;
+                right: 12px !important;
+                padding: 8px 16px !important;
+                font-size: 10px !important;
+                margin-bottom: 0 !important;
+                /* Only show if it is my turn, hide "Waiting" text */
+                display: ${isMyTurn ? 'flex' : 'none'} !important;
+            }
+        }
       `}} />
     </div>
   );
