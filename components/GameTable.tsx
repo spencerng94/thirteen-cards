@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
 import { SettingsModal } from './SettingsModal';
 import { audioService } from '../services/audio';
-import { canPlayAnyMove, sortCards } from '../utils/gameLogic';
+import { canPlayAnyMove, sortCards, findAllValidCombos } from '../utils/gameLogic';
 
 interface GameTableProps {
   gameState: GameState;
@@ -90,6 +90,8 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [showInstructions, setShowInstructions] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [bombEffect, setBombEffect] = useState<string | null>(null);
+  const [comboVariations, setComboVariations] = useState<Record<string, number>>({});
+  const lastSelectedCardId = useRef<string | null>(null);
 
   const lastPlayedMove = gameState.currentPlayPile.length > 0 
     ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] 
@@ -117,7 +119,12 @@ export const GameTable: React.FC<GameTableProps> = ({
   const isMyTurn = gameState.currentPlayerId === myId;
   const iAmFinished = !!me?.finishedRank;
 
-  // Use the exhaustive 'canPlayAnyMove' instead of randomized 'findBestMove'
+  // Compute smart combos for the bar
+  const smartCombos = useMemo(() => {
+    if (!isMyTurn || iAmFinished || !lastSelectedCardId.current || selectedCardIds.size === 0) return null;
+    return findAllValidCombos(myHand, lastSelectedCardId.current, gameState.currentPlayPile, gameState.isFirstTurnOfGame);
+  }, [isMyTurn, iAmFinished, myHand, lastSelectedCardId.current, selectedCardIds.size, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
+
   const mustPass = useMemo(() => {
     if (!isMyTurn || iAmFinished || gameState.currentPlayPile.length === 0) return false;
     return !canPlayAnyMove(myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame);
@@ -127,22 +134,51 @@ export const GameTable: React.FC<GameTableProps> = ({
     const newSelected = new Set(selectedCardIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
+      if (lastSelectedCardId.current === id) lastSelectedCardId.current = Array.from(newSelected).pop() || null;
     } else {
       newSelected.add(id);
+      lastSelectedCardId.current = id;
     }
     setSelectedCardIds(newSelected);
+  };
+
+  const selectCombo = (type: string) => {
+    if (!smartCombos) return;
+    const variations = smartCombos[type];
+    if (!variations || variations.length === 0) return;
+
+    const currentIdx = comboVariations[type] || 0;
+    
+    // Cycle logic: if currently selected matches this variation, go to next
+    let actualIdx = currentIdx;
+    const currentCombo = variations[currentIdx];
+    const isAlreadySelected = currentCombo.every(c => selectedCardIds.has(c.id)) && currentCombo.length === selectedCardIds.size;
+    
+    if (isAlreadySelected) {
+      actualIdx = (currentIdx + 1) % variations.length;
+    }
+
+    const nextCombo = variations[actualIdx];
+    setSelectedCardIds(new Set(nextCombo.map(c => c.id)));
+    setComboVariations(prev => ({ ...prev, [type]: actualIdx }));
+    audioService.playPlay(); // Subtle feedback
   };
 
   const handlePlaySelected = () => {
     const cardsToPlay = sortedHand.filter(c => selectedCardIds.has(c.id));
     if (cardsToPlay.length === 0) return;
     onPlayCards(cardsToPlay);
-    setSelectedCardIds(new Set()); 
+    setSelectedCardIds(new Set());
+    lastSelectedCardId.current = null;
+    setComboVariations({});
   };
 
   const handlePass = () => {
     onPassTurn();
     audioService.playPass();
+    setSelectedCardIds(new Set());
+    lastSelectedCardId.current = null;
+    setComboVariations({});
   };
 
   const getPlayerPosition = (index: number, totalPlayers: number, myIndex: number) => {
@@ -204,6 +240,41 @@ export const GameTable: React.FC<GameTableProps> = ({
                 <span className="opacity-70 italic">Played by</span>
                 <span className="text-yellow-400 text-[10px] sm:text-xs">{gameState.players.find(p => p.id === lastPlayedMove.playerId)?.name}</span>
             </div>
+        )}
+
+        {/* Smart Combo Detection Bar - Now in Top Left */}
+        {smartCombos && (
+          <div className="flex flex-col gap-2 mt-4 pointer-events-auto animate-in fade-in slide-in-from-left-4 duration-500 max-w-[140px] sm:max-w-[180px]">
+            <p className="text-[8px] font-black uppercase tracking-[0.3em] text-yellow-500/60 ml-1">Valid Combos</p>
+            <div className="flex flex-col gap-1.5">
+              {Object.entries(smartCombos).map(([type, variations]) => {
+                const typedVars = variations as CardType[][];
+                if (typedVars.length === 0) return null;
+                const currentVar = (comboVariations[type] || 0) + 1;
+                const isActive = typedVars[comboVariations[type] || 0].every(c => selectedCardIds.has(c.id)) && typedVars[comboVariations[type] || 0].length === selectedCardIds.size;
+
+                return (
+                  <button
+                    key={type}
+                    onClick={() => selectCombo(type)}
+                    className={`
+                      px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all flex items-center justify-between gap-3
+                      ${isActive 
+                        ? 'bg-yellow-500 text-black border-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.4)] scale-105' 
+                        : 'bg-black/40 backdrop-blur-md border-white/10 text-white/70 hover:bg-white/5'}
+                    `}
+                  >
+                    <span>{type.replace('_', ' ')}</span>
+                    {typedVars.length > 1 && (
+                      <span className={`px-1.5 py-0.5 rounded-md text-[7px] ${isActive ? 'bg-black/20' : 'bg-white/10'}`}>
+                        {currentVar}/{typedVars.length}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 
@@ -324,7 +395,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         );
       })}
 
-      {/* Main Action Bar */}
+      {/* Action Bar */}
       <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
         <div className={`
             flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-1
@@ -380,6 +451,12 @@ export const GameTable: React.FC<GameTableProps> = ({
             </div>
         )}
       </div>
+      
+      {/* Scrollable fix for mobile smart bar */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
     </div>
   );
 };

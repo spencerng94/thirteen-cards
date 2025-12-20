@@ -200,10 +200,11 @@ export const dealCards = (): Card[][] => {
 
 const getAllPairs = (hand: Card[]) => {
   const pairs: Card[][] = [];
-  for (let i = 0; i < hand.length - 1; i++) {
-    for (let j = i + 1; j < hand.length; j++) {
-      if (hand[i].rank === hand[j].rank) {
-        pairs.push([hand[i], hand[j]]);
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (sorted[i].rank === sorted[j].rank) {
+        pairs.push([sorted[i], sorted[j]]);
       }
     }
   }
@@ -212,11 +213,12 @@ const getAllPairs = (hand: Card[]) => {
 
 const getAllTriples = (hand: Card[]) => {
   const triples: Card[][] = [];
-  for (let i = 0; i < hand.length - 2; i++) {
-    for (let j = i + 1; j < hand.length - 1; j++) {
-      for (let k = j + 1; k < hand.length; k++) {
-        if (hand[i].rank === hand[j].rank && hand[j].rank === hand[k].rank) {
-          triples.push([hand[i], hand[j], hand[k]]);
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 2; i++) {
+    for (let j = i + 1; j < sorted.length - 1; j++) {
+      for (let k = j + 1; k < sorted.length; k++) {
+        if (sorted[i].rank === sorted[j].rank && sorted[j].rank === sorted[k].rank) {
+          triples.push([sorted[i], sorted[j], sorted[k]]);
         }
       }
     }
@@ -226,9 +228,10 @@ const getAllTriples = (hand: Card[]) => {
 
 const getAllQuads = (hand: Card[]) => {
   const quads: Card[][] = [];
-  for (let i = 0; i < hand.length - 3; i++) {
-    if (hand[i].rank === hand[i+3].rank) {
-      quads.push(hand.slice(i, i + 4));
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 3; i++) {
+    if (sorted[i].rank === sorted[i+3].rank) {
+      quads.push(sorted.slice(i, i + 4));
     }
   }
   return quads;
@@ -316,6 +319,145 @@ export const canPlayAnyMove = (
   }
 
   return false;
+};
+
+/**
+ * Smart Combo Detection
+ * Finds all valid playable combinations in hand that include the specified card.
+ */
+export const findAllValidCombos = (
+  hand: Card[],
+  pivotCardId: string,
+  playPile: PlayTurn[],
+  isFirstTurnOfGame: boolean = false
+): Record<string, Card[][]> => {
+  const sortedHand = sortCards(hand);
+  const pivotCard = hand.find(c => c.id === pivotCardId);
+  if (!pivotCard) return {};
+
+  const combos: Record<string, Card[][]> = {
+    'SINGLE': [],
+    'PAIR': [],
+    'TRIPLE': [],
+    'QUAD': [],
+    'RUN': [],
+    'BOMB': []
+  };
+
+  const addIfValid = (candidate: Card[], type: string) => {
+    const res = validateMove(candidate, playPile, isFirstTurnOfGame);
+    if (res.isValid) {
+      // Ensure pivot card is included
+      if (candidate.some(c => c.id === pivotCardId)) {
+        combos[type].push(candidate);
+      }
+    }
+  };
+
+  // 1. Singles
+  addIfValid([pivotCard], 'SINGLE');
+
+  // 2. Pairs & Triples & Quads
+  const sameRank = sortedHand.filter(c => c.rank === pivotCard.rank);
+  if (sameRank.length >= 2) {
+    // Collect all unique combinations of pairs containing pivot
+    for (const c of sameRank) {
+      if (c.id !== pivotCardId) addIfValid([pivotCard, c], 'PAIR');
+    }
+  }
+  if (sameRank.length >= 3) {
+    // Triple combinations containing pivot
+    const others = sameRank.filter(c => c.id !== pivotCardId);
+    for (let i = 0; i < others.length - 1; i++) {
+      for (let j = i + 1; j < others.length; j++) {
+        addIfValid([pivotCard, others[i], others[j]], 'TRIPLE');
+      }
+    }
+  }
+  if (sameRank.length === 4) {
+    addIfValid(sameRank, 'QUAD');
+  }
+
+  // 3. Runs (3 to 13 cards)
+  if (pivotCard.rank !== Rank.Two) {
+    const uniqueRanksMap: Record<number, Card[]> = {};
+    sortedHand.forEach(c => {
+      if (c.rank !== Rank.Two) {
+        if (!uniqueRanksMap[c.rank]) uniqueRanksMap[c.rank] = [];
+        uniqueRanksMap[c.rank].push(c);
+      }
+    });
+
+    // Check all possible runs containing pivot
+    const lastTurn = playPile[playPile.length - 1];
+    const targetLen = lastTurn?.cards.length || 0;
+    const isLead = playPile.length === 0;
+
+    // Sliding window for runs
+    for (let len = Math.max(3, targetLen); len <= 13; len++) {
+      if (!isLead && len !== targetLen) continue;
+
+      for (let startRank = pivotCard.rank - len + 1; startRank <= pivotCard.rank; startRank++) {
+        const endRank = startRank + len - 1;
+        if (startRank < 3 || endRank > Rank.Ace) continue;
+
+        // Verify if rank sequence exists
+        let sequencePossible = true;
+        for (let r = startRank; r <= endRank; r++) {
+          if (!uniqueRanksMap[r]) { sequencePossible = false; break; }
+        }
+
+        if (sequencePossible) {
+          // If sequence exists, find all card combinations. 
+          // For simplicity in a smart bar, we just pivot on the first available card of each rank,
+          // but specifically use our pivotCard for its rank.
+          const runCandidate: Card[] = [];
+          for (let r = startRank; r <= endRank; r++) {
+            if (r === pivotCard.rank) runCandidate.push(pivotCard);
+            else runCandidate.push(uniqueRanksMap[r][0]);
+          }
+          addIfValid(runCandidate, 'RUN');
+        }
+      }
+    }
+  }
+
+  // 4. Bombs (3-pairs, 4-pairs)
+  const pairs = getAllPairs(sortedHand);
+  const pairRanks = Array.from(new Set(pairs.map(p => p[0].rank))).sort((a,b) => a-b);
+  
+  // 3 Consecutive pairs
+  for (let i = 0; i <= pairRanks.length - 3; i++) {
+    const r1 = pairRanks[i], r2 = pairRanks[i+1], r3 = pairRanks[i+2];
+    if (r2 === r1 + 1 && r3 === r2 + 1 && r3 !== Rank.Two) {
+      if (r1 === pivotCard.rank || r2 === pivotCard.rank || r3 === pivotCard.rank) {
+        const combo = [
+          ...pairs.find(p => p[0].rank === r1)!,
+          ...pairs.find(p => p[0].rank === r2)!,
+          ...pairs.find(p => p[0].rank === r3)!
+        ];
+        addIfValid(combo, 'BOMB');
+      }
+    }
+  }
+
+  // 4 Consecutive pairs
+  for (let i = 0; i <= pairRanks.length - 4; i++) {
+    const r1 = pairRanks[i], r2 = pairRanks[i+1], r3 = pairRanks[i+2], r4 = pairRanks[i+3];
+    if (r2 === r1+1 && r3 === r2+1 && r4 === r3+1 && r4 !== Rank.Two) {
+       if ([r1, r2, r3, r4].includes(pivotCard.rank)) {
+         const combo = [
+            ...pairs.find(p => p[0].rank === r1)!,
+            ...pairs.find(p => p[0].rank === r2)!,
+            ...pairs.find(p => p[0].rank === r3)!,
+            ...pairs.find(p => p[0].rank === r4)!
+         ];
+         addIfValid(combo, 'BOMB');
+       }
+    }
+  }
+
+  return combos;
 };
 
 // --- AI LOGIC ---
