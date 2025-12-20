@@ -109,12 +109,22 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
   }
   if (playPile.length === 0) return true;
   const lastTurn = playPile[playPile.length - 1];
-  const lType = getComboType(lastTurn.cards);
+  const lastCards = lastTurn.cards;
+  const lType = getComboType(lastCards);
   const pHigh = getHighestCard(playedCards);
-  const lHigh = getHighestCard(lastTurn.cards);
+  const lHigh = getHighestCard(lastCards);
+
+  // Chopping logic (Bombs)
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(pType)) return true;
   if (lType === 'PAIR' && lHigh.rank === Rank.Two && ['QUAD', '4_PAIRS'].includes(pType)) return true;
-  if (pType !== lType || playedCards.length !== lastTurn.cards.length) return false;
+  
+  // Higher Bombs
+  if (lType === 'QUAD' && pType === 'QUAD' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
+  if (lType === '3_PAIRS' && pType === '3_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
+  if (lType === '4_PAIRS' && pType === '4_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
+  if (pType === '4_PAIRS' && (lType === '3_PAIRS' || lType === 'QUAD')) return true;
+
+  if (pType !== lType || playedCards.length !== lastCards.length) return false;
   return getCardScore(pHigh) > getCardScore(lHigh);
 };
 
@@ -130,29 +140,68 @@ const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass
 };
 
 // --- AI Service ---
+
+const getAllPairs = (hand: Card[]) => {
+  const pairs: Card[][] = [];
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i].rank === sorted[i+1].rank) {
+      pairs.push([sorted[i], sorted[i+1]]);
+      i++;
+    }
+  }
+  return pairs;
+};
+
 const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, difficulty: AiDifficulty): Card[] | null => {
   const sorted = sortCards(hand);
-  if (difficulty === 'EASY' && playPile.length > 0 && Math.random() < 0.4) return null;
+  const isHard = difficulty === 'HARD';
+
   if (playPile.length === 0) {
     if (isFirstTurn) {
         const threeS = sorted.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
         return threeS ? [threeS] : [sorted[0]];
     }
+    // Lead lowest
     return [sorted[0]];
   }
+
   const lastTurn = playPile[playPile.length - 1];
   const lastCards = lastTurn.cards;
   const lType = getComboType(lastCards);
+  const lHigh = getHighestCard(lastCards);
+
+  let standardMove: Card[] | null = null;
   if (lType === 'SINGLE') {
-    const match = sorted.find(c => getCardScore(c) > getCardScore(getHighestCard(lastCards)));
-    return match ? [match] : null;
-  }
-  if (lType === 'PAIR') {
-    for(let i=0; i<sorted.length-1; i++) {
-        if (sorted[i].rank === sorted[i+1].rank && getCardScore(sorted[i+1]) > getCardScore(getHighestCard(lastCards))) return [sorted[i], sorted[i+1]];
+    const match = sorted.find(c => getCardScore(c) > getCardScore(lHigh));
+    if (match) standardMove = [match];
+  } else if (lType === 'PAIR') {
+    const pairs = getAllPairs(sorted);
+    const match = pairs.find(p => getCardScore(getHighestCard(p)) > getCardScore(lHigh));
+    if (match) standardMove = match;
+  } else if (lType === 'RUN') {
+    const targetLen = lastCards.length;
+    const uniqueRanks = Array.from(new Set(sorted.filter(c => c.rank !== Rank.Two).map(c => c.rank))).sort((a,b) => a-b);
+    for (let i = 0; i <= uniqueRanks.length - targetLen; i++) {
+      const ranks = uniqueRanks.slice(i, i + targetLen);
+      if (ranks.length < targetLen) continue;
+      let consecutive = true;
+      for (let k = 0; k < ranks.length - 1; k++) if (ranks[k+1] !== ranks[k] + 1) consecutive = false;
+      if (!consecutive) continue;
+      const candidate = ranks.map(r => sorted.find(c => c.rank === r)!);
+      if (getCardScore(getHighestCard(candidate)) > getCardScore(lHigh)) {
+        standardMove = candidate;
+        break;
+      }
     }
   }
-  return null;
+
+  // Hard AI: Hoarding logic for Pig
+  if (standardMove && isHard && getHighestCard(standardMove).rank === Rank.Two) {
+    if (sorted.length > 5) return null;
+  }
+
+  return standardMove;
 };
 
 // --- Game Logic ---
@@ -196,6 +245,13 @@ const checkBotTurn = (roomId: string) => {
     setTimeout(() => {
         const roomRef = rooms[roomId];
         if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
+        
+        // Easy AI randomness
+        if (curPlayer.difficulty === 'EASY' && roomRef.currentPlayPile.length > 0 && Math.random() < 0.4) {
+          handlePass(roomId, curPlayer.id);
+          return;
+        }
+
         const move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame, curPlayer.difficulty || 'MEDIUM');
         if (move) handlePlay(roomId, curPlayer.id, move);
         else handlePass(roomId, curPlayer.id);
@@ -224,24 +280,14 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
     }
   }
 
-  // After someone plays, check if the round should end immediately
   const activeRemainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
-  
   if (activeRemainingInRound.length === 0) {
-     // Round ends if everyone else has already passed or finished
      room.currentPlayPile = [];
      room.players.forEach(p => p.hasPassed = false);
-     
-     if (player.hand.length === 0) {
-        // If I played the last cards and finished, I can't start the next round
-        // Find the next available non-finished player
-        room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
-     } else {
-        // I keep the lead for the next round
-        room.currentPlayerIndex = room.players.indexOf(player);
-     }
+     room.currentPlayerIndex = player.hand.length === 0 
+       ? getNextActivePlayerIndex(room, room.currentPlayerIndex, true)
+       : room.players.indexOf(player);
   } else {
-     // Normal turn progression
      room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   }
 
@@ -257,21 +303,11 @@ const handlePass = (roomId: string, playerId: string) => {
   if (player) player.hasPassed = true;
 
   let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
-  
-  // A round ends if:
-  // 1. The next person to play is the one who played last
-  // 2. Or the loop returns to the current player (meaning everyone else passed/finished)
   const lastPlayer = room.players.find(p => p.id === room.lastPlayerToPlayId);
-  const isLastPlayerActive = lastPlayer && !lastPlayer.finishedRank;
-
   if (room.players[nextIdx].id === room.lastPlayerToPlayId || nextIdx === room.currentPlayerIndex) {
     room.currentPlayPile = [];
     room.players.forEach(p => p.hasPassed = false);
-    
-    // If the person who should lead is finished, give the lead to the next active player
-    if (!isLastPlayerActive) {
-      nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
-    }
+    if (lastPlayer?.finishedRank) nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
   }
   
   room.currentPlayerIndex = nextIdx;
@@ -310,6 +346,14 @@ io.on('connection', (socket: Socket) => {
     if (room) { room.players = room.players.filter(p => p.id !== botId); broadcastState(roomId); }
   });
 
+  socket.on('update_bot_difficulty', ({ roomId, botId, difficulty }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    const bot = room.players.find(p => p.id === botId);
+    if (bot) bot.difficulty = difficulty;
+    broadcastState(roomId);
+  });
+
   socket.on('start_game', ({ roomId }) => {
     const room = rooms[roomId];
     if (!room || room.players.length < 2) return;
@@ -327,7 +371,7 @@ io.on('connection', (socket: Socket) => {
   socket.on('play_cards', ({ roomId, cards }) => handlePlay(roomId, socket.id, cards));
   socket.on('pass_turn', ({ roomId }) => handlePass(roomId, socket.id));
 
-  socket.on('disconnect', () => { /* Room cleanup logic */ });
+  socket.on('disconnect', () => {});
 });
 
 const generateRoomCode = (): string => 'ABCD'.split('').map(() => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.floor(Math.random() * 36))).join('');

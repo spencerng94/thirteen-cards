@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { BrandLogo } from './BrandLogo';
 
@@ -105,7 +106,7 @@ export const ConnectingScreen: React.FC<ConnectingScreenProps> = ({ onCancel }) 
         {/* Discreet Legal/Build Footer */}
         <div className="absolute bottom-[-10vh] md:bottom-[-15vh] opacity-20 transition-opacity hover:opacity-50">
           <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.6em]">
-            Authorized Access Only
+            CONNECTING TO SERVER
           </p>
         </div>
       </div>

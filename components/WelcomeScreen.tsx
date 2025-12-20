@@ -13,6 +13,13 @@ const AVATARS = [
   '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦄',
 ];
 
+const AVATAR_NAMES: Record<string, string> = {
+  '🐶': 'DOG', '🐱': 'CAT', '🐭': 'MOUSE', '🐹': 'HAMSTER', '🐰': 'RABBIT',
+  '🦊': 'FOX', '🐻': 'BEAR', '🐼': 'PANDA', '🐨': 'KOALA', '🐯': 'TIGER',
+  '🦁': 'LION', '🐮': 'COW', '🐷': 'PIG', '🐸': 'FROG', '🐵': 'MONKEY',
+  '🐔': 'CHICKEN', '🐧': 'PENGUIN', '🐦': 'BIRD', '🐤': 'CHICK', '🦄': 'UNICORN',
+};
+
 const GlassPanel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
   <div className={`relative bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-[2.5rem] overflow-hidden ${className}`}>
       <div className="absolute inset-0 rounded-[2.5rem] ring-1 ring-inset ring-white/5 pointer-events-none"></div>
@@ -31,8 +38,9 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [name, setName] = useState('');
   const [coverStyle, setCoverStyle] = useState<CardCoverStyle>('BLUE');
-  const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
-  const [quickFinish, setQuickFinish] = useState(false);
+  // Randomize initial avatar from the AVATARS list
+  const [selectedAvatar, setSelectedAvatar] = useState<string>(() => AVATARS[Math.floor(Math.random() * AVATARS.length)]);
+  const [quickFinish, setQuickFinish] = useState(true);
   const [difficulty, setDifficulty] = useState<AiDifficulty>('MEDIUM');
 
   const getDifficultyStyles = (d: AiDifficulty, active: boolean) => {
@@ -48,6 +56,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
       default:
         return "bg-green-600 text-white";
     }
+  };
+
+  const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER') => {
+    const finalName = name.trim() || AVATAR_NAMES[selectedAvatar] || 'GUEST';
+    onStart(finalName, mode, coverStyle, selectedAvatar, quickFinish, difficulty);
   };
 
   return (
@@ -99,7 +112,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
 
           {/* Player Handle Section */}
           <div className="space-y-3">
-            <SectionHeader>Player Handle</SectionHeader>
+            <SectionHeader>Player Nickname</SectionHeader>
             <div className="relative max-w-sm mx-auto">
               <input
                 type="text"
@@ -107,7 +120,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
                 onChange={(e) => setName(e.target.value)}
                 maxLength={15}
                 className="w-full px-6 py-4 rounded-2xl bg-black/50 border border-white/10 focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none text-white text-lg font-black tracking-[0.2em] uppercase placeholder:text-white/10 transition-all text-center"
-                placeholder="ENTER HANDLE"
+                placeholder="ENTER NICKNAME"
               />
               <div className="absolute bottom-2 right-4 text-[8px] font-black text-white/20 tracking-widest">{name.length}/15</div>
             </div>
@@ -176,7 +189,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             <SectionHeader>Game Mode</SectionHeader>
             <div className="flex flex-col gap-4">
                <button
-                onClick={() => onStart(name || 'GUEST', 'MULTI_PLAYER', coverStyle, selectedAvatar)}
+                onClick={() => handleStartGame('MULTI_PLAYER')}
                 className="group w-full relative overflow-hidden py-5 rounded-[1.8rem] font-black uppercase tracking-[0.2em] transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] active:scale-[0.98]"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-700 via-green-600 to-emerald-700 group-hover:scale-110 transition-transform duration-500"></div>
@@ -187,7 +200,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
               </button>
 
               <button
-                  onClick={() => onStart(name || 'GUEST', 'SINGLE_PLAYER', coverStyle, selectedAvatar, quickFinish, difficulty)}
+                  onClick={() => handleStartGame('SINGLE_PLAYER')}
                   className="group w-full py-5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-300 font-black text-xs uppercase tracking-[0.2em] rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-3"
               >
                   Train Against AI 🤖

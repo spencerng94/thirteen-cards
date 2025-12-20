@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme, AiDifficulty } from './types';
@@ -23,7 +24,7 @@ const App: React.FC = () => {
   const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('BLUE');
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('GREEN');
   const [initialRoomCode, setInitialRoomCode] = useState<string | null>(null);
-  const [spQuickFinish, setSpQuickFinish] = useState(false);
+  const [spQuickFinish, setSpQuickFinish] = useState(true);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('MEDIUM');
   const [soundEnabled, setSoundEnabled] = useState(true);
   
@@ -109,6 +110,12 @@ const App: React.FC = () => {
     const cur = spGameState.players.find(p => p.id === spGameState.currentPlayerId);
     if (cur?.id.startsWith('bot-') && !cur.finishedRank) {
       const timer = setTimeout(() => {
+        // Implement Easy AI stupidity here
+        if (aiDifficulty === 'EASY' && spGameState.currentPlayPile.length > 0 && Math.random() < 0.35) {
+          handleLocalPass(cur.id);
+          return;
+        }
+
         const hand = spOpponentHands[cur.id];
         const move = findBestMove(hand, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame, aiDifficulty);
         if (move) handleLocalPlay(cur.id, move);
