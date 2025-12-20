@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
@@ -18,6 +19,16 @@ interface SettingsModalProps {
   setSoundEnabled: (val: boolean) => void;
 }
 
+// Move SectionHeader outside to avoid closure issues and follow best practices
+// This fix addresses the error where children were not recognized correctly by TypeScript
+const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-500/80 flex items-center justify-center gap-3 mb-5">
+    <span className="w-8 h-[1px] bg-yellow-500/20"></span>
+    {children}
+    <span className="w-8 h-[1px] bg-yellow-500/20"></span>
+  </p>
+);
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
   onClose, 
   onExitGame,
@@ -34,14 +45,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   setSoundEnabled
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
-
-  const SectionHeader = ({ children }: { children: React.ReactNode }) => (
-    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-500/80 flex items-center justify-center gap-3 mb-5">
-      <span className="w-8 h-[1px] bg-yellow-500/20"></span>
-      {children}
-      <span className="w-8 h-[1px] bg-yellow-500/20"></span>
-    </p>
-  );
 
   const getDifficultyStyles = (d: AiDifficulty, active: boolean) => {
     if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
@@ -203,7 +206,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="space-y-4">
-              <SectionHeader>DECK COVER</SectionHeader>
+              <SectionHeader>Card Cover</SectionHeader>
               <div className="flex justify-center gap-6">
                  {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
                    <div 

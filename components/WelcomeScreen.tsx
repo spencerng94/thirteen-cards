@@ -113,9 +113,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             </div>
           </div>
 
-          {/* Deck Variant Section */}
+          {/* Card Cover Section */}
           <div className="space-y-4">
-            <SectionHeader>Deck Variant</SectionHeader>
+            <SectionHeader>Card Cover</SectionHeader>
             <div className="flex justify-center gap-6 md:gap-8">
                {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
                  <div 

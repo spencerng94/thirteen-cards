@@ -61,13 +61,101 @@ const io = new Server(httpServer, {
 
 const rooms: Record<string, GameRoom> = {};
 
-// Logic Helpers
-const generateRoomCode = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < 4; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-  return result;
+// --- Logic Helpers ---
+
+const getCardScore = (card: Card): number => card.rank * 10 + card.suit;
+const sortCards = (cards: Card[]): Card[] => [...cards].sort((a, b) => getCardScore(a) - getCardScore(b));
+const getHighestCard = (cards: Card[]): Card => {
+  const sorted = sortCards(cards);
+  return sorted[sorted.length - 1];
 };
+
+const getComboType = (cards: Card[]): string => {
+  const sorted = sortCards(cards);
+  const len = sorted.length;
+  if (len === 0) return 'INVALID';
+  if (len === 1) return 'SINGLE';
+  const isSameRank = sorted.every(c => c.rank === sorted[0].rank);
+  if (isSameRank) {
+    if (len === 2) return 'PAIR';
+    if (len === 3) return 'TRIPLE';
+    if (len === 4) return 'QUAD';
+  }
+  let isRun = true;
+  for (let i = 0; i < len - 1; i++) {
+    if (sorted[i].rank === Rank.Two || sorted[i+1].rank === Rank.Two || sorted[i+1].rank !== sorted[i].rank + 1) {
+      isRun = false; break;
+    }
+  }
+  if (isRun && len >= 3) return 'RUN';
+  if (len === 6) {
+    const is3Pairs = sorted[0].rank === sorted[1].rank && sorted[2].rank === sorted[3].rank && sorted[4].rank === sorted[5].rank && 
+                     sorted[2].rank === sorted[0].rank + 1 && sorted[4].rank === sorted[2].rank + 1 && sorted[5].rank !== Rank.Two;
+    if (is3Pairs) return '3_PAIRS';
+  }
+  if (len === 8) {
+    const is4Pairs = sorted[0].rank === sorted[1].rank && sorted[2].rank === sorted[3].rank && sorted[4].rank === sorted[5].rank && sorted[6].rank === sorted[7].rank &&
+                     sorted[2].rank === sorted[0].rank + 1 && sorted[4].rank === sorted[2].rank + 1 && sorted[6].rank === sorted[4].rank + 1 && sorted[7].rank !== Rank.Two;
+    if (is4Pairs) return '4_PAIRS';
+  }
+  return 'INVALID';
+};
+
+const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: boolean): boolean => {
+  const pType = getComboType(playedCards);
+  if (pType === 'INVALID') return false;
+  if (isFirstTurn && playPile.length === 0) {
+    if (!playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) return false;
+  }
+  if (playPile.length === 0) return true;
+  const lastTurn = playPile[playPile.length - 1];
+  const lType = getComboType(lastTurn.cards);
+  const pHigh = getHighestCard(playedCards);
+  const lHigh = getHighestCard(lastTurn.cards);
+  if (lType === 'SINGLE' && lHigh.rank === Rank.Two && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(pType)) return true;
+  if (lType === 'PAIR' && lHigh.rank === Rank.Two && ['QUAD', '4_PAIRS'].includes(pType)) return true;
+  if (pType !== lType || playedCards.length !== lastTurn.cards.length) return false;
+  return getCardScore(pHigh) > getCardScore(lHigh);
+};
+
+const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass: boolean = false): number => {
+  for (let i = 1; i <= room.players.length; i++) {
+    const idx = (startIndex + i) % room.players.length;
+    const p = room.players[idx];
+    if (p.finishedRank) continue;
+    if (!ignorePass && p.hasPassed) continue;
+    return idx;
+  }
+  return startIndex;
+};
+
+// --- AI Service ---
+const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, difficulty: AiDifficulty): Card[] | null => {
+  const sorted = sortCards(hand);
+  if (difficulty === 'EASY' && playPile.length > 0 && Math.random() < 0.4) return null;
+  if (playPile.length === 0) {
+    if (isFirstTurn) {
+        const threeS = sorted.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
+        return threeS ? [threeS] : [sorted[0]];
+    }
+    return [sorted[0]];
+  }
+  const lastTurn = playPile[playPile.length - 1];
+  const lastCards = lastTurn.cards;
+  const lType = getComboType(lastCards);
+  if (lType === 'SINGLE') {
+    const match = sorted.find(c => getCardScore(c) > getCardScore(getHighestCard(lastCards)));
+    return match ? [match] : null;
+  }
+  if (lType === 'PAIR') {
+    for(let i=0; i<sorted.length-1; i++) {
+        if (sorted[i].rank === sorted[i+1].rank && getCardScore(sorted[i+1]) > getCardScore(getHighestCard(lastCards))) return [sorted[i], sorted[i+1]];
+    }
+  }
+  return null;
+};
+
+// --- Game Logic ---
 
 const getGameState = (room: GameRoom) => ({
   roomId: room.id,
@@ -95,36 +183,84 @@ const broadcastState = (roomId: string) => {
   if (!room) return;
   const state = getGameState(room);
   io.to(roomId).emit('game_state', state);
-  
-  // Send private hands
   room.players.forEach(p => {
     if (!p.isBot) io.to(p.socketId).emit('player_hand', p.hand);
   });
 };
 
-io.on('connection', (socket: Socket) => {
-  console.log('User connected:', socket.id);
+const checkBotTurn = (roomId: string) => {
+  const room = rooms[roomId];
+  if (!room || room.status !== 'PLAYING') return;
+  const curPlayer = room.players[room.currentPlayerIndex];
+  if (curPlayer?.isBot && !curPlayer.finishedRank) {
+    setTimeout(() => {
+        const roomRef = rooms[roomId];
+        if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
+        const move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame, curPlayer.difficulty || 'MEDIUM');
+        if (move) handlePlay(roomId, curPlayer.id, move);
+        else handlePass(roomId, curPlayer.id);
+    }, 1500);
+  }
+};
 
+const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
+  const room = rooms[roomId];
+  if (!room) return;
+  const player = room.players.find(p => p.id === playerId);
+  if (!player || room.players[room.currentPlayerIndex].id !== playerId) return;
+  if (!validateMove(cards, room.currentPlayPile, room.isFirstTurnOfGame)) return;
+
+  player.hand = player.hand.filter(c => !cards.some(pc => pc.id === c.id));
+  room.currentPlayPile.push({ playerId, cards, comboType: getComboType(cards) });
+  room.lastPlayerToPlayId = playerId;
+  room.isFirstTurnOfGame = false;
+
+  if (player.hand.length === 0) {
+    room.finishedPlayers.push(playerId);
+    player.finishedRank = room.finishedPlayers.length;
+    if (room.players.filter(p => !p.finishedRank).length <= 1) {
+        room.status = 'FINISHED';
+        broadcastState(roomId); return;
+    }
+  }
+
+  // After someone finishes, if the round ends, move turn to next active
+  const remainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
+  if (player.hand.length === 0 && remainingInRound.length === 0) {
+     room.currentPlayPile = [];
+     room.players.forEach(p => p.hasPassed = false);
+     room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
+  } else {
+     room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex);
+  }
+
+  broadcastState(roomId);
+  checkBotTurn(roomId);
+};
+
+const handlePass = (roomId: string, playerId: string) => {
+  const room = rooms[roomId];
+  if (!room) return;
+  if (room.players[room.currentPlayerIndex].id !== playerId) return;
+  const player = room.players.find(p => p.id === playerId);
+  if (player) player.hasPassed = true;
+
+  let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
+  if (room.players[nextIdx].id === room.lastPlayerToPlayId) {
+    room.currentPlayPile = [];
+    room.players.forEach(p => p.hasPassed = false);
+  }
+  room.currentPlayerIndex = nextIdx;
+  broadcastState(roomId);
+  checkBotTurn(roomId);
+};
+
+io.on('connection', (socket: Socket) => {
   socket.on('create_room', ({ name, avatar }) => {
     const roomId = generateRoomCode();
     rooms[roomId] = {
-      id: roomId,
-      status: 'LOBBY',
-      players: [{
-        id: socket.id,
-        name,
-        avatar,
-        socketId: socket.id,
-        hand: [],
-        isHost: true,
-        hasPassed: false,
-        finishedRank: null
-      }],
-      currentPlayerIndex: 0,
-      currentPlayPile: [],
-      lastPlayerToPlayId: null,
-      finishedPlayers: [],
-      isFirstTurnOfGame: true
+      id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
+      players: [{ id: socket.id, name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
     };
     socket.join(roomId);
     broadcastState(roomId);
@@ -132,20 +268,8 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('join_room', ({ roomId, name, avatar }) => {
     const room = rooms[roomId];
-    if (!room) return socket.emit('error', 'Room not found.');
-    if (room.status !== 'LOBBY') return socket.emit('error', 'Game already started.');
-    if (room.players.length >= 4) return socket.emit('error', 'Room is full.');
-
-    room.players.push({
-      id: socket.id,
-      name,
-      avatar,
-      socketId: socket.id,
-      hand: [],
-      isHost: false,
-      hasPassed: false,
-      finishedRank: null
-    });
+    if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
+    room.players.push({ id: socket.id, name, avatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
     socket.join(roomId);
     broadcastState(roomId);
   });
@@ -153,105 +277,36 @@ io.on('connection', (socket: Socket) => {
   socket.on('add_bot', ({ roomId }) => {
     const room = rooms[roomId];
     if (!room || room.players.length >= 4) return;
-    
-    // Check if requester is host
-    const requester = room.players.find(p => p.socketId === socket.id);
-    if (!requester?.isHost) return;
-
-    const botId = `bot-${uuidv4()}`;
-    room.players.push({
-      id: botId,
-      name: `CPU ${room.players.length}`,
-      avatar: BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)],
-      socketId: 'bot',
-      hand: [],
-      isHost: false,
-      hasPassed: false,
-      finishedRank: null,
-      isBot: true,
-      difficulty: 'MEDIUM' // Default difficulty initialized
-    });
+    room.players.push({ id: `bot-${uuidv4()}`, name: `CPU ${room.players.length}`, avatar: BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)], socketId: 'bot', hand: [], isHost: false, hasPassed: false, finishedRank: null, isBot: true, difficulty: 'MEDIUM' });
     broadcastState(roomId);
   });
 
   socket.on('remove_bot', ({ roomId, botId }) => {
     const room = rooms[roomId];
-    if (!room) return;
-    
-    // Check if requester is host
-    const requester = room.players.find(p => p.socketId === socket.id);
-    if (!requester?.isHost) return;
-
-    // Filter out the bot
-    room.players = room.players.filter(p => p.id !== botId);
-    broadcastState(roomId);
-  });
-
-  socket.on('update_bot_difficulty', ({ roomId, botId, difficulty }) => {
-    const room = rooms[roomId];
-    if (!room) return;
-
-    // Check if requester is host
-    const requester = room.players.find(p => p.socketId === socket.id);
-    if (!requester?.isHost) return;
-
-    const bot = room.players.find(p => p.id === botId);
-    if (bot && bot.isBot) {
-      bot.difficulty = difficulty;
-      broadcastState(roomId);
-    }
+    if (room) { room.players = room.players.filter(p => p.id !== botId); broadcastState(roomId); }
   });
 
   socket.on('start_game', ({ roomId }) => {
     const room = rooms[roomId];
     if (!room || room.players.length < 2) return;
-    
-    const requester = room.players.find(p => p.socketId === socket.id);
-    if (!requester?.isHost) return;
-
-    // Deck Generation & Dealing
     const deck: Card[] = [];
-    for (let s = 0; s < 4; s++) {
-      for (let r = 3; r <= 15; r++) {
-        deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
-      }
-    }
-    // Shuffle
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
-
-    // Deal
-    room.players.forEach((p, i) => {
-      p.hand = deck.slice(i * 13, (i + 1) * 13);
-      p.hasPassed = false;
-      p.finishedRank = null;
-    });
-
-    // Find who has 3 of Spades
-    let starterIndex = 0;
-    room.players.forEach((p, i) => {
-      if (p.hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starterIndex = i;
-    });
-
-    room.status = 'PLAYING';
-    room.currentPlayerIndex = starterIndex;
-    room.isFirstTurnOfGame = true;
-    room.currentPlayPile = [];
-    room.finishedPlayers = [];
-    room.lastPlayerToPlayId = null;
-
+    for (let s = 0; s < 4; s++) for (let r = 3; r <= 15; r++) deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
+    for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    room.players.forEach((p, i) => { p.hand = deck.slice(i * 13, (i + 1) * 13); p.hasPassed = false; p.finishedRank = null; });
+    let starter = 0;
+    room.players.forEach((p, i) => { if (p.hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starter = i; });
+    room.status = 'PLAYING'; room.currentPlayerIndex = starter; room.isFirstTurnOfGame = true; room.currentPlayPile = [];
     broadcastState(roomId);
+    checkBotTurn(roomId);
   });
 
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    // Cleanup room logic would go here in a production app
-  });
+  socket.on('play_cards', ({ roomId, cards }) => handlePlay(roomId, socket.id, cards));
+  socket.on('pass_turn', ({ roomId }) => handlePass(roomId, socket.id));
+
+  socket.on('disconnect', () => { /* Room cleanup logic */ });
 });
+
+const generateRoomCode = (): string => 'ABCD'.split('').map(() => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.floor(Math.random() * 36))).join('');
 
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
