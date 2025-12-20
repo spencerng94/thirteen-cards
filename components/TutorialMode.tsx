@@ -11,7 +11,7 @@ interface TutorialModeProps {
 
 interface Step {
   title: string;
-  content: string;
+  content: React.ReactNode;
   cards: Card[];
   targetCardIds?: string[];
   actionLabel?: string;
@@ -25,7 +25,11 @@ export const TutorialMode: React.FC<TutorialModeProps> = ({ onExit }) => {
   const steps: Step[] = useMemo(() => [
     {
       title: "Welcome to Thirteen",
-      content: "Tiến Lên (Thirteen) is Vietnam's most popular card game. The goal is simple: be the first to empty your hand. Let's start with the basics of Card Ranks.",
+      content: (
+        <>
+          Tiến Lên (Thirteen) is Vietnam's most popular card game. The goal is simple: <span className="text-yellow-400 font-bold">be the first to empty your hand.</span> Let's start with the basics of Card Ranks.
+        </>
+      ),
       cards: [
         { rank: Rank.Three, suit: Suit.Spades, id: uuidv4() },
         { rank: Rank.Ace, suit: Suit.Hearts, id: uuidv4() },
@@ -143,11 +147,11 @@ export const TutorialMode: React.FC<TutorialModeProps> = ({ onExit }) => {
           <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-blue-400 uppercase tracking-tighter">
             {step.title}
           </h2>
-          <p className="text-gray-400 text-sm md:text-base leading-relaxed tracking-wide">
+          <div className="text-gray-400 text-sm md:text-base leading-relaxed tracking-wide">
             {step.content}
-          </p>
+          </div>
 
-          <div className="flex justify-center flex-wrap gap-4 py-8 min-h-[160px]">
+          <div className={`flex justify-center flex-wrap ${step.cards.length > 5 ? 'gap-2' : 'gap-4'} py-8 min-h-[160px]`}>
             {step.cards.map((c) => (
               <div key={c.id} className="transform transition-transform hover:scale-110">
                 <CardComp 
