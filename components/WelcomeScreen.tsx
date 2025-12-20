@@ -5,7 +5,7 @@ import { BrandLogo } from './BrandLogo';
 import { AiDifficulty } from '../types';
 
 interface WelcomeScreenProps {
-  onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean, difficulty?: AiDifficulty) => void;
+  onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean, difficulty?: AiDifficulty) => void;
 }
 
 const AVATARS = [
@@ -35,10 +35,71 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   </p>
 );
 
+interface MainActionButtonProps {
+  onClick: () => void;
+  variant: 'emerald' | 'gold' | 'charcoal';
+  label: string;
+  icon: string;
+  showShimmer?: boolean;
+}
+
+const MainActionButton: React.FC<MainActionButtonProps> = ({ onClick, variant, label, icon, showShimmer = true }) => {
+  const variantStyles = {
+    emerald: {
+      bg: 'from-emerald-700 via-green-500 to-emerald-700',
+      border: 'border-emerald-400/30',
+      shadow: 'shadow-emerald-900/40',
+      text: 'text-white'
+    },
+    gold: {
+      bg: 'from-yellow-600 via-yellow-400 to-yellow-600',
+      border: 'border-yellow-300/40',
+      shadow: 'shadow-yellow-900/40',
+      text: 'text-black'
+    },
+    charcoal: {
+      bg: 'from-slate-800 via-slate-700 to-slate-900',
+      border: 'border-slate-500/30',
+      shadow: 'shadow-black/60',
+      text: 'text-white'
+    }
+  };
+
+  const style = variantStyles[variant];
+
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        group w-full relative overflow-hidden py-5 rounded-[1.8rem] font-black uppercase tracking-[0.2em] 
+        transition-all duration-300 active:scale-[0.98] border ${style.border} shadow-[0_15px_45px_rgba(0,0,0,0.6)] ${style.shadow}
+      `}
+    >
+      {/* Dynamic Gradient Layer */}
+      <div className={`absolute inset-0 bg-gradient-to-r ${style.bg} group-hover:scale-110 transition-transform duration-700`}></div>
+      
+      {/* Shimmer Effect (Optional) */}
+      {showShimmer && (
+        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.25)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3.5s_infinite] pointer-events-none"></div>
+      )}
+
+      {/* Glossy Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
+      
+      {/* Content */}
+      <span className={`relative z-10 flex items-center justify-center gap-3 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] whitespace-nowrap px-8 text-xs sm:text-sm md:text-base ${style.text}`}>
+        {label} 
+        <span className="text-xl group-hover:translate-x-1 group-hover:rotate-12 transition-transform duration-300">
+          {icon}
+        </span>
+      </span>
+    </button>
+  );
+};
+
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [name, setName] = useState('');
   const [coverStyle, setCoverStyle] = useState<CardCoverStyle>('BLUE');
-  // Randomize initial avatar from the AVATARS list
   const [selectedAvatar, setSelectedAvatar] = useState<string>(() => AVATARS[Math.floor(Math.random() * AVATARS.length)]);
   const [quickFinish, setQuickFinish] = useState(true);
   const [difficulty, setDifficulty] = useState<AiDifficulty>('MEDIUM');
@@ -58,30 +119,26 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
     }
   };
 
-  const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER') => {
+  const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     const finalName = name.trim() || AVATAR_NAMES[selectedAvatar] || 'GUEST';
     onStart(finalName, mode, coverStyle, selectedAvatar, quickFinish, difficulty);
   };
 
   return (
     <div className="min-h-screen w-full bg-[#113a1e] relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000">
-      {/* Brighter Premium Green Background Elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[60%] aspect-square bg-green-400/10 blur-[130px] rounded-full animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[60%] aspect-square bg-emerald-300/10 blur-[130px] rounded-full animate-pulse [animation-delay:2s]"></div>
       
-      {/* Technical Grid Overlay */}
       <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '60px 60px' }}></div>
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
 
       <div className="max-w-lg w-full z-10 space-y-4 py-2 md:py-4">
-        {/* Hero Section */}
         <div className="flex flex-col items-center mb-0 transform hover:scale-[1.02] transition-transform duration-700">
             <BrandLogo size="xl" />
         </div>
 
         <GlassPanel className="p-6 pt-2 md:p-10 md:pt-4 space-y-8">
           
-          {/* Player Icon Section (Avatar) */}
           <div className="space-y-4">
             <SectionHeader>Player Icon</SectionHeader>
             <div className="relative group flex flex-col items-center">
@@ -110,7 +167,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             </div>
           </div>
 
-          {/* Player Handle Section */}
           <div className="space-y-3">
             <SectionHeader>Player Nickname</SectionHeader>
             <div className="relative max-w-sm mx-auto">
@@ -126,7 +182,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             </div>
           </div>
 
-          {/* Card Cover Section */}
           <div className="space-y-4">
             <SectionHeader>Card Cover</SectionHeader>
             <div className="flex justify-center gap-6 md:gap-8">
@@ -148,7 +203,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             </div>
           </div>
 
-          {/* AI Settings Section */}
           <div className="space-y-4">
             <SectionHeader>AI Settings</SectionHeader>
             <div className="flex flex-col gap-4 max-w-md mx-auto">
@@ -184,32 +238,32 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             </div>
           </div>
 
-          {/* Game Mode Selection Section */}
           <div className="space-y-4">
             <SectionHeader>Game Mode</SectionHeader>
             <div className="flex flex-col gap-4">
-               <button
+              <MainActionButton 
                 onClick={() => handleStartGame('MULTI_PLAYER')}
-                className="group w-full relative overflow-hidden py-5 rounded-[1.8rem] font-black uppercase tracking-[0.2em] transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] active:scale-[0.98]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-700 via-green-600 to-emerald-700 group-hover:scale-110 transition-transform duration-500"></div>
-                <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
-                <span className="relative z-10 text-white flex items-center justify-center gap-3 drop-shadow-md whitespace-nowrap px-8 text-xs sm:text-sm md:text-base">
-                  Play Online <span className="text-xl group-hover:translate-x-1 transition-transform">⚔️</span>
-                </span>
-              </button>
-
-              <button
-                  onClick={() => handleStartGame('SINGLE_PLAYER')}
-                  className="group w-full py-5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-300 font-black text-xs uppercase tracking-[0.2em] rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-3"
-              >
-                  Train Against AI 🤖
-              </button>
+                variant="emerald"
+                label="Play Online"
+                icon="⚔️"
+              />
+              <MainActionButton 
+                onClick={() => handleStartGame('SINGLE_PLAYER')}
+                variant="gold"
+                label="Train Against AI"
+                icon="🤖"
+              />
+              <MainActionButton 
+                onClick={() => handleStartGame('TUTORIAL')}
+                variant="charcoal"
+                label="Interactive Tutorial"
+                icon="🎓"
+                showShimmer={false}
+              />
             </div>
           </div>
         </GlassPanel>
 
-        {/* Global Shimmer Animation */}
         <style dangerouslySetInnerHTML={{ __html: `
             @keyframes shimmer {
                 0% { background-position: -100% 0; }

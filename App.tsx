@@ -7,12 +7,13 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { Lobby } from './components/Lobby';
 import { VictoryScreen } from './components/VictoryScreen';
 import { ConnectingScreen } from './components/ConnectingScreen';
+import { TutorialMode } from './components/TutorialMode';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
 
-type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY';
-type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
+type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
+type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL' | null;
 
 const BOT_AVATARS = ['🤖', '👾', '👽', '🤡', '👹', '👺', '👻'];
 
@@ -89,9 +90,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // -- SINGLE PLAYER HANDLERS --
-
-  // Fix: implement handleLocalPass to avoid "Cannot find name 'handleLocalPass'" errors
   const handleLocalPass = (pid: string) => {
     if (!spGameState) return;
     if (spGameState.currentPlayerId !== pid) return;
@@ -138,7 +136,6 @@ const App: React.FC = () => {
     });
   };
 
-  // Fix: complete handleLocalPlay implementation
   const handleLocalPlay = (pid: string, cards: Card[]) => {
     if (!spGameState) return;
     if (spGameState.currentPlayerId !== pid) return;
@@ -251,18 +248,15 @@ const App: React.FC = () => {
     setView('GAME_TABLE');
   };
 
-  // Bot logic
   useEffect(() => {
     if (gameMode !== 'SINGLE_PLAYER' || !spGameState || spGameState.status !== GameStatus.PLAYING) return;
     const cur = spGameState.players.find(p => p.id === spGameState.currentPlayerId);
     if (cur?.id.startsWith('bot-') && !cur.finishedRank) {
       const timer = setTimeout(() => {
-        // Implement Easy AI stupidity here
         if (aiDifficulty === 'EASY' && spGameState.currentPlayPile.length > 0 && Math.random() < 0.35) {
           handleLocalPass(cur.id);
           return;
         }
-
         const hand = spOpponentHands[cur.id];
         const move = findBestMove(hand, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame, aiDifficulty);
         if (move) handleLocalPlay(cur.id, move);
@@ -272,14 +266,20 @@ const App: React.FC = () => {
     }
   }, [spGameState, gameMode, aiDifficulty, spOpponentHands]);
 
-  const handleStart = (name: string, mode: GameMode, style: CardCoverStyle, avatar: string, quick?: boolean, diff?: AiDifficulty) => {
+  const handleStart = (name: string, mode: GameMode | 'TUTORIAL', style: CardCoverStyle, avatar: string, quick?: boolean, diff?: AiDifficulty) => {
     setPlayerName(name);
     setPlayerAvatar(avatar);
-    setGameMode(mode);
     setCardCoverStyle(style);
     if (quick !== undefined) setSpQuickFinish(quick);
     if (diff !== undefined) setAiDifficulty(diff);
 
+    if (mode === 'TUTORIAL') {
+      setGameMode('TUTORIAL');
+      setView('TUTORIAL');
+      return;
+    }
+
+    setGameMode(mode as GameMode);
     if (mode === 'SINGLE_PLAYER') {
       initSinglePlayer(name, avatar);
     } else {
@@ -300,6 +300,8 @@ const App: React.FC = () => {
     switch (view) {
       case 'WELCOME':
         return <WelcomeScreen onStart={handleStart} />;
+      case 'TUTORIAL':
+        return <TutorialMode onExit={handleExit} />;
       case 'LOBBY':
         return <Lobby 
           playerName={playerName} 
@@ -381,5 +383,4 @@ const App: React.FC = () => {
   );
 };
 
-// Fix: Add default export to resolve index.tsx import error
 export default App;
