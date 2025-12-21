@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
@@ -124,7 +123,7 @@ export const Card: React.FC<CardProps> = ({
         relative bg-[#fafafa] border border-gray-200/80 rounded-xl select-none cursor-pointer transform-gpu
         ${small ? 'w-10 h-14 text-xs' : 'w-20 h-28 sm:w-24 sm:h-36 text-base'}
         ${selected 
-          ? '-translate-y-12 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-50 scale-125' 
+          ? '-translate-y-12 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-40 scale-125' 
           : 'shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:-translate-y-6 hover:rotate-2 hover:shadow-[0_25px_50px_rgba(0,0,0,0.45)] hover:z-30'}
         ${className}
         transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)

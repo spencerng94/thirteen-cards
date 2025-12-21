@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty } from '../types';
 import { socket } from '../services/socket';
@@ -295,7 +296,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                     onClick={onBack}
                     className="w-full py-3 bg-white/[0.01] hover:bg-red-500/[0.05] border border-white/5 hover:border-red-500/20 rounded-[1rem] text-gray-500 hover:text-red-400 text-[10px] font-black uppercase tracking-[0.4em] transition-all duration-300"
                   >
-                    Abort Connection
+                    Quit Game
                   </button>
                 )}
             </div>
@@ -370,7 +371,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                 onClick={onBack}
                 className="w-full py-2 text-gray-600 hover:text-gray-300 text-[10px] font-black uppercase tracking-[0.5em] transition-colors mt-4"
               >
-                Terminate Session
+                Quit Game
               </button>
            )}
         </div>

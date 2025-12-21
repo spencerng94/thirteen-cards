@@ -193,12 +193,14 @@ export const GameTable: React.FC<GameTableProps> = ({
   };
 
   const getHandSpacingClass = (count: number) => {
-    // Aggressive negative spacing for mobile portrait to ensure hand fits within viewport
-    if (count <= 3) return 'space-x-4 md:space-x-6 lg:space-x-8';
-    if (count <= 5) return 'space-x-0 md:space-x-2 lg:space-x-4';
-    if (count <= 8) return '-space-x-10 md:space-x-[-1.5rem] lg:space-x-[-2.5rem]';
-    if (count <= 10) return '-space-x-12 md:space-x-[-2.5rem] lg:space-x-[-3.5rem]';
-    return '-space-x-14 md:space-x-[-3.5rem] lg:space-x-[-4rem]';
+    // Overlapping logic for player hand. w-20 is 80px.
+    // -space-x-16 leaves 16px visible for overlap (16 * 12 + 80 = 272px).
+    // This fits within 80% of a standard 375px mobile screen perfectly.
+    if (count <= 1) return '';
+    if (count <= 4) return 'space-x-2 sm:space-x-4 md:space-x-6';
+    if (count <= 7) return '-space-x-8 sm:-space-x-4 md:space-x-0';
+    if (count <= 10) return '-space-x-14 sm:-space-x-10 md:-space-x-4';
+    return '-space-x-16 sm:-space-x-15 md:-space-x-12';
   };
 
   let bgBase = '';
@@ -284,12 +286,12 @@ export const GameTable: React.FC<GameTableProps> = ({
           <button onClick={() => setShowInstructions(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-yellow-400 font-serif font-bold text-lg flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105">?</button>
           <button onClick={() => setShowSettings(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105">
              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
              </svg>
           </button>
           <button onClick={() => setShowHistory(true)} className="bg-white/5 hover:bg-white/10 text-gray-200 text-xs px-4 py-2 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-2 transition-all shadow-lg font-bold tracking-wide uppercase hover:scale-105">
-            <span className="hidden sm:inline opacity-70">Round Log</span>
+            <span className="hidden sm:inline opacity-70">Log</span>
             <span className="bg-yellow-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm">{gameState.currentPlayPile.length}</span>
           </button>
       </div>
@@ -368,27 +370,27 @@ export const GameTable: React.FC<GameTableProps> = ({
                flex flex-col items-center justify-center p-2 rounded-2xl backdrop-blur-md border transition-all duration-300 shadow-2xl
                ${gameState.currentPlayerId === player.id ? 'bg-black/60 border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.1)] scale-105' : 'bg-black/20 border-white/5'}
                ${player.hasPassed ? 'opacity-50 grayscale' : ''}
-               w-24 h-24 md:w-28 md:h-28
+               w-20 h-20 md:w-28 md:h-28
              `}>
                 <div className="relative">
-                    <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-white/10 to-transparent rounded-full flex items-center justify-center text-xl md:text-2xl border border-white/10 shadow-inner overflow-hidden">
+                    <div className="w-8 h-8 md:w-12 md:h-12 bg-gradient-to-br from-white/10 to-transparent rounded-full flex items-center justify-center text-xl md:text-2xl border border-white/10 shadow-inner overflow-hidden">
                         {player.avatar || '😊'}
                     </div>
                     {gameState.currentPlayerId === player.id && (
                         <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,1)]"></div>
                     )}
                 </div>
-                <div className="text-white font-bold text-[10px] tracking-wide max-w-full truncate px-1 text-center mt-2.5 pb-1">{player.name}</div>
+                <div className="text-white font-bold text-[8px] md:text-[10px] tracking-wide max-w-full truncate px-1 text-center mt-2 pb-1">{player.name}</div>
                 <div className="absolute -bottom-2 flex gap-1">
-                    {player.finishedRank ? <div className="px-1.5 py-0.5 bg-yellow-500 text-black rounded font-black text-[8px] uppercase">{getOrdinal(player.finishedRank)}</div> : player.hasPassed && <div className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded">PASS</div>}
+                    {player.finishedRank ? <div className="px-1 py-0.5 bg-yellow-500 text-black rounded font-black text-[7px] md:text-[8px] uppercase">{getOrdinal(player.finishedRank)}</div> : player.hasPassed && <div className="px-1 py-0.5 bg-red-600 text-white text-[7px] md:text-[8px] font-black uppercase rounded">PASS</div>}
                 </div>
              </div>
              {!player.finishedRank && (
                  <div className="relative">
                     <div className="relative group">
-                        {player.cardCount > 1 && <div className="absolute top-0.5 left-1 rotate-6 w-full h-full opacity-60"><Card faceDown coverStyle={cardCoverStyle} small className="!w-8 !h-11 md:!w-9 md:!h-13 bg-black/50" /></div>}
-                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-8 !h-11 md:!w-9 md:!h-13 shadow-2xl ring-1 ring-white/5" />
-                        <div className="absolute -bottom-2 -right-2 w-5 h-5 bg-yellow-500 text-black text-[10px] font-black rounded-full flex items-center justify-center border-2 border-black shadow-xl z-20">{player.cardCount}</div>
+                        {player.cardCount > 1 && <div className="absolute top-0.5 left-1 rotate-6 w-full h-full opacity-60"><Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 md:!h-13 bg-black/50" /></div>}
+                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 md:!h-13 shadow-2xl ring-1 ring-white/5" />
+                        <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 md:w-5 md:h-5 bg-yellow-500 text-black text-[8px] md:text-[10px] font-black rounded-full flex items-center justify-center border border-black shadow-xl z-20">{player.cardCount}</div>
                     </div>
                  </div>
              )}
@@ -396,11 +398,11 @@ export const GameTable: React.FC<GameTableProps> = ({
         );
       })}
 
-      {/* Action Bar */}
-      <div className="w-full z-30 mt-auto flex flex-col items-center gap-2 pb-2 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
+      {/* Action Bar - Elevated z-index to 60 so cards go UNDER buttons */}
+      <div className="w-full z-[60] mt-auto flex flex-col items-center gap-2 pb-6 bg-gradient-to-t from-black via-black/95 to-transparent pt-12">
         {/* Status Indicator */}
         <div className={`
-            flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-1 z-50 transition-all
+            flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-2 z-50 transition-all
             ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
             mobile-landscape-status
         `}>
@@ -436,12 +438,22 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
 
         {!iAmFinished && (
-            <div className="w-full flex justify-center pb-2 px-4 overflow-visible landscape:scale-[0.8] origin-bottom">
-                <div className={`flex justify-center mx-auto ${getHandSpacingClass(sortedHand.length)} py-2 md:py-4 max-w-[calc(100vw-2rem)]`}>
+            <div className={`
+              w-full flex justify-center pb-2 px-[8%] sm:px-12 origin-bottom z-10 
+              transition-all duration-300 overflow-visible
+            `}>
+                <div className={`
+                  flex justify-center mx-auto ${getHandSpacingClass(sortedHand.length)} py-2 md:py-4 
+                  max-w-none transition-all duration-300
+                `}>
                     {sortedHand.map((card, idx) => {
                         const isFirstTurn3S = gameState.isFirstTurnOfGame && card.rank === Rank.Three && card.suit === Suit.Spades;
                         return (
-                            <div key={card.id} style={{ zIndex: idx }} className="transition-all duration-300 hover:z-50 shrink-0 transform origin-bottom hover:-translate-y-6 cursor-pointer">
+                            <div 
+                              key={card.id} 
+                              style={{ zIndex: idx }} 
+                              className="transition-all duration-300 hover:z-[70] shrink-0 transform origin-bottom hover:-translate-y-10 cursor-pointer"
+                            >
                                 <Card
                                     card={card}
                                     selected={selectedCardIds.has(card.id)}
@@ -461,7 +473,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Scoped strictly to Mobile Landscape (max-width typically covers phones) */
+        /* Scoped strictly to Mobile Landscape */
         @media (orientation: landscape) and (max-width: 932px) {
             .mobile-landscape-pass {
                 position: fixed !important;
@@ -484,7 +496,6 @@ export const GameTable: React.FC<GameTableProps> = ({
                 padding: 8px 16px !important;
                 font-size: 10px !important;
                 margin-bottom: 0 !important;
-                /* Only show if it is my turn, hide "Waiting" text */
                 display: ${isMyTurn ? 'flex' : 'none'} !important;
             }
         }

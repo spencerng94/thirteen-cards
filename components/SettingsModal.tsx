@@ -19,8 +19,6 @@ interface SettingsModalProps {
   setSoundEnabled: (val: boolean) => void;
 }
 
-// Move SectionHeader outside to avoid closure issues and follow best practices
-// This fix addresses the error where children were not recognized correctly by TypeScript
 const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-500/80 flex items-center justify-center gap-3 mb-5">
     <span className="w-8 h-[1px] bg-yellow-500/20"></span>
@@ -241,7 +239,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                  </svg>
-                 Terminate Session
+                 Quit Game
                </span>
                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-red-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
              </button>
