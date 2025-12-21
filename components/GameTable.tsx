@@ -198,11 +198,13 @@ export const GameTable: React.FC<GameTableProps> = ({
   };
 
   const getHandSpacingClass = (count: number) => {
+    // Balanced spacing for vertical mobile.
+    // Tighter overlap for higher card counts to ensure "dead space" is preserved on small screens.
     if (count <= 1) return '';
     if (count <= 3) return 'space-x-1 sm:space-x-4 md:space-x-6';
-    if (count <= 6) return '-space-x-8 sm:-space-x-4 md:space-x-0';
-    if (count <= 10) return '-space-x-14 sm:-space-x-10 md:-space-x-4';
-    return '-space-x-16 sm:-space-x-14 md:-space-x-12';
+    if (count <= 6) return '-space-x-4 sm:-space-x-4 md:space-x-0';
+    if (count <= 10) return '-space-x-10 sm:-space-x-10 md:-space-x-4';
+    return '-space-x-14 sm:-space-x-16 md:-space-x-12';
   };
 
   let bgBase = '';
@@ -391,7 +393,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                  <div className="relative">
                     <div className="relative group">
                         {player.cardCount > 1 && <div className="absolute top-0.5 left-1 rotate-6 w-full h-full opacity-60"><Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 md:!h-13 bg-black/50" /></div>}
-                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 md:!h-13 shadow-2xl ring-1 ring-white/5" />
+                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 !h-13 shadow-2xl ring-1 ring-white/5" />
                         <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 md:w-5 md:h-5 bg-yellow-500 text-black text-[8px] md:text-[10px] font-black rounded-full flex items-center justify-center border border-black shadow-xl z-20">{player.cardCount}</div>
                     </div>
                  </div>
@@ -445,11 +447,11 @@ export const GameTable: React.FC<GameTableProps> = ({
         {/* Card Layer - Lower relative z-index within the action bar wrapper */}
         {!iAmFinished && (
             <div className={`
-              w-full max-w-full px-4 sm:px-12 flex justify-center pb-2 origin-bottom z-10 transition-all duration-300 overflow-visible
+              w-full max-w-full px-10 sm:px-12 flex justify-center pb-2 origin-bottom z-10 transition-all duration-300 overflow-visible
             `}>
                 <div className={`
                   flex justify-center mx-auto ${getHandSpacingClass(sortedHand.length)} py-2 md:py-4 
-                  max-w-full transition-all duration-300
+                  max-w-full transition-all duration-300 mobile-landscape-card-container
                 `}>
                     {sortedHand.map((card, idx) => {
                         const isFirstTurn3S = gameState.isFirstTurnOfGame && card.rank === Rank.Three && card.suit === Suit.Spades;
@@ -457,7 +459,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                             <div 
                               key={card.id} 
                               style={{ zIndex: idx }} 
-                              className="transition-all duration-300 hover:z-50 shrink-0 transform origin-bottom hover:-translate-y-10 cursor-pointer"
+                              className="transition-all duration-300 hover:z-50 shrink-0 transform origin-bottom hover:-translate-y-10 cursor-pointer mobile-landscape-card-scale"
                             >
                                 <Card
                                     card={card}
@@ -479,6 +481,12 @@ export const GameTable: React.FC<GameTableProps> = ({
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
         @media (orientation: landscape) and (max-width: 932px) {
+            .mobile-landscape-card-scale {
+                transform: scale(0.8) !important;
+            }
+            .mobile-landscape-card-container {
+                gap: 2px !important;
+            }
             .mobile-landscape-pass {
                 position: fixed !important;
                 bottom: 24px !important;
