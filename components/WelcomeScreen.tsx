@@ -114,7 +114,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
       </div>
 
       <div className="max-w-xl w-full z-10 flex flex-col items-center gap-1.5">
-        <div className="animate-[logoEnter_1.5s_cubic-bezier(0.2,0,0.2,1)] drop-shadow-[0_0_50px_rgba(251,191,36,0.1)] mb-[-0.5rem]">
+        <div className="animate-[logoEnter_1.5s_cubic-bezier(0.2,0,0.2,1)] drop-shadow-[0_0_50px_rgba(251,191,36,0.1)] mb-6">
           <BrandLogo size="lg" />
         </div>
 
