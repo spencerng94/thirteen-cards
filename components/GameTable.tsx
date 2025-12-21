@@ -91,6 +91,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [bombEffect, setBombEffect] = useState<string | null>(null);
   const [comboVariations, setComboVariations] = useState<Record<string, number>>({});
   const lastSelectedCardId = useRef<string | null>(null);
+  const bombTimerRef = useRef<number | null>(null);
 
   const lastPlayedMove = gameState.currentPlayPile.length > 0 
     ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] 
@@ -101,14 +102,22 @@ export const GameTable: React.FC<GameTableProps> = ({
       if (['QUAD', '3_PAIRS', '4_PAIRS'].includes(lastPlayedMove.comboType)) {
         setBombEffect("BOMB!");
         audioService.playBomb();
-        const timer = setTimeout(() => setBombEffect(null), 2000);
-        return () => clearTimeout(timer);
+        
+        if (bombTimerRef.current) window.clearTimeout(bombTimerRef.current);
+        bombTimerRef.current = window.setTimeout(() => {
+          setBombEffect(null);
+          bombTimerRef.current = null;
+        }, 2000);
       } else {
         audioService.playPlay();
       }
     } else if (gameState.currentPlayPile.length === 0 && gameState.lastPlayerToPlayId) {
         audioService.playPass();
     }
+    
+    return () => {
+      if (bombTimerRef.current) window.clearTimeout(bombTimerRef.current);
+    };
   }, [gameState.currentPlayPile.length, lastPlayedMove]);
 
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
@@ -118,7 +127,6 @@ export const GameTable: React.FC<GameTableProps> = ({
   const isMyTurn = gameState.currentPlayerId === myId;
   const iAmFinished = !!me?.finishedRank;
 
-  // Compute smart combos for the bar
   const smartCombos = useMemo(() => {
     if (!isMyTurn || iAmFinished || !lastSelectedCardId.current || selectedCardIds.size === 0) return null;
     return findAllValidCombos(myHand, lastSelectedCardId.current, gameState.currentPlayPile, gameState.isFirstTurnOfGame);
@@ -147,12 +155,10 @@ export const GameTable: React.FC<GameTableProps> = ({
     if (!variations || variations.length === 0) return;
 
     const currentIdx = comboVariations[type] || 0;
-    
-    // Cycle logic: if currently selected matches this variation, go to next
-    let actualIdx = currentIdx;
     const currentCombo = variations[currentIdx];
     const isAlreadySelected = currentCombo.every(c => selectedCardIds.has(c.id)) && currentCombo.length === selectedCardIds.size;
     
+    let actualIdx = currentIdx;
     if (isAlreadySelected) {
       actualIdx = (currentIdx + 1) % variations.length;
     }
@@ -160,7 +166,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     const nextCombo = variations[actualIdx];
     setSelectedCardIds(new Set(nextCombo.map(c => c.id)));
     setComboVariations(prev => ({ ...prev, [type]: actualIdx }));
-    audioService.playPlay(); // Subtle feedback
+    audioService.playPlay();
   };
 
   const handlePlaySelected = () => {
@@ -192,7 +198,6 @@ export const GameTable: React.FC<GameTableProps> = ({
   };
 
   const getHandSpacingClass = (count: number) => {
-    // Overlapping logic for player hand.
     if (count <= 1) return '';
     if (count <= 3) return 'space-x-1 sm:space-x-4 md:space-x-6';
     if (count <= 6) return '-space-x-8 sm:-space-x-4 md:space-x-0';
@@ -230,7 +235,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${gradientStops} pointer-events-none transition-colors duration-1000`}></div>
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
 
-      {/* Top Left: Title & History Button */}
+      {/* Top Left: Title & Info */}
       <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
         <h1 className="hidden lg:block text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter">
             THIRTEEN

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn } from './types';
 import { GameTable } from './components/GameTable';
@@ -42,7 +42,6 @@ const App: React.FC = () => {
     audioService.setEnabled(soundEnabled);
   }, [soundEnabled]);
 
-  // Sync turn sounds
   useEffect(() => {
     const state = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
     const myId = gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me';
@@ -57,14 +56,12 @@ const App: React.FC = () => {
     }
   }, [view]);
 
-  // Initial Room Param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const room = params.get('room');
     if (room && room.length === 4) setInitialRoomCode(room.toUpperCase());
   }, []);
 
-  // Multiplayer Socket Listeners
   useEffect(() => {
     const onGameState = (state: GameState) => {
       setMpGameState(state);
@@ -89,54 +86,61 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const getNextActivePlayerId = useCallback((players: Player[], currentId: string, skipPassed: boolean = true) => {
+    const startIdx = players.findIndex(p => p.id === currentId);
+    for (let i = 1; i <= players.length; i++) {
+      const idx = (startIdx + i) % players.length;
+      const p = players[idx];
+      if (p.finishedRank) continue;
+      if (skipPassed && p.hasPassed) continue;
+      return p.id;
+    }
+    return currentId;
+  }, []);
+
   const handleLocalPass = (pid: string) => {
-    if (!spGameState) return;
+    if (!spGameState || spGameState.status !== GameStatus.PLAYING) return;
     if (spGameState.currentPlayerId !== pid) return;
 
     setSpGameState(prev => {
       if (!prev) return null;
       const players = prev.players.map(p => p.id === pid ? { ...p, hasPassed: true } : p);
       
-      let nextIdx = prev.players.findIndex(p => p.id === pid);
+      const nextId = getNextActivePlayerId(players, pid, true);
       
-      const getNextActive = (start: number, ignorePass: boolean = false) => {
-        for (let i = 1; i <= prev.players.length; i++) {
-          const idx = (start + i) % prev.players.length;
-          const p = players[idx];
-          if (p.finishedRank) continue;
-          if (!ignorePass && p.hasPassed) continue;
-          return idx;
-        }
-        return start;
-      };
-
-      let nextPlayerIdx = getNextActive(nextIdx);
-      let newPlayPile = prev.currentPlayPile;
       let finalPlayers = players;
+      let finalPlayPile = prev.currentPlayPile;
+      let finalNextId = nextId;
 
-      const nextPlayerId = players[nextPlayerIdx].id;
-      if (nextPlayerId === prev.lastPlayerToPlayId || (newPlayPile.length === 0 && players.filter(p => !p.finishedRank && !p.hasPassed).length <= 1)) {
-        newPlayPile = [];
+      const isRoundOver = nextId === prev.lastPlayerToPlayId || (prev.currentPlayPile.length === 0);
+
+      if (isRoundOver && nextId !== pid) {
+        finalPlayPile = [];
         finalPlayers = players.map(p => ({ ...p, hasPassed: false }));
-        const lastP = finalPlayers.find(p => p.id === prev.lastPlayerToPlayId);
-        if (lastP?.finishedRank) {
-           nextPlayerIdx = getNextActive(nextPlayerIdx, true);
+        const lastWinner = finalPlayers.find(p => p.id === prev.lastPlayerToPlayId);
+        if (lastWinner?.finishedRank) {
+          finalNextId = getNextActivePlayerId(finalPlayers, prev.lastPlayerToPlayId!, false);
         } else {
-           nextPlayerIdx = finalPlayers.findIndex(p => p.id === prev.lastPlayerToPlayId);
+          finalNextId = prev.lastPlayerToPlayId || getNextActivePlayerId(finalPlayers, pid, false);
         }
+      } else if (nextId === pid) {
+        // Everyone else passed or finished
+        finalPlayPile = [];
+        finalPlayers = players.map(p => ({ ...p, hasPassed: false }));
+        finalNextId = getNextActivePlayerId(finalPlayers, pid, false);
       }
 
       return {
         ...prev,
         players: finalPlayers,
-        currentPlayerId: finalPlayers[nextPlayerIdx].id,
-        currentPlayPile: newPlayPile
+        currentPlayerId: finalNextId,
+        currentPlayPile: finalPlayPile
       };
     });
   };
 
   const handleLocalPlay = (pid: string, cards: Card[]) => {
-    if (!spGameState) return;
+    if (!spGameState || spGameState.status !== GameStatus.PLAYING) return;
     if (spGameState.currentPlayerId !== pid) return;
 
     const res = validateMove(cards, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame);
@@ -150,83 +154,60 @@ const App: React.FC = () => {
       if (!prev) return null;
       
       const isBot = pid.startsWith('bot-');
-      let newCardCount = 0;
-
       if (!isBot) {
-        setSpMyHand(prevHand => {
-            const nextHand = prevHand.filter(c => !cards.some(pc => pc.id === c.id));
-            newCardCount = nextHand.length;
-            return nextHand;
-        });
+        setSpMyHand(h => h.filter(c => !cards.some(pc => pc.id === c.id)));
       } else {
-        setSpOpponentHands(prevHands => {
-            const nextBotHand = prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id));
-            newCardCount = nextBotHand.length;
-            return { ...prevHands, [pid]: nextBotHand };
-        });
+        setSpOpponentHands(prevHands => ({
+          ...prevHands,
+          [pid]: prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id))
+        }));
       }
 
       const player = prev.players.find(p => p.id === pid)!;
-      // Note: cardCount in state might be stale due to setSpMyHand async, 
-      // but we calculate it correctly for the return object
-      const calcCardCount = Math.max(0, player.cardCount - cards.length);
+      const newCardCount = Math.max(0, player.cardCount - cards.length);
       
       let newFinishedPlayers = prev.finishedPlayers;
       let finishedRank = player.finishedRank;
-      
-      if (calcCardCount === 0 && !finishedRank) {
+      if (newCardCount === 0 && !finishedRank) {
         newFinishedPlayers = [...prev.finishedPlayers, pid];
         finishedRank = newFinishedPlayers.length;
       }
 
-      const updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: calcCardCount, finishedRank } : p);
+      const updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: newCardCount, finishedRank } : p);
       
-      // Quick Finish: If human player finishes, immediately go to victory screen
-      if (pid === 'player-me' && calcCardCount === 0 && spQuickFinish) {
+      if (pid === 'player-me' && newCardCount === 0 && spQuickFinish) {
           setTimeout(() => setView('VICTORY'), 1000);
       }
 
       if (updatedPlayers.filter(p => !p.finishedRank).length <= 1) {
-        // Game fully complete
+        const lastPlayer = updatedPlayers.find(p => !p.finishedRank);
+        let finalPlayers = updatedPlayers;
+        if (lastPlayer) {
+          finalPlayers = updatedPlayers.map(p => p.id === lastPlayer.id ? { ...p, finishedRank: updatedPlayers.length } : p);
+        }
         if (!spQuickFinish || pid !== 'player-me') {
            setTimeout(() => setView('VICTORY'), 1500);
         }
         return {
           ...prev,
-          players: updatedPlayers,
+          players: finalPlayers,
           status: GameStatus.FINISHED,
-          finishedPlayers: newFinishedPlayers
+          finishedPlayers: lastPlayer ? [...newFinishedPlayers, lastPlayer.id] : newFinishedPlayers
         };
       }
 
-      const comboType = getComboType(cards);
-      const newTurn: PlayTurn = { playerId: pid, cards, comboType };
+      const newTurn: PlayTurn = { playerId: pid, cards, comboType: getComboType(cards) };
       const newPlayPile = [...prev.currentPlayPile, newTurn];
 
-      const activeInRound = updatedPlayers.filter(p => !p.finishedRank && !p.hasPassed && p.id !== pid);
-      
-      let nextPlayerIdx;
+      let nextPlayerId = getNextActivePlayerId(updatedPlayers, pid, true);
       let finalPlayers = updatedPlayers;
       let finalPlayPile = newPlayPile;
 
-      if (activeInRound.length === 0) {
+      if (nextPlayerId === pid) {
         finalPlayPile = [];
         finalPlayers = updatedPlayers.map(p => ({ ...p, hasPassed: false }));
-        const curPlayer = finalPlayers.find(p => p.id === pid)!;
-        if (curPlayer.finishedRank) {
-           let start = finalPlayers.indexOf(curPlayer);
-           nextPlayerIdx = (start + 1) % finalPlayers.length;
-           while (finalPlayers[nextPlayerIdx].finishedRank) {
-             nextPlayerIdx = (nextPlayerIdx + 1) % finalPlayers.length;
-           }
-        } else {
-           nextPlayerIdx = finalPlayers.indexOf(curPlayer);
-        }
-      } else {
-        let start = updatedPlayers.findIndex(p => p.id === pid);
-        nextPlayerIdx = (start + 1) % updatedPlayers.length;
-        while (updatedPlayers[nextPlayerIdx].finishedRank || updatedPlayers[nextPlayerIdx].hasPassed) {
-          nextPlayerIdx = (nextPlayerIdx + 1) % updatedPlayers.length;
+        if (finishedRank) {
+          nextPlayerId = getNextActivePlayerId(finalPlayers, pid, false);
         }
       }
 
@@ -234,7 +215,7 @@ const App: React.FC = () => {
         ...prev,
         players: finalPlayers,
         currentPlayPile: finalPlayPile,
-        currentPlayerId: finalPlayers[nextPlayerIdx].id,
+        currentPlayerId: nextPlayerId,
         lastPlayerToPlayId: pid,
         isFirstTurnOfGame: false,
         finishedPlayers: newFinishedPlayers
@@ -264,21 +245,27 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (gameMode !== 'SINGLE_PLAYER' || !spGameState || spGameState.status !== GameStatus.PLAYING) return;
-    const cur = spGameState.players.find(p => p.id === spGameState.currentPlayerId);
-    if (cur?.id.startsWith('bot-') && !cur.finishedRank) {
+    const curId = spGameState.currentPlayerId;
+    if (!curId) return;
+    const curPlayer = spGameState.players.find(p => p.id === curId);
+    
+    if (curId.startsWith('bot-') && !curPlayer?.finishedRank) {
       const timer = setTimeout(() => {
-        if (aiDifficulty === 'EASY' && spGameState.currentPlayPile.length > 0 && Math.random() < 0.35) {
-          handleLocalPass(cur.id);
+        const currentRef = spGameState;
+        if (currentRef.currentPlayerId !== curId) return;
+
+        if (aiDifficulty === 'EASY' && currentRef.currentPlayPile.length > 0 && Math.random() < 0.35) {
+          handleLocalPass(curId);
           return;
         }
-        const hand = spOpponentHands[cur.id];
-        const move = findBestMove(hand, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame, aiDifficulty);
-        if (move) handleLocalPlay(cur.id, move);
-        else handleLocalPass(cur.id);
+        const hand = spOpponentHands[curId];
+        const move = findBestMove(hand, currentRef.currentPlayPile, currentRef.isFirstTurnOfGame, aiDifficulty);
+        if (move) handleLocalPlay(curId, move);
+        else handleLocalPass(curId);
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [spGameState, gameMode, aiDifficulty, spOpponentHands]);
+  }, [spGameState?.currentPlayerId, spGameState?.status, gameMode, aiDifficulty, spOpponentHands]);
 
   const handleStart = (name: string, mode: GameMode | 'TUTORIAL', style: CardCoverStyle, avatar: string, quick?: boolean, diff?: AiDifficulty) => {
     setPlayerName(name);
