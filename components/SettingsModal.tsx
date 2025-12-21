@@ -95,21 +95,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
           
-          {hasChanged ? (
-            <button 
-              onClick={onClose}
-              className="px-6 py-2 rounded-full bg-green-600 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(34,197,94,0.8)] border border-green-400/50 hover:bg-green-500 hover:scale-105 active:scale-95 transition-all animate-pulse"
-            >
-              SAVE
-            </button>
-          ) : (
-            <button 
-              onClick={onClose} 
-              className="w-10 h-10 rounded-full flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-400 hover:text-white transition-all group active:scale-90"
-            >
-              <span className="text-xl group-hover:rotate-90 transition-transform">✕</span>
-            </button>
-          )}
+          <button 
+            onClick={onClose} 
+            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-400 hover:text-white transition-all group active:scale-90"
+          >
+            <span className="text-xl group-hover:rotate-90 transition-transform">✕</span>
+          </button>
         </div>
         
         <div className="p-6 md:p-10 space-y-10 bg-transparent max-h-[75vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
@@ -229,7 +220,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-4">
+          <div className="pt-4 flex flex-col gap-4">
+             {hasChanged && (
+                <button
+                  onClick={onClose}
+                  className="group w-full relative overflow-hidden py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all duration-300 active:scale-95 border border-emerald-400/30 shadow-[0_15px_40px_rgba(16,185,129,0.3)]"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 group-hover:scale-110 transition-transform duration-700"></div>
+                  <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3.5s_infinite] pointer-events-none"></div>
+                  <span className="relative z-10 text-white flex items-center justify-center gap-3 drop-shadow-md">
+                    Apply & Save Changes <span className="text-xl">✅</span>
+                  </span>
+                </button>
+             )}
+
              <button
                onClick={onExitGame}
                className="group w-full relative overflow-hidden py-5 bg-white/[0.02] hover:bg-red-600/10 border border-white/10 hover:border-red-500/30 rounded-3xl transition-all duration-300 active:scale-95"
@@ -244,6 +248,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </button>
           </div>
         </div>
+        
+        <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes shimmer {
+                0% { background-position: -100% 0; }
+                100% { background-position: 100% 0; }
+            }
+        `}} />
       </div>
     </div>
   );

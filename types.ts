@@ -1,4 +1,3 @@
-
 // Card Suits
 export enum Suit {
   Spades = 0,   // Lowest
@@ -62,9 +61,10 @@ export interface GameState {
   status: GameStatus;
   players: Player[];
   currentPlayerId: string | null;
-  currentPlayPile: PlayTurn[]; // History of the current round
+  currentPlayPile: PlayTurn[]; // Turns of the ACTIVE round
+  roundHistory?: PlayTurn[][]; // Archives of COMPLETED rounds
   lastPlayerToPlayId: string | null;
-  winnerId: string | null; // Kept for backward compat, but logic relies on players.finishedRank now
+  winnerId: string | null; // Kept for backward compat
   finishedPlayers: string[]; // Array of player IDs in order of finishing
   isFirstTurnOfGame?: boolean;
 }

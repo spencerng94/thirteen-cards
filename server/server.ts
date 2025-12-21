@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -42,6 +41,7 @@ interface GameRoom {
   players: Player[];
   currentPlayerIndex: number;
   currentPlayPile: PlayTurn[];
+  roundHistory: PlayTurn[][];
   lastPlayerToPlayId: string | null; 
   finishedPlayers: string[];
   isFirstTurnOfGame: boolean;
@@ -222,6 +222,7 @@ const getGameState = (room: GameRoom) => ({
   })),
   currentPlayerId: room.status === 'PLAYING' ? room.players[room.currentPlayerIndex]?.id : null,
   currentPlayPile: room.currentPlayPile,
+  roundHistory: room.roundHistory,
   lastPlayerToPlayId: room.lastPlayerToPlayId,
   finishedPlayers: room.finishedPlayers,
   isFirstTurnOfGame: room.isFirstTurnOfGame
@@ -271,17 +272,27 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   room.lastPlayerToPlayId = playerId;
   room.isFirstTurnOfGame = false;
 
+  const isGameOver = room.players.filter(p => !p.finishedRank && p.hand.length > 0).length <= 1;
+
   if (player.hand.length === 0) {
     room.finishedPlayers.push(playerId);
     player.finishedRank = room.finishedPlayers.length;
     if (room.players.filter(p => !p.finishedRank).length <= 1) {
         room.status = 'FINISHED';
+        // Archive final round
+        if (room.currentPlayPile.length > 0) {
+          room.roundHistory.push([...room.currentPlayPile]);
+          room.currentPlayPile = [];
+        }
         broadcastState(roomId); return;
     }
   }
 
   const activeRemainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
   if (activeRemainingInRound.length === 0) {
+     if (room.currentPlayPile.length > 0) {
+       room.roundHistory.push([...room.currentPlayPile]);
+     }
      room.currentPlayPile = [];
      room.players.forEach(p => p.hasPassed = false);
      room.currentPlayerIndex = player.hand.length === 0 
@@ -305,6 +316,9 @@ const handlePass = (roomId: string, playerId: string) => {
   let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   const lastPlayer = room.players.find(p => p.id === room.lastPlayerToPlayId);
   if (room.players[nextIdx].id === room.lastPlayerToPlayId || nextIdx === room.currentPlayerIndex) {
+    if (room.currentPlayPile.length > 0) {
+      room.roundHistory.push([...room.currentPlayPile]);
+    }
     room.currentPlayPile = [];
     room.players.forEach(p => p.hasPassed = false);
     if (lastPlayer?.finishedRank) nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
@@ -319,7 +333,7 @@ io.on('connection', (socket: Socket) => {
   socket.on('create_room', ({ name, avatar }) => {
     const roomId = generateRoomCode();
     rooms[roomId] = {
-      id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
+      id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
       players: [{ id: socket.id, name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
     };
     socket.join(roomId);
@@ -363,7 +377,7 @@ io.on('connection', (socket: Socket) => {
     room.players.forEach((p, i) => { p.hand = deck.slice(i * 13, (i + 1) * 13); p.hasPassed = false; p.finishedRank = null; });
     let starter = 0;
     room.players.forEach((p, i) => { if (p.hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starter = i; });
-    room.status = 'PLAYING'; room.currentPlayerIndex = starter; room.isFirstTurnOfGame = true; room.currentPlayPile = [];
+    room.status = 'PLAYING'; room.currentPlayerIndex = starter; room.isFirstTurnOfGame = true; room.currentPlayPile = []; room.roundHistory = [];
     broadcastState(roomId);
     checkBotTurn(roomId);
   });
