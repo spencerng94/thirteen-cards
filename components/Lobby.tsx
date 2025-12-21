@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty } from '../types';
 import { socket } from '../services/socket';

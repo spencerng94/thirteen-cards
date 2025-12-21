@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty } from '../types';
 import { Card, CardCoverStyle } from './Card';
@@ -193,14 +192,12 @@ export const GameTable: React.FC<GameTableProps> = ({
   };
 
   const getHandSpacingClass = (count: number) => {
-    // Overlapping logic for player hand. w-20 is 80px.
-    // -space-x-16 leaves 16px visible for overlap (16 * 12 + 80 = 272px).
-    // This fits within 80% of a standard 375px mobile screen perfectly.
+    // Overlapping logic for player hand.
     if (count <= 1) return '';
-    if (count <= 4) return 'space-x-2 sm:space-x-4 md:space-x-6';
-    if (count <= 7) return '-space-x-8 sm:-space-x-4 md:space-x-0';
+    if (count <= 3) return 'space-x-1 sm:space-x-4 md:space-x-6';
+    if (count <= 6) return '-space-x-8 sm:-space-x-4 md:space-x-0';
     if (count <= 10) return '-space-x-14 sm:-space-x-10 md:-space-x-4';
-    return '-space-x-16 sm:-space-x-15 md:-space-x-12';
+    return '-space-x-16 sm:-space-x-14 md:-space-x-12';
   };
 
   let bgBase = '';
@@ -398,53 +395,56 @@ export const GameTable: React.FC<GameTableProps> = ({
         );
       })}
 
-      {/* Action Bar - Elevated z-index to 60 so cards go UNDER buttons */}
-      <div className="w-full z-[60] mt-auto flex flex-col items-center gap-2 pb-6 bg-gradient-to-t from-black via-black/95 to-transparent pt-12">
-        {/* Status Indicator */}
-        <div className={`
-            flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-2 z-50 transition-all
-            ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
-            mobile-landscape-status
-        `}>
-          {currentStatusText}
+      {/* Action Bar & Hand Area */}
+      <div className="w-full mt-auto flex flex-col items-center pb-6 bg-gradient-to-t from-black via-black/95 to-transparent pt-12 relative z-[60]">
+        
+        {/* Buttons and Status - Elevated z-index to stay above cards */}
+        <div className="relative z-[100] w-full flex flex-col items-center">
+          {/* Status Indicator */}
+          <div className={`
+              flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-6 transition-all
+              ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
+              mobile-landscape-status
+          `}>
+            {currentStatusText}
+          </div>
+
+          <div className="flex justify-center gap-4 w-full px-8 mb-6">
+              {!iAmFinished && (
+                  <>
+                      <button 
+                        onClick={handlePass} 
+                        disabled={!isMyTurn || gameState.currentPlayPile.length === 0} 
+                        className={`
+                          flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border transition-all shadow-lg
+                          ${mustPass 
+                            ? 'bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
+                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
+                          disabled:opacity-30 mobile-landscape-pass
+                        `}
+                      >
+                        Pass
+                      </button>
+                      <button 
+                        onClick={handlePlaySelected} 
+                        disabled={!isMyTurn || selectedCardIds.size === 0} 
+                        className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl mobile-landscape-play"
+                      >
+                        Play Cards
+                      </button>
+                  </>
+              )}
+          </div>
         </div>
 
-        <div className="flex flex-col items-center gap-3 w-full justify-center px-8 pointer-events-auto">
-            {!iAmFinished && (
-                <div className="flex justify-center gap-4 h-12 md:h-14">
-                    <button 
-                      onClick={handlePass} 
-                      disabled={!isMyTurn || gameState.currentPlayPile.length === 0} 
-                      className={`
-                        flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border transition-all shadow-lg
-                        mobile-landscape-pass
-                        ${mustPass 
-                          ? 'bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
-                          : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
-                        disabled:opacity-30
-                      `}
-                    >
-                      Pass
-                    </button>
-                    <button 
-                      onClick={handlePlaySelected} 
-                      disabled={!isMyTurn || selectedCardIds.size === 0} 
-                      className="flex items-center justify-center px-8 md:px-14 py-3 rounded-xl font-black uppercase tracking-wider text-xs text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-xl mobile-landscape-play"
-                    >
-                      Play Cards
-                    </button>
-                </div>
-            )}
-        </div>
-
+        {/* Card Layer - Lower relative z-index within the action bar wrapper */}
         {!iAmFinished && (
             <div className={`
-              w-full flex justify-center pb-2 px-[8%] sm:px-12 origin-bottom z-10 
-              transition-all duration-300 overflow-visible
+              w-full max-w-full px-4 sm:px-12 flex justify-center pb-2 origin-bottom z-10 transition-all duration-300 overflow-visible
             `}>
                 <div className={`
                   flex justify-center mx-auto ${getHandSpacingClass(sortedHand.length)} py-2 md:py-4 
-                  max-w-none transition-all duration-300
+                  max-w-full transition-all duration-300
                 `}>
                     {sortedHand.map((card, idx) => {
                         const isFirstTurn3S = gameState.isFirstTurnOfGame && card.rank === Rank.Three && card.suit === Suit.Spades;
@@ -452,7 +452,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                             <div 
                               key={card.id} 
                               style={{ zIndex: idx }} 
-                              className="transition-all duration-300 hover:z-[70] shrink-0 transform origin-bottom hover:-translate-y-10 cursor-pointer"
+                              className="transition-all duration-300 hover:z-50 shrink-0 transform origin-bottom hover:-translate-y-10 cursor-pointer"
                             >
                                 <Card
                                     card={card}
@@ -468,25 +468,24 @@ export const GameTable: React.FC<GameTableProps> = ({
         )}
       </div>
       
-      {/* Scrollable fix for mobile smart bar & Mobile Landscape Scoped Overrides */}
+      {/* Global Scroll and Mobile Landscape Overrides */}
       <style dangerouslySetInnerHTML={{ __html: `
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Scoped strictly to Mobile Landscape */
         @media (orientation: landscape) and (max-width: 932px) {
             .mobile-landscape-pass {
                 position: fixed !important;
                 bottom: 24px !important;
                 left: 24px !important;
-                z-index: 50 !important;
+                z-index: 200 !important;
                 margin: 0 !important;
             }
             .mobile-landscape-play {
                 position: fixed !important;
                 bottom: 24px !important;
                 right: 24px !important;
-                z-index: 50 !important;
+                z-index: 200 !important;
                 margin: 0 !important;
             }
             .mobile-landscape-status {
@@ -497,6 +496,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                 font-size: 10px !important;
                 margin-bottom: 0 !important;
                 display: ${isMyTurn ? 'flex' : 'none'} !important;
+                z-index: 200 !important;
             }
         }
       `}} />
