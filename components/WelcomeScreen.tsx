@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -19,79 +20,56 @@ const AVATAR_NAMES: Record<string, string> = {
   '🐔': 'CHICKEN', '🐧': 'PENGUIN', '🐦': 'BIRD', '🐤': 'CHICK', '🦄': 'UNICORN',
 };
 
-const GlassPanel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <div className={`relative bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-[2.5rem] overflow-hidden ${className}`}>
-      <div className="absolute inset-0 rounded-[2.5rem] ring-1 ring-inset ring-white/5 pointer-events-none"></div>
+const PremiumPanel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <div className={`relative bg-black/50 backdrop-blur-[40px] border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.8)] rounded-[3rem] overflow-hidden ${className}`}>
+      {/* Precision Rim Light */}
+      <div className="absolute inset-0 rounded-[3rem] ring-1 ring-inset ring-white/10 pointer-events-none"></div>
+      {/* Subtle Texture Overlay */}
+      <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none"></div>
       {children}
   </div>
 );
 
-const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p className="text-[10px] font-black uppercase tracking-[0.5em] text-yellow-300 flex items-center justify-center gap-4 mb-4">
-    <span className="w-10 h-[1px] bg-gradient-to-r from-transparent to-yellow-300/40"></span>
-    {children}
-    <span className="w-10 h-[1px] bg-gradient-to-l from-transparent to-yellow-300/40"></span>
-  </p>
+const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="flex items-center justify-center gap-4 mb-3">
+    <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-yellow-500/20"></div>
+    <span className="text-[10px] font-black uppercase tracking-[0.6em] text-yellow-500/70 italic drop-shadow-sm">{children}</span>
+    <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-yellow-500/20"></div>
+  </div>
 );
 
-interface MainActionButtonProps {
-  onClick: () => void;
-  variant: 'emerald' | 'gold' | 'charcoal';
-  label: string;
+const LuxuryButton: React.FC<{ 
+  onClick: () => void; 
+  variant: 'gold' | 'emerald' | 'ghost'; 
+  label: string; 
   icon: string;
-  showShimmer?: boolean;
-}
-
-const MainActionButton: React.FC<MainActionButtonProps> = ({ onClick, variant, label, icon, showShimmer = true }) => {
-  const variantStyles = {
-    emerald: {
-      bg: 'from-emerald-700 via-green-500 to-emerald-700',
-      border: 'border-emerald-400/30',
-      shadow: 'shadow-emerald-900/40',
-      text: 'text-white'
-    },
-    gold: {
-      bg: 'from-yellow-600 via-yellow-400 to-yellow-600',
-      border: 'border-yellow-300/40',
-      shadow: 'shadow-yellow-900/40',
-      text: 'text-black'
-    },
-    charcoal: {
-      bg: 'from-slate-800 via-slate-700 to-slate-900',
-      border: 'border-slate-500/30',
-      shadow: 'shadow-black/60',
-      text: 'text-white'
-    }
+  sublabel?: string;
+  slim?: boolean;
+}> = ({ onClick, variant, label, icon, sublabel, slim }) => {
+  const themes = {
+    gold: "from-yellow-600 via-yellow-400 to-yellow-700 text-black border-yellow-300/40 shadow-yellow-900/40",
+    emerald: "from-emerald-700 via-green-500 to-emerald-800 text-white border-emerald-400/40 shadow-emerald-900/40",
+    ghost: "from-white/10 to-white/5 text-white/80 border-white/10 hover:border-white/30"
   };
-
-  const style = variantStyles[variant];
 
   return (
     <button
       onClick={onClick}
       className={`
-        group w-full relative overflow-hidden py-5 rounded-[1.8rem] font-black uppercase tracking-[0.2em] 
-        transition-all duration-300 active:scale-[0.98] border ${style.border} shadow-[0_15px_45px_rgba(0,0,0,0.6)] ${style.shadow}
+        group relative w-full ${slim ? 'py-3.5' : 'py-4'} px-8 rounded-2xl border transition-all duration-300 active:scale-95 overflow-hidden
+        ${themes[variant]} shadow-[0_15px_30px_rgba(0,0,0,0.4)]
       `}
     >
-      {/* Dynamic Gradient Layer */}
-      <div className={`absolute inset-0 bg-gradient-to-r ${style.bg} group-hover:scale-110 transition-transform duration-700`}></div>
+      <div className={`absolute inset-0 bg-gradient-to-br ${themes[variant]} group-hover:scale-110 transition-transform duration-700 opacity-90`}></div>
+      <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_4s_infinite] pointer-events-none"></div>
       
-      {/* Shimmer Effect (Optional) */}
-      {showShimmer && (
-        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.25)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3.5s_infinite] pointer-events-none"></div>
-      )}
-
-      {/* Glossy Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
-      
-      {/* Content */}
-      <span className={`relative z-10 flex items-center justify-center gap-3 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] whitespace-nowrap px-8 text-xs sm:text-sm md:text-base ${style.text}`}>
-        {label} 
-        <span className="text-xl group-hover:translate-x-1 group-hover:rotate-12 transition-transform duration-300">
-          {icon}
-        </span>
-      </span>
+      <div className="relative z-10 flex flex-col items-center justify-center gap-0.5">
+        <div className="flex items-center gap-3">
+            <span className="text-sm md:text-base font-black uppercase tracking-[0.25em] drop-shadow-md">{label}</span>
+            <span className="text-xl group-hover:scale-125 group-hover:rotate-12 transition-transform duration-300">{icon}</span>
+        </div>
+        {sublabel && <span className="text-[8px] font-black opacity-60 tracking-[0.3em] uppercase">{sublabel}</span>}
+      </div>
     </button>
   );
 };
@@ -103,173 +81,199 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [quickFinish, setQuickFinish] = useState(true);
   const [difficulty, setDifficulty] = useState<AiDifficulty>('MEDIUM');
 
-  const getDifficultyStyles = (d: AiDifficulty, active: boolean) => {
-    if (!active) return "text-gray-600 hover:text-gray-400 bg-white/[0.02] border-white/5";
-    
-    switch (d) {
-      case 'EASY':
-        return "bg-green-600/90 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border-green-400/30";
-      case 'MEDIUM':
-        return "bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)] border-yellow-300/30";
-      case 'HARD':
-        return "bg-red-600/90 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)] border-red-400/30";
-      default:
-        return "bg-green-600 text-white";
-    }
-  };
-
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     const finalName = name.trim() || AVATAR_NAMES[selectedAvatar] || 'GUEST';
     onStart(finalName, mode, coverStyle, selectedAvatar, quickFinish, difficulty);
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#113a1e] relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000">
-      <div className="absolute top-[-10%] left-[-10%] w-[60%] aspect-square bg-green-400/10 blur-[130px] rounded-full animate-pulse"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60%] aspect-square bg-emerald-300/10 blur-[130px] rounded-full animate-pulse [animation-delay:2s]"></div>
-      
-      <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '60px 60px' }}></div>
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+    <div className="min-h-screen w-full bg-[#031109] relative overflow-hidden flex flex-col items-center justify-center p-4">
+      {/* Deep Animated Atmosphere */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#092b15_0%,_#000000_100%)]"></div>
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[80%] h-[80%] bg-emerald-500/10 blur-[150px] animate-pulse"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[80%] bg-green-400/10 blur-[150px] animate-pulse [animation-delay:2.5s]"></div>
+      </div>
 
-      <div className="max-w-lg w-full z-10 space-y-4 py-2 md:py-4">
-        <div className="flex flex-col items-center mb-0 transform hover:scale-[1.02] transition-transform duration-700">
-            <BrandLogo size="xl" />
+      {/* Ambient Particle Layer */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div 
+            key={i} 
+            className="absolute bg-white/20 rounded-full blur-[1px] animate-[float_15s_linear_infinite]"
+            style={{
+              width: `${Math.random() * 2 + 1}px`,
+              height: `${Math.random() * 2 + 1}px`,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 8}s`,
+              animationDuration: `${Math.random() * 10 + 15}s`
+            }}
+          ></div>
+        ))}
+      </div>
+
+      <div className="max-w-xl w-full z-10 flex flex-col items-center gap-1.5">
+        <div className="animate-[logoEnter_1.5s_cubic-bezier(0.2,0,0.2,1)] drop-shadow-[0_0_50px_rgba(251,191,36,0.1)] mb-[-0.5rem]">
+          <BrandLogo size="lg" />
         </div>
 
-        <GlassPanel className="p-6 pt-2 md:p-10 md:pt-4 space-y-8">
+        <PremiumPanel className="w-full px-8 pt-4 pb-6 md:px-10 md:pt-6 md:pb-8 space-y-6">
           
-          <div className="space-y-4">
-            <SectionHeader>Player Icon</SectionHeader>
-            <div className="relative group flex flex-col items-center">
-                <div className="relative mb-4">
-                    <div className="absolute inset-[-15px] bg-yellow-500/10 blur-3xl rounded-full animate-pulse"></div>
-                    <div className="w-20 h-20 md:w-28 md:h-28 bg-gradient-to-br from-white/[0.05] to-white/[0.01] rounded-full flex items-center justify-center text-4xl md:text-6xl border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
-                        {selectedAvatar}
-                    </div>
-                </div>
-                <div className="w-full grid grid-cols-10 gap-2 bg-black/40 p-3 rounded-[1.5rem] border border-white/5 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
-                    {AVATARS.map((avatar) => (
-                        <button
-                            key={avatar}
-                            onClick={() => setSelectedAvatar(avatar)}
-                            className={`
-                              aspect-square flex items-center justify-center rounded-xl text-lg transition-all duration-300
-                              ${selectedAvatar === avatar 
-                                ? 'bg-yellow-500/20 text-white ring-1 ring-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.3)]' 
-                                : 'text-white/40 hover:bg-white/5 hover:text-white'}
-                            `}
-                        >
-                            {avatar}
-                        </button>
-                    ))}
-                </div>
-            </div>
-          </div>
-
+          {/* Identity Selection */}
           <div className="space-y-3">
-            <SectionHeader>Player Nickname</SectionHeader>
-            <div className="relative max-w-sm mx-auto">
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={15}
-                className="w-full px-6 py-4 rounded-2xl bg-black/50 border border-white/10 focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none text-white text-lg font-black tracking-[0.2em] uppercase placeholder:text-white/10 transition-all text-center"
-                placeholder="ENTER NICKNAME"
-              />
-              <div className="absolute bottom-2 right-4 text-[8px] font-black text-white/20 tracking-widest">{name.length}/15</div>
+            <SectionLabel>Player Profile</SectionLabel>
+            <div className="flex flex-col md:flex-row items-center gap-5">
+              <div className="relative group">
+                <div className="absolute inset-[-15px] bg-yellow-500/10 blur-2xl rounded-full animate-pulse group-hover:bg-yellow-500/20 transition-colors"></div>
+                <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full bg-black/40 border-2 border-yellow-500/30 flex items-center justify-center text-5xl md:text-6xl shadow-[inset_0_0_30px_rgba(251,191,36,0.1)] group-hover:scale-105 transition-transform duration-500">
+                  {selectedAvatar}
+                  <div className="absolute inset-0 rounded-full border border-white/5 animate-[spin_10s_linear_infinite]"></div>
+                </div>
+              </div>
+              
+              <div className="flex-1 w-full space-y-2.5">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={15}
+                    placeholder="ENTER CODENAME"
+                    className="w-full px-5 py-3 bg-black/40 border border-white/10 rounded-2xl text-center text-white font-black tracking-[0.2em] uppercase focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 outline-none transition-all placeholder:text-white/10"
+                  />
+                  <div className="absolute right-4 bottom-1.5 text-[7px] font-black text-white/20 tracking-widest">{name.length}/15 CHARS</div>
+                </div>
+                
+                <div className="grid grid-cols-10 gap-1 p-2 bg-black/40 rounded-2xl border border-white/5 max-h-24 overflow-y-auto no-scrollbar">
+                  {AVATARS.map((a) => (
+                    <button
+                      key={a}
+                      onClick={() => setSelectedAvatar(a)}
+                      className={`
+                        aspect-square flex items-center justify-center rounded-lg text-base transition-all duration-300
+                        ${selectedAvatar === a ? 'bg-yellow-500/20 ring-1 ring-yellow-500/50 scale-110' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}
+                      `}
+                    >
+                      {a}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <SectionHeader>Card Cover</SectionHeader>
-            <div className="flex justify-center gap-6 md:gap-8">
-               {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
-                 <div 
+          {/* Logic & Visual Preferences */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <SectionLabel>AI Settings</SectionLabel>
+              <div className="grid grid-cols-3 gap-2 p-1.5 bg-black/40 rounded-xl border border-white/5">
+                {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map((d) => {
+                  const activeColor = d === 'EASY' ? 'bg-green-600 text-white' : d === 'HARD' ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black';
+                  const shadowColor = d === 'EASY' ? 'shadow-green-900/40' : d === 'HARD' ? 'shadow-red-900/40' : 'shadow-yellow-900/40';
+                  
+                  return (
+                    <button
+                      key={d}
+                      onClick={() => setDifficulty(d)}
+                      className={`
+                        py-2.5 rounded-lg text-[8px] font-black tracking-widest transition-all
+                        ${difficulty === d 
+                          ? `${activeColor} shadow-lg ${shadowColor}` 
+                          : 'text-white/40 hover:text-white hover:bg-white/5'}
+                      `}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
+              <button 
+                onClick={() => setQuickFinish(!quickFinish)}
+                className={`
+                  w-full py-3 px-4 rounded-xl border flex items-center justify-between group transition-all
+                  ${quickFinish ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-black/20 border-white/5'}
+                `}
+              >
+                <div className="flex flex-col items-start">
+                    <span className={`text-[8px] font-black uppercase tracking-widest ${quickFinish ? 'text-yellow-500' : 'text-white/40'}`}>Turbo Finish</span>
+                    <span className="text-[6px] font-black opacity-30 uppercase tracking-tighter">Skip Bot Spectate</span>
+                </div>
+                <div className={`w-8 h-4 rounded-full relative transition-all duration-300 ${quickFinish ? 'bg-yellow-500/50' : 'bg-white/10'}`}>
+                  <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${quickFinish ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
+                </div>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <SectionLabel>Card Cover</SectionLabel>
+              <div className="flex justify-center gap-6">
+                {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
+                  <button 
                     key={style}
                     onClick={() => setCoverStyle(style)}
                     className={`
-                      cursor-pointer transition-all duration-300 relative
-                      ${coverStyle === style ? 'scale-110 z-10' : 'opacity-30 grayscale-[0.5] hover:opacity-100 hover:grayscale-0 hover:scale-105'}
+                      relative transition-all duration-300 transform-gpu
+                      ${coverStyle === style ? 'scale-110 z-10' : 'opacity-30 hover:opacity-100 grayscale-[0.5] hover:grayscale-0'}
                     `}
-                 >
-                   {coverStyle === style && (
-                      <div className="absolute inset-[-15px] bg-yellow-500/10 blur-2xl rounded-full animate-pulse"></div>
-                   )}
-                   <Card faceDown coverStyle={style} small className={`!w-14 !h-20 ${coverStyle === style ? 'ring-2 ring-yellow-500 shadow-2xl' : ''}`} />
-                 </div>
-               ))}
+                  >
+                    {coverStyle === style && <div className="absolute inset-[-10px] bg-yellow-500/20 blur-xl rounded-full animate-pulse"></div>}
+                    <Card faceDown coverStyle={style} small className={`!w-12 !h-18 ${coverStyle === style ? 'ring-2 ring-yellow-500 shadow-2xl' : 'shadow-lg'}`} />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <SectionHeader>AI Settings</SectionHeader>
-            <div className="flex flex-col gap-4 max-w-md mx-auto">
-                <div className="grid grid-cols-3 gap-3 bg-black/30 p-1.5 rounded-2xl border border-white/5">
-                    {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map((d) => (
-                        <button
-                            key={d}
-                            onClick={() => setDifficulty(d)}
-                            className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all border active:scale-95 ${getDifficultyStyles(d, difficulty === d)}`}
-                        >
-                            {d}
-                        </button>
-                    ))}
-                </div>
-                
-                <button 
-                    onClick={() => setQuickFinish(!quickFinish)}
-                    className={`
-                        w-full py-4 rounded-2xl border font-black text-[10px] uppercase tracking-[0.2em] transition-all flex flex-col items-center justify-center gap-1
-                        ${quickFinish 
-                            ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]' 
-                            : 'bg-white/[0.01] border-white/5 text-gray-600 hover:text-gray-400'}
-                    `}
-                >
-                    <div className="flex items-center gap-4">
-                        <div className={`w-9 h-5 rounded-full relative transition-colors duration-300 ${quickFinish ? 'bg-yellow-500/50' : 'bg-white/10'}`}>
-                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-300 ${quickFinish ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
-                        </div>
-                        Quick Finish Mode
-                    </div>
-                    <span className="text-[7px] font-black opacity-60">SKIP AI SPECTATE ON WIN</span>
-                </button>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <SectionHeader>Game Mode</SectionHeader>
-            <div className="flex flex-col gap-4">
-              <MainActionButton 
-                onClick={() => handleStartGame('MULTI_PLAYER')}
-                variant="emerald"
-                label="Play Online"
-                icon="⚔️"
-              />
-              <MainActionButton 
+          {/* Core Actions */}
+          <div className="space-y-3 pt-1">
+            <LuxuryButton 
+              onClick={() => handleStartGame('MULTI_PLAYER')}
+              variant="emerald"
+              label="Join Global Arena"
+              icon="⚔️"
+              sublabel="Online Multiplayer"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <LuxuryButton 
                 onClick={() => handleStartGame('SINGLE_PLAYER')}
                 variant="gold"
-                label="Train Against AI"
+                label="Simulate"
                 icon="🤖"
+                sublabel="Bot Game"
+                slim
               />
-              <MainActionButton 
+              <LuxuryButton 
                 onClick={() => handleStartGame('TUTORIAL')}
-                variant="charcoal"
-                label="Tutorial"
+                variant="ghost"
+                label="Training"
                 icon="🎓"
-                showShimmer={false}
+                sublabel="Tutorial"
+                slim
               />
             </div>
           </div>
-        </GlassPanel>
-
-        <style dangerouslySetInnerHTML={{ __html: `
-            @keyframes shimmer {
-                0% { background-position: -100% 0; }
-                100% { background-position: 100% 0; }
-            }
-        `}} />
+        </PremiumPanel>
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes shimmer {
+          0% { background-position: -100% 0; }
+          100% { background-position: 100% 0; }
+        }
+        @keyframes float {
+          0% { transform: translate(0, 0) scale(1); opacity: 0; }
+          20% { opacity: 0.3; }
+          80% { opacity: 0.3; }
+          100% { transform: translate(100px, -800px) scale(0.5); opacity: 0; }
+        }
+        @keyframes logoEnter {
+          0% { opacity: 0; transform: translateY(40px) scale(0.9); filter: blur(15px); }
+          100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
     </div>
   );
 };
