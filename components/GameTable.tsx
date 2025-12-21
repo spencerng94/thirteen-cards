@@ -109,12 +109,10 @@ export const GameTable: React.FC<GameTableProps> = ({
           bombTimerRef.current = null;
         }, 2000);
       } else {
-        // Clear bomb effect if a regular move is played
         setBombEffect(null);
         audioService.playPlay();
       }
     } else {
-      // Clear bomb effect if the round is reset
       setBombEffect(null);
       if (gameState.currentPlayPile.length === 0 && gameState.lastPlayerToPlayId) {
         audioService.playPass();
@@ -243,21 +241,21 @@ export const GameTable: React.FC<GameTableProps> = ({
         ? (mustPass ? "No Moves Possible" : "Your Turn")
         : "Waiting...";
 
-  const showClear = selectedCardIds.size > 0;
-
   return (
     <div className={`fixed inset-0 w-full h-full ${bgBase} overflow-hidden font-sans select-none flex flex-col justify-between transition-colors duration-1000`}>
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${gradientStops} pointer-events-none transition-colors duration-1000`}></div>
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
 
-      {/* Top Left: Title & Info */}
+      {/* Top Left: Title & Game Info */}
       <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
         <h1 className="hidden lg:block text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter">
             THIRTEEN
         </h1>
+
+        {/* Played By Indicator - Anchored top-left */}
         {lastPlayedMove && (
-            <div className="bg-black/75 backdrop-blur-xl border border-white/10 text-gray-300 text-[8px] sm:text-[9px] uppercase px-3 py-1.5 rounded-full shadow-xl font-bold tracking-widest flex items-center gap-2 pointer-events-auto">
-                <span className="opacity-70 italic">Played by</span>
+            <div className="bg-black/60 backdrop-blur-xl border border-white/10 text-gray-300 text-[8px] sm:text-[9px] uppercase px-3 py-1.5 rounded-full shadow-xl font-black tracking-widest flex items-center gap-2 pointer-events-auto animate-in fade-in slide-in-from-left-2">
+                <span className="opacity-70 italic font-medium">Played by</span>
                 <span className="text-yellow-400 text-[10px] sm:text-xs">{gameState.players.find(p => p.id === lastPlayedMove.playerId)?.name}</span>
             </div>
         )}
@@ -345,7 +343,8 @@ export const GameTable: React.FC<GameTableProps> = ({
       )}
 
       {/* Table Center */}
-      <div className="absolute top-[45%] md:top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-32 md:w-full md:max-w-lg md:h-64 flex items-center justify-center pointer-events-none z-10">
+      <div className="absolute top-[45%] md:top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-32 md:w-full md:max-w-lg md:h-64 flex flex-col items-center justify-center pointer-events-none z-10">
+         
          {!lastPlayedMove ? (
             <div className="text-white/5 font-bold text-xl uppercase tracking-[0.2em] border-2 border-dashed border-white/5 rounded-full w-40 h-40 md:w-48 md:h-48 flex items-center justify-center animate-pulse text-center backdrop-blur-sm">
                {isMyTurn ? "Your Lead" : "Waiting"}
@@ -375,39 +374,80 @@ export const GameTable: React.FC<GameTableProps> = ({
       {gameState.players.map((player, idx) => {
         if (player.id === myId) return null;
         const pos = getPlayerPosition(idx, gameState.players.length, myIndex);
+        const isActive = gameState.currentPlayerId === player.id;
+        
         let posClasses = "";
         let layoutClasses = "flex-row"; 
-        if (pos === 'left') { posClasses = "absolute left-2 top-1/2 -translate-y-1/2 z-20"; layoutClasses = "flex-col"; }
-        else if (pos === 'top') { posClasses = "absolute top-3 left-1/2 -translate-x-[48px] z-20"; layoutClasses = "flex-row"; }
-        else if (pos === 'right') { posClasses = "absolute right-2 top-1/2 -translate-y-1/2 z-20"; layoutClasses = "flex-col"; }
+        if (pos === 'left') { posClasses = "absolute left-4 top-1/2 -translate-y-1/2 z-20"; layoutClasses = "flex-col"; }
+        else if (pos === 'top') { 
+          // Match vertical margin of 'Played by' container (top-3 on mobile, top-4 on sm+)
+          // Horizontally shifting the top player slightly to the right on small screens to avoid 'Played by' overlap
+          posClasses = "absolute top-3 sm:top-4 left-1/2 -translate-x-[25%] sm:-translate-x-1/2 z-20"; 
+          layoutClasses = "flex-row"; 
+        }
+        else if (pos === 'right') { posClasses = "absolute right-4 top-1/2 -translate-y-1/2 z-20"; layoutClasses = "flex-col"; }
 
         return (
-          <div key={player.id} className={`flex items-center gap-3 landscape:scale-[0.85] ${posClasses} ${layoutClasses}`}>
+          <div key={player.id} className={`flex items-center gap-5 landscape:scale-[0.85] ${posClasses} ${layoutClasses} transition-all duration-500`}>
              <div className={`
-               flex flex-col items-center justify-center p-2 rounded-2xl backdrop-blur-md border transition-all duration-300 shadow-2xl
-               ${gameState.currentPlayerId === player.id ? 'bg-black/60 border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.1)] scale-105' : 'bg-black/20 border-white/5'}
-               ${player.hasPassed ? 'opacity-50 grayscale' : ''}
-               w-20 h-20 md:w-28 md:h-28
+               relative flex flex-col items-center justify-center p-3 rounded-[2rem] backdrop-blur-3xl border transition-all duration-500 shadow-2xl
+               ${isActive 
+                 ? 'bg-green-600/10 border-green-400/50 shadow-[0_0_30px_rgba(34,197,94,0.2)] scale-110' 
+                 : player.hasPassed 
+                    ? 'bg-black/40 border-white/5 opacity-60 grayscale' 
+                    : 'bg-black/20 border-white/10 hover:bg-white/5'}
+               w-24 h-24 md:w-32 md:h-32 group
              `}>
-                <div className="relative">
-                    <div className="w-8 h-8 md:w-12 md:h-12 bg-gradient-to-br from-white/10 to-transparent rounded-full flex items-center justify-center text-xl md:text-2xl border border-white/10 shadow-inner overflow-hidden">
+                <div className="relative flex items-center justify-center">
+                    {/* Centered Orbital Glow (Turn indicator) */}
+                    {isActive && (
+                        <div className="absolute inset-[-6px] md:inset-[-8px] rounded-full border-2 border-green-500/40 animate-pulse pointer-events-none"></div>
+                    )}
+                    
+                    {/* Avatar Socket */}
+                    <div className={`
+                        w-10 h-10 md:w-16 md:h-16 rounded-full flex items-center justify-center text-2xl md:text-4xl border-2 shadow-inner overflow-hidden transition-all duration-500
+                        ${isActive ? 'border-green-400/50 bg-green-500/20' : 'border-white/10 bg-white/5'}
+                    `}>
                         {player.avatar || '😊'}
                     </div>
-                    {gameState.currentPlayerId === player.id && (
-                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,1)]"></div>
+
+                    {/* Status Beacon removed for cleaner look as requested */}
+                </div>
+
+                <div className="text-white font-black text-[9px] md:text-[11px] tracking-widest max-w-full truncate px-2 text-center mt-3 uppercase opacity-90">{player.name}</div>
+                
+                {/* Status Overlay Badges */}
+                <div className="absolute -bottom-3 flex gap-2">
+                    {player.finishedRank ? (
+                        <div className="px-3 py-1 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 text-black rounded-lg font-black text-[8px] md:text-[10px] uppercase shadow-lg ring-1 ring-white/20 whitespace-nowrap">
+                            {getOrdinal(player.finishedRank)} Place
+                        </div>
+                    ) : player.hasPassed && (
+                        <div className="px-3 py-1 bg-red-600/90 text-white text-[8px] md:text-[10px] font-black uppercase rounded-lg shadow-lg ring-1 ring-red-400/50 animate-pulse">
+                            Passed
+                        </div>
                     )}
                 </div>
-                <div className="text-white font-bold text-[8px] md:text-[10px] tracking-wide max-w-full truncate px-1 text-center mt-2 pb-1">{player.name}</div>
-                <div className="absolute -bottom-2 flex gap-1">
-                    {player.finishedRank ? <div className="px-1 py-0.5 bg-yellow-500 text-black rounded font-black text-[7px] md:text-[8px] uppercase">{getOrdinal(player.finishedRank)}</div> : player.hasPassed && <div className="px-1 py-0.5 bg-red-600 text-white text-[7px] md:text-[8px] font-black uppercase rounded">PASS</div>}
-                </div>
              </div>
+
+             {/* Opponent Card Stack Rendering */}
              {!player.finishedRank && (
-                 <div className="relative">
+                 <div className={`relative transition-all duration-500 ${isActive ? 'scale-110 translate-x-1' : ''}`}>
                     <div className="relative group">
-                        {player.cardCount > 1 && <div className="absolute top-0.5 left-1 rotate-6 w-full h-full opacity-60"><Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 md:!h-13 bg-black/50" /></div>}
-                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 md:!h-13 shadow-2xl ring-1 ring-white/5" />
-                        <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 md:w-5 md:h-5 bg-yellow-500 text-black text-[8px] md:text-[10px] font-black rounded-full flex items-center justify-center border border-black shadow-xl z-20">{player.cardCount}</div>
+                        {/* Shadow Deck Effect */}
+                        {player.cardCount > 1 && (
+                            <div className="absolute top-1 left-1.5 rotate-6 w-full h-full opacity-40">
+                                <Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 bg-black/60" />
+                            </div>
+                        )}
+                        {/* Main Deck Face */}
+                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 shadow-[0_15px_30px_rgba(0,0,0,0.5)] ring-1 ring-white/10 group-hover:rotate-[-2deg] transition-transform duration-300" />
+                        
+                        {/* Tactical Card Count Badge */}
+                        <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-0_5px_15px_rgba(0,0,0,0.4)] z-30 group-hover:scale-110 transition-transform">
+                            {player.cardCount}
+                        </div>
                     </div>
                  </div>
              )}
@@ -418,9 +458,8 @@ export const GameTable: React.FC<GameTableProps> = ({
       {/* Action Bar & Hand Area */}
       <div className="w-full mt-auto flex flex-col items-center pb-6 bg-gradient-to-t from-black via-black/95 to-transparent pt-12 relative z-[60]">
         
-        {/* Buttons and Status - Elevated z-index to stay above cards */}
+        {/* Buttons and Status */}
         <div className="relative z-[100] w-full flex flex-col items-center">
-          {/* Status Indicator */}
           <div className={`
               flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-6 transition-all
               ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
@@ -432,27 +471,29 @@ export const GameTable: React.FC<GameTableProps> = ({
           <div className="flex justify-center gap-4 w-full px-8 mb-6 overflow-visible min-h-[50px]">
               {!iAmFinished && (
                   <>
-                      {showClear && (
+                      {selectedCardIds.size > 0 ? (
                         <button 
                           onClick={handleClear}
                           className="flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border border-slate-600/50 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition-all shadow-lg mobile-landscape-clear animate-in fade-in zoom-in duration-200"
                         >
                           Clear
                         </button>
+                      ) : (
+                        <button 
+                          onClick={handlePass} 
+                          disabled={!isMyTurn || gameState.currentPlayPile.length === 0} 
+                          className={`
+                            flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border transition-all shadow-lg
+                            ${mustPass 
+                              ? 'bg-red-600/40 border-red-400 text-red-100 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
+                              : 'bg-red-500/40 border-red-400/60 text-red-50 hover:bg-red-500/60'}
+                            disabled:opacity-30 mobile-landscape-pass animate-in fade-in zoom-in duration-200
+                          `}
+                        >
+                          Pass
+                        </button>
                       )}
-                      <button 
-                        onClick={handlePass} 
-                        disabled={!isMyTurn || gameState.currentPlayPile.length === 0} 
-                        className={`
-                          flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border transition-all shadow-lg
-                          ${mustPass 
-                            ? 'bg-red-600/40 border-red-400 text-red-100 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
-                            : 'bg-red-500/40 border-red-400/60 text-red-50 hover:bg-red-500/60'}
-                          disabled:opacity-30 mobile-landscape-pass ${showClear ? 'mobile-landscape-pass-shifted' : ''}
-                        `}
-                      >
-                        Pass
-                      </button>
+                      
                       <button 
                         onClick={handlePlaySelected} 
                         disabled={!isMyTurn || selectedCardIds.size === 0} 
@@ -465,7 +506,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
         </div>
 
-        {/* Card Layer - Lower relative z-index within the action bar wrapper */}
+        {/* Player Card Area */}
         {!iAmFinished && (
             <div className={`
               w-full max-w-full px-4 sm:px-12 flex justify-center pb-2 origin-bottom z-10 transition-all duration-300 overflow-visible
@@ -521,10 +562,6 @@ export const GameTable: React.FC<GameTableProps> = ({
                 left: 24px !important;
                 z-index: 200 !important;
                 margin: 0 !important;
-                transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-            }
-            .mobile-landscape-pass-shifted {
-                left: 140px !important;
             }
             .mobile-landscape-play {
                 position: fixed !important;

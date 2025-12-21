@@ -7,6 +7,7 @@ import { Lobby } from './components/Lobby';
 import { VictoryScreen } from './components/VictoryScreen';
 import { ConnectingScreen } from './components/ConnectingScreen';
 import { TutorialMode } from './components/TutorialMode';
+import { GameEndTransition } from './components/GameEndTransition';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   const [spQuickFinish, setSpQuickFinish] = useState(true);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('MEDIUM');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   
   const [connected, setConnected] = useState(false);
   const [mpGameState, setMpGameState] = useState<GameState | null>(null);
@@ -62,11 +64,24 @@ const App: React.FC = () => {
     if (room && room.length === 4) setInitialRoomCode(room.toUpperCase());
   }, []);
 
+  const triggerMatchEndTransition = useCallback(() => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setView('VICTORY');
+      setIsTransitioning(false);
+    }, 2500); // Cinematic transition duration
+  }, []);
+
   useEffect(() => {
     const onGameState = (state: GameState) => {
       setMpGameState(state);
       if (state.status === GameStatus.PLAYING) setView('GAME_TABLE');
-      else if (state.status === GameStatus.FINISHED) setView('VICTORY');
+      else if (state.status === GameStatus.FINISHED && view === 'GAME_TABLE') {
+        triggerMatchEndTransition();
+      }
+      else if (state.status === GameStatus.FINISHED && view !== 'GAME_TABLE') {
+        setView('VICTORY');
+      }
       else if (state.status === GameStatus.LOBBY) setView('LOBBY');
     };
     const onPlayerHand = (cards: Card[]) => setMpMyHand(cards);
@@ -84,7 +99,7 @@ const App: React.FC = () => {
       socket.off(SocketEvents.PLAYER_HAND);
       socket.off(SocketEvents.ERROR);
     };
-  }, []);
+  }, [view, triggerMatchEndTransition]);
 
   const getNextActivePlayerId = useCallback((players: Player[], currentId: string, skipPassed: boolean = true) => {
     const startIdx = players.findIndex(p => p.id === currentId);
@@ -175,8 +190,9 @@ const App: React.FC = () => {
 
       const updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: newCardCount, finishedRank } : p);
       
+      // Check if current user just finished and should quick finish
       if (pid === 'player-me' && newCardCount === 0 && spQuickFinish) {
-          setTimeout(() => setView('VICTORY'), 1000);
+          setTimeout(() => triggerMatchEndTransition(), 500);
       }
 
       if (updatedPlayers.filter(p => !p.finishedRank).length <= 1) {
@@ -185,9 +201,12 @@ const App: React.FC = () => {
         if (lastPlayer) {
           finalPlayers = updatedPlayers.map(p => p.id === lastPlayer.id ? { ...p, finishedRank: updatedPlayers.length } : p);
         }
+        
+        // Final player finished, or quick finish wasn't triggered yet
         if (!spQuickFinish || pid !== 'player-me') {
-           setTimeout(() => setView('VICTORY'), 1500);
+           setTimeout(() => triggerMatchEndTransition(), 1000);
         }
+
         return {
           ...prev,
           players: finalPlayers,
@@ -314,14 +333,13 @@ const App: React.FC = () => {
           onBack={handleExit}
         />;
       case 'GAME_TABLE':
-        if (gameMode === 'MULTI_PLAYER') {
-          if (!mpGameState) return <ConnectingScreen onCancel={handleExit} />;
-          return <GameTable 
-            gameState={mpGameState} 
+        const table = (gameMode === 'MULTI_PLAYER') ? (
+          <GameTable 
+            gameState={mpGameState!} 
             myId={socket.id} 
             myHand={mpMyHand} 
-            onPlayCards={(cards) => socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState.roomId, cards })}
-            onPassTurn={() => socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState.roomId })}
+            onPlayCards={(cards) => socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards })}
+            onPassTurn={() => socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId })}
             cardCoverStyle={cardCoverStyle}
             onChangeCoverStyle={setCardCoverStyle}
             onExitGame={handleExit}
@@ -329,11 +347,10 @@ const App: React.FC = () => {
             onChangeBackgroundTheme={setBackgroundTheme}
             soundEnabled={soundEnabled}
             setSoundEnabled={setSoundEnabled}
-          />;
-        } else {
-          if (!spGameState) return null;
-          return <GameTable 
-            gameState={spGameState} 
+          />
+        ) : (
+          <GameTable 
+            gameState={spGameState!} 
             myId="player-me" 
             myHand={spMyHand} 
             onPlayCards={(cards) => handleLocalPlay('player-me', cards)}
@@ -350,8 +367,16 @@ const App: React.FC = () => {
             onChangeDifficulty={setAiDifficulty}
             soundEnabled={soundEnabled}
             setSoundEnabled={setSoundEnabled}
-          />;
-        }
+          />
+        );
+
+        return (
+          <div className="relative w-full h-full">
+            {table}
+            {isTransitioning && <GameEndTransition />}
+          </div>
+        );
+
       case 'VICTORY':
         const finalState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
         if (!finalState) return null;
