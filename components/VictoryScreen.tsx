@@ -144,7 +144,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({ players, myId, onP
                       text-[10px] font-black uppercase tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${rankColor}
                       ${isFirst ? 'animate-[textGlow_2s_ease-in-out_infinite]' : ''}
                     `}>
-                       {isFirst ? 'Champion' : `${rank}${rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'} Place`}
+                       {isFirst ? 'Winner' : `${rank}${rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'} Place`}
                     </div>
                     
                     {/* Radiant Background Aura for Champion Rank */}
