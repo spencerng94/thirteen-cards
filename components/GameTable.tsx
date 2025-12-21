@@ -107,7 +107,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         bombTimerRef.current = window.setTimeout(() => {
           setBombEffect(null);
           bombTimerRef.current = null;
-        }, 2000);
+        }, 1500); // Shorter duration for snappier feel
       } else {
         setBombEffect(null);
         audioService.playPlay();
@@ -331,13 +331,18 @@ export const GameTable: React.FC<GameTableProps> = ({
         />
       )}
 
-      {/* Bomb Overlay */}
+      {/* Enhanced Bomb Overlay */}
       {bombEffect && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none">
-            <div className="animate-bounce">
-                <h1 className="text-7xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-red-500 to-red-900 stroke-white drop-shadow-[0_5px_5px_rgba(0,0,0,1)] tracking-tighter transform rotate-[-5deg] scale-150 transition-all duration-75">
+            {/* Expansion Shockwave */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 border-[20px] border-red-500/80 rounded-full animate-[shockwave_1s_ease-out_forwards]"></div>
+            
+            {/* Cinematic Text Reveal */}
+            <div className="relative animate-[bombReveal_1.5s_cubic-bezier(0.16,1,0.3,1)_forwards]">
+                <h1 className="text-8xl md:text-[10rem] font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-red-400 via-red-600 to-red-900 drop-shadow-[0_10px_30px_rgba(220,38,38,0.6)]">
                     {bombEffect}
                 </h1>
+                <div className="absolute inset-0 blur-2xl bg-red-500/20 mix-blend-overlay animate-pulse"></div>
             </div>
         </div>
       )}
@@ -378,14 +383,18 @@ export const GameTable: React.FC<GameTableProps> = ({
         
         let posClasses = "";
         let layoutClasses = "flex-row"; 
-        if (pos === 'left') { posClasses = "absolute left-4 top-1/2 -translate-y-1/2 z-20"; layoutClasses = "flex-col"; }
+        if (pos === 'left') { 
+          posClasses = "absolute left-4 top-1/2 -translate-y-1/2 z-20"; 
+          layoutClasses = "flex-col landscape:flex-row"; 
+        }
         else if (pos === 'top') { 
-          // Match vertical margin of 'Played by' container (top-3 on mobile, top-4 on sm+)
-          // Horizontally shifting the top player slightly to the right on small screens to avoid 'Played by' overlap
           posClasses = "absolute top-3 sm:top-4 left-1/2 -translate-x-[25%] sm:-translate-x-1/2 z-20"; 
           layoutClasses = "flex-row"; 
         }
-        else if (pos === 'right') { posClasses = "absolute right-4 top-1/2 -translate-y-1/2 z-20"; layoutClasses = "flex-col"; }
+        else if (pos === 'right') { 
+          posClasses = "absolute right-4 top-1/2 -translate-y-1/2 z-20"; 
+          layoutClasses = "flex-col landscape:flex-row-reverse"; 
+        }
 
         return (
           <div key={player.id} className={`flex items-center gap-5 landscape:scale-[0.85] ${posClasses} ${layoutClasses} transition-all duration-500`}>
@@ -411,8 +420,6 @@ export const GameTable: React.FC<GameTableProps> = ({
                     `}>
                         {player.avatar || '😊'}
                     </div>
-
-                    {/* Status Beacon removed for cleaner look as requested */}
                 </div>
 
                 <div className="text-white font-black text-[9px] md:text-[11px] tracking-widest max-w-full truncate px-2 text-center mt-3 uppercase opacity-90">{player.name}</div>
@@ -445,7 +452,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                         <Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 shadow-[0_15px_30px_rgba(0,0,0,0.5)] ring-1 ring-white/10 group-hover:rotate-[-2deg] transition-transform duration-300" />
                         
                         {/* Tactical Card Count Badge */}
-                        <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-0_5px_15px_rgba(0,0,0,0.4)] z-30 group-hover:scale-110 transition-transform">
+                        <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-[0_5px_15px_rgba(0,0,0,0.4)] z-30 group-hover:scale-110 transition-transform">
                             {player.cardCount}
                         </div>
                     </div>
@@ -541,6 +548,18 @@ export const GameTable: React.FC<GameTableProps> = ({
       <style dangerouslySetInnerHTML={{ __html: `
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        @keyframes bombReveal {
+          0% { transform: scale(0.6) rotate(-5deg); opacity: 0; filter: blur(20px); }
+          15% { transform: scale(1.2) rotate(2deg); opacity: 1; filter: blur(0); }
+          30% { transform: scale(1.1) rotate(0deg); opacity: 1; }
+          100% { transform: scale(1.4); opacity: 0; filter: blur(10px); }
+        }
+
+        @keyframes shockwave {
+          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; border-width: 20px; }
+          100% { transform: translate(-50%, -50%) scale(4); opacity: 0; border-width: 1px; }
+        }
 
         @media (orientation: landscape) and (max-width: 932px) {
             .mobile-landscape-card-scale {
