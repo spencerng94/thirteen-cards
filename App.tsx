@@ -143,35 +143,89 @@ const App: React.FC = () => {
       const isBot = pid.startsWith('bot-');
       if (!isBot) setSpMyHand(h => h.filter(c => !cards.some(pc => pc.id === c.id)));
       else setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id)) }));
+      
       const player = prev.players.find(p => p.id === pid)!;
       const newCardCount = Math.max(0, player.cardCount - cards.length);
       let newFinishedPlayers = prev.finishedPlayers;
       let finishedRank = player.finishedRank;
+      
       if (newCardCount === 0 && !finishedRank) {
-        newFinishedPlayers = [...prev.finishedPlayers, pid]; finishedRank = newFinishedPlayers.length;
+        newFinishedPlayers = [...prev.finishedPlayers, pid]; 
+        finishedRank = newFinishedPlayers.length;
       }
+
+      // Logic for Quick Finish: If I (the human) just won, we can wrap up immediately.
+      const isHumanWin = pid === 'player-me' && newCardCount === 0;
+      const shouldTriggerQuickFinish = isHumanWin && spQuickFinish;
+
       const updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: newCardCount, finishedRank } : p);
-      const gameIsEnding = updatedPlayers.filter(p => !p.finishedRank).length <= 1;
+      const remainingActive = updatedPlayers.filter(p => !p.finishedRank);
+      const standardGameIsEnding = remainingActive.length <= 1;
+      
+      const gameIsEnding = shouldTriggerQuickFinish || standardGameIsEnding;
+
       let finalHistory = prev.roundHistory || [];
       const newTurn: PlayTurn = { playerId: pid, cards, comboType: getComboType(cards) };
       const newPlayPile = [...prev.currentPlayPile, newTurn];
+
       if (gameIsEnding) {
         finalHistory = [...finalHistory, newPlayPile];
-        const lastPlayer = updatedPlayers.find(p => !p.finishedRank);
-        let finalPlayers = updatedPlayers;
-        if (lastPlayer) finalPlayers = updatedPlayers.map(p => p.id === lastPlayer.id ? { ...p, finishedRank: updatedPlayers.length } : p);
-        setTimeout(() => triggerMatchEndTransition(), pid === 'player-me' && spQuickFinish ? 500 : 1000);
-        return { ...prev, players: finalPlayers, status: GameStatus.FINISHED, finishedPlayers: lastPlayer ? [...newFinishedPlayers, lastPlayer.id] : newFinishedPlayers, roundHistory: finalHistory, currentPlayPile: [] };
+        
+        let finalFinishedPlayersList = newFinishedPlayers;
+        let finalPlayersState = updatedPlayers;
+
+        if (shouldTriggerQuickFinish) {
+            // Rank remaining bots by card count for the victory screen
+            const botsToRank = updatedPlayers
+                .filter(p => !p.finishedRank)
+                .sort((a, b) => a.cardCount - b.cardCount);
+            
+            botsToRank.forEach((bot, idx) => {
+                const rank = finalFinishedPlayersList.length + 1;
+                finalFinishedPlayersList = [...finalFinishedPlayersList, bot.id];
+                finalPlayersState = finalPlayersState.map(p => p.id === bot.id ? { ...p, finishedRank: rank } : p);
+            });
+        } else {
+            // Standard end: One player left
+            const lastPlayer = updatedPlayers.find(p => !p.finishedRank);
+            if (lastPlayer) {
+                finalFinishedPlayersList = [...newFinishedPlayers, lastPlayer.id];
+                finalPlayersState = updatedPlayers.map(p => p.id === lastPlayer.id ? { ...p, finishedRank: updatedPlayers.length } : p);
+            }
+        }
+
+        setTimeout(() => triggerMatchEndTransition(), shouldTriggerQuickFinish ? 500 : 1000);
+        return { 
+          ...prev, 
+          players: finalPlayersState, 
+          status: GameStatus.FINISHED, 
+          finishedPlayers: finalFinishedPlayersList, 
+          roundHistory: finalHistory, 
+          currentPlayPile: [] 
+        };
       }
+
       let nextPlayerId = getNextActivePlayerId(updatedPlayers, pid, true);
       let finalPlayers = updatedPlayers;
       let currentRoundPile = newPlayPile;
+      
       if (nextPlayerId === pid) {
-        finalHistory = [...finalHistory, newPlayPile]; currentRoundPile = [];
+        finalHistory = [...finalHistory, newPlayPile]; 
+        currentRoundPile = [];
         finalPlayers = updatedPlayers.map(p => ({ ...p, hasPassed: false }));
         if (finishedRank) nextPlayerId = getNextActivePlayerId(finalPlayers, pid, false);
       }
-      return { ...prev, players: finalPlayers, currentPlayPile: currentRoundPile, currentPlayerId: nextPlayerId, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers: newFinishedPlayers, roundHistory: finalHistory };
+      
+      return { 
+        ...prev, 
+        players: finalPlayers, 
+        currentPlayPile: currentRoundPile, 
+        currentPlayerId: nextPlayerId, 
+        lastPlayerToPlayId: pid, 
+        isFirstTurnOfGame: false, 
+        finishedPlayers: newFinishedPlayers, 
+        roundHistory: finalHistory 
+      };
     });
   };
 
