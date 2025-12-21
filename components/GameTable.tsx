@@ -41,11 +41,11 @@ const HistoryModal: React.FC<{ gameState: GameState; onClose: () => void }> = ({
   }, [gameState.roundHistory, gameState.currentPlayPile]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-md p-4" onClick={onClose}>
       <div className="bg-black/80 border border-white/10 w-full max-w-md max-h-[85vh] rounded-[2rem] overflow-hidden shadow-2xl flex flex-col backdrop-blur-xl" onClick={e => e.stopPropagation()}>
         <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
           <div className="flex flex-col">
-            <h3 className="text-yellow-400 font-black text-xl tracking-[0.2em] uppercase">Combat Log</h3>
+            <h3 className="text-yellow-400 font-black text-xl tracking-[0.2em] uppercase">Play History</h3>
             <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Complete Match History</p>
           </div>
           <button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">✕</button>
@@ -301,11 +301,14 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       <div className="absolute top-3 right-3 z-50 flex flex-col-reverse sm:flex-row gap-3 items-end sm:items-center">
           <button onClick={() => setShowInstructions(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-yellow-400 font-serif font-bold text-lg flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105">?</button>
-          <button onClick={() => setShowSettings(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105">
-             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <button onClick={() => setShowSettings(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105 group">
+             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 transition-transform duration-500 group-hover:rotate-90">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+             </svg>
           </button>
           <button onClick={() => setShowHistory(true)} className="bg-white/5 hover:bg-white/10 text-gray-200 text-xs px-4 py-2 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-2 transition-all shadow-lg font-bold tracking-wide uppercase hover:scale-105">
-            <span className="hidden sm:inline opacity-70">Log</span>
+            <span className="hidden sm:inline opacity-70">History</span>
             <span className="bg-yellow-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm">{(gameState.roundHistory?.length || 0) + (gameState.currentPlayPile.length > 0 ? 1 : 0)}</span>
           </button>
       </div>
@@ -369,21 +372,21 @@ export const GameTable: React.FC<GameTableProps> = ({
         return (
           <div key={player.id} className={`flex items-center gap-5 landscape:scale-[0.85] ${posClasses} ${layoutClasses} transition-all duration-500`}>
              <div className={`relative flex flex-col items-center justify-center p-3 rounded-[2rem] backdrop-blur-3xl border transition-all duration-500 shadow-2xl ${isActive ? 'bg-green-600/10 border-green-400/50 shadow-[0_0_30px_rgba(34,197,94,0.2)] scale-110' : player.hasPassed ? 'bg-black/40 border-white/5 opacity-60 grayscale' : 'bg-black/20 border-white/10 hover:bg-white/5'} w-24 h-24 md:w-32 md:h-32 group`}>
-                <div className="relative flex items-center justify-center">
+                <div className={`relative flex items-center justify-center transition-transform duration-500 ${isActive ? 'animate-float' : ''}`}>
                     {isActive && <div className="absolute inset-[-6px] md:inset-[-8px] rounded-full border-2 border-green-500/40 animate-pulse pointer-events-none"></div>}
                     <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full flex items-center justify-center text-2xl md:text-4xl border-2 shadow-inner overflow-hidden transition-all duration-500 ${isActive ? 'border-green-400/50 bg-green-500/20' : 'border-white/10 bg-white/5'}`}>{player.avatar || '😊'}</div>
                 </div>
-                <div className="text-white font-black text-[9px] md:text-[11px] tracking-widest max-w-full truncate px-2 text-center mt-3 uppercase opacity-90">{player.name}</div>
+                <div className="text-white font-black text-[9px] md:text-[11px] tracking-widest max-w-full truncate px-2 text-center mt-3 uppercase opacity-80">{player.name}</div>
                 <div className="absolute -bottom-3 flex gap-2">
                     {player.finishedRank ? <div className="px-3 py-1 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 text-black rounded-lg font-black text-[8px] md:text-[10px] uppercase shadow-lg ring-1 ring-white/20 whitespace-nowrap">{getOrdinal(player.finishedRank)} Place</div> : player.hasPassed && <div className="px-3 py-1 bg-red-600/90 text-white text-[8px] md:text-[10px] font-black uppercase rounded-lg shadow-lg ring-1 ring-red-400/50 animate-pulse">Passed</div>}
                 </div>
              </div>
              {!player.finishedRank && (
                  <div className={`relative transition-all duration-500 ${isActive ? 'scale-110 translate-x-1' : ''}`}>
-                    <div className="relative group">
+                    <div className="relative">
                         {player.cardCount > 1 && <div className="absolute top-1 left-1.5 rotate-6 w-full h-full opacity-40"><Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 bg-black/60" /></div>}
-                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 shadow-[0_15px_30px_rgba(0,0,0,0.5)] ring-1 ring-white/10 group-hover:rotate-[-2deg] transition-transform duration-300" />
-                        <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-[0_5px_15px_rgba(0,0,0,0.4)] z-30 group-hover:scale-110 transition-transform">{player.cardCount}</div>
+                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 shadow-[0_15px_30px_rgba(0,0,0,0.5)] ring-1 ring-white/10" />
+                        <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-[0_5px_15px_rgba(0,0,0,0.4)] z-30">{player.cardCount}</div>
                     </div>
                  </div>
              )}
@@ -428,6 +431,8 @@ export const GameTable: React.FC<GameTableProps> = ({
       <style dangerouslySetInnerHTML={{ __html: `
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        .animate-float { animation: float 3s ease-in-out infinite; }
         @keyframes bombReveal { 0% { transform: scale(0.6) rotate(-5deg); opacity: 0; filter: blur(20px); } 15% { transform: scale(1.2) rotate(2deg); opacity: 1; filter: blur(0); } 30% { transform: scale(1.1) rotate(0deg); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; filter: blur(10px); } }
         @media (orientation: landscape) and (max-width: 932px) {
             .mobile-landscape-card-scale { transform: scale(0.8) !important; }
