@@ -109,10 +109,16 @@ export const GameTable: React.FC<GameTableProps> = ({
           bombTimerRef.current = null;
         }, 2000);
       } else {
+        // Clear bomb effect if a regular move is played
+        setBombEffect(null);
         audioService.playPlay();
       }
-    } else if (gameState.currentPlayPile.length === 0 && gameState.lastPlayerToPlayId) {
+    } else {
+      // Clear bomb effect if the round is reset
+      setBombEffect(null);
+      if (gameState.currentPlayPile.length === 0 && gameState.lastPlayerToPlayId) {
         audioService.playPass();
+      }
     }
     
     return () => {
@@ -147,6 +153,13 @@ export const GameTable: React.FC<GameTableProps> = ({
       lastSelectedCardId.current = id;
     }
     setSelectedCardIds(newSelected);
+  };
+
+  const handleClear = () => {
+    setSelectedCardIds(new Set());
+    lastSelectedCardId.current = null;
+    setComboVariations({});
+    audioService.playPass();
   };
 
   const selectCombo = (type: string) => {
@@ -198,8 +211,6 @@ export const GameTable: React.FC<GameTableProps> = ({
   };
 
   const getHandSpacingClass = (count: number) => {
-    // Balanced spacing for vertical mobile.
-    // Tighter overlap for higher card counts to ensure "dead space" is preserved on small screens.
     if (count <= 1) return '';
     if (count <= 3) return 'space-x-1 sm:space-x-4 md:space-x-6';
     if (count <= 6) return '-space-x-4 sm:-space-x-4 md:space-x-0';
@@ -231,6 +242,8 @@ export const GameTable: React.FC<GameTableProps> = ({
     : isMyTurn 
         ? (mustPass ? "No Moves Possible" : "Your Turn")
         : "Waiting...";
+
+  const showClear = selectedCardIds.size > 0;
 
   return (
     <div className={`fixed inset-0 w-full h-full ${bgBase} overflow-hidden font-sans select-none flex flex-col justify-between transition-colors duration-1000`}>
@@ -393,7 +406,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                  <div className="relative">
                     <div className="relative group">
                         {player.cardCount > 1 && <div className="absolute top-0.5 left-1 rotate-6 w-full h-full opacity-60"><Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 md:!h-13 bg-black/50" /></div>}
-                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 !h-13 shadow-2xl ring-1 ring-white/5" />
+                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-7 !h-10 md:!w-9 md:!h-13 shadow-2xl ring-1 ring-white/5" />
                         <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 md:w-5 md:h-5 bg-yellow-500 text-black text-[8px] md:text-[10px] font-black rounded-full flex items-center justify-center border border-black shadow-xl z-20">{player.cardCount}</div>
                     </div>
                  </div>
@@ -416,18 +429,26 @@ export const GameTable: React.FC<GameTableProps> = ({
             {currentStatusText}
           </div>
 
-          <div className="flex justify-center gap-4 w-full px-8 mb-6">
+          <div className="flex justify-center gap-4 w-full px-8 mb-6 overflow-visible min-h-[50px]">
               {!iAmFinished && (
                   <>
+                      {showClear && (
+                        <button 
+                          onClick={handleClear}
+                          className="flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border border-slate-600/50 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition-all shadow-lg mobile-landscape-clear animate-in fade-in zoom-in duration-200"
+                        >
+                          Clear
+                        </button>
+                      )}
                       <button 
                         onClick={handlePass} 
                         disabled={!isMyTurn || gameState.currentPlayPile.length === 0} 
                         className={`
                           flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border transition-all shadow-lg
                           ${mustPass 
-                            ? 'bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
-                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
-                          disabled:opacity-30 mobile-landscape-pass
+                            ? 'bg-red-600/40 border-red-400 text-red-100 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
+                            : 'bg-red-500/40 border-red-400/60 text-red-50 hover:bg-red-500/60'}
+                          disabled:opacity-30 mobile-landscape-pass ${showClear ? 'mobile-landscape-pass-shifted' : ''}
                         `}
                       >
                         Pass
@@ -447,7 +468,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         {/* Card Layer - Lower relative z-index within the action bar wrapper */}
         {!iAmFinished && (
             <div className={`
-              w-full max-w-full px-10 sm:px-12 flex justify-center pb-2 origin-bottom z-10 transition-all duration-300 overflow-visible
+              w-full max-w-full px-4 sm:px-12 flex justify-center pb-2 origin-bottom z-10 transition-all duration-300 overflow-visible
             `}>
                 <div className={`
                   flex justify-center mx-auto ${getHandSpacingClass(sortedHand.length)} py-2 md:py-4 
@@ -487,12 +508,23 @@ export const GameTable: React.FC<GameTableProps> = ({
             .mobile-landscape-card-container {
                 gap: 2px !important;
             }
+            .mobile-landscape-clear {
+                position: fixed !important;
+                bottom: 24px !important;
+                left: 24px !important;
+                z-index: 200 !important;
+                margin: 0 !important;
+            }
             .mobile-landscape-pass {
                 position: fixed !important;
                 bottom: 24px !important;
                 left: 24px !important;
                 z-index: 200 !important;
                 margin: 0 !important;
+                transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            }
+            .mobile-landscape-pass-shifted {
+                left: 140px !important;
             }
             .mobile-landscape-play {
                 position: fixed !important;
