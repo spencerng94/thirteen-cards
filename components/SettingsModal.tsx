@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
@@ -187,7 +186,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                  {[
                    { id: 'GREEN', name: 'Emerald' },
                    { id: 'CYBER_BLUE', name: 'Cobalt' },
-                   { id: 'CRIMSON_VOID', name: 'Nebula' }
+                   { id: 'CRIMSON_VOID', name: 'Crimson' }
                  ].map((theme) => (
                    <button 
                       key={theme.id}

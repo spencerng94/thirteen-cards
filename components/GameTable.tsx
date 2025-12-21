@@ -469,7 +469,11 @@ export const GameTable: React.FC<GameTableProps> = ({
         <div className="relative z-[100] w-full flex flex-col items-center">
           <div className={`
               flex px-6 py-2 rounded-full font-bold tracking-widest text-xs sm:text-sm uppercase shadow-2xl border backdrop-blur-xl whitespace-nowrap mb-6 transition-all
-              ${isMyTurn ? 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' : 'bg-black/60 border-white/10 text-gray-400'}
+              ${isMyTurn 
+                ? mustPass 
+                  ? 'bg-red-600/40 text-red-100 border-red-400/50 shadow-[0_0_25px_rgba(220,38,38,0.3)] scale-105 animate-pulse'
+                  : 'bg-green-600 text-white border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105 animate-pulse' 
+                : 'bg-black/60 border-white/10 text-gray-400'}
               mobile-landscape-status
           `}>
             {currentStatusText}
