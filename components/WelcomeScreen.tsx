@@ -20,6 +20,13 @@ const AVATAR_NAMES: Record<string, string> = {
   '🐔': 'CHICKEN', '🐧': 'PENGUIN', '🐦': 'BIRD', '🐤': 'CHICK', '🦄': 'UNICORN',
 };
 
+// --- Brand Asset: Leiwen Accent ---
+const LeiwenCorner: React.FC<{ className?: string }> = ({ className = "" }) => (
+  <svg viewBox="0 0 40 40" className={`w-4 h-4 ${className}`} xmlns="http://www.w3.org/2000/svg">
+    <path d="M 5 5 H 35 V 35 H 10 V 10 H 30 V 30 H 15 V 15 H 25" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square" />
+  </svg>
+);
+
 const PremiumPanel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
   <div className={`relative bg-black/50 backdrop-blur-[40px] border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.8)] rounded-[3rem] overflow-hidden ${className}`}>
       {/* Precision Rim Light */}
@@ -47,28 +54,78 @@ const LuxuryButton: React.FC<{
   slim?: boolean;
 }> = ({ onClick, variant, label, icon, sublabel, slim }) => {
   const themes = {
-    gold: "from-yellow-600 via-yellow-400 to-yellow-700 text-black border-yellow-300/40 shadow-yellow-900/40",
-    emerald: "from-emerald-700 via-green-500 to-emerald-800 text-white border-emerald-400/40 shadow-emerald-900/40",
-    ghost: "from-white/10 to-white/5 text-white/80 border-white/10 hover:border-white/30"
+    // Polished Imperial Gold
+    gold: {
+      bg: "from-[#3d280a] via-[#b8860b] to-[#3d280a]",
+      highlight: "from-[#b8860b] via-[#fbf5b7] to-[#8b6508]",
+      text: "text-black",
+      border: "border-yellow-300/40",
+      accent: "text-yellow-900/60",
+      shadow: "shadow-yellow-900/40"
+    },
+    // Jade & Gold Rim
+    emerald: {
+      bg: "from-[#064e3b] via-[#059669] to-[#064e3b]",
+      highlight: "from-[#059669] via-[#34d399] to-[#047857]",
+      text: "text-white",
+      border: "border-yellow-500/50",
+      accent: "text-yellow-400/80",
+      shadow: "shadow-emerald-950/60"
+    },
+    // Polished Lacquer & Gold Hairline
+    ghost: {
+      bg: "from-black via-zinc-900 to-black",
+      highlight: "from-zinc-900 via-zinc-800 to-black",
+      text: "text-yellow-500/90",
+      border: "border-yellow-500/20",
+      accent: "text-yellow-600/40",
+      shadow: "shadow-black/60"
+    }
   };
+
+  const theme = themes[variant];
 
   return (
     <button
       onClick={onClick}
       className={`
-        group relative w-full ${slim ? 'py-3.5' : 'py-4'} px-8 rounded-2xl border transition-all duration-300 active:scale-95 overflow-hidden
-        ${themes[variant]} shadow-[0_15px_30px_rgba(0,0,0,0.4)]
+        group relative w-full ${slim ? 'py-3.5 px-3' : 'py-5 px-4'} rounded-2xl border transition-all duration-500 active:scale-95 overflow-hidden
+        ${theme.border} ${theme.shadow} shadow-[0_20px_40px_rgba(0,0,0,0.5)]
       `}
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${themes[variant]} group-hover:scale-110 transition-transform duration-700 opacity-90`}></div>
-      <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_4s_infinite] pointer-events-none"></div>
+      {/* Metallic Base Layer */}
+      <div className={`absolute inset-0 bg-gradient-to-b ${theme.bg} group-hover:scale-110 transition-transform duration-1000`}></div>
+      <div className={`absolute inset-0 bg-gradient-to-b ${theme.highlight} opacity-90 transition-opacity duration-500 group-hover:opacity-100`}></div>
       
-      <div className="relative z-10 flex flex-col items-center justify-center gap-0.5">
-        <div className="flex items-center gap-3">
-            <span className="text-sm md:text-base font-black uppercase tracking-[0.25em] drop-shadow-md">{label}</span>
-            <span className="text-xl group-hover:scale-125 group-hover:rotate-12 transition-transform duration-300">{icon}</span>
+      {/* 3D Bevel Effect */}
+      <div className="absolute inset-0 border-t border-l border-white/30 rounded-2xl pointer-events-none"></div>
+      <div className="absolute inset-0 border-b border-r border-black/40 rounded-2xl pointer-events-none"></div>
+
+      {/* Shimmer Light Sweep */}
+      <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.3)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_4s_infinite] pointer-events-none opacity-40"></div>
+      
+      {/* Corner Leiwen Accents */}
+      <div className={`absolute top-0 left-0 p-1.5 ${theme.accent} transition-colors group-hover:text-white/40`}>
+        <LeiwenCorner className="w-2.5 h-2.5" />
+      </div>
+      <div className={`absolute bottom-0 right-0 p-1.5 rotate-180 ${theme.accent} transition-colors group-hover:text-white/40`}>
+        <LeiwenCorner className="w-2.5 h-2.5" />
+      </div>
+
+      <div className="relative z-10 flex flex-col items-center justify-center">
+        <div className="flex items-center gap-2">
+            <span className={`text-[11px] md:text-[13px] font-black uppercase tracking-[0.25em] font-serif ${theme.text} drop-shadow-md whitespace-nowrap`}>
+              {label}
+            </span>
+            <span className="text-lg md:text-xl group-hover:scale-125 group-hover:rotate-12 transition-transform duration-500 filter drop-shadow-md">
+              {icon}
+            </span>
         </div>
-        {sublabel && <span className="text-[8px] font-black opacity-60 tracking-[0.3em] uppercase">{sublabel}</span>}
+        {sublabel && (
+          <span className={`text-[8px] font-black opacity-60 tracking-[0.3em] uppercase font-serif mt-1 ${theme.text} whitespace-nowrap`}>
+            {sublabel}
+          </span>
+        )}
       </div>
     </button>
   );
@@ -118,12 +175,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
           <BrandLogo size="lg" />
         </div>
 
-        <PremiumPanel className="w-full px-8 pt-4 pb-6 md:px-10 md:pt-6 md:pb-8 space-y-6">
+        <PremiumPanel className="w-full px-8 pt-4 pb-6 md:px-10 md:pt-6 md:pb-8 space-y-8">
           
           {/* Identity Selection */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <SectionLabel>Player Profile</SectionLabel>
-            <div className="flex flex-col md:flex-row items-center gap-5">
+            <div className="flex flex-col md:flex-row items-center gap-6">
               <div className="relative group">
                 <div className="absolute inset-[-15px] bg-yellow-500/10 blur-2xl rounded-full animate-pulse group-hover:bg-yellow-500/20 transition-colors"></div>
                 <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full bg-black/40 border-2 border-yellow-500/30 flex items-center justify-center text-5xl md:text-6xl shadow-[inset_0_0_30px_rgba(251,191,36,0.1)] group-hover:scale-105 transition-transform duration-500">
@@ -132,7 +189,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
                 </div>
               </div>
               
-              <div className="flex-1 w-full space-y-2.5">
+              <div className="flex-1 w-full space-y-3">
                 <div className="relative">
                   <input
                     type="text"
@@ -140,7 +197,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
                     onChange={(e) => setName(e.target.value)}
                     maxLength={15}
                     placeholder="ENTER CODENAME"
-                    className="w-full px-5 py-3 bg-black/40 border border-white/10 rounded-2xl text-center text-white font-black tracking-[0.2em] uppercase focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 outline-none transition-all placeholder:text-white/10"
+                    className="w-full px-6 py-4 bg-black/60 border border-white/10 rounded-2xl text-center text-white font-black tracking-[0.2em] uppercase focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 outline-none transition-all placeholder:text-white/10"
                   />
                   <div className="absolute right-4 bottom-1.5 text-[7px] font-black text-white/20 tracking-widest">{name.length}/15 CHARS</div>
                 </div>
@@ -164,7 +221,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
           </div>
 
           {/* Logic & Visual Preferences */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <SectionLabel>AI Settings</SectionLabel>
               <div className="grid grid-cols-3 gap-2 p-1.5 bg-black/40 rounded-xl border border-white/5">
@@ -226,29 +283,29 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
           </div>
 
           {/* Core Actions */}
-          <div className="space-y-3 pt-1">
+          <div className="space-y-4 pt-2">
             <LuxuryButton 
               onClick={() => handleStartGame('MULTI_PLAYER')}
               variant="emerald"
-              label="Join Global Arena"
+              label="PLAY ONLINE"
               icon="⚔️"
-              sublabel="Online Multiplayer"
+              sublabel="MULTIPLAYER MODE"
             />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <LuxuryButton 
                 onClick={() => handleStartGame('SINGLE_PLAYER')}
                 variant="gold"
-                label="Simulate"
+                label="PLAY AI"
                 icon="🤖"
-                sublabel="Bot Game"
+                sublabel="BOT MODE"
                 slim
               />
               <LuxuryButton 
                 onClick={() => handleStartGame('TUTORIAL')}
                 variant="ghost"
-                label="Training"
+                label="TUTORIAL"
                 icon="🎓"
-                sublabel="Tutorial"
+                sublabel="INTRO MODE"
                 slim
               />
             </div>
