@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -256,7 +255,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
               <MainActionButton 
                 onClick={() => handleStartGame('TUTORIAL')}
                 variant="charcoal"
-                label="Interactive Tutorial"
+                label="Tutorial"
                 icon="🎓"
                 showShimmer={false}
               />

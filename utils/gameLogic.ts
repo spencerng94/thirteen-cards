@@ -1,4 +1,3 @@
-
 import { Card, Rank, Suit, PlayTurn, AiDifficulty } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -114,7 +113,8 @@ export const validateMove = (
   const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastPlayedCards);
 
-  // Chopping logic (Bombs)
+  // --- SPECIAL CHOPPING LOGIC (BOMBS BEATING 2s) ---
+  
   // 1. Single 2 can be chopped by 3 consecutive pairs or a Quad or 4 consecutive pairs
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two) {
     if (pType === 'QUAD' || pType === '3_PAIRS' || pType === '4_PAIRS') {
@@ -154,20 +154,18 @@ export const validateMove = (
     return { isValid: true, reason: 'Mega Bomb!' };
   }
 
-  // Standard play (same type, same length, higher card)
-  if (pType !== lType) {
-    return { isValid: false, reason: `Must play a ${lType}.` };
-  }
+  // --- STANDARD PLAY LOGIC (SAME TYPE, SAME LENGTH, HIGHER SCORE) ---
   
-  if (playedCards.length !== lastPlayedCards.length) {
-    return { isValid: false, reason: 'Must play same number of cards.' };
+  // Only valid if same type and same count (unless it was a bomb check above)
+  if (pType === lType && playedCards.length === lastPlayedCards.length) {
+    if (getCardScore(pHigh) > getCardScore(lHigh)) {
+      return { isValid: true, reason: 'Beat.' };
+    } else {
+      return { isValid: false, reason: 'Must play a higher value card/combo.' };
+    }
   }
 
-  if (getCardScore(pHigh) > getCardScore(lHigh)) {
-    return { isValid: true, reason: 'Beat.' };
-  } else {
-    return { isValid: false, reason: 'INVALID COMBO' };
-  }
+  return { isValid: false, reason: `Must play a higher ${lType.replace('_', ' ')}.` };
 };
 
 export const generateDeck = (): Card[] => {
@@ -268,10 +266,64 @@ export const canPlayAnyMove = (
   playPile: PlayTurn[],
   isFirstTurnOfGame: boolean = false
 ): boolean => {
-  // We use HARD logic for checking if ANY move is possible, 
-  // ensuring the human player isn't penalized by AI randomness logic.
-  const move = findBestMove(hand, playPile, isFirstTurnOfGame, 'HARD');
-  return move !== null;
+  if (playPile.length === 0) return hand.length > 0;
+
+  // Single check
+  const lastTurn = playPile[playPile.length - 1];
+  const lType = getComboType(lastTurn.cards);
+  const lHigh = getHighestCard(lastTurn.cards);
+  const lLen = lastTurn.cards.length;
+
+  // Optimized legal check: try to find at least ONE valid move
+  const sorted = sortCards(hand);
+  
+  // 1. Try Singles
+  if (lType === 'SINGLE' || playPile.length === 0) {
+      if (sorted.some(c => validateMove([c], playPile, isFirstTurnOfGame).isValid)) return true;
+  }
+
+  // 2. Try Pairs
+  if (lType === 'PAIR' || playPile.length === 0) {
+      const pairs = getAllPairs(sorted);
+      if (pairs.some(p => validateMove(p, playPile, isFirstTurnOfGame).isValid)) return true;
+  }
+
+  // 3. Try Triples
+  if (lType === 'TRIPLE' || playPile.length === 0) {
+      const triples = getAllTriples(sorted);
+      if (triples.some(t => validateMove(t, playPile, isFirstTurnOfGame).isValid)) return true;
+  }
+
+  // 4. Try Quads
+  if (lType === 'QUAD' || playPile.length === 0) {
+      const quads = getAllQuads(sorted);
+      if (quads.some(q => validateMove(q, playPile, isFirstTurnOfGame).isValid)) return true;
+  }
+
+  // 5. Try Runs (same length as last played)
+  if (lType === 'RUN') {
+      const uniqueRanks = Array.from(new Set(sorted.filter(c => c.rank !== Rank.Two).map(c => c.rank))).sort((a,b) => a-b);
+      if (uniqueRanks.length >= lLen) {
+          for (let i = 0; i <= uniqueRanks.length - lLen; i++) {
+              const runRanks = uniqueRanks.slice(i, i + lLen);
+              let isSeq = true;
+              for (let k = 0; k < lLen - 1; k++) if (runRanks[k+1] !== runRanks[k] + 1) isSeq = false;
+              if (isSeq) {
+                  const runCards = runRanks.map(r => sorted.find(c => c.rank === r)!);
+                  if (validateMove(runCards, playPile, isFirstTurnOfGame).isValid) return true;
+              }
+          }
+      }
+  }
+
+  // 6. Try Bombs (especially if responding to a 2)
+  if (lHigh.rank === Rank.Two || ['QUAD', '3_PAIRS', '4_PAIRS'].includes(lType)) {
+      if (getAllQuads(sorted).some(q => validateMove(q, playPile, isFirstTurnOfGame).isValid)) return true;
+      if (getConsecutivePairs(sorted, 3).some(p => validateMove(p, playPile, isFirstTurnOfGame).isValid)) return true;
+      if (getConsecutivePairs(sorted, 4).some(p => validateMove(p, playPile, isFirstTurnOfGame).isValid)) return true;
+  }
+
+  return false;
 };
 
 /**
@@ -413,7 +465,7 @@ export const findBestMove = (
       if (pairs.length > 0) return pairs[0];
     }
 
-    // Default lead: Lowest card (or slightly smarter if Hard)
+    // Default lead: Lowest card
     if (isHard && sortedHand.length > 5) {
        // Find a low card that isn't part of a pair
        const single = sortedHand.find(c => !sortedHand.some(other => other.id !== c.id && other.rank === c.rank));
@@ -452,7 +504,6 @@ export const findBestMove = (
         const ranks = uniqueRanks.slice(i, i + targetLen);
         if (ranks.length < targetLen) continue;
         
-        // Verify consecutiveness
         let consecutive = true;
         for (let k = 0; k < ranks.length - 1; k++) {
           if (ranks[k+1] !== ranks[k] + 1) consecutive = false;
@@ -490,7 +541,6 @@ export const findBestMove = (
       if (quads.length > 0) bombMove = quads[0];
       else if (p4.length > 0) bombMove = p4[0];
     } else if (targetIsBomb) {
-       // 4 pairs beats anything
        if (p4.length > 0) {
          if (lType === '4_PAIRS') {
             const match = p4.find(p => getCardScore(getHighestCard(p)) > getCardScore(lHigh));
@@ -499,7 +549,6 @@ export const findBestMove = (
             bombMove = p4[0];
          }
        }
-       // Quad vs Quad
        if (!bombMove && lType === 'QUAD') {
          const match = quads.find(q => getCardScore(getHighestCard(q)) > getCardScore(lHigh));
          if (match) bombMove = match;
@@ -507,17 +556,13 @@ export const findBestMove = (
     }
   }
 
-  // AI Decision Making based on Difficulty
   if (bombMove && standardMove) {
-    // If we have both, only use the bomb if the card we're beating is a 2
     return targetIsTwo ? bombMove : standardMove;
   }
   
   if (bombMove) return bombMove;
   if (standardMove) {
-    // Hard AI: Don't use a 2 unless necessary (someone low on cards)
     if (isHard && getHighestCard(standardMove).rank === Rank.Two) {
-       // Only use 2 if we have fewer than 4 cards or someone else is close to winning
        if (sortedHand.length > 4) return null; 
     }
     return standardMove;

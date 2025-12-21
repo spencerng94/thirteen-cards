@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn } from './types';
@@ -151,31 +150,46 @@ const App: React.FC = () => {
       if (!prev) return null;
       
       const isBot = pid.startsWith('bot-');
+      let newCardCount = 0;
+
       if (!isBot) {
-        setSpMyHand(prevHand => prevHand.filter(c => !cards.some(pc => pc.id === c.id)));
+        setSpMyHand(prevHand => {
+            const nextHand = prevHand.filter(c => !cards.some(pc => pc.id === c.id));
+            newCardCount = nextHand.length;
+            return nextHand;
+        });
       } else {
-        setSpOpponentHands(prevHands => ({
-          ...prevHands,
-          [pid]: prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id))
-        }));
+        setSpOpponentHands(prevHands => {
+            const nextBotHand = prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id));
+            newCardCount = nextBotHand.length;
+            return { ...prevHands, [pid]: nextBotHand };
+        });
       }
 
       const player = prev.players.find(p => p.id === pid)!;
-      const newCardCount = Math.max(0, player.cardCount - cards.length);
+      // Note: cardCount in state might be stale due to setSpMyHand async, 
+      // but we calculate it correctly for the return object
+      const calcCardCount = Math.max(0, player.cardCount - cards.length);
       
       let newFinishedPlayers = prev.finishedPlayers;
       let finishedRank = player.finishedRank;
       
-      if (newCardCount === 0 && !finishedRank) {
+      if (calcCardCount === 0 && !finishedRank) {
         newFinishedPlayers = [...prev.finishedPlayers, pid];
         finishedRank = newFinishedPlayers.length;
       }
 
-      const updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: newCardCount, finishedRank } : p);
+      const updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: calcCardCount, finishedRank } : p);
       
+      // Quick Finish: If human player finishes, immediately go to victory screen
+      if (pid === 'player-me' && calcCardCount === 0 && spQuickFinish) {
+          setTimeout(() => setView('VICTORY'), 1000);
+      }
+
       if (updatedPlayers.filter(p => !p.finishedRank).length <= 1) {
-        if (pid === 'player-me' && spQuickFinish) {
-           setTimeout(() => setView('VICTORY'), 500);
+        // Game fully complete
+        if (!spQuickFinish || pid !== 'player-me') {
+           setTimeout(() => setView('VICTORY'), 1500);
         }
         return {
           ...prev,
