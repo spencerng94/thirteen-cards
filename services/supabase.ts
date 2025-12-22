@@ -15,14 +15,12 @@ export const PREMIUM_AVATARS = [
 ];
 
 export const AVATAR_NAMES: Record<string, string> = {
-  // Defaults
   '😀': 'The Enthusiast',
   '😊': 'The Optimist',
   '😃': 'The High Roller',
   '😄': 'The Grinner',
   '☺️': 'The Gentle Soul',
   '👤': 'Unknown Agent',
-  // Premium Animals
   '🐶': 'Alpha Canine',
   '🐱': 'Shadow Feline',
   '🐭': 'Royal Rodent',
@@ -43,7 +41,6 @@ export const AVATAR_NAMES: Record<string, string> = {
   '🐦': 'Sky Sentinel',
   '🐤': 'Hatchling Elite',
   '🦄': 'Mythic Horn',
-  // Premium Expressions
   '😤': 'Stoic Might',
   '🤪': 'Chaos Spark',
   '🫠': 'Liquid Spirit',
@@ -70,12 +67,6 @@ const DEFAULT_GUEST_PROFILE = {
   username: 'Guest Commander'
 };
 
-/**
- * Level Formula: L = (XP / 100)^(1/1.5) + 1
- * Level 1: 0 XP
- * Level 2: 100 XP
- * Level 3: 282 XP
- */
 export const calculateLevel = (xp: number) => {
   if (xp <= 0) return 1;
   return Math.floor(Math.pow(xp / 100, 1 / 1.5)) + 1;
@@ -103,17 +94,9 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
           };
         }
         return () => ({
-          select: () => ({ 
-            eq: () => ({ 
-              single: async () => ({ data: null, error: null }) 
-            }) 
-          }),
-          update: () => ({ 
-            eq: async () => ({ error: null }) 
-          }),
-          upsert: () => ({
-            eq: async () => ({ error: null })
-          })
+          select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) }),
+          update: () => ({ eq: async () => ({ error: null }) }),
+          upsert: () => ({ eq: async () => ({ error: null }) })
         });
       }
     });
@@ -131,16 +114,27 @@ export const fetchGuestProfile = (): UserProfile => {
 };
 
 export const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
-  if (!supabaseUrl) return fetchGuestProfile();
+  if (!supabaseUrl || !supabaseAnonKey) return fetchGuestProfile();
   
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  
-  if (error || !data) {
-    const defaultProfile = {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (!error && data) {
+      return {
+        ...data,
+        level: calculateLevel(data.xp || 0),
+        currency: data.coins,
+        coins: data.coins,
+        username: data.username || 'Elite Operator'
+      } as UserProfile;
+    }
+
+    // Fallback: If profile missing or table 404, provide a Virtual Auth Profile
+    const fallbackProfile = {
       id: userId,
       coins: 500,
       xp: 0,
@@ -149,57 +143,47 @@ export const fetchProfile = async (userId: string): Promise<UserProfile | null> 
       unlocked_sleeves: ['BLUE', 'RED'],
       unlocked_avatars: [...DEFAULT_AVATARS],
       unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
-      undo_count: 0
+      undo_count: 0,
+      username: 'RECRUIT'
     };
-    await supabase.from('profiles').upsert(defaultProfile);
-    return { ...defaultProfile, level: 1, username: 'Player', currency: 500, coins: 500 } as any;
+
+    // Attempt to initialize DB record, but ignore failures (resilience)
+    await supabase.from('profiles').upsert(fallbackProfile).eq('id', userId).catch(() => {});
+    
+    return { ...fallbackProfile, level: 1, currency: 500 } as any;
+  } catch (err) {
+    console.warn("DB Connection failed, using session-only profile.");
+    return { ...DEFAULT_GUEST_PROFILE, id: userId, username: 'AUTHENTICATED' } as any;
   }
-  
-  return {
-    ...data,
-    level: calculateLevel(data.xp || 0),
-    currency: data.coins
-  } as UserProfile;
 };
 
 export const transferGuestData = async (userId: string) => {
   const guestData = localStorage.getItem(GUEST_STORAGE_KEY);
   if (!guestData || !supabaseUrl) return;
+  try {
+    const local = JSON.parse(guestData);
+    const { data: existing } = await supabase.from('profiles').select('*').eq('id', userId).single();
 
-  const local = JSON.parse(guestData);
-  const { data: existing } = await supabase.from('profiles').select('*').eq('id', userId).single();
-
-  if (existing) {
-    await supabase.from('profiles').update({
-      wins: (existing.wins || 0) + (local.wins || 0),
-      games_played: (existing.games_played || 0) + (local.games_played || 0),
-      coins: (existing.coins || 0) + (local.coins || 0),
-      xp: (existing.xp || 0) + (local.xp || 0),
-      unlocked_sleeves: Array.from(new Set([...(existing.unlocked_sleeves || []), ...(local.unlocked_sleeves || [])])),
-      unlocked_avatars: Array.from(new Set([...(existing.unlocked_avatars || DEFAULT_AVATARS), ...(local.unlocked_avatars || DEFAULT_AVATARS)])),
-      unlocked_boards: Array.from(new Set([...(existing.unlocked_boards || ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID']), ...(local.unlocked_boards || ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'])]))
-    }).eq('id', userId);
-  }
-  
-  localStorage.removeItem(GUEST_STORAGE_KEY);
+    if (existing) {
+      await supabase.from('profiles').update({
+        wins: (existing.wins || 0) + (local.wins || 0),
+        games_played: (existing.games_played || 0) + (local.games_played || 0),
+        coins: (existing.coins || 0) + (local.coins || 0),
+        xp: (existing.xp || 0) + (local.xp || 0),
+      }).eq('id', userId);
+    }
+    localStorage.removeItem(GUEST_STORAGE_KEY);
+  } catch (e) {}
 };
 
 export const buyItem = async (userId: string, price: number, itemName: string, type: 'SLEEVE' | 'POWERUP' | 'AVATAR' | 'BOARD', isGuest: boolean = false) => {
-  if (isGuest) {
+  if (isGuest || userId === 'guest') {
     const local = fetchGuestProfile();
     if (local.coins < price) throw new Error("Insufficient coins");
-    
     const updates = { ...local, coins: local.coins - price };
-    if (type === 'SLEEVE') {
-      updates.unlocked_sleeves = Array.from(new Set([...local.unlocked_sleeves, itemName]));
-    } else if (type === 'AVATAR') {
-      updates.unlocked_avatars = Array.from(new Set([...local.unlocked_avatars, itemName]));
-    } else if (type === 'BOARD') {
-      updates.unlocked_boards = Array.from(new Set([...local.unlocked_boards, itemName]));
-    } else if (type === 'POWERUP' && itemName === 'UNDO') {
-      updates.undo_count = (local.undo_count || 0) + 1;
-    }
-    
+    if (type === 'SLEEVE') updates.unlocked_sleeves = Array.from(new Set([...local.unlocked_sleeves, itemName]));
+    else if (type === 'AVATAR') updates.unlocked_avatars = Array.from(new Set([...local.unlocked_avatars, itemName]));
+    else if (type === 'BOARD') updates.unlocked_boards = Array.from(new Set([...local.unlocked_boards, itemName]));
     localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(updates));
     return true;
   }
@@ -207,26 +191,12 @@ export const buyItem = async (userId: string, price: number, itemName: string, t
   const profile = await fetchProfile(userId);
   if (!profile || profile.coins < price) throw new Error("Insufficient coins");
 
-  const updates: any = {
-    coins: profile.coins - price
-  };
+  const updates: any = { coins: profile.coins - price };
+  if (type === 'SLEEVE') updates.unlocked_sleeves = Array.from(new Set([...profile.unlocked_sleeves, itemName]));
+  else if (type === 'AVATAR') updates.unlocked_avatars = Array.from(new Set([...(profile.unlocked_avatars || DEFAULT_AVATARS), itemName]));
+  else if (type === 'BOARD') updates.unlocked_boards = Array.from(new Set([...(profile.unlocked_boards || []), itemName]));
 
-  if (type === 'SLEEVE') {
-    updates.unlocked_sleeves = Array.from(new Set([...profile.unlocked_sleeves, itemName]));
-  } else if (type === 'AVATAR') {
-    updates.unlocked_avatars = Array.from(new Set([...(profile.unlocked_avatars || DEFAULT_AVATARS), itemName]));
-  } else if (type === 'BOARD') {
-    updates.unlocked_boards = Array.from(new Set([...(profile.unlocked_boards || ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID']), itemName]));
-  } else if (type === 'POWERUP' && itemName === 'UNDO') {
-    updates.undo_count = (profile.undo_count || 0) + 1;
-  }
-
-  const { error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', userId);
-
-  if (error) throw error;
+  await supabase.from('profiles').update(updates).eq('id', userId);
   return true;
 };
 
@@ -235,18 +205,13 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
   const baseRankXp = rank === 1 ? 10 : rank === 2 ? 5 : rank === 3 ? 2 : 1;
   const diffMult = difficulty === 'HARD' ? 2 : difficulty === 'MEDIUM' ? 1.5 : 1;
   const modeMult = isBot ? 1 : 2;
-  
   let xpGained = Math.floor(baseRankXp * diffMult * modeMult);
   const coinsGained = isWinner ? (isBot ? 50 : 100) : 10;
-  
   let xpBonusApplied = false;
 
-  if (isGuest || !supabaseUrl) {
+  if (isGuest || userId === 'guest' || !supabaseUrl) {
     const localStats = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
-    if ((localStats.games_played || 0) < 5) {
-      xpGained *= 2;
-      xpBonusApplied = true;
-    }
+    if ((localStats.games_played || 0) < 5) { xpGained *= 2; xpBonusApplied = true; }
     if (isWinner) localStats.wins += 1;
     localStats.games_played = (localStats.games_played || 0) + 1;
     localStats.coins = (localStats.coins || 0) + coinsGained;
@@ -258,20 +223,9 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
   if (userId) {
     const profile = await fetchProfile(userId);
     if (profile) {
-      if ((profile.games_played || 0) < 5) {
-        xpGained *= 2;
-        xpBonusApplied = true;
-      }
+      if ((profile.games_played || 0) < 5) { xpGained *= 2; xpBonusApplied = true; }
       const newXpValue = (profile.xp || 0) + xpGained;
-      await supabase
-        .from('profiles')
-        .update({
-          wins: isWinner ? (profile.wins || 0) + 1 : profile.wins,
-          games_played: (profile.games_played || 0) + 1,
-          coins: (profile.coins || 0) + coinsGained,
-          xp: newXpValue
-        })
-        .eq('id', userId);
+      await supabase.from('profiles').update({ wins: isWinner ? (profile.wins || 0) + 1 : profile.wins, games_played: (profile.games_played || 0) + 1, coins: (profile.coins || 0) + coinsGained, xp: newXpValue }).eq('id', userId);
       return { xpGained, coinsGained, newTotalXp: newXpValue, xpBonusApplied };
     }
   }

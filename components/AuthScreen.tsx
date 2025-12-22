@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { BrandLogo } from './BrandLogo';
@@ -60,14 +61,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
     if (!email.trim() || !password.trim()) return;
     setLoading(true);
     setError(null);
-    
     try {
       const { error } = isSignUp 
         ? await supabase.auth.signUp({ email, password })
         : await supabase.auth.signInWithPassword({ email, password });
-      
       if (error) throw error;
-      if (isSignUp) alert('Check your email for the confirmation link!');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -76,7 +74,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
   };
 
   const signInWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'google' });
+    await supabase.auth.signInWithOAuth({ 
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
   };
 
   return (

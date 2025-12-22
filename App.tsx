@@ -60,6 +60,7 @@ const App: React.FC = () => {
       setSession(session);
       setAuthChecked(true);
       if (session?.user) {
+        setIsGuest(false); // Force guest off if session exists
         await transferGuestData(session.user.id);
         loadProfile(session.user.id);
       }
@@ -67,6 +68,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
+        setIsGuest(false);
         await transferGuestData(session.user.id);
         loadProfile(session.user.id);
       }
@@ -93,10 +95,8 @@ const App: React.FC = () => {
 
   const handleSignOut = async () => {
     if (session) await supabase.auth.signOut();
-    if (isGuest) {
-      setIsGuest(false);
-      setProfile(null);
-    }
+    setIsGuest(false);
+    setProfile(null);
     setView('WELCOME');
     setHubState({ open: false, tab: 'PROFILE' });
     setGameSettingsOpen(false);
@@ -163,25 +163,19 @@ const App: React.FC = () => {
     if (!spGameState || spGameState.status !== GameStatus.PLAYING || spGameState.currentPlayerId !== pid) return;
     setSpGameState(prev => {
       if (!prev) return null;
-      
       const players = prev.players.map(p => p.id === pid ? { ...p, hasPassed: true } : p);
-      
       let currentIndex = prev.players.findIndex(p => p.id === pid);
       let nextIndex = (currentIndex + 1) % 4;
-      
       let searchCount = 0;
       while ((players[nextIndex].hasPassed || players[nextIndex].finishedRank) && searchCount < 4) {
         nextIndex = (nextIndex + 1) % 4;
         searchCount++;
       }
-
       let finalPlayPile = prev.currentPlayPile;
       let nextPlayerId = players[nextIndex].id;
-
       if (nextPlayerId === prev.lastPlayerToPlayId) {
         finalPlayPile = [];
         players.forEach(p => p.hasPassed = false);
-        
         if (players[nextIndex].finishedRank) {
             while (players[nextIndex].finishedRank) {
                 nextIndex = (nextIndex + 1) % 4;
@@ -189,13 +183,7 @@ const App: React.FC = () => {
             nextPlayerId = players[nextIndex].id;
         }
       }
-
-      return { 
-        ...prev, 
-        players, 
-        currentPlayerId: nextPlayerId, 
-        currentPlayPile: finalPlayPile 
-      };
+      return { ...prev, players, currentPlayerId: nextPlayerId, currentPlayPile: finalPlayPile };
     });
   };
 
@@ -212,85 +200,37 @@ const App: React.FC = () => {
       } else {
         setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id)) }));
       }
-      
       let updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: p.cardCount - cards.length } : p);
       const newPlayPile = [...prev.currentPlayPile, { playerId: pid, cards, comboType: getComboType(cards) }];
-      
       let playerWhoJustPlayed = updatedPlayers.find(p => p.id === pid)!;
       let finishedPlayers = [...prev.finishedPlayers];
-      
       if (playerWhoJustPlayed.cardCount === 0) {
           finishedPlayers.push(pid);
           playerWhoJustPlayed.finishedRank = finishedPlayers.length;
       }
-
-      // Turbo Finish Logic: If human finished and spQuickFinish is on, end match now.
       if (pid === 'player-me' && playerWhoJustPlayed.cardCount === 0 && spQuickFinish) {
-          const remaining = updatedPlayers
-            .filter(p => !p.finishedRank)
-            .sort((a, b) => a.cardCount - b.cardCount);
-          
+          const remaining = updatedPlayers.filter(p => !p.finishedRank).sort((a, b) => a.cardCount - b.cardCount);
           remaining.forEach((p, idx) => {
               const r = updatedPlayers.find(up => up.id === p.id)!;
               r.finishedRank = finishedPlayers.length + idx + 1;
               finishedPlayers.push(p.id);
           });
-
-          return {
-              ...prev,
-              players: updatedPlayers,
-              status: GameStatus.FINISHED,
-              currentPlayPile: [],
-              finishedPlayers
-          };
+          return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
-
       const playersRemaining = updatedPlayers.filter(p => !p.finishedRank).length;
       if (playersRemaining <= 1) {
           const loser = updatedPlayers.find(p => !p.finishedRank);
-          if (loser) {
-              finishedPlayers.push(loser.id);
-              loser.finishedRank = finishedPlayers.length;
-          }
-          return { 
-              ...prev, 
-              players: updatedPlayers, 
-              status: GameStatus.FINISHED, 
-              currentPlayPile: [], 
-              finishedPlayers 
-          };
+          if (loser) { finishedPlayers.push(loser.id); loser.finishedRank = finishedPlayers.length; }
+          return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
-
       let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % 4;
-      while (updatedPlayers[nextIndex].finishedRank || updatedPlayers[nextIndex].hasPassed) { 
-        nextIndex = (nextIndex + 1) % 4; 
-      }
-      
+      while (updatedPlayers[nextIndex].finishedRank || updatedPlayers[nextIndex].hasPassed) { nextIndex = (nextIndex + 1) % 4; }
       if (updatedPlayers[nextIndex].id === pid && playerWhoJustPlayed.finishedRank) {
           updatedPlayers.forEach(p => p.hasPassed = false);
-          while (updatedPlayers[nextIndex].finishedRank) {
-              nextIndex = (nextIndex + 1) % 4;
-          }
-          return { 
-            ...prev, 
-            players: updatedPlayers, 
-            currentPlayPile: [], 
-            currentPlayerId: updatedPlayers[nextIndex].id, 
-            lastPlayerToPlayId: pid, 
-            isFirstTurnOfGame: false,
-            finishedPlayers
-          };
+          while (updatedPlayers[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; }
+          return { ...prev, players: updatedPlayers, currentPlayPile: [], currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
       }
-
-      return { 
-        ...prev, 
-        players: updatedPlayers, 
-        currentPlayPile: newPlayPile, 
-        currentPlayerId: updatedPlayers[nextIndex].id, 
-        lastPlayerToPlayId: pid, 
-        isFirstTurnOfGame: false,
-        finishedPlayers
-      };
+      return { ...prev, players: updatedPlayers, currentPlayPile: newPlayPile, currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
     });
   };
 
@@ -315,7 +255,6 @@ const App: React.FC = () => {
     if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.PLAYING && spGameState.currentPlayerId?.startsWith('bot-')) {
       const meFinished = spGameState.players.find(p => p.id === 'player-me')?.finishedRank;
       if (meFinished && spQuickFinish) return;
-
       const botId = spGameState.currentPlayerId;
       const botHand = spOpponentHands[botId];
       const timer = setTimeout(() => {
@@ -339,37 +278,13 @@ const App: React.FC = () => {
   return (
     <div className="w-full h-full bg-[#0a3d23]">
       {storeOpen && (
-        <Store 
-          onClose={() => setStoreOpen(false)} profile={profile} isGuest={isGuest} 
-          onRefreshProfile={handleRefreshProfile} currentSleeve={cardCoverStyle} 
-          onEquipSleeve={setCardCoverStyle} playerAvatar={playerAvatar} 
-          onEquipAvatar={setPlayerAvatar} initialTab={storeTab}
-        />
+        <Store onClose={() => setStoreOpen(false)} profile={profile} isGuest={isGuest} onRefreshProfile={handleRefreshProfile} currentSleeve={cardCoverStyle} onEquipSleeve={setCardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar} initialTab={storeTab} />
       )}
       {hubState.open && (
-        <UserHub 
-          initialTab={hubState.tab} onClose={() => setHubState(p => ({ ...p, open: false }))} 
-          profile={profile} isGuest={isGuest} onRefreshProfile={handleRefreshProfile} 
-          currentSleeve={cardCoverStyle} onEquipSleeve={setCardCoverStyle} 
-          playerName={playerName} setPlayerName={setPlayerName} 
-          playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} 
-          currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} 
-          soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} 
-          isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} 
-          setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} 
-          onChangeDifficulty={setAiDifficulty} onSignOut={handleSignOut} onOpenStore={handleOpenStore}
-        />
+        <UserHub initialTab={hubState.tab} onClose={() => setHubState(p => ({ ...p, open: false }))} profile={profile} isGuest={isGuest} onRefreshProfile={handleRefreshProfile} currentSleeve={cardCoverStyle} onEquipSleeve={setCardCoverStyle} playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} onSignOut={handleSignOut} onOpenStore={handleOpenStore} />
       )}
       {gameSettingsOpen && (
-        <GameSettings 
-           onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit}
-           currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle}
-           currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme}
-           isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish}
-           setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty}
-           onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled}
-           setSoundEnabled={setSoundEnabled}
-        />
+        <GameSettings onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />
       )}
       {!session && !isGuest && authChecked ? <AuthScreen onPlayAsGuest={() => setIsGuest(true)} /> : (
         <div className="relative w-full h-full">
@@ -377,18 +292,7 @@ const App: React.FC = () => {
           {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} />}
           {view === 'GAME_TABLE' && (
             <div className="relative w-full h-full">
-              <GameTable 
-                gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} 
-                myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'} 
-                myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} 
-                onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c }) : handleLocalPlay('player-me', c)} 
-                onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId }) : handleLocalPass('player-me')} 
-                cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} 
-                onExitGame={handleExit} onSignOut={handleSignOut} 
-                backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} 
-                soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled}
-                onOpenSettings={() => setGameSettingsOpen(true)}
-              />
+              <GameTable gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c }) : handleLocalPlay('player-me', c)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId }) : handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
               {isTransitioning && <GameEndTransition />}
             </div>
           )}
