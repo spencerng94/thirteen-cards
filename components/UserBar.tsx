@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { UserProfile } from '../types';
 import { calculateLevel, getXpForLevel } from '../services/supabase';
@@ -8,10 +7,11 @@ interface UserBarProps {
   className?: string;
   isGuest?: boolean;
   onPromptAuth?: () => void;
+  onClick?: () => void;
   avatar?: string;
 }
 
-export const UserBar: React.FC<UserBarProps> = ({ profile, className = '', isGuest, onPromptAuth, avatar }) => {
+export const UserBar: React.FC<UserBarProps> = ({ profile, className = '', isGuest, onPromptAuth, onClick, avatar }) => {
   if (!profile) return null;
 
   const currentLevel = calculateLevel(profile.xp);
@@ -24,7 +24,10 @@ export const UserBar: React.FC<UserBarProps> = ({ profile, className = '', isGue
   const showSecurityPrompt = isGuest && (profile.coins >= 1000 || currentLevel >= 2);
 
   return (
-    <div className={`flex flex-col items-center py-3 px-2 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl transition-all duration-500 hover:bg-black/60 group cursor-default w-12 ${className}`}>
+    <div 
+      onClick={onClick}
+      className={`flex flex-col items-center py-3 px-2 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl transition-all duration-500 hover:bg-black/60 group cursor-pointer w-12 ${className}`}
+    >
       {/* Mini Avatar */}
       <div className="relative mb-3">
         <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-white/10 to-transparent border border-white/10 flex items-center justify-center text-lg shadow-inner group-hover:scale-110 transition-transform duration-500">

@@ -14,6 +14,50 @@ export const PREMIUM_AVATARS = [
   '😤', '🤪', '🫠', '🤓', '🙂‍↔️', '🤭', '😩', '😭', '🫨', '🫡'
 ];
 
+export const AVATAR_NAMES: Record<string, string> = {
+  // Defaults
+  '😀': 'The Enthusiast',
+  '😊': 'The Optimist',
+  '😃': 'The High Roller',
+  '😄': 'The Grinner',
+  '☺️': 'The Gentle Soul',
+  '👤': 'Unknown Agent',
+  // Premium Animals
+  '🐶': 'Alpha Canine',
+  '🐱': 'Shadow Feline',
+  '🐭': 'Royal Rodent',
+  '🐹': 'Golden Hamster',
+  '🐰': 'Swift Hare',
+  '🦊': 'Crimson Fox',
+  '🐻': 'Iron Bear',
+  '🐼': 'Zen Panda',
+  '🐨': 'Silver Koala',
+  '🐯': 'Imperial Tiger',
+  '🦁': 'Sun Lion',
+  '🐮': 'Bovine Commander',
+  '🐷': 'Fortune Swine',
+  '🐸': 'Jade Frog',
+  '🐵': 'Agile Simian',
+  '🐔': 'Dawn Herald',
+  '🐧': 'Frost Walker',
+  '🐦': 'Sky Sentinel',
+  '🐤': 'Hatchling Elite',
+  '🦄': 'Mythic Horn',
+  // Premium Expressions
+  '😤': 'Stoic Might',
+  '🤪': 'Chaos Spark',
+  '🫠': 'Liquid Spirit',
+  '🤓': 'Arcane Scholar',
+  '🙂‍↔️': 'Denial Master',
+  '🤭': 'Secret Agent',
+  '😩': 'Weary Knight',
+  '😭': 'River of Tears',
+  '🫨': 'Seismic Shock',
+  '🫡': 'Loyal Vanguard'
+};
+
+export const getAvatarName = (emoji: string) => AVATAR_NAMES[emoji] || 'Elite Signature';
+
 const DEFAULT_GUEST_PROFILE = {
   wins: 0,
   games_played: 0,
@@ -186,7 +230,6 @@ export const buyItem = async (userId: string, price: number, itemName: string, t
   return true;
 };
 
-// Fixed recordGameResult to ensure newXp is only used where it is defined or provide a fallback
 export const recordGameResult = async (rank: number, isBot: boolean, difficulty: AiDifficulty, isGuest: boolean, userId?: string) => {
   const isWinner = rank === 1;
   const baseRankXp = rank === 1 ? 10 : rank === 2 ? 5 : rank === 3 ? 2 : 1;
@@ -232,6 +275,5 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
       return { xpGained, coinsGained, newTotalXp: newXpValue, xpBonusApplied };
     }
   }
-  // If userId or profile is missing, return fallback total XP
   return { xpGained, coinsGained, newTotalXp: 0, xpBonusApplied: false };
 };

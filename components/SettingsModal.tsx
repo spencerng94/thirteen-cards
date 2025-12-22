@@ -1,8 +1,8 @@
-
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
 import { SignOutButton } from './SignOutButton';
+import { PREMIUM_BOARDS } from './UserHub';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -52,13 +52,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     
     switch (d) {
       case 'EASY':
-        return "bg-green-600/90 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border-green-400/30";
+        return "bg-emerald-600/90 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-400/30";
       case 'MEDIUM':
         return "bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)] border-yellow-300/30";
       case 'HARD':
         return "bg-red-600/90 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)] border-red-400/30";
       default:
-        return "bg-green-600 text-white shadow-lg";
+        return "bg-emerald-600 text-white shadow-lg";
     }
   };
 
@@ -130,12 +130,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <div>
                         <h3 className="text-xs font-black text-white/90 uppercase tracking-widest">Haptic Audio</h3>
-                        <p className="text-[8px] text-gray-500 uppercase tracking-widest font-bold mt-0.5">Tactile Game Feedback</p>
+                        <p className="text-[8px] text-gray-500 uppercase tracking-widest font-bold mt-0.5">Arena Sound Effects</p>
                     </div>
                 </div>
                 <button 
                     onClick={() => handleChange(() => setSoundEnabled(!soundEnabled))}
-                    className={`w-14 h-7 rounded-full relative transition-all duration-500 ${soundEnabled ? 'bg-green-600/80 shadow-[0_0_15px_rgba(22,163,74,0.3)]' : 'bg-white/5'}`}
+                    className={`w-14 h-7 rounded-full relative transition-all duration-500 ${soundEnabled ? 'bg-emerald-600/80 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-white/5'}`}
                 >
                     <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-500 ${soundEnabled ? 'translate-x-8' : 'translate-x-1'}`}></div>
                 </button>
@@ -151,7 +151,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
                       <div>
                           <h3 className="text-xs font-black text-white/90 uppercase tracking-widest">Quick Finish</h3>
-                          <p className="text-[8px] text-gray-500 uppercase tracking-widest font-bold mt-0.5">SKIP AI SPECTATE ON WIN</p>
+                          <p className="text-[8px] text-gray-500 uppercase tracking-widest font-bold mt-0.5">Instant game completion</p>
                       </div>
                   </div>
                   <button 

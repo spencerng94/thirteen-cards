@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
-import { UserHub, PREMIUM_BOARDS, ImperialGoldLayer } from './UserHub';
+import { ImperialGoldLayer, PREMIUM_BOARDS } from './UserHub';
 import { audioService } from '../services/audio';
 import { canPlayAnyMove, sortCards, findAllValidCombos } from '../utils/gameLogic';
 
@@ -22,11 +21,11 @@ interface GameTableProps {
   isSinglePlayer?: boolean;
   spQuickFinish?: boolean;
   setSpQuickFinish?: (val: boolean) => void;
-  // Fix: Renamed currentDifficulty to aiDifficulty to match component usage and props
   aiDifficulty?: AiDifficulty;
   onChangeDifficulty?: (d: AiDifficulty) => void;
   soundEnabled: boolean;
   setSoundEnabled: (val: boolean) => void;
+  onOpenSettings: () => void;
 }
 
 const getOrdinal = (n: number) => {
@@ -53,7 +52,6 @@ const HistoryModal: React.FC<{ gameState: GameState; onClose: () => void }> = ({
           </div>
           <button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">✕</button>
         </div>
-        
         <div className="overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-white/10">
           {allRounds.length === 0 ? (
             <div className="text-gray-500 text-center text-[10px] font-black py-16 tracking-[0.5em] uppercase opacity-30">No maneuvers recorded</div>
@@ -68,7 +66,6 @@ const HistoryModal: React.FC<{ gameState: GameState; onClose: () => void }> = ({
                      </span>
                      <div className={`flex-1 h-[1px] ${isCurrent ? 'bg-yellow-500/20' : 'bg-white/5'}`}></div>
                   </div>
-                  
                   <div className="space-y-3 pl-2">
                     {round.map((turn, tIdx) => {
                       const player = gameState.players.find(p => p.id === turn.playerId);
@@ -79,9 +76,7 @@ const HistoryModal: React.FC<{ gameState: GameState; onClose: () => void }> = ({
                                  <span className="text-lg">{player?.avatar || '👤'}</span>
                                  <span className="text-[10px] font-black uppercase tracking-widest text-white/80">{player?.name}</span>
                               </div>
-                              <span className="text-[8px] font-bold uppercase tracking-widest text-yellow-600 bg-yellow-500/5 px-2 py-0.5 rounded border border-yellow-500/10">
-                                {turn.comboType.replace('_', ' ')}
-                              </span>
+                              <span className="text-[8px] font-bold uppercase tracking-widest text-yellow-600 bg-yellow-500/5 px-2 py-0.5 rounded border border-yellow-500/10">{turn.comboType.replace('_', ' ')}</span>
                            </div>
                            <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                               {turn.cards.map(c => (
@@ -97,7 +92,6 @@ const HistoryModal: React.FC<{ gameState: GameState; onClose: () => void }> = ({
             })
           )}
         </div>
-        
         <div className="p-4 bg-white/[0.02] border-t border-white/5">
            <p className="text-center text-[8px] font-black text-white/20 uppercase tracking-[0.4em]">End of Log</p>
         </div>
@@ -107,29 +101,11 @@ const HistoryModal: React.FC<{ gameState: GameState; onClose: () => void }> = ({
 };
 
 export const GameTable: React.FC<GameTableProps> = ({ 
-  gameState, 
-  myId, 
-  myHand, 
-  onPlayCards, 
-  onPassTurn,
-  cardCoverStyle,
-  onChangeCoverStyle,
-  onExitGame,
-  onSignOut,
-  backgroundTheme,
-  onChangeBackgroundTheme,
-  isSinglePlayer,
-  spQuickFinish,
-  setSpQuickFinish,
-  aiDifficulty,
-  onChangeDifficulty,
-  soundEnabled,
-  setSoundEnabled
+  gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, soundEnabled, onOpenSettings
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showHistory, setShowHistory] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [bombEffect, setBombEffect] = useState<{ type: string; level: number } | null>(null);
   const [comboVariations, setComboVariations] = useState<Record<string, number>>({});
   const lastSelectedCardId = useRef<string | null>(null);
@@ -148,23 +124,12 @@ export const GameTable: React.FC<GameTableProps> = ({
         setBombEffect({ type: lastPlayedMove.comboType, level });
         audioService.playBomb();
         if (bombTimerRef.current) window.clearTimeout(bombTimerRef.current);
-        bombTimerRef.current = window.setTimeout(() => {
-          setBombEffect(null);
-          bombTimerRef.current = null;
-        }, 2500);
-      } else {
-        setBombEffect(null);
-        audioService.playPlay();
-      }
+        bombTimerRef.current = window.setTimeout(() => { setBombEffect(null); bombTimerRef.current = null; }, 2500);
+      } else { setBombEffect(null); audioService.playPlay(); }
     } else {
       setBombEffect(null);
-      if (gameState.currentPlayPile.length === 0 && gameState.lastPlayerToPlayId) {
-        audioService.playPass();
-      }
+      if (gameState.currentPlayPile.length === 0 && gameState.lastPlayerToPlayId) audioService.playPass();
     }
-    return () => {
-      if (bombTimerRef.current) window.clearTimeout(bombTimerRef.current);
-    };
   }, [gameState.currentPlayPile.length, lastPlayedMove]);
 
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
@@ -188,10 +153,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     if (newSelected.has(id)) {
       newSelected.delete(id);
       if (lastSelectedCardId.current === id) lastSelectedCardId.current = Array.from(newSelected).pop() || null;
-    } else {
-      newSelected.add(id);
-      lastSelectedCardId.current = id;
-    }
+    } else { newSelected.add(id); lastSelectedCardId.current = id; }
     setSelectedCardIds(newSelected);
   };
 
@@ -209,10 +171,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     const currentIdx = comboVariations[type] || 0;
     const currentCombo = variations[currentIdx];
     const isAlreadySelected = currentCombo.every(c => selectedCardIds.has(c.id)) && currentCombo.length === selectedCardIds.size;
-    let actualIdx = currentIdx;
-    if (isAlreadySelected) {
-      actualIdx = (currentIdx + 1) % variations.length;
-    }
+    let actualIdx = isAlreadySelected ? (currentIdx + 1) % variations.length : currentIdx;
     const nextCombo = variations[actualIdx];
     setSelectedCardIds(new Set(nextCombo.map(c => c.id)));
     setComboVariations(prev => ({ ...prev, [type]: actualIdx }));
@@ -241,7 +200,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     switch(relativeIndex) {
       case 0: return 'bottom';
       case 1: return 'left';
-      case 2: return totalPlayers === 3 ? 'right' : 'top';
+      case 2: return 'top';
       case 3: return 'right';
       default: return 'unknown';
     }
@@ -250,7 +209,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   const getHandSpacingClass = (count: number) => {
     if (count <= 1) return '';
     if (count <= 3) return 'space-x-1 sm:space-x-4 md:space-x-6';
-    if (count <= 6) return '-space-x-4 sm:-space-x-4 md:space-x-0';
+    if (count <= 6) return '-space-x-4 sm:-space-x-4 md:space-0';
     if (count <= 10) return '-space-x-10 sm:-space-x-10 md:-space-x-4';
     return '-space-x-14 sm:-space-x-16 md:-space-x-12';
   };
@@ -265,41 +224,13 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   return (
     <div className={`fixed inset-0 w-full h-full ${themeConfig.base} overflow-hidden font-sans select-none flex flex-col justify-between transition-colors duration-1000 ${bombEffect ? 'animate-screen-shake' : ''}`}>
-      {/* Table Spotlight Layer */}
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${themeConfig.colors} pointer-events-none opacity-100 mix-blend-screen transition-colors duration-1000`}></div>
-      
-      {/* Texture Layer (Felt Simulation) */}
-      {themeConfig.texture && (
-        <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none" 
-             style={{ 
-               backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)',
-               backgroundSize: '3.5px 3.5px'
-             }}></div>
-      )}
-
-      {/* Custom Techno Grid for Cyberpunk Theme */}
-      {(themeConfig as any).technoGrid && (
-        <div className="absolute inset-0 opacity-[0.08] pointer-events-none"
-             style={{ 
-               backgroundImage: 'linear-gradient(rgba(6, 182, 212, 0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(6, 182, 212, 0.5) 1px, transparent 1px)',
-               backgroundSize: '40px 40px'
-             }}></div>
-      )}
-
-      {/* Imperial Emperor Motif Layer */}
+      {themeConfig.texture && <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)', backgroundSize: '3.5px 3.5px' }}></div>}
       {(themeConfig as any).emperor && <ImperialGoldLayer />}
-
-      {/* Central Spotlight Overlay for high-luxury boards */}
-      <div className="absolute inset-0 pointer-events-none" 
-           style={{ backgroundImage: `radial-gradient(circle at center, ${themeConfig.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 70%)` }}></div>
-
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_white_0%,_transparent_60%)] opacity-[0.05] pointer-events-none"></div>
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
+      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `radial-gradient(circle at center, ${themeConfig.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 70%)` }}></div>
 
       <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
-        <h1 className="hidden lg:block text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter">
-            THIRTEEN
-        </h1>
+        <h1 className="hidden lg:block text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter uppercase">THIRTEEN</h1>
         {lastPlayedMove && (
             <div className="bg-black/60 backdrop-blur-xl border border-white/10 text-gray-300 text-[8px] sm:text-[9px] uppercase px-3 py-1.5 rounded-full shadow-xl font-black tracking-widest flex items-center gap-2 pointer-events-auto animate-in fade-in slide-in-from-left-2">
                 <span className="opacity-70 italic font-medium">Played by</span>
@@ -329,12 +260,18 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       <div className="absolute top-3 right-3 z-50 flex flex-col-reverse sm:flex-row gap-3 items-end sm:items-center">
           <button onClick={() => setShowInstructions(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-yellow-400 font-serif font-bold text-lg flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105">?</button>
-          <button onClick={() => setShowSettings(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105 group">
-             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 transition-transform duration-500 group-hover:rotate-90">
+          
+          <button 
+            onClick={onOpenSettings} 
+            className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-110 active:scale-95 group relative overflow-hidden"
+            title="Tactical Configuration"
+          >
+             <svg viewBox="0 0 24 24" className="w-6 h-6 transition-all duration-700 group-hover:rotate-90 group-hover:scale-110 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
                 <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2-2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
              </svg>
           </button>
+
           <button onClick={() => setShowHistory(true)} className="bg-white/5 hover:bg-white/10 text-gray-200 text-xs px-4 py-2 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-2 transition-all shadow-lg font-bold tracking-wide uppercase hover:scale-105">
             <span className="hidden sm:inline opacity-70">History</span>
             <span className="bg-yellow-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm">{(gameState.roundHistory?.length || 0) + (gameState.currentPlayPile.length > 0 ? 1 : 0)}</span>
@@ -343,47 +280,15 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {showHistory && <HistoryModal gameState={gameState} onClose={() => setShowHistory(false)} />}
       {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
-      {showSettings && (
-        <UserHub 
-          initialTab="SETTINGS"
-          onClose={() => setShowSettings(false)}
-          onSignOut={onSignOut}
-          onExitGame={onExitGame}
-          profile={null} 
-          onRefreshProfile={() => {}}
-          currentSleeve={cardCoverStyle}
-          onEquipSleeve={onChangeCoverStyle}
-          playerName={""} setPlayerName={() => {}}
-          playerAvatar={""} setPlayerAvatar={() => {}}
-          currentTheme={backgroundTheme}
-          onChangeTheme={onChangeBackgroundTheme}
-          isSinglePlayer={isSinglePlayer}
-          spQuickFinish={spQuickFinish}
-          setSpQuickFinish={setSpQuickFinish}
-          currentDifficulty={aiDifficulty}
-          onChangeDifficulty={onChangeDifficulty}
-          soundEnabled={soundEnabled}
-          setSoundEnabled={setSoundEnabled}
-        />
-      )}
 
-      {/* NEW HIGH IMPACT BOMB UI */}
       {bombEffect && (
         <div className="fixed inset-0 z-[200] pointer-events-none flex items-center justify-center overflow-hidden">
-            {/* Massive Chromatic Chromatic Aberration Text */}
             <div className={`relative flex flex-col items-center animate-bomb-impact-v2`}>
-                <h1 className="text-[12vw] md:text-[15rem] font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-red-400 via-orange-600 to-red-950 drop-shadow-[0_0_80px_rgba(220,38,38,0.8)] filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
-                    {bombEffect.type === 'QUAD' ? 'FOUR-OF-A-KIND' : bombEffect.type.replace('_', ' ')}
-                </h1>
+                <h1 className="text-[12vw] md:text-[15rem] font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-red-400 via-orange-600 to-red-950 drop-shadow-[0_0_80px_rgba(220,38,38,0.8)] filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">{bombEffect.type === 'QUAD' ? 'FOUR-OF-A-KIND' : bombEffect.type.replace('_', ' ')}</h1>
                 <div className="absolute inset-0 bg-red-600/20 blur-[100px] animate-pulse"></div>
             </div>
-            
-            {/* Full Screen Impact Flash */}
             <div className="absolute inset-0 bg-white opacity-0 animate-bomb-flash"></div>
-            
-            {/* Shockwave Rings */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-4 border-yellow-400/50 opacity-0 animate-bomb-shockwave"></div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-red-500/30 opacity-0 animate-bomb-shockwave [animation-delay:0.2s]"></div>
         </div>
       )}
 
@@ -391,9 +296,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="absolute top-[45%] md:top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-96 flex items-center justify-center pointer-events-none z-10 overflow-visible">
          {!lastPlayedMove ? (
             <div className="flex flex-col items-center justify-center text-center opacity-20">
-               <span className="text-white font-black text-xl md:text-2xl uppercase tracking-[0.5em] mb-4">
-                 {isMyTurn ? "Your Lead" : "Waiting"}
-               </span>
+               <span className="text-white font-black text-xl md:text-2xl uppercase tracking-[0.5em] mb-4">{isMyTurn ? "Your Lead" : "Waiting"}</span>
                <div className="w-8 h-1 bg-white/20 rounded-full"></div>
             </div>
          ) : (
@@ -404,13 +307,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                           const baseTranslateX = (cardIdx - (lastPlayedMove.cards.length - 1) / 2) * 35;
                           const baseRotate = (cardIdx - (lastPlayedMove.cards.length - 1) / 2) * 6;
                           return (
-                              <div 
-                                key={card.id} 
-                                className="absolute transition-transform duration-200" 
-                                style={{ transform: `translateX(${baseTranslateX}px) rotate(${baseRotate}deg)`, left: '-40px', top: '-70px' }}
-                              >
-                                  <Card card={card} />
-                              </div>
+                              <div key={card.id} className="absolute transition-transform duration-200" style={{ transform: `translateX(${baseTranslateX}px) rotate(${baseRotate}deg)`, left: '-40px', top: '-70px' }}><Card card={card} /></div>
                           );
                       })}
                   </div>
@@ -419,37 +316,42 @@ export const GameTable: React.FC<GameTableProps> = ({
          )}
       </div>
 
-      {/* Players grid */}
-      {gameState.players.map((player, idx) => {
-        if (player.id === myId) return null;
-        const pos = getPlayerPosition(idx, gameState.players.length, myIndex);
-        const isActive = gameState.currentPlayerId === player.id;
-        let posClasses = pos === 'left' ? "absolute left-4 top-1/2 -translate-y-1/2 z-20" : pos === 'top' ? "absolute top-3 sm:top-4 left-1/2 -translate-x-[25%] sm:-translate-x-1/2 z-20" : "absolute right-4 top-1/2 -translate-y-1/2 z-20";
-        let layoutClasses = pos === 'left' ? "flex-col landscape:flex-row" : pos === 'top' ? "flex-row" : "flex-col landscape:flex-row-reverse";
-        return (
-          <div key={player.id} className={`flex items-center gap-5 landscape:scale-[0.85] ${posClasses} ${layoutClasses} transition-all duration-500`}>
-             <div className={`relative flex flex-col items-center justify-center p-3 rounded-[2rem] backdrop-blur-3xl border transition-all duration-500 shadow-2xl ${isActive ? 'bg-green-600/10 border-green-400/50 shadow-[0_0_30px_rgba(34,197,94,0.2)] scale-110' : player.hasPassed ? 'bg-black/40 border-white/5 opacity-60 grayscale' : 'bg-black/20 border-white/10 hover:bg-white/5'} w-24 h-24 md:w-32 md:h-32 group`}>
-                <div className={`relative flex items-center justify-center transition-transform duration-500 ${isActive ? 'animate-float' : ''}`}>
-                    {isActive && <div className="absolute inset-[-6px] md:inset-[-8px] rounded-full border-2 border-green-500/40 animate-pulse pointer-events-none"></div>}
-                    <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full flex items-center justify-center text-2xl md:text-4xl border-2 shadow-inner overflow-hidden transition-all duration-500 ${isActive ? 'border-green-400/50 bg-green-500/20' : 'border-white/10 bg-white/5'}`}>{player.avatar || '😊'}</div>
-                </div>
-                <div className="text-white font-black text-[9px] md:text-[11px] tracking-widest max-w-full truncate px-2 text-center mt-3 uppercase opacity-80">{player.name}</div>
-                <div className="absolute -bottom-3 flex gap-2">
-                    {player.finishedRank ? <div className="px-3 py-1 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 text-black rounded-lg font-black text-[8px] md:text-[10px] uppercase shadow-lg ring-1 ring-white/20 whitespace-nowrap">{getOrdinal(player.finishedRank)} Place</div> : player.hasPassed && <div className="px-3 py-1 bg-red-600/90 text-white text-[8px] md:text-[10px] font-black uppercase rounded-lg shadow-lg ring-1 ring-red-400/50 animate-pulse">Passed</div>}
-                </div>
-             </div>
-             {!player.finishedRank && (
-                 <div className={`relative transition-all duration-500 ${isActive ? 'scale-110 translate-x-1' : ''}`}>
-                    <div className="relative">
-                        {player.cardCount > 1 && <div className="absolute top-1 left-1.5 rotate-6 w-full h-full opacity-40"><Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 bg-black/60" /></div>}
-                        <Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 shadow-[0_15px_30px_rgba(0,0,0,0.5)] ring-1 ring-white/10" />
-                        <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-[0_5px_15px_rgba(0,0,0,0.4)] z-30">{player.cardCount}</div>
+      {/* Opponents grid */}
+      <div className="absolute inset-0 z-20 pointer-events-none">
+        {gameState.players.map((player, idx) => {
+            if (player.id === myId) return null;
+            const pos = getPlayerPosition(idx, gameState.players.length, myIndex);
+            const isActive = gameState.currentPlayerId === player.id;
+            let posClasses = "";
+            let layoutClasses = "";
+            if (pos === 'left') { posClasses = "left-4 top-1/2 -translate-y-1/2"; layoutClasses = "flex-col landscape:flex-row"; }
+            else if (pos === 'top') { posClasses = "top-4 left-1/2 -translate-x-1/2"; layoutClasses = "flex-row"; }
+            else if (pos === 'right') { posClasses = "right-4 top-1/2 -translate-y-1/2"; layoutClasses = "flex-col landscape:flex-row-reverse"; }
+            return (
+            <div key={player.id} className={`absolute flex items-center gap-5 landscape:scale-[0.8] ${posClasses} ${layoutClasses} transition-all duration-500 pointer-events-auto`}>
+                <div className={`relative flex flex-col items-center justify-center p-3 rounded-[2rem] backdrop-blur-3xl border transition-all duration-500 shadow-2xl ${isActive ? 'bg-green-600/10 border-green-400/50 shadow-[0_0_30px_rgba(34,197,94,0.2)] scale-110' : player.hasPassed ? 'bg-black/40 border-white/5 opacity-60 grayscale' : 'bg-black/20 border-white/10 hover:bg-white/5'} w-24 h-24 md:w-32 md:h-32 group`}>
+                    <div className={`relative flex items-center justify-center transition-transform duration-500 ${isActive ? 'animate-float' : ''}`}>
+                        {isActive && <div className="absolute inset-[-6px] md:inset-[-8px] rounded-full border-2 border-green-500/40 animate-pulse pointer-events-none"></div>}
+                        <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full flex items-center justify-center text-2xl md:text-4xl border-2 shadow-inner overflow-hidden transition-all duration-500 ${isActive ? 'border-green-400/50 bg-green-500/20' : 'border-white/10 bg-white/5'}`}>{player.avatar || '😊'}</div>
                     </div>
-                 </div>
-             )}
-          </div>
-        );
-      })}
+                    <div className="text-white font-black text-[9px] md:text-[11px] tracking-widest max-w-full truncate px-2 text-center mt-3 uppercase opacity-80">{player.name}</div>
+                    <div className="absolute -bottom-3 flex gap-2">
+                        {player.finishedRank ? <div className="px-3 py-1 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 text-black rounded-lg font-black text-[8px] md:text-[10px] uppercase shadow-lg ring-1 ring-white/20 whitespace-nowrap">{getOrdinal(player.finishedRank)} Place</div> : player.hasPassed && <div className="px-3 py-1 bg-red-600/90 text-white text-[8px] md:text-[10px] font-black uppercase rounded-lg shadow-lg ring-1 ring-red-400/50 animate-pulse">Passed</div>}
+                    </div>
+                </div>
+                {!player.finishedRank && (
+                    <div className={`relative transition-all duration-500 ${isActive ? 'scale-110 translate-x-1' : ''}`}>
+                        <div className="relative">
+                            {player.cardCount > 1 && <div className="absolute top-1 left-1.5 rotate-6 w-full h-full opacity-40"><Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 bg-black/60" /></div>}
+                            <Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 shadow-[0_15px_30px_rgba(0,0,0,0.5)] ring-1 ring-white/10" />
+                            <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-[0_5px_15px_rgba(0,0,0,0.4)] z-30">{player.cardCount}</div>
+                        </div>
+                    </div>
+                )}
+            </div>
+            );
+        })}
+      </div>
 
       <div className="w-full mt-auto flex flex-col items-center pb-6 bg-gradient-to-t from-black via-black/95 to-transparent pt-12 relative z-[60]">
         <div className="relative z-[100] w-full flex flex-col items-center">
@@ -475,50 +377,26 @@ export const GameTable: React.FC<GameTableProps> = ({
                     {sortedHand.map((card, idx) => {
                         const isFirstTurn3S = gameState.isFirstTurnOfGame && card.rank === Rank.Three && card.suit === Suit.Spades;
                         return (
-                            <div key={card.id} style={{ zIndex: idx }} className="transition-all duration-300 hover:z-50 shrink-0 transform origin-bottom hover:-translate-y-10 cursor-pointer mobile-landscape-card-scale">
-                                <Card card={card} selected={selectedCardIds.has(card.id)} onClick={() => toggleSelectCard(card.id)} className={`shadow-2xl transition-transform duration-200 ${isFirstTurn3S ? 'ring-2 ring-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.9)] animate-pulse' : ''}`} />
-                            </div>
+                            <div key={card.id} style={{ zIndex: idx }} className="transition-all duration-300 hover:z-50 shrink-0 transform origin-bottom hover:-translate-y-10 cursor-pointer mobile-landscape-card-scale"><Card card={card} selected={selectedCardIds.has(card.id)} onClick={() => toggleSelectCard(card.id)} className={`shadow-2xl transition-transform duration-200 ${isFirstTurn3S ? 'ring-2 ring-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.9)] animate-pulse' : ''}`} /></div>
                         );
                     })}
                 </div>
             </div>
         )}
       </div>
-      
       <style dangerouslySetInnerHTML={{ __html: `
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         .animate-float { animation: float 3s ease-in-out infinite; }
-        
-        /* ENHANCED BOMB ANIMATIONS */
-        @keyframes bombImpactV2 { 
-            0% { transform: scale(0.2); opacity: 0; filter: blur(50px) brightness(5); } 
-            10% { transform: scale(1.1); opacity: 1; filter: blur(0px) brightness(1.5); } 
-            20% { transform: scale(1); filter: contrast(2); }
-            80% { transform: scale(1.1); opacity: 1; filter: contrast(1.5) blur(2px); }
-            100% { transform: scale(2); opacity: 0; filter: blur(20px); } 
-        }
-        @keyframes screenShake {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            10%, 30%, 50%, 70%, 90% { transform: translate(-4px, -4px) rotate(-0.5deg); }
-            20%, 40%, 60%, 80% { transform: translate(4px, 4px) rotate(0.5deg); }
-        }
-        @keyframes bombFlash {
-            0% { opacity: 0; }
-            5% { opacity: 0.8; }
-            15% { opacity: 0; }
-        }
-        @keyframes shockwave {
-            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(40); opacity: 0; }
-        }
-
+        @keyframes bombImpactV2 { 0% { transform: scale(0.2); opacity: 0; filter: blur(50px) brightness(5); } 10% { transform: scale(1.1); opacity: 1; filter: blur(0px) brightness(1.5); } 20% { transform: scale(1); filter: contrast(2); } 80% { transform: scale(1.1); opacity: 1; filter: contrast(1.5) blur(2px); } 100% { transform: scale(2); opacity: 0; filter: blur(20px); } }
+        @keyframes screenShake { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 10%, 30%, 50%, 70%, 90% { transform: translate(-4px, -4px) rotate(-0.5deg); } 20%, 40%, 60%, 80% { transform: translate(4px, 4px) rotate(0.5deg); } }
+        @keyframes bombFlash { 0% { opacity: 0; } 5% { opacity: 0.8; } 15% { opacity: 0; } }
+        @keyframes shockwave { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(40); opacity: 0; } }
         .animate-bomb-impact-v2 { animation: bombImpactV2 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-screen-shake { animation: screenShake 0.4s ease-in-out 3; }
         .animate-bomb-flash { animation: bombFlash 2.5s ease-out forwards; }
         .animate-bomb-shockwave { animation: shockwave 1.5s ease-out forwards; }
-
         @media (orientation: landscape) and (max-width: 932px) {
             .mobile-landscape-card-scale { transform: scale(0.8) !important; }
             .mobile-landscape-card-container { gap: 2px !important; }

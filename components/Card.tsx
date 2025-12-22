@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
-export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER';
+export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS';
 
 interface CardProps {
   card?: CardType; // Optional because faceDown cards might not need data
@@ -141,6 +141,36 @@ export const Card: React.FC<CardProps> = ({
                        backgroundSize: '20px 20px',
                        filter: 'blur(0.5px)'
                      }}>
+                </div>
+            );
+            break;
+        case 'PIXEL_CITY_LIGHTS':
+            bgClass = 'bg-[#0a0a1a]';
+            borderClass = 'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.4)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-cyan-300/10 to-transparent";
+            patternContent = (
+                <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute inset-0 opacity-[0.08]" 
+                         style={{ 
+                           backgroundImage: 'linear-gradient(rgba(59, 130, 246, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(59, 130, 246, 0.2) 1px, transparent 1px)',
+                           backgroundSize: '6px 6px' 
+                         }}></div>
+                    {/* Scattered Pixel Lights */}
+                    {Array.from({ length: 14 }).map((_, i) => (
+                        <div 
+                            key={i}
+                            className="absolute w-1 h-1 rounded-sm animate-pulse"
+                            style={{
+                                top: `${Math.floor(Math.random() * 20) * 5}%`,
+                                left: `${Math.floor(Math.random() * 20) * 5}%`,
+                                backgroundColor: i % 3 === 0 ? '#facc15' : i % 3 === 1 ? '#22d3ee' : '#d946ef',
+                                boxShadow: `0 0 6px ${i % 3 === 0 ? '#facc15' : i % 3 === 1 ? '#22d3ee' : '#d946ef'}`,
+                                opacity: Math.random() * 0.6 + 0.2,
+                                animationDelay: `${Math.random() * 3}s`,
+                                animationDuration: `${2 + Math.random() * 3}s`
+                            }}
+                        />
+                    ))}
                 </div>
             );
             break;

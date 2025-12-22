@@ -108,26 +108,40 @@ class AudioService {
     this.initContext();
     if (!this.context) return;
 
-    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; 
     const now = this.context.currentTime;
-
+    // C Major Arpeggio: C4, E4, G4, C5, E5, G5, C6
+    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+    
     notes.forEach((freq, i) => {
-      if (!this.context) return;
-      const osc = this.context.createOscillator();
-      const gain = this.context.createGain();
+      const osc = this.context!.createOscillator();
+      const gain = this.context!.createGain();
       
-      osc.type = 'triangle';
+      osc.type = i === notes.length - 1 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, now + i * 0.12);
       
       gain.gain.setValueAtTime(0, now + i * 0.12);
-      gain.gain.linearRampToValueAtTime(0.06, now + i * 0.12 + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.8);
+      gain.gain.linearRampToValueAtTime(0.12, now + i * 0.12 + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 1.2);
 
       osc.connect(gain);
-      gain.connect(this.context.destination);
+      gain.connect(this.context!.destination);
       osc.start(now + i * 0.12);
-      osc.stop(now + i * 0.12 + 0.8);
+      osc.stop(now + i * 0.12 + 1.2);
     });
+
+    // Triumphant sub bass swell
+    const sub = this.context.createOscillator();
+    const subGain = this.context.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(60, now + 0.8);
+    sub.frequency.linearRampToValueAtTime(100, now + 2.0);
+    subGain.gain.setValueAtTime(0, now + 0.8);
+    subGain.gain.linearRampToValueAtTime(0.2, now + 1.0);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+    sub.connect(subGain);
+    subGain.connect(this.context.destination);
+    sub.start(now + 0.8);
+    sub.stop(now + 2.5);
   }
 
   playBomb() {
@@ -137,7 +151,6 @@ class AudioService {
 
     const now = this.context.currentTime;
     
-    // Impact Sub-Punch
     const subOsc = this.context.createOscillator();
     const subGain = this.context.createGain();
     subOsc.type = 'sine';
@@ -150,7 +163,6 @@ class AudioService {
     subOsc.start();
     subOsc.stop(now + 0.5);
 
-    // Explosive Sweep
     const osc = this.context.createOscillator();
     const gain = this.createGain(1.8, 0.25);
     if (!gain) return;
@@ -169,6 +181,32 @@ class AudioService {
     gain.connect(this.context.destination);
     osc.start();
     osc.stop(now + 1.8);
+  }
+
+  playPurchase() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+
+    const now = this.context.currentTime;
+    const freqs = [523.25, 659.25, 783.99, 1046.50]; 
+    
+    freqs.forEach((f, i) => {
+      const osc = this.context!.createOscillator();
+      const gain = this.context!.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now + i * 0.08);
+      
+      gain.gain.setValueAtTime(0, now + i * 0.08);
+      gain.gain.linearRampToValueAtTime(0.1, now + i * 0.08 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.5);
+      
+      osc.connect(gain);
+      gain.connect(this.context!.destination);
+      osc.start(now + i * 0.08);
+      osc.stop(now + i * 0.08 + 0.5);
+    });
   }
 }
 

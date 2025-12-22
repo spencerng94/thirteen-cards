@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { BrandLogo } from './BrandLogo';
 
@@ -24,20 +23,20 @@ export const ConnectingScreen: React.FC<ConnectingScreenProps> = ({ onCancel }) 
   }, [statuses.length]);
 
   return (
-    <div className="min-h-screen w-full bg-[#051109] relative overflow-hidden flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen w-full bg-[#0a3d23] relative overflow-hidden flex flex-col items-center justify-center p-4">
       {/* Background Depth Layers */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,_var(--tw-gradient-stops))] from-green-600/20 via-[#051109] to-black pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,_var(--tw-gradient-stops))] from-green-600/30 via-[#0a3d23] to-black pointer-events-none"></div>
       
       {/* Subtle Scanning Grid lines */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
       
       {/* Animated Scanning Beam */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="w-full h-[30vh] bg-gradient-to-b from-transparent via-green-500/5 to-transparent -translate-y-full animate-[scan_4s_ease-in-out_infinite]"></div>
+        <div className="w-full h-[30vh] bg-gradient-to-b from-transparent via-green-500/10 to-transparent -translate-y-full animate-[scan_4s_ease-in-out_infinite]"></div>
       </div>
 
       <div className="relative z-10 flex flex-col items-center max-w-md w-full">
-        {/* Pulsating Logo Hero - Reduced mb-16 to mb-8 */}
+        {/* Pulsating Logo Hero */}
         <div className="mb-8 relative group">
           <div className="absolute inset-0 bg-yellow-500/10 blur-[80px] rounded-full animate-pulse scale-110"></div>
           <div className="relative transition-transform duration-1000 group-hover:scale-105">
@@ -45,7 +44,7 @@ export const ConnectingScreen: React.FC<ConnectingScreenProps> = ({ onCancel }) 
           </div>
         </div>
 
-        {/* Sophisticated Loader & Status Block - Reduced space-y-10 to space-y-5 */}
+        {/* Sophisticated Loader & Status Block */}
         <div className="w-full flex flex-col items-center space-y-5">
           
           {/* Orbital Loader Assembly */}
