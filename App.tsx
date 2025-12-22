@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn } from './types';
@@ -8,9 +9,11 @@ import { VictoryScreen } from './components/VictoryScreen';
 import { ConnectingScreen } from './components/ConnectingScreen';
 import { TutorialMode } from './components/TutorialMode';
 import { GameEndTransition } from './components/GameEndTransition';
+import { AuthScreen } from './components/AuthScreen';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
+import { supabase, recordGameResult } from './services/supabase';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL' | null;
@@ -18,6 +21,10 @@ type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL' | null;
 const BOT_AVATARS = ['🤖', '👾', '👽', '🤡', '👹', '👺', '👻'];
 
 const App: React.FC = () => {
+  const [session, setSession] = useState<any>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
   const [view, setView] = useState<ViewState>('WELCOME');
   const [playerName, setPlayerName] = useState('');
   const [playerAvatar, setPlayerAvatar] = useState('😎');
@@ -40,6 +47,20 @@ const App: React.FC = () => {
   
   const [error, setError] = useState<string | null>(null);
 
+  // --- Auth Management ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthChecked(true);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   useEffect(() => {
     audioService.setEnabled(soundEnabled);
   }, [soundEnabled]);
@@ -55,6 +76,14 @@ const App: React.FC = () => {
   useEffect(() => {
     if (view === 'VICTORY') {
       audioService.playVictory();
+      
+      // Persist results
+      const finalState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
+      const myId = gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me';
+      const me = finalState?.players.find(p => p.id === myId);
+      if (me) {
+        recordGameResult(me.finishedRank === 1, isGuest, session?.user?.id);
+      }
     }
   }, [view]);
 
@@ -154,7 +183,6 @@ const App: React.FC = () => {
         finishedRank = newFinishedPlayers.length;
       }
 
-      // Logic for Quick Finish: If I (the human) just won, we can wrap up immediately.
       const isHumanWin = pid === 'player-me' && newCardCount === 0;
       const shouldTriggerQuickFinish = isHumanWin && spQuickFinish;
 
@@ -175,7 +203,6 @@ const App: React.FC = () => {
         let finalPlayersState = updatedPlayers;
 
         if (shouldTriggerQuickFinish) {
-            // Rank remaining bots by card count for the victory screen
             const botsToRank = updatedPlayers
                 .filter(p => !p.finishedRank)
                 .sort((a, b) => a.cardCount - b.cardCount);
@@ -186,7 +213,6 @@ const App: React.FC = () => {
                 finalPlayersState = finalPlayersState.map(p => p.id === bot.id ? { ...p, finishedRank: rank } : p);
             });
         } else {
-            // Standard end: One player left
             const lastPlayer = updatedPlayers.find(p => !p.finishedRank);
             if (lastPlayer) {
                 finalFinishedPlayersList = [...newFinishedPlayers, lastPlayer.id];
@@ -275,6 +301,11 @@ const App: React.FC = () => {
   const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); setGameMode(null); setMpGameState(null); setSpGameState(null); setView('WELCOME'); };
 
   const renderContent = () => {
+    // If not authenticated and not playing as guest, show AuthScreen
+    if (!session && !isGuest && authChecked) {
+      return <AuthScreen onPlayAsGuest={() => setIsGuest(true)} />;
+    }
+
     switch (view) {
       case 'WELCOME': return <WelcomeScreen onStart={handleStart} />;
       case 'TUTORIAL': return <TutorialMode onExit={handleExit} />;
