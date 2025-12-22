@@ -66,12 +66,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
     
     switch (themeId) {
-      case 'GREEN':
+      case 'EMERALD':
         return "bg-emerald-600/90 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-400/30";
       case 'CYBER_BLUE':
         return "bg-blue-600/90 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] border-blue-400/30";
       case 'CRIMSON_VOID':
-        return "bg-rose-600/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
+        return "bg-rose-900/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
+      case 'CYBERPUNK_NEON':
+        return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
+      case 'GOLDEN_EMPEROR':
+        return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
       default:
         return "bg-white/10 text-white";
     }
@@ -81,6 +85,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     fn();
     setHasChanged(true);
   };
+
+  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER'];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={onClose}>
@@ -177,11 +183,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <div className="space-y-4">
               <SectionHeader>BOARD THEME</SectionHeader>
-              <div className="grid grid-cols-3 gap-3 bg-white/[0.03] p-1.5 rounded-2xl border border-white/5">
+              <div className="grid grid-cols-2 gap-3 bg-white/[0.03] p-2 rounded-2xl border border-white/5">
                  {[
-                   { id: 'GREEN', name: 'Emerald' },
+                   { id: 'EMERALD', name: 'Emerald' },
                    { id: 'CYBER_BLUE', name: 'Cobalt' },
-                   { id: 'CRIMSON_VOID', name: 'Crimson' }
+                   { id: 'CRIMSON_VOID', name: 'Baccarat' },
+                   { id: 'CYBERPUNK_NEON', name: 'Onyx' },
+                   { id: 'GOLDEN_EMPEROR', name: 'Emperor' }
                  ].map((theme) => (
                    <button 
                       key={theme.id}
@@ -199,13 +207,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <div className="space-y-4">
               <SectionHeader>Card Cover</SectionHeader>
-              <div className="flex justify-center gap-6">
-                 {(['BLUE', 'RED', 'PATTERN'] as CardCoverStyle[]).map((style) => (
+              <div className="grid grid-cols-3 gap-6 justify-items-center">
+                 {coverStyles.map((style) => (
                    <div 
                       key={style}
                       onClick={() => handleChange(() => onChangeCoverStyle(style))}
                       className={`
-                        cursor-pointer transition-all duration-300 relative group
+                        cursor-pointer transition-all duration-300 relative group flex flex-col items-center gap-1
                         ${currentCoverStyle === style ? 'scale-110 z-10' : 'opacity-40 grayscale-[0.5] hover:opacity-100 hover:grayscale-0 hover:scale-105'}
                       `}
                    >
@@ -218,6 +226,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         small 
                         className={`!w-16 !h-24 transition-all ${currentCoverStyle === style ? 'ring-2 ring-yellow-500 shadow-[0_15px_30px_rgba(0,0,0,0.6)]' : 'shadow-lg border-white/5'}`} 
                      />
+                     {(style === 'GOLDEN_IMPERIAL' || style === 'VOID_ONYX' || style === 'ROYAL_JADE' || style === 'CRYSTAL_EMERALD' || style === 'DRAGON_SCALE' || style === 'NEON_CYBER') && (
+                       <span className="text-[7px] font-black text-yellow-500 uppercase tracking-tighter">Elite</span>
+                     )}
                    </div>
                  ))}
               </div>
@@ -231,7 +242,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="group w-full relative overflow-hidden py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all duration-300 active:scale-95 border border-emerald-400/30 shadow-[0_15px_40px_rgba(16,185,129,0.3)]"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 group-hover:scale-110 transition-transform duration-700"></div>
-                  <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3.5s_infinite] pointer-events-none"></div>
+                  <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                   <span className="relative z-10 text-white flex items-center justify-center gap-3 drop-shadow-md">
                     Apply & Save Changes <span className="text-xl">✅</span>
                   </span>

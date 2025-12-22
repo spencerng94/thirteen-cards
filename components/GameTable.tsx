@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty } from '../types';
+import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
-import { SettingsModal } from './SettingsModal';
+import { UserHub, PREMIUM_BOARDS, ImperialGoldLayer } from './UserHub';
 import { audioService } from '../services/audio';
 import { canPlayAnyMove, sortCards, findAllValidCombos } from '../utils/gameLogic';
 
@@ -22,6 +22,7 @@ interface GameTableProps {
   isSinglePlayer?: boolean;
   spQuickFinish?: boolean;
   setSpQuickFinish?: (val: boolean) => void;
+  // Fix: Renamed currentDifficulty to aiDifficulty to match component usage and props
   aiDifficulty?: AiDifficulty;
   onChangeDifficulty?: (d: AiDifficulty) => void;
   soundEnabled: boolean;
@@ -129,10 +130,12 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [bombEffect, setBombEffect] = useState<string | null>(null);
+  const [bombEffect, setBombEffect] = useState<{ type: string; level: number } | null>(null);
   const [comboVariations, setComboVariations] = useState<Record<string, number>>({});
   const lastSelectedCardId = useRef<string | null>(null);
   const bombTimerRef = useRef<number | null>(null);
+
+  const themeConfig = useMemo(() => PREMIUM_BOARDS.find(b => b.id === backgroundTheme) || PREMIUM_BOARDS[0], [backgroundTheme]);
 
   const lastPlayedMove = gameState.currentPlayPile.length > 0 
     ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] 
@@ -141,13 +144,14 @@ export const GameTable: React.FC<GameTableProps> = ({
   useEffect(() => {
     if (lastPlayedMove) {
       if (['QUAD', '3_PAIRS', '4_PAIRS'].includes(lastPlayedMove.comboType)) {
-        setBombEffect("BOMB!");
+        const level = lastPlayedMove.comboType === '4_PAIRS' ? 3 : lastPlayedMove.comboType === 'QUAD' ? 2 : 1;
+        setBombEffect({ type: lastPlayedMove.comboType, level });
         audioService.playBomb();
         if (bombTimerRef.current) window.clearTimeout(bombTimerRef.current);
         bombTimerRef.current = window.setTimeout(() => {
           setBombEffect(null);
           bombTimerRef.current = null;
-        }, 1500);
+        }, 2500);
       } else {
         setBombEffect(null);
         audioService.playPlay();
@@ -251,24 +255,45 @@ export const GameTable: React.FC<GameTableProps> = ({
     return '-space-x-14 sm:-space-x-16 md:-space-x-12';
   };
 
-  let bgBase = '';
-  let gradientStops = '';
-
-  switch (backgroundTheme) {
-    case 'CYBER_BLUE': bgBase = 'bg-slate-950'; gradientStops = 'from-blue-900/40 via-transparent to-black'; break;
-    case 'CRIMSON_VOID': bgBase = 'bg-[#0a0000]'; gradientStops = 'from-red-900/40 via-transparent to-black'; break;
-    default: bgBase = 'bg-green-900'; gradientStops = 'from-green-600/40 via-green-900 to-green-950'; break;
-  }
-
-  const currentStatusText = iAmFinished 
-    ? `Spectating • Placed ${getOrdinal(me?.finishedRank || 0)}`
-    : isMyTurn 
-        ? (mustPass ? "No Moves Possible" : "Your Turn")
-        : "Waiting...";
+  const currentStatusText = gameState.status === GameStatus.FINISHED
+    ? "Match Over"
+    : iAmFinished 
+        ? `Spectating • Placed ${getOrdinal(me?.finishedRank || 0)}`
+        : isMyTurn 
+            ? (mustPass ? "No Moves Possible" : "Your Turn")
+            : "Waiting...";
 
   return (
-    <div className={`fixed inset-0 w-full h-full ${bgBase} overflow-hidden font-sans select-none flex flex-col justify-between transition-colors duration-1000`}>
-      <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${gradientStops} pointer-events-none transition-colors duration-1000`}></div>
+    <div className={`fixed inset-0 w-full h-full ${themeConfig.base} overflow-hidden font-sans select-none flex flex-col justify-between transition-colors duration-1000 ${bombEffect ? 'animate-screen-shake' : ''}`}>
+      {/* Table Spotlight Layer */}
+      <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${themeConfig.colors} pointer-events-none opacity-100 mix-blend-screen transition-colors duration-1000`}></div>
+      
+      {/* Texture Layer (Felt Simulation) */}
+      {themeConfig.texture && (
+        <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none" 
+             style={{ 
+               backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)',
+               backgroundSize: '3.5px 3.5px'
+             }}></div>
+      )}
+
+      {/* Custom Techno Grid for Cyberpunk Theme */}
+      {(themeConfig as any).technoGrid && (
+        <div className="absolute inset-0 opacity-[0.08] pointer-events-none"
+             style={{ 
+               backgroundImage: 'linear-gradient(rgba(6, 182, 212, 0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(6, 182, 212, 0.5) 1px, transparent 1px)',
+               backgroundSize: '40px 40px'
+             }}></div>
+      )}
+
+      {/* Imperial Emperor Motif Layer */}
+      {(themeConfig as any).emperor && <ImperialGoldLayer />}
+
+      {/* Central Spotlight Overlay for high-luxury boards */}
+      <div className="absolute inset-0 pointer-events-none" 
+           style={{ backgroundImage: `radial-gradient(circle at center, ${themeConfig.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 70%)` }}></div>
+
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_white_0%,_transparent_60%)] opacity-[0.05] pointer-events-none"></div>
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
 
       <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
@@ -307,7 +332,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           <button onClick={() => setShowSettings(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105 group">
              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 transition-transform duration-500 group-hover:rotate-90">
                 <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2-2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
              </svg>
           </button>
           <button onClick={() => setShowHistory(true)} className="bg-white/5 hover:bg-white/10 text-gray-200 text-xs px-4 py-2 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-2 transition-all shadow-lg font-bold tracking-wide uppercase hover:scale-105">
@@ -318,18 +343,51 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {showHistory && <HistoryModal gameState={gameState} onClose={() => setShowHistory(false)} />}
       {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onExitGame={onExitGame} onSignOut={onSignOut} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={onChangeCoverStyle} currentTheme={backgroundTheme} onChangeTheme={onChangeBackgroundTheme} isSinglePlayer={isSinglePlayer} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={onChangeDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />}
+      {showSettings && (
+        <UserHub 
+          initialTab="SETTINGS"
+          onClose={() => setShowSettings(false)}
+          onSignOut={onSignOut}
+          onExitGame={onExitGame}
+          profile={null} 
+          onRefreshProfile={() => {}}
+          currentSleeve={cardCoverStyle}
+          onEquipSleeve={onChangeCoverStyle}
+          playerName={""} setPlayerName={() => {}}
+          playerAvatar={""} setPlayerAvatar={() => {}}
+          currentTheme={backgroundTheme}
+          onChangeTheme={onChangeBackgroundTheme}
+          isSinglePlayer={isSinglePlayer}
+          spQuickFinish={spQuickFinish}
+          setSpQuickFinish={setSpQuickFinish}
+          currentDifficulty={aiDifficulty}
+          onChangeDifficulty={onChangeDifficulty}
+          soundEnabled={soundEnabled}
+          setSoundEnabled={setSoundEnabled}
+        />
+      )}
 
+      {/* NEW HIGH IMPACT BOMB UI */}
       {bombEffect && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none">
-            <div className="relative animate-[bombReveal_1.5s_cubic-bezier(0.16,1,0.3,1)_forwards]">
-                <h1 className="text-8xl md:text-[10rem] font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-red-400 via-red-600 to-red-900 drop-shadow-[0_10px_30px_rgba(220,38,38,0.6)]">{bombEffect}</h1>
-                <div className="absolute inset-0 blur-2xl bg-red-500/20 mix-blend-overlay animate-pulse"></div>
+        <div className="fixed inset-0 z-[200] pointer-events-none flex items-center justify-center overflow-hidden">
+            {/* Massive Chromatic Chromatic Aberration Text */}
+            <div className={`relative flex flex-col items-center animate-bomb-impact-v2`}>
+                <h1 className="text-[12vw] md:text-[15rem] font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-red-400 via-orange-600 to-red-950 drop-shadow-[0_0_80px_rgba(220,38,38,0.8)] filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+                    {bombEffect.type === 'QUAD' ? 'FOUR-OF-A-KIND' : bombEffect.type.replace('_', ' ')}
+                </h1>
+                <div className="absolute inset-0 bg-red-600/20 blur-[100px] animate-pulse"></div>
             </div>
+            
+            {/* Full Screen Impact Flash */}
+            <div className="absolute inset-0 bg-white opacity-0 animate-bomb-flash"></div>
+            
+            {/* Shockwave Rings */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-4 border-yellow-400/50 opacity-0 animate-bomb-shockwave"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-red-500/30 opacity-0 animate-bomb-shockwave [animation-delay:0.2s]"></div>
         </div>
       )}
 
-      {/* Discard pile area now only showing the most recent turn */}
+      {/* Discard pile area */}
       <div className="absolute top-[45%] md:top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-96 flex items-center justify-center pointer-events-none z-10 overflow-visible">
          {!lastPlayedMove ? (
             <div className="flex flex-col items-center justify-center text-center opacity-20">
@@ -345,16 +403,11 @@ export const GameTable: React.FC<GameTableProps> = ({
                       {lastPlayedMove.cards.map((card, cardIdx) => {
                           const baseTranslateX = (cardIdx - (lastPlayedMove.cards.length - 1) / 2) * 35;
                           const baseRotate = (cardIdx - (lastPlayedMove.cards.length - 1) / 2) * 6;
-                          
                           return (
                               <div 
                                 key={card.id} 
                                 className="absolute transition-transform duration-200" 
-                                style={{ 
-                                  transform: `translateX(${baseTranslateX}px) rotate(${baseRotate}deg)`, 
-                                  left: '-40px', 
-                                  top: '-70px' 
-                                }}
+                                style={{ transform: `translateX(${baseTranslateX}px) rotate(${baseRotate}deg)`, left: '-40px', top: '-70px' }}
                               >
                                   <Card card={card} />
                               </div>
@@ -390,7 +443,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                     <div className="relative">
                         {player.cardCount > 1 && <div className="absolute top-1 left-1.5 rotate-6 w-full h-full opacity-40"><Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 bg-black/60" /></div>}
                         <Card faceDown coverStyle={cardCoverStyle} small className="!w-9 !h-13 md:!w-12 md:!h-18 shadow-[0_15px_30px_rgba(0,0,0,0.5)] ring-1 ring-white/10" />
-                        <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-[0_5px_15px_rgba(0,0,0,0.4)] z-30">{player.cardCount}</div>
+                        <div className="absolute -bottom-2 -right-2 w-6 h-6 md:w-8 md:h-8 bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 text-black text-[10px] md:text-[13px] font-black rounded-xl flex items-center justify-center border-2 border-black/80 shadow-[0_5px_15px_rgba(0,0,0,0.4)] z-30">{player.cardCount}</div>
                     </div>
                  </div>
              )}
@@ -404,7 +457,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             {currentStatusText}
           </div>
           <div className="flex justify-center gap-4 w-full px-8 mb-6 overflow-visible min-h-[50px]">
-              {!iAmFinished && (
+              {!iAmFinished && gameState.status === GameStatus.PLAYING && (
                   <>
                       {selectedCardIds.size > 0 ? (
                         <button onClick={handleClear} className="flex items-center justify-center px-6 md:px-10 py-3 rounded-xl font-bold uppercase tracking-wider text-xs border border-slate-600/50 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition-all shadow-lg mobile-landscape-clear animate-in fade-in zoom-in duration-200">Clear</button>
@@ -437,7 +490,35 @@ export const GameTable: React.FC<GameTableProps> = ({
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         .animate-float { animation: float 3s ease-in-out infinite; }
-        @keyframes bombReveal { 0% { transform: scale(0.6) rotate(-5deg); opacity: 0; filter: blur(20px); } 15% { transform: scale(1.2) rotate(2deg); opacity: 1; filter: blur(0); } 30% { transform: scale(1.1) rotate(0deg); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; filter: blur(10px); } }
+        
+        /* ENHANCED BOMB ANIMATIONS */
+        @keyframes bombImpactV2 { 
+            0% { transform: scale(0.2); opacity: 0; filter: blur(50px) brightness(5); } 
+            10% { transform: scale(1.1); opacity: 1; filter: blur(0px) brightness(1.5); } 
+            20% { transform: scale(1); filter: contrast(2); }
+            80% { transform: scale(1.1); opacity: 1; filter: contrast(1.5) blur(2px); }
+            100% { transform: scale(2); opacity: 0; filter: blur(20px); } 
+        }
+        @keyframes screenShake {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            10%, 30%, 50%, 70%, 90% { transform: translate(-4px, -4px) rotate(-0.5deg); }
+            20%, 40%, 60%, 80% { transform: translate(4px, 4px) rotate(0.5deg); }
+        }
+        @keyframes bombFlash {
+            0% { opacity: 0; }
+            5% { opacity: 0.8; }
+            15% { opacity: 0; }
+        }
+        @keyframes shockwave {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(40); opacity: 0; }
+        }
+
+        .animate-bomb-impact-v2 { animation: bombImpactV2 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-screen-shake { animation: screenShake 0.4s ease-in-out 3; }
+        .animate-bomb-flash { animation: bombFlash 2.5s ease-out forwards; }
+        .animate-bomb-shockwave { animation: shockwave 1.5s ease-out forwards; }
+
         @media (orientation: landscape) and (max-width: 932px) {
             .mobile-landscape-card-scale { transform: scale(0.8) !important; }
             .mobile-landscape-card-container { gap: 2px !important; }

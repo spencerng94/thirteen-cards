@@ -35,7 +35,7 @@ const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: Background
       orb1 = 'bg-red-950/30';
       orb2 = 'bg-rose-900/10';
       break;
-    case 'GREEN':
+    case 'EMERALD':
     default:
       bgBase = 'bg-[#051109]';
       orb1 = 'bg-green-600/10';

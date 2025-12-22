@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
-export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN';
+export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER';
 
 interface CardProps {
   card?: CardType; // Optional because faceDown cards might not need data
@@ -69,6 +70,76 @@ export const Card: React.FC<CardProps> = ({
                        backgroundImage: 'radial-gradient(circle, #fbbf24 1px, transparent 1px)', 
                        backgroundSize: '10px 10px',
                        filter: 'drop-shadow(0 0 2px rgba(251, 191, 36, 0.5))'
+                     }}>
+                </div>
+            );
+            break;
+        case 'GOLDEN_IMPERIAL':
+            bgClass = 'bg-gradient-to-br from-[#3d280a] via-[#fbf5b7] to-[#8b6508]';
+            borderClass = 'border-yellow-200/60 shadow-[0_0_20px_rgba(234,179,8,0.4)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-white/60 to-transparent";
+            patternContent = (
+                <div className="absolute inset-0 opacity-40 mix-blend-overlay"
+                     style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 1px, transparent 0, transparent 50%)', backgroundSize: '4px 4px' }}>
+                </div>
+            );
+            break;
+        case 'VOID_ONYX':
+            bgClass = 'bg-zinc-950';
+            borderClass = 'border-indigo-500/50 shadow-[inset_0_0_15px_rgba(99,102,241,0.5)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-indigo-400/40 to-transparent";
+            patternContent = (
+                <div className="absolute inset-0 opacity-20"
+                     style={{ backgroundImage: 'linear-gradient(30deg, #6366f1 12%, transparent 12.5%, transparent 87%, #6366f1 87.5%, #6366f1), linear-gradient(150deg, #6366f1 12%, transparent 12.5%, transparent 87%, #6366f1 87.5%, #6366f1), linear-gradient(30deg, #6366f1 12%, transparent 12.5%, transparent 87%, #6366f1 87.5%, #6366f1), linear-gradient(150deg, #6366f1 12%, transparent 12.5%, transparent 87%, #6366f1 87.5%, #6366f1), linear-gradient(60deg, #6366f177 25%, transparent 25.5%, transparent 75%, #6366f177 75%, #6366f177), linear-gradient(60deg, #6366f177 25%, transparent 25.5%, transparent 75%, #6366f177 75%, #6366f177)', backgroundSize: '20px 35px' }}>
+                </div>
+            );
+            break;
+        case 'ROYAL_JADE':
+            bgClass = 'bg-gradient-to-br from-emerald-900 via-green-700 to-emerald-950';
+            borderClass = 'border-yellow-600/50';
+            patternContent = (
+                <div className="absolute inset-2 border-2 border-yellow-500/20 rounded-lg pointer-events-none overflow-hidden">
+                    <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-yellow-500/40"></div>
+                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-yellow-500/40 rotate-180"></div>
+                    <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/marble.png')]"></div>
+                </div>
+            );
+            break;
+        case 'CRYSTAL_EMERALD':
+            bgClass = 'bg-gradient-to-br from-green-400 via-emerald-600 to-green-900';
+            borderClass = 'border-green-200/50';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-white/40 to-transparent";
+            patternContent = (
+                <div className="absolute inset-0 opacity-30" 
+                     style={{ 
+                       backgroundImage: 'linear-gradient(45deg, transparent 48%, #fff 50%, transparent 52%)', 
+                       backgroundSize: '15px 15px'
+                     }}>
+                </div>
+            );
+            break;
+        case 'DRAGON_SCALE':
+            bgClass = 'bg-gradient-to-br from-red-900 via-orange-800 to-amber-900';
+            borderClass = 'border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.3)]';
+            patternContent = (
+                <div className="absolute inset-0 opacity-40" 
+                     style={{ 
+                       backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0l10 10L20 0v20L10 10 0 20z\' fill=\'%23000\' fill-opacity=\'0.1\' fill-rule=\'evenodd\'%3E%3C/path%3E%3C/svg%3E")',
+                       backgroundSize: '12px 12px'
+                     }}>
+                </div>
+            );
+            break;
+        case 'NEON_CYBER':
+            bgClass = 'bg-[#050505]';
+            borderClass = 'border-cyan-500 shadow-[0_0_10px_#06b6d4,inset_0_0_10px_#d946ef]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-cyan-400/20 to-transparent";
+            patternContent = (
+                <div className="absolute inset-0 opacity-50" 
+                     style={{ 
+                       backgroundImage: 'linear-gradient(#d946ef 1px, transparent 1px), linear-gradient(90deg, #06b6d4 1px, transparent 1px)', 
+                       backgroundSize: '20px 20px',
+                       filter: 'blur(0.5px)'
                      }}>
                 </div>
             );

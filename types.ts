@@ -1,3 +1,4 @@
+
 // Card Suits
 export enum Suit {
   Spades = 0,   // Lowest
@@ -84,4 +85,20 @@ export enum SocketEvents {
   ERROR = 'error'
 }
 
-export type BackgroundTheme = 'GREEN' | 'CYBER_BLUE' | 'CRIMSON_VOID';
+export type BackgroundTheme = 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR';
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  avatar_url?: string;
+  wins: number;
+  games_played: number;
+  currency: number; // For backward compat
+  coins: number;    // Standard naming
+  xp: number;
+  level: number;
+  unlocked_sleeves: string[];
+  unlocked_avatars: string[];
+  unlocked_boards: string[];
+  undo_count: number;
+}

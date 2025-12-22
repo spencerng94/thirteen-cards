@@ -1,3 +1,4 @@
+
 class AudioService {
   private context: AudioContext | null = null;
   private enabled: boolean = true;
@@ -28,10 +29,8 @@ class AudioService {
     this.initContext();
     if (!this.context) return;
 
-    // A snappy card flick sound using two oscillators
     const now = this.context.currentTime;
     
-    // Body of the flick
     const osc1 = this.context.createOscillator();
     const gain1 = this.createGain(0.12, 0.08);
     if (!gain1) return;
@@ -41,7 +40,6 @@ class AudioService {
     osc1.connect(gain1);
     gain1.connect(this.context.destination);
     
-    // Snap/High frequency component
     const osc2 = this.context.createOscillator();
     const gain2 = this.createGain(0.05, 0.04);
     if (!gain2) return;
@@ -110,7 +108,6 @@ class AudioService {
     this.initContext();
     if (!this.context) return;
 
-    // Celebratory C Major Arpeggio with richer harmonics
     const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; 
     const now = this.context.currentTime;
 
@@ -139,24 +136,39 @@ class AudioService {
     if (!this.context) return;
 
     const now = this.context.currentTime;
+    
+    // Impact Sub-Punch
+    const subOsc = this.context.createOscillator();
+    const subGain = this.context.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(60, now);
+    subOsc.frequency.exponentialRampToValueAtTime(30, now + 0.5);
+    subGain.gain.setValueAtTime(0.4, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    subOsc.connect(subGain);
+    subGain.connect(this.context.destination);
+    subOsc.start();
+    subOsc.stop(now + 0.5);
+
+    // Explosive Sweep
     const osc = this.context.createOscillator();
-    const gain = this.createGain(1.0, 0.18);
+    const gain = this.createGain(1.8, 0.25);
     if (!gain) return;
 
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(110, now);
-    osc.frequency.exponentialRampToValueAtTime(30, now + 1.0);
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 1.8);
 
     const filter = this.context.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(600, now);
-    filter.frequency.exponentialRampToValueAtTime(40, now + 1.0);
+    filter.frequency.setValueAtTime(1200, now);
+    filter.frequency.exponentialRampToValueAtTime(60, now + 1.8);
 
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(this.context.destination);
     osc.start();
-    osc.stop(now + 1.0);
+    osc.stop(now + 1.8);
   }
 }
 

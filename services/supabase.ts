@@ -1,28 +1,51 @@
 
 import { createClient } from '@supabase/supabase-js';
+import { UserProfile, AiDifficulty } from '../types';
 
-/**
- * Robust initialization for Supabase.
- * Checks both Vite (import.meta.env) and Create React App (process.env) 
- * environment variable patterns.
- */
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (process.env as any).REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (process.env as any).REACT_APP_SUPABASE_ANON_KEY;
 
-console.log("Supabase Connection Check:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseAnonKey });
+const GUEST_STORAGE_KEY = 'thirteen_stats';
+
+export const DEFAULT_AVATARS = ['😀', '😊', '😃', '😄', '☺️'];
+export const PREMIUM_AVATARS = [
+  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', 
+  '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦄',
+  '😤', '🤪', '🫠', '🤓', '🙂‍↔️', '🤭', '😩', '😭', '🫨', '🫡'
+];
+
+const DEFAULT_GUEST_PROFILE = {
+  wins: 0,
+  games_played: 0,
+  coins: 500,
+  xp: 0,
+  unlocked_sleeves: ['BLUE', 'RED'],
+  unlocked_avatars: [...DEFAULT_AVATARS],
+  unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
+  undo_count: 0,
+  username: 'Guest Commander'
+};
 
 /**
- * To prevent "Uncaught Error: Supabase Environment Variables are missing!",
- * we initialize the client only if keys exist. Otherwise, we provide a 
- * Proxy-based mock that prevents crashes during Guest Mode play.
+ * Level Formula: L = (XP / 100)^(1/1.5) + 1
+ * Level 1: 0 XP
+ * Level 2: 100 XP
+ * Level 3: 282 XP
  */
+export const calculateLevel = (xp: number) => {
+  if (xp <= 0) return 1;
+  return Math.floor(Math.pow(xp / 100, 1 / 1.5)) + 1;
+};
+
+export const getXpForLevel = (level: number) => {
+  if (level <= 1) return 0;
+  return Math.floor(100 * Math.pow(level - 1, 1.5));
+};
+
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : new Proxy({} as any, {
       get: (target, prop) => {
-        // Warning log when trying to use missing Supabase functionality
-        console.warn(`Supabase ${String(prop)} called but credentials are missing. Check Vercel/Local env settings.`);
-        
         if (prop === 'auth') {
           return {
             getSession: async () => ({ data: { session: null }, error: null }),
@@ -35,66 +58,180 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
             signUp: async () => ({ error: new Error("Credentials missing") }),
           };
         }
-        if (prop === 'from') {
-          return () => ({
-            select: () => ({ 
-              eq: () => ({ 
-                single: async () => ({ data: null, error: null }) 
-              }) 
-            }),
-            update: () => ({ 
-              eq: async () => ({ error: null }) 
-            }),
-          });
-        }
-        return target[prop];
+        return () => ({
+          select: () => ({ 
+            eq: () => ({ 
+              single: async () => ({ data: null, error: null }) 
+            }) 
+          }),
+          update: () => ({ 
+            eq: async () => ({ error: null }) 
+          }),
+          upsert: () => ({
+            eq: async () => ({ error: null })
+          })
+        });
       }
     });
 
-export interface UserProfile {
-  id: string;
-  username: string;
-  avatar_url?: string;
-  wins: number;
-  currency: number;
-}
+export const fetchGuestProfile = (): UserProfile => {
+  const local = localStorage.getItem(GUEST_STORAGE_KEY);
+  const data = local ? JSON.parse(local) : DEFAULT_GUEST_PROFILE;
+  return {
+    ...data,
+    id: 'guest',
+    level: calculateLevel(data.xp || 0),
+    currency: data.coins,
+    coins: data.coins
+  } as UserProfile;
+};
 
-/**
- * Record a game result for a logged-in user or guest.
- * Syncs to Supabase if authenticated and configured, otherwise persists to localStorage.
- */
-export const recordGameResult = async (isWinner: boolean, isGuest: boolean, userId?: string) => {
-  const currencyGained = isWinner ? 100 : 10;
+export const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
+  if (!supabaseUrl) return fetchGuestProfile();
   
-  // If guest mode is active or Supabase is unconfigured, handle persistence locally
-  if (isGuest || !supabaseUrl) {
-    const localStats = JSON.parse(localStorage.getItem('thirteen_stats') || '{"wins":0, "currency":0}');
-    if (isWinner) localStats.wins += 1;
-    localStats.currency = (localStats.currency || 0) + currencyGained;
-    localStorage.setItem('thirteen_stats', JSON.stringify(localStats));
-    return localStats;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  
+  if (error || !data) {
+    const defaultProfile = {
+      id: userId,
+      coins: 500,
+      xp: 0,
+      wins: 0,
+      games_played: 0,
+      unlocked_sleeves: ['BLUE', 'RED'],
+      unlocked_avatars: [...DEFAULT_AVATARS],
+      unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
+      undo_count: 0
+    };
+    await supabase.from('profiles').upsert(defaultProfile);
+    return { ...defaultProfile, level: 1, username: 'Player', currency: 500, coins: 500 } as any;
+  }
+  
+  return {
+    ...data,
+    level: calculateLevel(data.xp || 0),
+    currency: data.coins
+  } as UserProfile;
+};
+
+export const transferGuestData = async (userId: string) => {
+  const guestData = localStorage.getItem(GUEST_STORAGE_KEY);
+  if (!guestData || !supabaseUrl) return;
+
+  const local = JSON.parse(guestData);
+  const { data: existing } = await supabase.from('profiles').select('*').eq('id', userId).single();
+
+  if (existing) {
+    await supabase.from('profiles').update({
+      wins: (existing.wins || 0) + (local.wins || 0),
+      games_played: (existing.games_played || 0) + (local.games_played || 0),
+      coins: (existing.coins || 0) + (local.coins || 0),
+      xp: (existing.xp || 0) + (local.xp || 0),
+      unlocked_sleeves: Array.from(new Set([...(existing.unlocked_sleeves || []), ...(local.unlocked_sleeves || [])])),
+      unlocked_avatars: Array.from(new Set([...(existing.unlocked_avatars || DEFAULT_AVATARS), ...(local.unlocked_avatars || DEFAULT_AVATARS)])),
+      unlocked_boards: Array.from(new Set([...(existing.unlocked_boards || ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID']), ...(local.unlocked_boards || ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'])]))
+    }).eq('id', userId);
+  }
+  
+  localStorage.removeItem(GUEST_STORAGE_KEY);
+};
+
+export const buyItem = async (userId: string, price: number, itemName: string, type: 'SLEEVE' | 'POWERUP' | 'AVATAR' | 'BOARD', isGuest: boolean = false) => {
+  if (isGuest) {
+    const local = fetchGuestProfile();
+    if (local.coins < price) throw new Error("Insufficient coins");
+    
+    const updates = { ...local, coins: local.coins - price };
+    if (type === 'SLEEVE') {
+      updates.unlocked_sleeves = Array.from(new Set([...local.unlocked_sleeves, itemName]));
+    } else if (type === 'AVATAR') {
+      updates.unlocked_avatars = Array.from(new Set([...local.unlocked_avatars, itemName]));
+    } else if (type === 'BOARD') {
+      updates.unlocked_boards = Array.from(new Set([...local.unlocked_boards, itemName]));
+    } else if (type === 'POWERUP' && itemName === 'UNDO') {
+      updates.undo_count = (local.undo_count || 0) + 1;
+    }
+    
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(updates));
+    return true;
   }
 
-  // If we have a user session and valid config, sync to the profiles table
-  if (userId && supabaseUrl && supabaseAnonKey) {
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+  const profile = await fetchProfile(userId);
+  if (!profile || profile.coins < price) throw new Error("Insufficient coins");
 
-      if (profile) {
-        await supabase
-          .from('profiles')
-          .update({
-            wins: isWinner ? (profile.wins || 0) + 1 : profile.wins,
-            currency: (profile.currency || 0) + currencyGained
-          })
-          .eq('id', userId);
+  const updates: any = {
+    coins: profile.coins - price
+  };
+
+  if (type === 'SLEEVE') {
+    updates.unlocked_sleeves = Array.from(new Set([...profile.unlocked_sleeves, itemName]));
+  } else if (type === 'AVATAR') {
+    updates.unlocked_avatars = Array.from(new Set([...(profile.unlocked_avatars || DEFAULT_AVATARS), itemName]));
+  } else if (type === 'BOARD') {
+    updates.unlocked_boards = Array.from(new Set([...(profile.unlocked_boards || ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID']), itemName]));
+  } else if (type === 'POWERUP' && itemName === 'UNDO') {
+    updates.undo_count = (profile.undo_count || 0) + 1;
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId);
+
+  if (error) throw error;
+  return true;
+};
+
+// Fixed recordGameResult to ensure newXp is only used where it is defined or provide a fallback
+export const recordGameResult = async (rank: number, isBot: boolean, difficulty: AiDifficulty, isGuest: boolean, userId?: string) => {
+  const isWinner = rank === 1;
+  const baseRankXp = rank === 1 ? 10 : rank === 2 ? 5 : rank === 3 ? 2 : 1;
+  const diffMult = difficulty === 'HARD' ? 2 : difficulty === 'MEDIUM' ? 1.5 : 1;
+  const modeMult = isBot ? 1 : 2;
+  
+  let xpGained = Math.floor(baseRankXp * diffMult * modeMult);
+  const coinsGained = isWinner ? (isBot ? 50 : 100) : 10;
+  
+  let xpBonusApplied = false;
+
+  if (isGuest || !supabaseUrl) {
+    const localStats = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
+    if ((localStats.games_played || 0) < 5) {
+      xpGained *= 2;
+      xpBonusApplied = true;
+    }
+    if (isWinner) localStats.wins += 1;
+    localStats.games_played = (localStats.games_played || 0) + 1;
+    localStats.coins = (localStats.coins || 0) + coinsGained;
+    localStats.xp = (localStats.xp || 0) + xpGained;
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(localStats));
+    return { xpGained, coinsGained, newTotalXp: localStats.xp, xpBonusApplied };
+  }
+
+  if (userId) {
+    const profile = await fetchProfile(userId);
+    if (profile) {
+      if ((profile.games_played || 0) < 5) {
+        xpGained *= 2;
+        xpBonusApplied = true;
       }
-    } catch (err) {
-      console.warn('Supabase sync failed, results saved locally for this session.', err);
+      const newXpValue = (profile.xp || 0) + xpGained;
+      await supabase
+        .from('profiles')
+        .update({
+          wins: isWinner ? (profile.wins || 0) + 1 : profile.wins,
+          games_played: (profile.games_played || 0) + 1,
+          coins: (profile.coins || 0) + coinsGained,
+          xp: newXpValue
+        })
+        .eq('id', userId);
+      return { xpGained, coinsGained, newTotalXp: newXpValue, xpBonusApplied };
     }
   }
+  // If userId or profile is missing, return fallback total XP
+  return { xpGained, coinsGained, newTotalXp: 0, xpBonusApplied: false };
 };
