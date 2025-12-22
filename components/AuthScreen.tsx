@@ -57,7 +57,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
           <div className="absolute bottom-4 right-4 text-yellow-500/30 rotate-180"><LeiwenCorner /></div>
 
           <h2 className="text-2xl font-black text-white text-center uppercase tracking-[0.3em] mb-8 font-serif">
-            Access The Arena
+            WELCOME BACK
           </h2>
 
           <div className="space-y-4 mb-8">

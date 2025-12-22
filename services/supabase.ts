@@ -2,25 +2,27 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Accessing environment variables via process.env as requested.
+ * Robust initialization for Supabase.
+ * Checks both Vite (import.meta.env) and Create React App (process.env) 
+ * environment variable patterns.
  */
-const supabaseUrl = (process.env as any).REACT_APP_SUPABASE_URL;
-const supabaseAnonKey = (process.env as any).REACT_APP_SUPABASE_ANON_KEY;
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (process.env as any).REACT_APP_SUPABASE_URL;
+const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (process.env as any).REACT_APP_SUPABASE_ANON_KEY;
 
-// Log the URL for verification in the browser console
-console.log("Supabase URL initialized:", supabaseUrl);
+console.log("Supabase Connection Check:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseAnonKey });
 
 /**
- * Initialize the Supabase client only if the required parameters are present.
- * To fix "Uncaught Error: supabaseUrl is required", we only call createClient 
- * when the URL is truthy. If missing, we return a Proxy that prevents 
- * the application from crashing on boot and handles guest-level calls gracefully.
+ * To prevent "Uncaught Error: Supabase Environment Variables are missing!",
+ * we initialize the client only if keys exist. Otherwise, we provide a 
+ * Proxy-based mock that prevents crashes during Guest Mode play.
  */
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : new Proxy({} as any, {
       get: (target, prop) => {
-        // Handle common auth calls to prevent crashes in App.tsx
+        // Warning log when trying to use missing Supabase functionality
+        console.warn(`Supabase ${String(prop)} called but credentials are missing. Check Vercel/Local env settings.`);
+        
         if (prop === 'auth') {
           return {
             getSession: async () => ({ data: { session: null }, error: null }),
@@ -28,12 +30,11 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
               data: { subscription: { unsubscribe: () => {} } },
               error: null 
             }),
-            signInWithOAuth: async () => ({ error: new Error("Supabase credentials missing.") }),
-            signInWithPassword: async () => ({ error: new Error("Supabase credentials missing.") }),
-            signUp: async () => ({ error: new Error("Supabase credentials missing.") }),
+            signInWithOAuth: async () => ({ error: new Error("Credentials missing") }),
+            signInWithPassword: async () => ({ error: new Error("Credentials missing") }),
+            signUp: async () => ({ error: new Error("Credentials missing") }),
           };
         }
-        // Handle database calls to prevent crashes in recordGameResult
         if (prop === 'from') {
           return () => ({
             select: () => ({ 
@@ -65,8 +66,8 @@ export interface UserProfile {
 export const recordGameResult = async (isWinner: boolean, isGuest: boolean, userId?: string) => {
   const currencyGained = isWinner ? 100 : 10;
   
-  // If guest mode is active, handle persistence locally
-  if (isGuest) {
+  // If guest mode is active or Supabase is unconfigured, handle persistence locally
+  if (isGuest || !supabaseUrl) {
     const localStats = JSON.parse(localStorage.getItem('thirteen_stats') || '{"wins":0, "currency":0}');
     if (isWinner) localStats.wins += 1;
     localStats.currency = (localStats.currency || 0) + currencyGained;
@@ -74,7 +75,7 @@ export const recordGameResult = async (isWinner: boolean, isGuest: boolean, user
     return localStats;
   }
 
-  // If we have a user session and Supabase is configured, sync to the profiles table
+  // If we have a user session and valid config, sync to the profiles table
   if (userId && supabaseUrl && supabaseAnonKey) {
     try {
       const { data: profile } = await supabase
