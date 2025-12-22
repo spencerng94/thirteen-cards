@@ -1,10 +1,13 @@
+
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
+import { SignOutButton } from './SignOutButton';
 
 interface SettingsModalProps {
   onClose: () => void;
   onExitGame: () => void;
+  onSignOut: () => void;
   currentCoverStyle: CardCoverStyle;
   onChangeCoverStyle: (style: CardCoverStyle) => void;
   currentTheme: BackgroundTheme;
@@ -29,6 +32,7 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
   onClose, 
   onExitGame,
+  onSignOut,
   currentCoverStyle,
   onChangeCoverStyle,
   currentTheme,
@@ -234,18 +238,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
              )}
 
-             <button
-               onClick={onExitGame}
-               className="group w-full relative overflow-hidden py-5 bg-white/[0.02] hover:bg-red-600/10 border border-white/10 hover:border-red-500/30 rounded-3xl transition-all duration-300 active:scale-95"
-             >
-               <span className="relative z-10 flex items-center justify-center gap-4 text-gray-500 group-hover:text-red-400 font-black text-[11px] uppercase tracking-[0.5em] transition-colors">
-                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
-                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                 </svg>
-                 Quit Game
-               </span>
-               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-red-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-             </button>
+             <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={onExitGame}
+                  className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-all duration-300 active:scale-95"
+                >
+                  <span className="relative z-10 flex items-center justify-center gap-3 text-gray-500 group-hover:text-white font-black text-[11px] uppercase tracking-[0.4em] transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                    </svg>
+                    Home
+                  </span>
+                </button>
+                <SignOutButton onSignOut={onSignOut} className="py-5" />
+             </div>
           </div>
         </div>
         

@@ -3,9 +3,11 @@ import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
 import { AiDifficulty } from '../types';
+import { SignOutButton } from './SignOutButton';
 
 interface WelcomeScreenProps {
   onStart: (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean, difficulty?: AiDifficulty) => void;
+  onSignOut: () => void;
 }
 
 const AVATARS = [
@@ -131,7 +133,7 @@ const LuxuryButton: React.FC<{
   );
 };
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, onSignOut }) => {
   const [name, setName] = useState('');
   const [coverStyle, setCoverStyle] = useState<CardCoverStyle>('RED');
   const [selectedAvatar, setSelectedAvatar] = useState<string>(() => AVATARS[Math.floor(Math.random() * AVATARS.length)]);
@@ -308,6 +310,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
                 sublabel="INTRO MODE"
                 slim
               />
+            </div>
+            
+            {/* Added Sign Out button at the bottom */}
+            <div className="pt-2 border-t border-white/5 flex justify-center">
+              <SignOutButton onSignOut={onSignOut} className="w-full !py-4" />
             </div>
           </div>
         </PremiumPanel>

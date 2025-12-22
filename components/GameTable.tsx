@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty } from '../types';
 import { Card, CardCoverStyle } from './Card';
@@ -15,6 +16,7 @@ interface GameTableProps {
   cardCoverStyle: CardCoverStyle;
   onChangeCoverStyle: (style: CardCoverStyle) => void;
   onExitGame: () => void;
+  onSignOut: () => void;
   backgroundTheme: BackgroundTheme;
   onChangeBackgroundTheme: (theme: BackgroundTheme) => void;
   isSinglePlayer?: boolean;
@@ -112,6 +114,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   cardCoverStyle,
   onChangeCoverStyle,
   onExitGame,
+  onSignOut,
   backgroundTheme,
   onChangeBackgroundTheme,
   isSinglePlayer,
@@ -304,7 +307,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           <button onClick={() => setShowSettings(true)} className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 border border-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-105 group">
              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 transition-transform duration-500 group-hover:rotate-90">
                 <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
              </svg>
           </button>
           <button onClick={() => setShowHistory(true)} className="bg-white/5 hover:bg-white/10 text-gray-200 text-xs px-4 py-2 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-2 transition-all shadow-lg font-bold tracking-wide uppercase hover:scale-105">
@@ -315,7 +318,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {showHistory && <HistoryModal gameState={gameState} onClose={() => setShowHistory(false)} />}
       {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onExitGame={onExitGame} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={onChangeCoverStyle} currentTheme={backgroundTheme} onChangeTheme={onChangeBackgroundTheme} isSinglePlayer={isSinglePlayer} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={onChangeDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onExitGame={onExitGame} onSignOut={onSignOut} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={onChangeCoverStyle} currentTheme={backgroundTheme} onChangeTheme={onChangeBackgroundTheme} isSinglePlayer={isSinglePlayer} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={onChangeDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />}
 
       {bombEffect && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none">
@@ -363,6 +366,7 @@ export const GameTable: React.FC<GameTableProps> = ({
          )}
       </div>
 
+      {/* Players grid */}
       {gameState.players.map((player, idx) => {
         if (player.id === myId) return null;
         const pos = getPlayerPosition(idx, gameState.players.length, myIndex);

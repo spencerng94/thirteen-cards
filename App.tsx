@@ -61,6 +61,21 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  const handleSignOut = async () => {
+    if (session) {
+      await supabase.auth.signOut();
+    }
+    if (isGuest) {
+      setIsGuest(false);
+      localStorage.removeItem('thirteen_stats');
+      localStorage.removeItem('guest_id');
+      localStorage.removeItem('guest_data');
+    }
+    // Reset view to Welcome for clean state
+    setView('WELCOME');
+    handleExit(); // Ensure socket is disconnected if in multiplayer
+  };
+
   useEffect(() => {
     audioService.setEnabled(soundEnabled);
   }, [soundEnabled]);
@@ -85,7 +100,7 @@ const App: React.FC = () => {
         recordGameResult(me.finishedRank === 1, isGuest, session?.user?.id);
       }
     }
-  }, [view]);
+  }, [view, gameMode, mpGameState, spGameState, isGuest, session]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -307,16 +322,16 @@ const App: React.FC = () => {
     }
 
     switch (view) {
-      case 'WELCOME': return <WelcomeScreen onStart={handleStart} />;
+      case 'WELCOME': return <WelcomeScreen onStart={handleStart} onSignOut={handleSignOut} />;
       case 'TUTORIAL': return <TutorialMode onExit={handleExit} />;
-      case 'LOBBY': return <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={initialRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} />;
+      case 'LOBBY': return <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={initialRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} />;
       case 'GAME_TABLE':
         return (
           <div className="relative w-full h-full">
             {gameMode === 'MULTI_PLAYER' ? (
-              <GameTable gameState={mpGameState!} myId={socket.id} myHand={mpMyHand} onPlayCards={(cards) => socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards })} onPassTurn={() => socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId })} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />
+              <GameTable gameState={mpGameState!} myId={socket.id} myHand={mpMyHand} onPlayCards={(cards) => socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards })} onPassTurn={() => socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId })} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />
             ) : (
-              <GameTable gameState={spGameState!} myId="player-me" myHand={spMyHand} onPlayCards={(cards) => handleLocalPlay('player-me', cards)} onPassTurn={() => handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} isSinglePlayer spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} aiDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />
+              <GameTable gameState={spGameState!} myId="player-me" myHand={spMyHand} onPlayCards={(cards) => handleLocalPlay('player-me', cards)} onPassTurn={() => handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} isSinglePlayer spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} aiDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />
             )}
             {isTransitioning && <GameEndTransition />}
           </div>

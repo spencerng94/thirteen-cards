@@ -7,7 +7,7 @@ interface InstructionsModalProps {
   onClose: () => void;
 }
 
-// Added onClick to GlassPanel props to fix the type error on line 35
+// Added onClick to GlassPanel props to fix the type error  on line 35
 const GlassPanel: React.FC<{ children: React.ReactNode; className?: string; onClick?: (e: React.MouseEvent) => void }> = ({ children, className = '', onClick }) => (
   <div 
     onClick={onClick}

@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty } from '../types';
 import { socket } from '../services/socket';
+import { SignOutButton } from './SignOutButton';
 
 interface LobbyProps {
   playerName: string;
@@ -10,6 +12,7 @@ interface LobbyProps {
   initialRoomCode?: string | null;
   backgroundTheme: BackgroundTheme;
   onBack?: () => void;
+  onSignOut: () => void;
 }
 
 const MAX_PLAYERS = 4;
@@ -71,7 +74,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   playerAvatar, 
   initialRoomCode,
   backgroundTheme,
-  onBack 
+  onBack,
+  onSignOut
 }) => {
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -290,14 +294,17 @@ export const Lobby: React.FC<LobbyProps> = ({
                     </div>
                 )}
                 
-                 {onBack && (
-                  <button 
-                    onClick={onBack}
-                    className="w-full py-3 bg-white/[0.01] hover:bg-red-500/[0.05] border border-white/5 hover:border-red-500/20 rounded-[1rem] text-gray-500 hover:text-red-400 text-[10px] font-black uppercase tracking-[0.4em] transition-all duration-300"
-                  >
-                    Quit Game
-                  </button>
-                )}
+                <div className="grid grid-cols-2 gap-4">
+                  {onBack && (
+                    <button 
+                      onClick={onBack}
+                      className="w-full py-3 bg-white/[0.01] hover:bg-red-500/[0.05] border border-white/5 hover:border-red-500/20 rounded-[1rem] text-gray-500 hover:text-red-400 text-[10px] font-black uppercase tracking-[0.4em] transition-all duration-300"
+                    >
+                      Quit Lobby
+                    </button>
+                  )}
+                  <SignOutButton onSignOut={onSignOut} className="!py-3" />
+                </div>
             </div>
         </GlassPanel>
 
@@ -365,14 +372,17 @@ export const Lobby: React.FC<LobbyProps> = ({
              </div>
            </div>
 
-           {onBack && (
-              <button 
-                onClick={onBack}
-                className="w-full py-2 text-gray-600 hover:text-gray-300 text-[10px] font-black uppercase tracking-[0.5em] transition-colors mt-4"
-              >
-                Quit Game
-              </button>
-           )}
+           <div className="pt-4 flex flex-col gap-3">
+             {onBack && (
+                <button 
+                  onClick={onBack}
+                  className="w-full py-2 text-gray-600 hover:text-gray-300 text-[10px] font-black uppercase tracking-[0.5em] transition-colors"
+                >
+                  Go Back
+                </button>
+             )}
+             <SignOutButton onSignOut={onSignOut} className="w-full" />
+           </div>
         </div>
       </GlassPanel>
 
