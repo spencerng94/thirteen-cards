@@ -38,6 +38,7 @@ const DEFAULT_GUEST_PROFILE = {
   unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
   equipped_sleeve: 'RED',
   equipped_board: 'EMERALD',
+  active_board: 'EMERALD',
   undo_count: 0,
   username: AVATAR_NAMES['😊'].toUpperCase(),
   avatar_url: '😎'
@@ -113,12 +114,12 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
         level: calculateLevel(data.xp || 0),
         currency: data.coins,
         coins: data.coins,
-        username: data.username || googleName
+        username: data.username || googleName,
+        active_board: data.active_board || data.equipped_board || 'EMERALD'
       } as UserProfile;
     }
 
     // Only create/upsert if we are sure there is NO existing record (error status 406 means table exists but no data)
-    // If error.code is 42P01 (relation does not exist), just use local fallback without trying to upsert
     if (error && error.code === '42P01') {
        console.warn("Supabase 'profiles' table not detected. Falling back to local storage for user:", userId);
        const local = fetchGuestProfile();
@@ -136,6 +137,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
       unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
       equipped_sleeve: 'RED',
       equipped_board: 'EMERALD',
+      active_board: 'EMERALD',
       undo_count: 0,
       username: googleName,
       avatar_url: currentAvatar
@@ -165,6 +167,15 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
   }
 };
 
+export const updateActiveBoard = async (userId: string, boardKey: string) => {
+  if (!supabaseUrl || !userId || userId === 'guest') {
+    const local = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, active_board: boardKey, equipped_board: boardKey }));
+    return;
+  }
+  await supabase.from('profiles').update({ active_board: boardKey, equipped_board: boardKey }).eq('id', userId);
+};
+
 export const updateProfileAvatar = async (userId: string, avatar: string) => {
   if (!supabaseUrl || !userId || userId === 'guest') {
     const local = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
@@ -177,7 +188,10 @@ export const updateProfileAvatar = async (userId: string, avatar: string) => {
 export const updateProfileEquipped = async (userId: string, sleeve?: string, board?: string) => {
   const updates: any = {};
   if (sleeve) updates.equipped_sleeve = sleeve;
-  if (board) updates.equipped_board = board;
+  if (board) {
+    updates.equipped_board = board;
+    updates.active_board = board; // Sync both columns
+  }
 
   if (!supabaseUrl || !userId || userId === 'guest') {
     const local = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
@@ -202,7 +216,8 @@ export const transferGuestData = async (userId: string) => {
         xp: (existing.xp || 0) + (local.xp || 0),
         avatar_url: existing.avatar_url || local.avatar_url || '😎',
         equipped_sleeve: existing.equipped_sleeve || local.equipped_sleeve || 'RED',
-        equipped_board: existing.equipped_board || local.equipped_board || 'EMERALD'
+        equipped_board: existing.equipped_board || local.equipped_board || 'EMERALD',
+        active_board: existing.active_board || local.active_board || existing.equipped_board || local.equipped_board || 'EMERALD'
       }).eq('id', userId);
       localStorage.removeItem(GUEST_STORAGE_KEY);
     }

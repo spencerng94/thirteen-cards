@@ -102,5 +102,6 @@ export interface UserProfile {
   unlocked_boards: string[];
   equipped_sleeve?: string;
   equipped_board?: string;
+  active_board?: string;
   undo_count: number;
 }

@@ -15,7 +15,7 @@ import { Store } from './components/Store';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped } from './services/supabase';
+import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
@@ -104,7 +104,10 @@ const App: React.FC = () => {
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
       if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
-      if (data.equipped_board) setBackgroundTheme(data.equipped_board as BackgroundTheme);
+      
+      // Support active_board column for theme selection
+      const savedTheme = (data.active_board || data.equipped_board || 'EMERALD') as BackgroundTheme;
+      setBackgroundTheme(savedTheme);
       
       // Step 2: Set the profile
       setProfile(data);
@@ -124,7 +127,10 @@ const App: React.FC = () => {
       if (data.username && !playerName) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
       if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
-      if (data.equipped_board) setBackgroundTheme(data.equipped_board as BackgroundTheme);
+      
+      const savedTheme = (data.active_board || data.equipped_board || 'EMERALD') as BackgroundTheme;
+      setBackgroundTheme(savedTheme);
+      
       initialSyncCompleteRef.current = true;
     }
   }, [isGuest, session]);
@@ -137,20 +143,24 @@ const App: React.FC = () => {
     // Only save if current state differs from the last known state in the profile object
     const needsAvatarUpdate = playerAvatar !== profile.avatar_url;
     const needsSleeveUpdate = cardCoverStyle !== profile.equipped_sleeve;
-    const needsBoardUpdate = backgroundTheme !== profile.equipped_board;
+    const needsBoardUpdate = backgroundTheme !== (profile.active_board || profile.equipped_board);
 
     if (needsAvatarUpdate) {
       updateProfileAvatar(userId, playerAvatar);
       setProfile(prev => prev ? { ...prev, avatar_url: playerAvatar } : null);
     }
 
-    if (needsSleeveUpdate || needsBoardUpdate) {
-      updateProfileEquipped(userId, cardCoverStyle, backgroundTheme);
-      setProfile(prev => prev ? { 
-        ...prev, 
-        equipped_sleeve: cardCoverStyle, 
-        equipped_board: backgroundTheme 
-      } : null);
+    if (needsSleeveUpdate) {
+      updateProfileEquipped(userId, cardCoverStyle, undefined);
+      setProfile(prev => prev ? { ...prev, equipped_sleeve: cardCoverStyle } : null);
+    }
+
+    if (needsBoardUpdate) {
+      // Validate that user actually owns the board before updating active_board
+      if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
+        updateActiveBoard(userId, backgroundTheme);
+        setProfile(prev => prev ? { ...prev, active_board: backgroundTheme, equipped_board: backgroundTheme } : null);
+      }
     }
   }, [playerAvatar, cardCoverStyle, backgroundTheme, session, authChecked, profile, isGuest]);
 
