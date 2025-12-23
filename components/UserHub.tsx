@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { UserProfile, BackgroundTheme, AiDifficulty } from '../types';
 import { calculateLevel, getXpForLevel, DEFAULT_AVATARS, PREMIUM_AVATARS, buyItem, getAvatarName } from '../services/supabase';
@@ -24,6 +25,7 @@ export interface ThemeConfig {
   emperor?: boolean;      // Imperial gold patterns
   spotlight?: string;     // Custom central light color
   tier: 'BASIC' | 'PREMIUM';
+  isCityLightsPixel?: boolean;
 }
 
 export const PREMIUM_BOARDS: ThemeConfig[] = [
@@ -65,6 +67,16 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
     technoGrid: true, 
     cityLights: true,
     spotlight: 'rgba(6, 182, 212, 0.05)' 
+  },
+  { 
+    id: 'CITY_LIGHTS_PIXEL', 
+    name: 'Nocturnal Penthouse', 
+    tier: 'PREMIUM',
+    price: 3500, 
+    base: 'bg-[#050510]', 
+    colors: 'from-purple-900/20 via-[#050510] to-black', 
+    isCityLightsPixel: true,
+    spotlight: 'rgba(168, 85, 247, 0.15)' 
   },
   { 
     id: 'LOTUS_FOREST', 
@@ -118,6 +130,71 @@ export const ImperialGoldLayer: React.FC<{ opacity?: number; isMini?: boolean }>
     <div className={`absolute ${isMini ? 'bottom-2 right-2 w-6 h-6 border-b-2 border-r-2' : 'bottom-8 right-8 w-32 h-32 border-b-4 border-r-4'} border-yellow-500/30 ${isMini ? 'rounded-br-lg' : 'rounded-br-3xl'}`}></div>
   </div>
 );
+
+/**
+ * CityLightsEngine - Premium Nocturnal Vantage Point
+ */
+const CityLightsEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const pixelLights = useMemo(() => {
+    return Array.from({ length: isMini ? 40 : 150 }).map((_, i) => ({
+      id: `p-light-${i}`,
+      x: Math.random() * 100,
+      y: 40 + Math.random() * 60,
+      size: Math.random() * 2 + 1,
+      delay: Math.random() * 5,
+      duration: 2 + Math.random() * 3,
+      color: i % 5 === 0 ? '#facc15' : i % 8 === 0 ? '#d946ef' : i % 3 === 0 ? '#22d3ee' : '#ffffff'
+    }));
+  }, [isMini]);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#050510]">
+      {/* 1. Deep Distant Skyline - High Quality Pixel Art (Penhouse View) */}
+      <div className="absolute inset-0 opacity-40 bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-bottom mix-blend-screen filter brightness-[0.4] grayscale-[0.5] contrast-125"></div>
+      
+      {/* 2. City Glow Layer */}
+      <div className="absolute bottom-0 left-0 w-full h-[60%] bg-gradient-to-t from-purple-900/30 via-blue-900/10 to-transparent"></div>
+      
+      {/* 3. Twinkling Window Pixels */}
+      {pixelLights.map(p => (
+        <div 
+          key={p.id}
+          className="absolute animate-pulse"
+          style={{
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            backgroundColor: p.color,
+            boxShadow: `0 0 ${p.size * 3}px ${p.color}`,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`
+          }}
+        />
+      ))}
+
+      {/* 4. Luxury Penthouse Overlay - Glass Balcony Reflection */}
+      <div className="absolute inset-0 z-10">
+          {/* Subtle Vertical Reflections */}
+          <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 49%, rgba(255,255,255,0.4) 51%, transparent 100%)', backgroundSize: '400px 100%' }}></div>
+          {/* Top-down Penthouse Light */}
+          <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-purple-500/10 to-transparent"></div>
+          {/* Floor Reflection Gradient */}
+          <div className="absolute bottom-0 left-0 w-full h-[40%] bg-gradient-to-t from-[#050510] to-transparent"></div>
+      </div>
+
+      {/* 5. Scanline Aesthetic Overlay */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-20" style={{ backgroundImage: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))', backgroundSize: '100% 4px, 3px 100%' }}></div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes drift {
+          0% { background-position: 0% 0%; }
+          100% { background-position: 100% 0%; }
+        }
+      `}} />
+    </div>
+  );
+};
 
 /**
  * High-Precision Kingdom Hearts / Final Fantasy Geometry
@@ -657,9 +734,10 @@ export const BoardSurface: React.FC<{
   
   return (
     <div className={`absolute inset-0 overflow-hidden ${theme.base} ${className}`}>
-      <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen transition-all duration-1000`}></div>
+      {theme.id === 'CITY_LIGHTS_PIXEL' && <CityLightsEngine isMini={isMini} />}
+      <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen transition-all duration-1000 z-1`}></div>
       {theme.texture && (
-        <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none" 
+        <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none z-2" 
              style={{ 
                backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)', 
                backgroundSize: isMini ? '2px 2px' : '3.5px 3.5px' 
@@ -671,16 +749,31 @@ export const BoardSurface: React.FC<{
       {theme.highRoller && <HighRollerEngine isMini={isMini} />}
       {theme.prestige && <PrestigeEngine isMini={isMini} />}
       {theme.technoGrid && (
-        <div className={`absolute inset-0 ${isMini ? 'opacity-[0.04]' : 'opacity-[0.02]'} pointer-events-none`} 
+        <div className={`absolute inset-0 ${isMini ? 'opacity-[0.04]' : 'opacity-[0.02]'} pointer-events-none z-3`} 
              style={{ 
                backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', 
                backgroundSize: isMini ? '20px 20px' : '80px 80px' 
              }}></div>
       )}
-      <div className="absolute inset-0 pointer-events-none" 
+      <div className="absolute inset-0 pointer-events-none z-4" 
            style={{ backgroundImage: `radial-gradient(circle at center, ${theme.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 80%)` }}></div>
       {theme.emperor && <ImperialGoldLayer opacity={theme.id === 'LOTUS_FOREST' ? (isMini ? 0.15 : 0.25) : (isMini ? 0.4 : 0.6)} isMini={isMini} />}
-      <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent pointer-events-none"></div>
+      <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent pointer-events-none z-5"></div>
+      
+      <style dangerouslySetInnerHTML={{ __html: `
+        .board-city-lights {
+          background-image: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000&auto=format&fit=crop');
+          background-size: cover;
+          background-position: center;
+          position: relative;
+        }
+        .board-city-lights::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background-color: rgba(0, 0, 0, 0.6);
+        }
+      `}} />
     </div>
   );
 };

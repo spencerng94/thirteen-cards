@@ -23,6 +23,7 @@ const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: Background
   let bgBase = '';
   let orb1 = '';
   let orb2 = '';
+  let cityLights = false;
 
   switch (theme) {
     case 'CYBER_BLUE':
@@ -35,6 +36,12 @@ const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: Background
       orb1 = 'bg-red-950/30';
       orb2 = 'bg-rose-900/10';
       break;
+    case 'CITY_LIGHTS_PIXEL':
+      bgBase = 'bg-[#050510]';
+      orb1 = 'bg-purple-600/15';
+      orb2 = 'bg-blue-500/10';
+      cityLights = true;
+      break;
     case 'EMERALD':
     default:
       bgBase = 'bg-[#051109]';
@@ -45,6 +52,14 @@ const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: Background
 
   return (
     <div className={`min-h-screen w-full ${bgBase} relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000`}>
+        {cityLights && (
+          <div className="absolute inset-0 opacity-40 animate-[slowZoom_20s_infinite_alternate]" style={{ 
+            backgroundImage: "url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000&auto=format&fit=crop')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'bottom',
+            filter: 'grayscale(0.5) brightness(0.6) contrast(1.2)'
+          }}></div>
+        )}
         {/* Dynamic Ambient Orbs */}
         <div className={`absolute top-[-10%] left-[-10%] w-[50%] aspect-square ${orb1} blur-[120px] rounded-full animate-pulse`}></div>
         <div className={`absolute bottom-[-10%] right-[-10%] w-[50%] aspect-square ${orb2} blur-[120px] rounded-full animate-pulse [animation-delay:2s]`}></div>
@@ -53,6 +68,12 @@ const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: Background
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '60px 60px' }}></div>
         
         {children}
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes slowZoom {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+          }
+        `}} />
     </div>
   );
 };
@@ -349,7 +370,8 @@ export const Lobby: React.FC<LobbyProps> = ({
 
            <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-              <div className="relative flex justify-center"><span className="bg-[#051109] px-4 text-[10px] text-gray-700 font-black tracking-[0.6em] uppercase">Interlink</span></div>
+              {/* Fix: Replaced 'theme' with 'backgroundTheme' to resolve the "Cannot find name 'theme'" error. */}
+              <div className="relative flex justify-center"><span className={`px-4 text-[10px] text-gray-700 font-black tracking-[0.6em] uppercase ${backgroundTheme === 'CITY_LIGHTS_PIXEL' ? 'bg-black' : backgroundTheme === 'EMERALD' ? 'bg-[#051109]' : 'bg-[#020617]'}`}>Interlink</span></div>
            </div>
 
            <div className="space-y-4">

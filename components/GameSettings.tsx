@@ -45,6 +45,33 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
 }) => {
   const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS'];
 
+  const getThemeStyles = (themeId: BackgroundTheme, active: boolean) => {
+    if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
+    
+    switch (themeId) {
+      case 'EMERALD':
+        return "bg-emerald-600/90 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-400/30";
+      case 'CYBER_BLUE':
+        return "bg-blue-600/90 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] border-blue-400/30";
+      case 'CRIMSON_VOID':
+        return "bg-rose-900/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
+      case 'CYBERPUNK_NEON':
+        return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
+      case 'CITY_LIGHTS_PIXEL':
+        return "bg-purple-900/90 text-white shadow-[0_0_20px_rgba(168,85,247,0.5)] border-purple-400/30";
+      case 'LOTUS_FOREST':
+        return "bg-pink-600/90 text-white shadow-[0_0_15px_rgba(219,39,119,0.4)] border-pink-400/30";
+      case 'CHRISTMAS_YULETIDE':
+        return "bg-blue-800/90 text-white shadow-[0_0_15px_rgba(30,58,138,0.4)] border-blue-400/30";
+      case 'GOLDEN_EMPEROR':
+        return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
+      case 'HIGH_ROLLER':
+        return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
+      default:
+        return "bg-white/10 text-white";
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300" onClick={onClose}>
       <div 
@@ -54,7 +81,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
         {/* Header */}
         <div className="px-8 py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex justify-between items-center relative">
           <div className="flex flex-col">
-            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/30 uppercase italic tracking-widest font-serif leading-none">GAME SETTINGS</h2>
+            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-widest font-serif leading-none">GAME SETTINGS</h2>
             <div className="flex items-center gap-2 mt-1.5">
                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
                <p className="text-[7px] font-black uppercase tracking-[0.4em] text-gray-500">Battlefield Configuration</p>
@@ -170,7 +197,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
           
           <button 
             onClick={onExitGame}
-            className="w-full py-3 bg-white/[0.02] hover:bg-red-600/10 border border-white/5 hover:border-red-500/20 rounded-2xl text-gray-500 hover:text-red-400 text-[9px] font-black uppercase tracking-[0.4em] transition-all"
+            className="w-full py-3 bg-white/[0.02] hover:bg-red-600/10 border border-white/5 border-red-500/20 rounded-2xl text-gray-500 hover:text-red-400 text-[9px] font-black uppercase tracking-[0.4em] transition-all"
           >
             WITHDRAW TO HQ
           </button>
