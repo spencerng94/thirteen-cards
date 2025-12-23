@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme } from '../types';
 import { buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName } from '../services/supabase';
-import { PREMIUM_BOARDS, BoardPreview, ImperialGoldLayer } from './UserHub';
+import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
 
 interface StoreProps {
@@ -44,31 +44,7 @@ const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => voi
   const theme = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={onClose}>
-      {/* 1. Base Color */}
-      <div className={`absolute inset-0 ${theme.base}`}>
-        
-        {/* 2. Primary Color Diffusion */}
-        <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen`}></div>
-        
-        {/* 3. Repeating Texture (Felt/Grain) */}
-        {theme.texture && (
-          <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay" 
-               style={{ backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)', backgroundSize: '3.5px 3.5px' }}></div>
-        )}
-        
-        {/* 4. Techno-Grid Layer */}
-        {theme.technoGrid && (
-          <div className="absolute inset-0 opacity-[0.05]" 
-               style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
-        )}
-        
-        {/* 5. Central Focus Lighting */}
-        <div className="absolute inset-0" 
-             style={{ backgroundImage: `radial-gradient(circle at center, ${theme.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 70%)` }}></div>
-        
-        {/* 6. Imperial Decorative Layer (Real Component) */}
-        {theme.emperor && <ImperialGoldLayer opacity={0.6} />}
-      </div>
+      <BoardSurface themeId={themeId} />
 
       <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Top Bar Navigation */}

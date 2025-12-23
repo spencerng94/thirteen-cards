@@ -74,8 +74,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return "bg-rose-900/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
       case 'CYBERPUNK_NEON':
         return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
+      case 'LOTUS_FOREST':
+        return "bg-pink-600/90 text-white shadow-[0_0_15px_rgba(219,39,119,0.4)] border-pink-400/30";
+      case 'CHRISTMAS_YULETIDE':
+        return "bg-blue-800/90 text-white shadow-[0_0_15px_rgba(30,58,138,0.4)] border-blue-400/30";
       case 'GOLDEN_EMPEROR':
         return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
+      case 'HIGH_ROLLER':
+        return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
       default:
         return "bg-white/10 text-white";
     }
@@ -86,7 +92,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setHasChanged(true);
   };
 
-  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER'];
+  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS'];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={onClose}>
@@ -187,9 +193,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                  {[
                    { id: 'EMERALD', name: 'Emerald' },
                    { id: 'CYBER_BLUE', name: 'Cobalt' },
-                   { id: 'CRIMSON_VOID', name: 'Baccarat' },
+                   { id: 'CRIMSON_VOID', name: 'Baccarat Ruby' },
                    { id: 'CYBERPUNK_NEON', name: 'Onyx' },
-                   { id: 'GOLDEN_EMPEROR', name: 'Emperor' }
+                   { id: 'LOTUS_FOREST', name: 'Lotus' },
+                   { id: 'CHRISTMAS_YULETIDE', name: 'Yuletide' },
+                   { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope' },
+                   { id: 'HIGH_ROLLER', name: 'Le Blanc' }
                  ].map((theme) => (
                    <button 
                       key={theme.id}

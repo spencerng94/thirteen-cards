@@ -309,7 +309,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </div>
 
         <SectionLabel>Board Themes</SectionLabel>
-        <div className="grid grid-cols-2 gap-3 pb-4">
+        <div className="grid grid-cols-2 gap-3 pb-4 px-1">
           {filteredBoards.map(b => {
             const unlocked = isBoardUnlocked(b.id);
             const active = backgroundTheme === b.id;

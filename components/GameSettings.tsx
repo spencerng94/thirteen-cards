@@ -120,7 +120,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
           {/* Board Themes */}
           <div className="space-y-4">
             <SectionHeader>Arena Terrain</SectionHeader>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 px-1">
               {PREMIUM_BOARDS.map(b => {
                 const active = currentTheme === b.id;
                 return (

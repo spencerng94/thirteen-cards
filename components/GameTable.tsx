@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
-import { ImperialGoldLayer, PREMIUM_BOARDS } from './UserHub';
+import { BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
 import { canPlayAnyMove, sortCards, findAllValidCombos } from '../utils/gameLogic';
 
@@ -111,8 +111,6 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [comboVariations, setComboVariations] = useState<Record<string, number>>({});
   const lastSelectedCardId = useRef<string | null>(null);
   const bombTimerRef = useRef<number | null>(null);
-
-  const themeConfig = useMemo(() => PREMIUM_BOARDS.find(b => b.id === backgroundTheme) || PREMIUM_BOARDS[0], [backgroundTheme]);
 
   const lastPlayedMove = gameState.currentPlayPile.length > 0 
     ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] 
@@ -224,12 +222,9 @@ export const GameTable: React.FC<GameTableProps> = ({
             : "Waiting...";
 
   return (
-    <div className={`fixed inset-0 w-full h-full ${themeConfig.base} overflow-hidden font-sans select-none flex flex-col justify-between transition-colors duration-1000 ${bombEffect ? 'animate-screen-shake' : ''}`}>
-      <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${themeConfig.colors} pointer-events-none opacity-100 mix-blend-screen transition-colors duration-1000`}></div>
-      {themeConfig.texture && <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)', backgroundSize: '3.5px 3.5px' }}></div>}
-      {(themeConfig as any).technoGrid && <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>}
-      {(themeConfig as any).emperor && <ImperialGoldLayer />}
-      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `radial-gradient(circle at center, ${themeConfig.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 70%)` }}></div>
+    <div className={`fixed inset-0 w-full h-full bg-black overflow-hidden font-sans select-none flex flex-col justify-between ${bombEffect ? 'animate-screen-shake' : ''}`}>
+      {/* Unified Master Board Surface */}
+      <BoardSurface themeId={backgroundTheme} />
 
       {/* PERSISTENT HIGH-VIS BETA TAG */}
       <div className="absolute bottom-4 right-4 z-[40] opacity-40 hover:opacity-100 transition-opacity duration-700 pointer-events-none flex flex-col items-end">

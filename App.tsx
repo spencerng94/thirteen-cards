@@ -21,7 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL' | null;
 
-const BOT_AVATARS = ['🤖', '👾', '👽', '🤡', '👹', '👺', '👻'];
+const BOT_AVATARS = ['🤖', '👾', '💩', '🤡', '👹', '👺', '👻'];
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
