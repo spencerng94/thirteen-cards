@@ -85,10 +85,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return "bg-blue-800/90 text-white shadow-[0_0_15px_rgba(30,58,138,0.4)] border-blue-400/30";
       case 'GOLDEN_EMPEROR':
         return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
+      case 'KOI_WATERS':
+        return "bg-[#082f49] text-cyan-400 border-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.4)] font-black italic";
       case 'HIGH_ROLLER':
         return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
-      case 'ZENITH_AURUM':
-        return "bg-[#020205] text-yellow-400 border-yellow-700 shadow-[0_0_25px_rgba(251,191,36,0.4)] font-black italic";
+      case 'GOLD_FLUX':
+        return "bg-[#fffbeb] text-yellow-600 border-yellow-400 shadow-[0_0_25px_rgba(251,191,36,0.4)] font-black italic";
       default:
         return "bg-white/10 text-white";
     }
@@ -207,8 +209,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                    { id: 'LOTUS_FOREST', name: 'Lotus' },
                    { id: 'CHRISTMAS_YULETIDE', name: 'Yuletide' },
                    { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope' },
+                   { id: 'KOI_WATERS', name: 'Koi Waters' },
                    { id: 'HIGH_ROLLER', name: 'Le Blanc' },
-                   { id: 'ZENITH_AURUM', name: 'Zenith Aurum' }
+                   { id: 'GOLD_FLUX', name: 'Gold Flux' }
                  ].map((theme) => (
                    <button 
                       key={theme.id}

@@ -67,10 +67,12 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
         return "bg-blue-800/90 text-white shadow-[0_0_15px_rgba(30,58,138,0.4)] border-blue-400/30";
       case 'GOLDEN_EMPEROR':
         return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
+      case 'KOI_WATERS':
+        return "bg-[#082f49] text-cyan-400 border-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.4)]";
       case 'HIGH_ROLLER':
         return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
-      case 'ZENITH_AURUM':
-        return "bg-[#020205] text-yellow-400 border-yellow-700 shadow-[0_0_25px_rgba(251,191,36,0.4)] font-black italic";
+      case 'GOLD_FLUX':
+        return "bg-[#fffbeb] text-yellow-600 border-yellow-400 shadow-[0_0_25px_rgba(251,191,36,0.4)] font-black italic";
       default:
         return "bg-white/10 text-white";
     }
@@ -105,7 +107,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
               <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Haptic Audio</span>
               <button 
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${soundEnabled ? 'bg-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
+                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${soundEnabled ? 'bg-emerald-600 shadow-[0_0_100px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
@@ -115,7 +117,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                 <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Turbo Finish</span>
                 <button 
                   onClick={() => setSpQuickFinish(!spQuickFinish)}
-                  className={`w-12 h-6 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
+                  className={`w-12 h-6 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
                 >
                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${spQuickFinish ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>

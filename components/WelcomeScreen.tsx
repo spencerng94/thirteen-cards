@@ -130,7 +130,7 @@ const LuxuryButton: React.FC<{
 };
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
-  onStart, onSignOut, profile, onRefreshProfile, onOpenHub, onOpenHub: onOpenSettings, onOpenStore,
+  onStart, onSignOut, profile, onRefreshProfile, onOpenHub, onOpenStore,
   playerName, setPlayerName, playerAvatar, setPlayerAvatar,
   cardCoverStyle, setCardCoverStyle, aiDifficulty, setAiDifficulty,
   quickFinish, setQuickFinish, soundEnabled, setSoundEnabled,
@@ -141,7 +141,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [hideUnowned, setHideUnowned] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
 
-  // Purchase state for confirmation and award
   const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
 
@@ -166,12 +165,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const executePurchase = async () => {
     if (!pendingPurchase || !profile || buying) return;
-    setBuying(pendingPurchase.id);
+    const purchaseId = pendingPurchase.id;
+    setBuying(purchaseId);
     try {
-      await buyItem(profile!.id, pendingPurchase.price, pendingPurchase.id, pendingPurchase.type, !!isGuest);
+      await buyItem(profile!.id, pendingPurchase.price, purchaseId, pendingPurchase.type, !!isGuest);
       audioService.playPurchase();
       setAwardItem({
-        id: pendingPurchase.id,
+        id: purchaseId,
         name: pendingPurchase.name,
         type: pendingPurchase.type,
         style: pendingPurchase.style
@@ -316,13 +316,20 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             const unlocked = isBoardUnlocked(b.id);
             const active = backgroundTheme === b.id;
             return (
-              <div key={b.id} onClick={() => unlocked ? setBackgroundTheme(b.id as BackgroundTheme) : handlePurchaseAttempt(b, b.price as number, 'BOARD')} className="flex flex-col items-center gap-2 cursor-pointer group">
-                <BoardPreview 
-                  themeId={b.id} 
-                  active={active} 
-                  unlocked={unlocked}
-                  className="shadow-xl"
-                />
+              <div key={b.id} onClick={() => unlocked ? setBackgroundTheme(b.id as BackgroundTheme) : handlePurchaseAttempt(b, b.price as number, 'BOARD')} className="flex flex-col items-center gap-2 cursor-pointer group relative">
+                <div className="relative w-full">
+                  <SelectionCircle 
+                    status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} 
+                    price={b.price as number} 
+                    onAction={() => !active && unlocked && setBackgroundTheme(b.id as BackgroundTheme)} 
+                  />
+                  <BoardPreview 
+                    themeId={b.id} 
+                    active={active} 
+                    unlocked={unlocked}
+                    className="shadow-xl"
+                  />
+                </div>
                 <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{b.name}</span>
               </div>
             );
@@ -370,10 +377,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center p-4">
-      {/* Dynamic Master Board Surface - Syncs with backgroundTheme */}
       <BoardSurface themeId={backgroundTheme} />
       
-      {/* PURCHASE CONFIRMATION MODAL */}
       {pendingPurchase && (
           <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200">
               <div className="bg-[#0a0a0a] border border-yellow-500/20 w-full max-w-xs rounded-[2rem] p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)]">
@@ -396,7 +401,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
       )}
 
-      {/* ASSET SECURED AWARD ANIMATION */}
       {awardItem && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500 overflow-hidden">
               {Array.from({ length: 20 }).map((_, i) => (
@@ -409,7 +413,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                       animationDelay: `${Math.random() * 0.2}s`
                   } as any}></div>
               ))}
-              <div className="relative flex flex-col items-center text-center max-w-sm">
+              <div className="relative flex flex-col items-center text-center max-sm:px-4 max-w-sm">
                   <div className="absolute inset-0 bg-yellow-500/10 blur-[120px] animate-pulse"></div>
                   <div className="relative mb-10 animate-award-pop">
                       {awardItem.type === 'AVATAR' ? (
@@ -429,7 +433,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
       )}
 
-      {/* SHOP BUTTON WITH SUBTEXT */}
       <div className="fixed top-8 left-8 z-[100] animate-in slide-in-from-left-2 fade-in duration-700 flex flex-col items-center gap-1.5">
         <button 
           onClick={onOpenStore}
@@ -446,10 +449,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </div>
 
       <div className="max-w-2xl w-full z-10 flex flex-col items-center gap-1.5 mt-10 md:mt-0">
-        <div className="animate-in zoom-in fade-in duration-1000 drop-shadow-[0_0_50px_rgba(251,191,36,0.1)] mb-4 flex flex-col items-center gap-3">
-          <BrandLogo size="lg" />
+        <div className="animate-in fade-in duration-1000 mb-4 flex flex-col items-center gap-3">
           
-          {/* UPGRADED BETA WARNING INDICATOR */}
+          <div className="relative">
+             <div className="drop-shadow-[0_40px_100px_rgba(0,0,0,0.95)]">
+                <BrandLogo size="lg" />
+             </div>
+          </div>
+          
           <div className="flex flex-col items-center gap-2 animate-in slide-in-from-top-4 fade-in duration-1000 delay-500">
             <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-red-950/40 border-2 border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.3)]">
                <div className="relative flex items-center justify-center">
@@ -458,10 +465,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                </div>
                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-red-500 whitespace-nowrap">BETA PHASE: ACTIVE TESTING</span>
             </div>
-            {/* ONE LINER IMPLICATION */}
-            <p className="text-[9px] font-black text-red-500/80 uppercase tracking-widest text-center px-4 max-w-md drop-shadow-sm">
-                Expect protocol iterations, potential bugs, and intermittent connectivity as systems are calibrated.
-            </p>
           </div>
         </div>
 
@@ -482,7 +485,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
 
           <div className="flex-1 p-6 md:p-10 overflow-hidden flex flex-col">
-            {/* TAGLINE HEADER */}
             <div key={activeTab} className="mb-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500 overflow-hidden w-full">
                <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse shrink-0"></div>
                <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.25em] font-mono whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0">
@@ -508,7 +510,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes shimmer { 0% { background-position: -100% 0; } 100% { background-position: 100% 0; } }
         @keyframes awardPop {
             0% { transform: scale(0.5); opacity: 0; filter: blur(20px); }
             60% { transform: scale(1.1); opacity: 1; filter: blur(0); }
@@ -520,7 +521,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         }
         @keyframes awardParticle {
             0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0) rotate(var(--rot)); opacity: 0; }
+            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1) rotate(var(--rot)); opacity: 0; }
         }
         .animate-award-pop { animation: awardPop 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
         .animate-award-text { opacity: 0; animation: awardText 0.6s ease-out forwards; }

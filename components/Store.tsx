@@ -60,11 +60,15 @@ const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => voi
                 <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-md">{theme.name} Terrain Profile</p>
               </div>
             </div>
+            
             <button 
               onClick={onClose} 
-              className="px-10 py-5 rounded-2xl bg-red-600/90 text-white font-black uppercase tracking-[0.4em] text-xs shadow-2xl transition-all hover:bg-red-500 hover:scale-105 active:scale-95 border border-white/20"
+              className="group flex items-center gap-4 px-6 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-red-500/30 text-red-400 hover:text-white hover:bg-red-600/80 transition-all duration-300 shadow-[0_15px_30px_rgba(0,0,0,0.6)] active:scale-95"
             >
-              EXIT PREVIEW ✕
+              <span className="text-[10px] font-black uppercase tracking-[0.4em]">Exit Preview</span>
+              <div className="w-6 h-6 rounded-full bg-red-500/10 group-hover:bg-white/20 flex items-center justify-center transition-colors">
+                <span className="text-xs font-black group-hover:rotate-90 transition-transform">✕</span>
+              </div>
             </button>
         </div>
 

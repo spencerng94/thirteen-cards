@@ -79,7 +79,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
       options: {
         redirectTo: window.location.origin,
         queryParams: {
-          prompt: 'select_account', // This forces Google to show the account picker
+          prompt: 'select_account',
           access_type: 'offline'
         }
       }
@@ -91,7 +91,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#092b15_0%,_#000000_100%)]"></div>
       
       <div className="max-w-md w-full z-10 flex flex-col items-center gap-8">
-        <BrandLogo size="lg" className="animate-pulse duration-[3000ms]" />
+        
+        {/* COMPLETELY STATIC LOGO ASSEMBLY - Removed all overlay/wrapper animations */}
+        <div className="relative animate-in fade-in duration-1000">
+            <div className="drop-shadow-[0_30px_60px_rgba(0,0,0,0.9)]">
+               <BrandLogo size="lg" />
+            </div>
+        </div>
         
         <div className="relative w-full bg-black/50 backdrop-blur-[40px] border border-white/10 p-8 md:p-10 rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.8)]">
           <div className="absolute top-4 left-4 text-yellow-500/30"><LeiwenCorner /></div>

@@ -5,7 +5,7 @@ import { Card as CardType, Suit, Rank } from '../types';
 export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR';
 
 interface CardProps {
-  card?: CardType; // Optional because faceDown cards might not need data
+  card?: CardType;
   selected?: boolean;
   onClick?: () => void;
   className?: string;
@@ -155,7 +155,6 @@ export const Card: React.FC<CardProps> = ({
                            backgroundImage: 'linear-gradient(rgba(59, 130, 246, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(59, 130, 246, 0.2) 1px, transparent 1px)',
                            backgroundSize: '6px 6px' 
                          }}></div>
-                    {/* Scattered Pixel Lights */}
                     {Array.from({ length: 14 }).map((_, i) => (
                         <div 
                             key={i}
@@ -191,7 +190,6 @@ export const Card: React.FC<CardProps> = ({
             patternContent = (
                 <div className="absolute inset-0 overflow-hidden">
                     <div className="absolute inset-0 opacity-[0.15] bg-[url('https://www.transparenttextures.com/patterns/padded-cells.png')]"></div>
-                    {/* Floating Sakura Petals */}
                     {Array.from({ length: 8 }).map((_, i) => (
                         <div 
                             key={i}

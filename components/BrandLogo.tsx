@@ -16,15 +16,11 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
 
   const dimensions = sizeClasses[size];
 
-  // Imperial Clock Assembly: 12 "XIII" numerals centered between the rings
-  // Outer rim: 345, Inner ring: 270. Track midpoint: 307.5
-  // We'll scale the XIII slightly smaller and more slender to ensure zero overflow.
   const clockMarkers = Array.from({ length: 12 }).map((_, i) => {
     const angle = i * 30;
     
     return (
       <g key={i} transform={`rotate(${angle})`}>
-        {/* High-Gloss Roman Numeral XIII - Centered carefully in the track */}
         <g transform="translate(0, -307.5)">
             <text
               x="0"
@@ -40,14 +36,13 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               style={{ 
                 letterSpacing: '0.12em',
                 paintOrder: 'stroke fill',
-                textShadow: '0 0 15px rgba(251, 191, 36, 0.3)'
+                textShadow: '0 0 10px rgba(251, 191, 36, 0.15)'
               }}
             >
               XIII
             </text>
         </g>
         
-        {/* Decorative Minted Stud - Moved to the Inner Ring Edge to give room to XIII */}
         <g transform={`rotate(15)`}>
           <circle
             cx="0"
@@ -71,7 +66,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          {/* Multi-stop High-Luster Metallic Gradient */}
           <linearGradient id="goldMetallicPremium" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#3d280a" />
             <stop offset="10%" stopColor="#8b6508" />
@@ -84,7 +78,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
             <stop offset="100%" stopColor="#3d280a" />
           </linearGradient>
 
-          {/* Deep Imperial Lacquer Red with Silk Sheen */}
           <radialGradient id="imperialRedGradient" cx="50%" cy="35%" r="70%">
             <stop offset="0%" stopColor="#e60000" />
             <stop offset="40%" stopColor="#800000" />
@@ -92,7 +85,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
             <stop offset="100%" stopColor="#0a0000" />
           </radialGradient>
 
-          {/* Polished Rim Gradient */}
           <linearGradient id="goldRimGradient" x1="0%" y1="100%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#5c2e00" />
             <stop offset="20%" stopColor="#d4af37" />
@@ -101,25 +93,23 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
             <stop offset="100%" stopColor="#5c2e00" />
           </linearGradient>
 
-          {/* Advanced 3D Bevel Filter */}
-          <filter id="gold3DBevelPremium" x="-200%" y="-200%" width="500%" height="500%" colorInterpolationFilters="sRGB">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="blur" />
-            <feSpecularLighting in="blur" surfaceScale="35" specularConstant="3.2" specularExponent="100" lightingColor="#ffffff" result="spec1">
-              <fePointLight x="-3000" y="-3000" z="5000" />
+          <filter id="gold3DBevelPremium" x="-150%" y="-150%" width="400%" height="400%" colorInterpolationFilters="sRGB">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur" />
+            <feSpecularLighting in="blur" surfaceScale="20" specularConstant="2.2" specularExponent="70" lightingColor="#ffffff" result="spec1">
+              <fePointLight x="-2000" y="-2000" z="3500" />
             </feSpecularLighting>
             <feComposite in="spec1" in2="SourceAlpha" operator="in" result="bevel1" />
-            <feSpecularLighting in="blur" surfaceScale="25" specularConstant="2.5" specularExponent="60" lightingColor="#fffaf0" result="spec2">
-              <fePointLight x="3000" y="3000" z="4000" />
+            <feSpecularLighting in="blur" surfaceScale="15" specularConstant="1.8" specularExponent="45" lightingColor="#fffaf0" result="spec2">
+              <fePointLight x="2000" y="2000" z="2500" />
             </feSpecularLighting>
             <feComposite in="spec2" in2="SourceAlpha" operator="in" result="bevel2" />
-            <feComposite in="SourceGraphic" in2="bevel1" operator="arithmetic" k1="0" k2="1" k3="1.8" k4="0" result="lit1" />
-            <feComposite in="lit1" in2="bevel2" operator="arithmetic" k1="0" k2="1" k3="1.2" k4="0" result="final" />
+            <feComposite in="SourceGraphic" in2="bevel1" operator="arithmetic" k1="0" k2="1" k3="1.3" k4="0" result="lit1" />
+            <feComposite in="lit1" in2="bevel2" operator="arithmetic" k1="0" k2="1" k3="1.0" k4="0" result="final" />
           </filter>
 
-          {/* Ethereal Glow Filter */}
-          <filter id="goldBloomPremium" x="-300%" y="-300%" width="700%" height="700%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="tightBlur" />
-            <feFlood floodColor="#fffde7" floodOpacity="0.5" result="coreColor" />
+          <filter id="goldBloomPremium" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="0.8" result="tightBlur" />
+            <feFlood floodColor="#fffde7" floodOpacity="0.15" result="coreColor" />
             <feComposite in="coreColor" in2="tightBlur" operator="in" result="coreGlow" />
             <feMerge>
               <feMergeNode in="coreGlow" />
@@ -128,59 +118,48 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
           </filter>
         </defs>
 
-        {/* Global Drop Shadow for Depth */}
-        <g style={{ filter: `drop-shadow(0 140px 280px rgba(0, 0, 0, 1)) drop-shadow(0 0 120px rgba(251, 191, 36, 0.12))` }}>
-          
-          {/* THE CHRONOMETER COIN */}
+        <g>
           <g transform="translate(512, 340)">
-             {/* Main Outer Polished Rim */}
              <circle r="348" fill="url(#goldRimGradient)" filter="url(#gold3DBevelPremium)" />
-             
-             {/* The Imperial Red Inlay */}
              <circle r="338" fill="url(#imperialRedGradient)" />
 
-             {/* CIRCULAR LEIWEN (Square Meander) ETCHED TRACK */}
              <path 
                 id="leiwenTrack"
                 d="M 0,-330 A 330,330 0 1,1 0,330 A 330,330 0 1,1 0,-330"
                 fill="none"
                 stroke="url(#goldMetallicPremium)"
-                strokeWidth="1.5"
+                strokeWidth="1.2"
                 strokeDasharray="10, 5, 2, 5" 
-                opacity="0.25"
+                opacity="0.15"
                 filter="url(#goldBloomPremium)"
              />
              
-             {/* XIII Radial Markers Assembly */}
              <g filter="url(#gold3DBevelPremium)">
                {clockMarkers}
              </g>
 
-             {/* Inner Solid Gold Precision Ring with Leiwen Detail */}
              <circle 
                 r="270" 
                 fill="none" 
                 stroke="url(#goldRimGradient)" 
-                strokeWidth="14" 
+                strokeWidth="12" 
                 filter="url(#gold3DBevelPremium)" 
              />
              
-             {/* Micro-etched Precision Ticks inside the ring */}
-             <g opacity="0.4">
+             <g opacity="0.2">
                 {Array.from({ length: 60 }).map((_, i) => (
                     <line 
                         key={i} 
                         x1="0" y1="-270" 
-                        x2="0" y2="-262" 
+                        x2="0" y2="-264" 
                         stroke="black" 
-                        strokeWidth="0.5" 
+                        strokeWidth="0.4" 
                         transform={`rotate(${i * 6})`} 
                     />
                 ))}
              </g>
           </g>
 
-          {/* THE CENTRAL SPADE ICON & 13 INSIGNIA */}
           <g transform="translate(0, 60)">
             <g filter="url(#gold3DBevelPremium)">
               <path 
@@ -191,7 +170,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               />
             </g>
 
-            {/* Main Brand Title - Improved Cinzel Typography */}
             <text 
               x="512" 
               y="850" 
@@ -210,7 +188,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               THIRTEEN
             </text>
 
-            {/* LUXURY IMPERIAL DIVIDER WITH LEIWEN CAPS */}
             <g transform="translate(512, 905)">
               <rect 
                 x="-485" 
@@ -222,7 +199,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
                 filter="url(#gold3DBevelPremium)"
               />
               
-              {/* Left Leiwen (Square Meander) Motif */}
               <g transform="translate(-505, 0)">
                 <path
                   d="M 18 -18 H -18 V 18 H 12 V -12 H -6 V 6"
@@ -235,7 +211,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
                 />
               </g>
 
-              {/* Right Leiwen (Square Meander) Motif - Mirrored */}
               <g transform="translate(505, 0) scale(-1, 1)">
                 <path
                   d="M 18 -18 H -18 V 18 H 12 V -12 H -6 V 6"
@@ -249,7 +224,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               </g>
             </g>
 
-            {/* Subtitle - Refined Spacing */}
             <text 
               x="512" 
               y="975" 
