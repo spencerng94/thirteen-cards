@@ -151,23 +151,31 @@ const App: React.FC = () => {
     };
   }, [view, triggerMatchEndTransition]);
 
-  // Listen for Single Player match end
+  // Listen for Single Player match end - Optimized to transition immediately
   useEffect(() => {
     if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.FINISHED && view === 'GAME_TABLE' && !isTransitioning) {
+        // Step 1: Start transition immediately so UI doesn't hang on 'Match Over'
+        triggerMatchEndTransition();
+
+        // Step 2: Record rewards in background/parallel
         const me = spGameState.players.find(p => p.id === 'player-me');
         const myRank = me?.finishedRank || 4;
-        recordGameResult(myRank, true, aiDifficulty, !!isGuest, profile?.id).then(res => {
-            setLastMatchRewards({ 
-              xp: res.xpGained, 
-              coins: res.coinsGained, 
-              diff: aiDifficulty, 
-              bonus: res.xpBonusApplied 
-            });
-            handleRefreshProfile();
-            triggerMatchEndTransition();
-        });
+        
+        recordGameResult(myRank, true, aiDifficulty, !!isGuest, profile?.id)
+          .then(res => {
+              setLastMatchRewards({ 
+                xp: res.xpGained, 
+                coins: res.coinsGained, 
+                diff: aiDifficulty, 
+                bonus: res.xpBonusApplied 
+              });
+              handleRefreshProfile();
+          })
+          .catch(err => {
+              console.error("Single Player reward processing failed:", err);
+          });
     }
-  }, [spGameState?.status, gameMode, view, isTransitioning, aiDifficulty, isGuest, profile?.id, spGameState?.players]);
+  }, [spGameState?.status, gameMode, view, isTransitioning, aiDifficulty, isGuest, profile?.id, triggerMatchEndTransition]);
 
   const handleLocalPass = (pid: string) => {
     if (!spGameState || spGameState.status !== GameStatus.PLAYING || spGameState.currentPlayerId !== pid) return;
