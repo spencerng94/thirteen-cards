@@ -505,11 +505,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
           </div>
         </div>
-        
-        {/* FOOTER DISCLAIMER */}
-        <p className="mt-4 text-[8px] font-black text-white/10 uppercase tracking-[0.6em] text-center max-w-xs mx-auto opacity-50 hover:opacity-100 transition-opacity">
-          Protocol undergoing calibration. System variations may occur during testing phase.
-        </p>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
