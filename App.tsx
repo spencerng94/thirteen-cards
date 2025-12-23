@@ -15,7 +15,7 @@ import { Store } from './components/Store';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel } from './services/supabase';
+import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
@@ -60,28 +60,37 @@ const App: React.FC = () => {
       setSession(session);
       setAuthChecked(true);
       if (session?.user) {
-        setIsGuest(false); // Force guest off if session exists
+        setIsGuest(false);
+        const meta = session.user.user_metadata || {};
+        const googleName = meta.full_name || meta.name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+        if (!playerName) setPlayerName(googleName.toUpperCase());
+        
         await transferGuestData(session.user.id);
         loadProfile(session.user.id);
       }
     });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
         setIsGuest(false);
+        const meta = session.user.user_metadata || {};
+        const googleName = meta.full_name || meta.name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+        if (!playerName) setPlayerName(googleName.toUpperCase());
+
         await transferGuestData(session.user.id);
         loadProfile(session.user.id);
       }
       else if (!isGuest) setProfile(null);
     });
     return () => subscription.unsubscribe();
-  }, [isGuest]);
+  }, [isGuest, playerAvatar]);
 
   const loadProfile = async (uid: string) => {
     const data = await fetchProfile(uid);
     if (data) {
       setProfile(data);
-      if (data.username && !playerName) setPlayerName(data.username);
+      if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
     }
   };
 
@@ -97,6 +106,7 @@ const App: React.FC = () => {
     if (session) await supabase.auth.signOut();
     setIsGuest(false);
     setProfile(null);
+    setPlayerName('');
     setView('WELCOME');
     setHubState({ open: false, tab: 'PROFILE' });
     setGameSettingsOpen(false);
@@ -177,9 +187,7 @@ const App: React.FC = () => {
         finalPlayPile = [];
         players.forEach(p => p.hasPassed = false);
         if (players[nextIndex].finishedRank) {
-            while (players[nextIndex].finishedRank) {
-                nextIndex = (nextIndex + 1) % 4;
-            }
+            while (players[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; }
             nextPlayerId = players[nextIndex].id;
         }
       }
@@ -238,7 +246,7 @@ const App: React.FC = () => {
     const hands = dealCards();
     const botNames = ['VALKYRIE', 'SABER', 'LANCE'];
     const players: Player[] = [
-      { id: 'player-me', name: name || 'COMMANDER', avatar, cardCount: 13, isHost: true, finishedRank: null },
+      { id: 'player-me', name: name || AVATAR_NAMES[avatar]?.toUpperCase() || 'COMMANDER', avatar, cardCount: 13, isHost: true, finishedRank: null },
       { id: 'bot-1', name: botNames[0], avatar: BOT_AVATARS[0], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty },
       { id: 'bot-2', name: botNames[1], avatar: BOT_AVATARS[1], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty },
       { id: 'bot-3', name: botNames[2], avatar: BOT_AVATARS[2], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty }

@@ -151,7 +151,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse [animation-delay:0.2s]"></span>
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse [animation-delay:0.4s]"></span>
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Deployment Arena Ready</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Arena Secure</span>
                 </div>
                 
                 <div className="text-center relative">
@@ -187,7 +187,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                                 ? 'bg-white/[0.05] border-yellow-500/20 shadow-[0_15px_30px_rgba(0,0,0,0.3)]' 
                                 : 'bg-black/30 border-white/5'}
                         `}>
-                             {/* Remove Bot Button - Positioned in the absolute top-right of the card */}
                              {p.isBot && isHost && (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); removeBot(p.id); }}
@@ -199,13 +198,10 @@ export const Lobby: React.FC<LobbyProps> = ({
                              )}
 
                              <div className="relative mb-4">
-                                 {/* Avatar Orbital Glow */}
                                  <div className={`absolute inset-[-10px] blur-xl rounded-full opacity-0 group-hover:opacity-20 transition-opacity ${p.isBot ? 'bg-emerald-500' : 'bg-yellow-500'}`}></div>
-                                 
                                  <div className="relative w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-white/[0.03] to-white/[0.01] rounded-full flex items-center justify-center text-5xl md:text-6xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform duration-500">
                                      {p.avatar || '😊'}
                                  </div>
-                                 
                                  {p.isHost && (
                                      <div className="absolute -top-1 -right-2 bg-gradient-to-br from-yellow-400 to-yellow-600 text-black text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-[0_4px_10px_rgba(234,179,8,0.3)] ring-2 ring-black/50">Host</div>
                                  )}
@@ -276,10 +272,8 @@ export const Lobby: React.FC<LobbyProps> = ({
                         disabled={gameState.players.length < 2}
                         className="w-full group relative overflow-hidden py-5 rounded-[1.5rem] font-black text-lg uppercase tracking-[0.3em] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_15px_40px_rgba(0,0,0,0.4)]"
                     >
-                        {/* Shimmering Gradient Background */}
                         <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 group-hover:scale-110 transition-transform duration-500"></div>
                         <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
-                        
                         <span className="relative z-10 text-white flex items-center justify-center gap-4 drop-shadow-md">
                            Start Game <span className="text-2xl group-hover:rotate-12 transition-transform">🚀</span>
                         </span>
@@ -290,25 +284,30 @@ export const Lobby: React.FC<LobbyProps> = ({
                             <div className="absolute inset-0 border-2 border-white/10 rounded-full"></div>
                             <div className="absolute inset-0 border-t-2 border-yellow-500 rounded-full animate-spin"></div>
                         </div>
-                        <span className="text-gray-400 text-[11px] font-black uppercase tracking-[0.2em]">Synchronizing with Host...</span>
+                        <span className="text-gray-400 text-[11px] font-black uppercase tracking-[0.2em]">Synchronizing...</span>
                     </div>
                 )}
                 
                 <div className="grid grid-cols-2 gap-4">
                   {onBack && (
-                    <button 
-                      onClick={onBack}
-                      className="w-full py-3 bg-white/[0.01] hover:bg-red-500/[0.05] border border-white/5 hover:border-red-500/20 rounded-[1rem] text-gray-500 hover:text-red-400 text-[10px] font-black uppercase tracking-[0.4em] transition-all duration-300"
-                    >
-                      Quit Lobby
-                    </button>
+                    <button onClick={onBack} className="w-full py-3 bg-white/[0.01] hover:bg-red-500/[0.05] border border-white/5 hover:border-red-500/20 rounded-[1rem] text-gray-500 hover:text-red-400 text-[10px] font-black uppercase tracking-[0.4em] transition-all duration-300">Quit Lobby</button>
                   )}
                   <SignOutButton onSignOut={onSignOut} className="!py-3" />
                 </div>
             </div>
+
+            {/* UPGRADED BETA DISCLOSURE */}
+            <div className="flex flex-col items-center gap-2 mt-2 px-6">
+                <div className="flex items-center gap-2 text-red-500 font-black uppercase tracking-[0.2em] text-[9px] animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                    Tactical Beta Operational
+                </div>
+                <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest text-center leading-relaxed">
+                   NOTICE: This match is running on a development branch. System variations, link desynchronization, and gameplay iterations may occur during active testing.
+                </p>
+            </div>
         </GlassPanel>
 
-        {/* Global Styles for Shimmer */}
         <style dangerouslySetInnerHTML={{ __html: `
             @keyframes shimmer {
                 0% { background-position: -100% 0; }
@@ -326,7 +325,8 @@ export const Lobby: React.FC<LobbyProps> = ({
             <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-gray-500 uppercase tracking-tighter mb-4 italic">
                 The Arena
             </h1>
-            <div className="h-[2px] w-20 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto rounded-full"></div>
+            <div className="h-[2.5px] w-20 bg-red-500 mx-auto rounded-full shadow-[0_0_10px_#ef4444]"></div>
+            <p className="text-[9px] font-black text-red-500 uppercase tracking-[0.4em] mt-4">Beta Testing Active</p>
         </div>
 
         <div className="space-y-10">

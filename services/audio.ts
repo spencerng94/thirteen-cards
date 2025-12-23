@@ -109,7 +109,6 @@ class AudioService {
     if (!this.context) return;
 
     const now = this.context.currentTime;
-    // C Major Arpeggio: C4, E4, G4, C5, E5, G5, C6
     const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
     
     notes.forEach((freq, i) => {
@@ -129,7 +128,6 @@ class AudioService {
       osc.stop(now + i * 0.12 + 1.2);
     });
 
-    // Triumphant sub bass swell
     const sub = this.context.createOscillator();
     const subGain = this.context.createGain();
     sub.type = 'sine';
@@ -207,6 +205,73 @@ class AudioService {
       osc.start(now + i * 0.08);
       osc.stop(now + i * 0.08 + 0.5);
     });
+  }
+
+  /**
+   * Soothing Zen Start sound.
+   * Deep bass resonance (C3) followed by warm, mid-range harmonics (C4, E4, G4).
+   * Low-pass filtered to ensure no sharp/piercing high frequencies.
+   */
+  playStartMatch() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+
+    const now = this.context.currentTime;
+
+    // 1. The "Base Gong" (Deep & Soothing)
+    const base = this.context.createOscillator();
+    const baseGain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    
+    base.type = 'sine';
+    base.frequency.setValueAtTime(130.81, now); // C3
+    
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(400, now);
+    
+    baseGain.gain.setValueAtTime(0, now);
+    baseGain.gain.linearRampToValueAtTime(0.4, now + 0.05);
+    baseGain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+
+    base.connect(filter);
+    filter.connect(baseGain);
+    baseGain.connect(this.context.destination);
+    base.start(now);
+    base.stop(now + 2.0);
+
+    // 2. Warm Harmonic Arpeggio (Asian Inspired Pentatonic Roots)
+    const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+    notes.forEach((freq, i) => {
+      const startTime = now + (i * 0.1);
+      const osc = this.context!.createOscillator();
+      const hGain = this.context!.createGain();
+      
+      osc.type = 'sine'; // Sine is much softer than Triangle or Saw
+      osc.frequency.setValueAtTime(freq, startTime);
+      
+      hGain.gain.setValueAtTime(0, startTime);
+      hGain.gain.linearRampToValueAtTime(0.1, startTime + 0.05);
+      hGain.gain.exponentialRampToValueAtTime(0.001, startTime + 1.2);
+
+      osc.connect(hGain);
+      hGain.connect(this.context!.destination);
+      osc.start(startTime);
+      osc.stop(startTime + 1.2);
+    });
+
+    // 3. Subtle "Wood Block" Tap (Tactile Start)
+    const tap = this.context.createOscillator();
+    const tapGain = this.context.createGain();
+    tap.type = 'triangle';
+    tap.frequency.setValueAtTime(600, now);
+    tap.frequency.exponentialRampToValueAtTime(300, now + 0.05);
+    tapGain.gain.setValueAtTime(0.05, now);
+    tapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    tap.connect(tapGain);
+    tapGain.connect(this.context.destination);
+    tap.start(now);
+    tap.stop(now + 0.05);
   }
 }
 

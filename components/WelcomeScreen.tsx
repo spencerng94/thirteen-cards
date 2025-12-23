@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -46,6 +47,12 @@ const SLEEVES = [
   { id: 'NEON_CYBER', name: 'Neon Circuit', price: 3500, style: 'NEON_CYBER' as CardCoverStyle },
   { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 3500, style: 'PIXEL_CITY_LIGHTS' as CardCoverStyle },
 ];
+
+const TAB_DESCRIPTIONS: Record<WelcomeTab, string> = {
+  PROFILE: "Analyze operator dossier and tactical achievements.",
+  CUSTOMIZE: "Configure signature assets and battlefield aesthetics.",
+  SETTINGS: "Optimize interface protocols and gameplay logic."
+};
 
 const SectionLabel: React.FC<{ children: React.ReactNode; rightElement?: React.ReactNode }> = ({ children, rightElement }) => (
   <div className="flex items-center justify-between gap-4 mb-4 mt-2 px-2">
@@ -133,6 +140,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
+    if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {
+        audioService.playStartMatch();
+    }
     onStart(playerName.trim() || 'GUEST', mode, cardCoverStyle, playerAvatar, quickFinish, aiDifficulty);
   };
 
@@ -239,7 +249,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     const filteredBoards = hideUnowned ? PREMIUM_BOARDS.filter(b => isBoardUnlocked(b.id)) : PREMIUM_BOARDS;
 
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
         <SectionLabel 
           rightElement={
             <button 
@@ -406,8 +416,25 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </div>
 
       <div className="max-w-2xl w-full z-10 flex flex-col items-center gap-1.5 mt-10 md:mt-0">
-        <div className="animate-in zoom-in fade-in duration-1000 drop-shadow-[0_0_50px_rgba(251,191,36,0.1)] mb-4">
+        <div className="animate-in zoom-in fade-in duration-1000 drop-shadow-[0_0_50px_rgba(251,191,36,0.1)] mb-4 flex flex-col items-center gap-3">
           <BrandLogo size="lg" />
+          
+          {/* UPGRADED BETA WARNING INDICATOR */}
+          <div className="flex flex-col items-center gap-2 animate-in slide-in-from-top-4 fade-in duration-1000 delay-500">
+            <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-red-950/40 border-2 border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.3)]">
+               <div className="relative flex items-center justify-center">
+                  <span className="absolute w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                  <span className="relative w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_12px_#ef4444]"></span>
+               </div>
+               <span className="text-[10px] font-black uppercase tracking-[0.4em] text-red-500 whitespace-nowrap">BETA PHASE: ACTIVE TESTING</span>
+               <div className="w-[1.5px] h-3 bg-red-500/30"></div>
+               <span className="text-[8px] font-bold text-red-500/60 tracking-widest uppercase">STABLE R.78</span>
+            </div>
+            {/* ONE LINER IMPLICATION */}
+            <p className="text-[9px] font-black text-red-500/80 uppercase tracking-widest text-center px-4 max-w-md drop-shadow-sm">
+                Expect protocol iterations, potential bugs, and intermittent connectivity as systems are calibrated.
+            </p>
+          </div>
         </div>
 
         <div className="relative w-full bg-black/50 backdrop-blur-[40px] border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.8)] rounded-[3rem] overflow-hidden flex flex-col min-h-[500px]">
@@ -426,7 +453,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             ))}
           </div>
 
-          <div className="flex-1 p-6 md:p-10 overflow-hidden">
+          <div className="flex-1 p-6 md:p-10 overflow-hidden flex flex-col">
+            {/* TAGLINE HEADER */}
+            <div key={activeTab} className="mb-6 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
+               <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></div>
+               <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.25em] font-mono">
+                  {TAB_DESCRIPTIONS[activeTab]}
+               </span>
+               <div className="h-[1px] flex-1 bg-gradient-to-r from-white/10 to-transparent"></div>
+            </div>
+
             {activeTab === 'PROFILE' && renderProfileTab()}
             {activeTab === 'CUSTOMIZE' && renderCustomizeTab()}
             {activeTab === 'SETTINGS' && renderSettingsTab()}
@@ -441,6 +477,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
           </div>
         </div>
+        
+        {/* FOOTER DISCLAIMER */}
+        <p className="mt-4 text-[8px] font-black text-white/10 uppercase tracking-[0.6em] text-center max-w-xs mx-auto opacity-50 hover:opacity-100 transition-opacity">
+          Protocol undergoing calibration. System variations may occur during testing phase.
+        </p>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `

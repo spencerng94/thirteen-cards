@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus } from '../types';
 import { Card, CardCoverStyle } from './Card';
@@ -208,7 +209,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const getHandSpacingClass = (count: number) => {
     if (count <= 1) return '';
-    if (count <= 3) return 'space-x-1 sm:space-x-4 md:space-x-6';
+    if (count <= 3) return 'space-x-1 sm:space-x-4 md:space-6';
     if (count <= 6) return '-space-x-4 sm:-space-x-4 md:space-0';
     if (count <= 10) return '-space-x-10 sm:-space-x-10 md:-space-x-4';
     return '-space-x-14 sm:-space-x-16 md:-space-x-12';
@@ -228,6 +229,12 @@ export const GameTable: React.FC<GameTableProps> = ({
       {themeConfig.texture && <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)', backgroundSize: '3.5px 3.5px' }}></div>}
       {(themeConfig as any).emperor && <ImperialGoldLayer />}
       <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `radial-gradient(circle at center, ${themeConfig.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 70%)` }}></div>
+
+      {/* PERSISTENT HIGH-VIS BETA TAG */}
+      <div className="absolute bottom-4 right-4 z-[40] opacity-40 hover:opacity-100 transition-opacity duration-700 pointer-events-none flex flex-col items-end">
+         <span className="text-[8px] font-black uppercase tracking-[0.5em] text-red-500 drop-shadow-[0_0_8px_#ef4444]">BETA PROTOCOL ACTIVE</span>
+         <span className="text-[6px] font-bold text-white/50 uppercase tracking-widest mt-1 italic">Active Testing Calibration</span>
+      </div>
 
       <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
         <h1 className="hidden lg:block text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-tighter uppercase">THIRTEEN</h1>
@@ -266,7 +273,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             className="w-10 h-10 md:w-9 md:h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all shadow-lg backdrop-blur-md hover:scale-110 active:scale-95 group relative overflow-hidden"
             title="Tactical Configuration"
           >
-             <svg viewBox="0 0 24 24" className="w-6 h-6 transition-all duration-700 group-hover:rotate-90 group-hover:scale-110 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+             <svg viewBox="0 0 24 24" className="w-6 h-6 transition-all duration-700 group-hover:rotate-90 group-hover:scale-110 drop-shadow-[0_0_100px_rgba(255,255,255,0.2)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
                 <circle cx="12" cy="12" r="3" />
              </svg>
