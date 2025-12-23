@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
-/* Added Player to the import list */
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player } from './types';
 import { GameTable } from './components/GameTable';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -16,7 +15,7 @@ import { Store } from './components/Store';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard } from './services/supabase';
+import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
@@ -103,10 +102,17 @@ const App: React.FC = () => {
     if (data) {
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
-      if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
       
-      const savedTheme = (data.active_board || data.equipped_board || 'EMERALD') as BackgroundTheme;
-      setBackgroundTheme(savedTheme);
+      // Load saved preferences
+      if (data.active_sleeve || data.equipped_sleeve) {
+        setCardCoverStyle((data.active_sleeve || data.equipped_sleeve) as CardCoverStyle);
+      }
+      if (data.active_board || data.equipped_board) {
+        setBackgroundTheme((data.active_board || data.equipped_board) as BackgroundTheme);
+      }
+      if (data.sfx_enabled !== undefined) setSoundEnabled(data.sfx_enabled);
+      if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
+      
       setProfile(data);
     }
     
@@ -122,10 +128,12 @@ const App: React.FC = () => {
       setProfile(data);
       if (data.username && !playerName) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
-      if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
       
-      const savedTheme = (data.active_board || data.equipped_board || 'EMERALD') as BackgroundTheme;
-      setBackgroundTheme(savedTheme);
+      // Load guest preferences from local storage data
+      if (data.active_sleeve) setCardCoverStyle(data.active_sleeve as CardCoverStyle);
+      if (data.active_board) setBackgroundTheme(data.active_board as BackgroundTheme);
+      if (data.sfx_enabled !== undefined) setSoundEnabled(data.sfx_enabled);
+      if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
       
       initialSyncCompleteRef.current = true;
     }
@@ -136,38 +144,59 @@ const App: React.FC = () => {
     if (!authChecked || !userId || !profile || !initialSyncCompleteRef.current || isLoggingOutRef.current) return;
 
     const needsAvatarUpdate = playerAvatar !== profile.avatar_url;
-    const needsSleeveUpdate = cardCoverStyle !== profile.equipped_sleeve;
-    const needsBoardUpdate = backgroundTheme !== (profile.active_board || profile.equipped_board);
+    const needsSleeveUpdate = cardCoverStyle !== profile.active_sleeve;
+    const needsBoardUpdate = backgroundTheme !== profile.active_board;
+    const needsAudioUpdate = soundEnabled !== profile.sfx_enabled;
+    const needsTurboUpdate = spQuickFinish !== profile.turbo_enabled;
 
     if (needsAvatarUpdate) {
       updateProfileAvatar(userId, playerAvatar);
       setProfile(prev => prev ? { ...prev, avatar_url: playerAvatar } : null);
     }
 
-    if (needsSleeveUpdate) {
-      updateProfileEquipped(userId, cardCoverStyle, undefined);
-      setProfile(prev => prev ? { ...prev, equipped_sleeve: cardCoverStyle } : null);
-    }
-
-    if (needsBoardUpdate) {
-      if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
-        updateActiveBoard(userId, backgroundTheme);
-        setProfile(prev => prev ? { ...prev, active_board: backgroundTheme, equipped_board: backgroundTheme } : null);
+    if (needsSleeveUpdate || needsBoardUpdate || needsAudioUpdate || needsTurboUpdate) {
+      const updates: Partial<UserProfile> = {};
+      if (needsSleeveUpdate) {
+        updates.active_sleeve = cardCoverStyle;
+        updates.equipped_sleeve = cardCoverStyle;
       }
+      if (needsBoardUpdate) {
+        // Validate ownership before updating board
+        if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
+          updates.active_board = backgroundTheme;
+          updates.equipped_board = backgroundTheme;
+        }
+      }
+      if (needsAudioUpdate) updates.sfx_enabled = soundEnabled;
+      if (needsTurboUpdate) updates.turbo_enabled = spQuickFinish;
+
+      updateProfileSettings(userId, updates);
+      setProfile(prev => prev ? { ...prev, ...updates } : null);
     }
-  }, [playerAvatar, cardCoverStyle, backgroundTheme, session, authChecked, profile, isGuest]);
+  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, session, authChecked, profile, isGuest]);
 
   const handleSignOut = async () => {
-    // Save-on-exit: Final flush of state to DB/Local before clearing references
+    // Save-on-exit: Final flush of all settings to DB/Local before clearing session
     const userId = session?.user?.id || (isGuest ? 'guest' : null);
     if (userId && profile && initialSyncCompleteRef.current) {
+        const finalUpdates: Partial<UserProfile> = {};
         if (playerAvatar !== profile.avatar_url) await updateProfileAvatar(userId, playerAvatar);
-        if (cardCoverStyle !== profile.equipped_sleeve) await updateProfileEquipped(userId, cardCoverStyle, undefined);
-        if (backgroundTheme !== (profile.active_board || profile.equipped_board)) {
-            // Re-verify board ownership for safety on sign out flush
-            if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
-                await updateActiveBoard(userId, backgroundTheme);
-            }
+        
+        if (cardCoverStyle !== profile.active_sleeve) {
+          finalUpdates.active_sleeve = cardCoverStyle;
+          finalUpdates.equipped_sleeve = cardCoverStyle;
+        }
+        if (backgroundTheme !== profile.active_board) {
+          if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
+            finalUpdates.active_board = backgroundTheme;
+            finalUpdates.equipped_board = backgroundTheme;
+          }
+        }
+        if (soundEnabled !== profile.sfx_enabled) finalUpdates.sfx_enabled = soundEnabled;
+        if (spQuickFinish !== profile.turbo_enabled) finalUpdates.turbo_enabled = spQuickFinish;
+        
+        if (Object.keys(finalUpdates).length > 0) {
+          await updateProfileSettings(userId, finalUpdates);
         }
     }
 
@@ -182,6 +211,8 @@ const App: React.FC = () => {
     setPlayerAvatar('😎');
     setCardCoverStyle('RED');
     setBackgroundTheme('EMERALD');
+    setSoundEnabled(true);
+    setSpQuickFinish(true);
     setView('WELCOME');
     setHubState({ open: false, tab: 'PROFILE' });
     setGameSettingsOpen(false);

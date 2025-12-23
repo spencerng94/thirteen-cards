@@ -39,6 +39,9 @@ const DEFAULT_GUEST_PROFILE = {
   equipped_sleeve: 'RED',
   equipped_board: 'EMERALD',
   active_board: 'EMERALD',
+  active_sleeve: 'RED',
+  sfx_enabled: true,
+  turbo_enabled: true,
   undo_count: 0,
   username: AVATAR_NAMES['😊'].toUpperCase(),
   avatar_url: '😎'
@@ -115,11 +118,14 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
         currency: data.coins,
         coins: data.coins,
         username: data.username || googleName,
-        active_board: data.active_board || data.equipped_board || 'EMERALD'
+        active_board: data.active_board || data.equipped_board || 'EMERALD',
+        active_sleeve: data.active_sleeve || data.equipped_sleeve || 'RED',
+        sfx_enabled: data.sfx_enabled ?? true,
+        turbo_enabled: data.turbo_enabled ?? true
       } as UserProfile;
     }
 
-    // Only create/upsert if we are sure there is NO existing record (error status 406 means table exists but no data)
+    // Only create/upsert if we are sure there is NO existing record
     if (error && error.code === '42P01') {
        console.warn("Supabase 'profiles' table not detected. Falling back to local storage for user:", userId);
        const local = fetchGuestProfile();
@@ -138,13 +144,15 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
       equipped_sleeve: 'RED',
       equipped_board: 'EMERALD',
       active_board: 'EMERALD',
+      active_sleeve: 'RED',
+      sfx_enabled: true,
+      turbo_enabled: true,
       undo_count: 0,
       username: googleName,
       avatar_url: currentAvatar
     };
 
     if (userId && !error) {
-       // Only perform upsert if table exists and no error was returned
        const { error: upsertError } = await supabase.from('profiles').upsert(fallbackProfile);
        if (upsertError) {
          console.warn("Upsert failed, using fallback memory state:", upsertError.message);
@@ -167,13 +175,23 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
   }
 };
 
-export const updateActiveBoard = async (userId: string, boardKey: string) => {
+export const updateProfileSettings = async (userId: string, updates: Partial<UserProfile>) => {
+  const allowedUpdates: any = {};
+  if (updates.active_board !== undefined) allowedUpdates.active_board = updates.active_board;
+  if (updates.active_sleeve !== undefined) allowedUpdates.active_sleeve = updates.active_sleeve;
+  if (updates.sfx_enabled !== undefined) allowedUpdates.sfx_enabled = updates.sfx_enabled;
+  if (updates.turbo_enabled !== undefined) allowedUpdates.turbo_enabled = updates.turbo_enabled;
+
   if (!supabaseUrl || !userId || userId === 'guest') {
     const local = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
-    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, active_board: boardKey, equipped_board: boardKey }));
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, ...allowedUpdates }));
     return;
   }
-  await supabase.from('profiles').update({ active_board: boardKey, equipped_board: boardKey }).eq('id', userId);
+  await supabase.from('profiles').update(allowedUpdates).eq('id', userId);
+};
+
+export const updateActiveBoard = async (userId: string, boardKey: string) => {
+  await updateProfileSettings(userId, { active_board: boardKey });
 };
 
 export const updateProfileAvatar = async (userId: string, avatar: string) => {
@@ -187,10 +205,13 @@ export const updateProfileAvatar = async (userId: string, avatar: string) => {
 
 export const updateProfileEquipped = async (userId: string, sleeve?: string, board?: string) => {
   const updates: any = {};
-  if (sleeve) updates.equipped_sleeve = sleeve;
+  if (sleeve) {
+    updates.equipped_sleeve = sleeve;
+    updates.active_sleeve = sleeve;
+  }
   if (board) {
     updates.equipped_board = board;
-    updates.active_board = board; // Sync both columns
+    updates.active_board = board;
   }
 
   if (!supabaseUrl || !userId || userId === 'guest') {
@@ -217,7 +238,10 @@ export const transferGuestData = async (userId: string) => {
         avatar_url: existing.avatar_url || local.avatar_url || '😎',
         equipped_sleeve: existing.equipped_sleeve || local.equipped_sleeve || 'RED',
         equipped_board: existing.equipped_board || local.equipped_board || 'EMERALD',
-        active_board: existing.active_board || local.active_board || existing.equipped_board || local.equipped_board || 'EMERALD'
+        active_board: existing.active_board || local.active_board || existing.equipped_board || local.equipped_board || 'EMERALD',
+        active_sleeve: existing.active_sleeve || local.active_sleeve || existing.equipped_sleeve || local.equipped_sleeve || 'RED',
+        sfx_enabled: existing.sfx_enabled ?? local.sfx_enabled ?? true,
+        turbo_enabled: existing.turbo_enabled ?? local.turbo_enabled ?? true
       }).eq('id', userId);
       localStorage.removeItem(GUEST_STORAGE_KEY);
     }

@@ -103,5 +103,8 @@ export interface UserProfile {
   equipped_sleeve?: string;
   equipped_board?: string;
   active_board?: string;
+  active_sleeve?: string;
+  sfx_enabled?: boolean;
+  turbo_enabled?: boolean;
   undo_count: number;
 }
