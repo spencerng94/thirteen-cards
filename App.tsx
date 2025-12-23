@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
-import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile } from './types';
+/* Added Player to the import list */
+import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player } from './types';
 import { GameTable } from './components/GameTable';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { Lobby } from './components/Lobby';
@@ -100,20 +101,15 @@ const App: React.FC = () => {
     
     const data = await fetchProfile(uid, playerAvatar);
     if (data) {
-      // Step 1: Update local non-profile states first so they match profile when profile is set
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
       if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
       
-      // Support active_board column for theme selection
       const savedTheme = (data.active_board || data.equipped_board || 'EMERALD') as BackgroundTheme;
       setBackgroundTheme(savedTheme);
-      
-      // Step 2: Set the profile
       setProfile(data);
     }
     
-    // Step 3: Release block after a short delay to ensure state updates have settled in the DOM/Lifecycle
     setTimeout(() => { 
       initialSyncCompleteRef.current = true;
       loadingProfileInProgressRef.current = false; 
@@ -135,12 +131,10 @@ const App: React.FC = () => {
     }
   }, [isGuest, session]);
 
-  // Combined Persistence Effect for Customization
   useEffect(() => {
     const userId = session?.user?.id || (isGuest ? 'guest' : null);
     if (!authChecked || !userId || !profile || !initialSyncCompleteRef.current || isLoggingOutRef.current) return;
 
-    // Only save if current state differs from the last known state in the profile object
     const needsAvatarUpdate = playerAvatar !== profile.avatar_url;
     const needsSleeveUpdate = cardCoverStyle !== profile.equipped_sleeve;
     const needsBoardUpdate = backgroundTheme !== (profile.active_board || profile.equipped_board);
@@ -156,7 +150,6 @@ const App: React.FC = () => {
     }
 
     if (needsBoardUpdate) {
-      // Validate that user actually owns the board before updating active_board
       if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
         updateActiveBoard(userId, backgroundTheme);
         setProfile(prev => prev ? { ...prev, active_board: backgroundTheme, equipped_board: backgroundTheme } : null);
@@ -165,6 +158,19 @@ const App: React.FC = () => {
   }, [playerAvatar, cardCoverStyle, backgroundTheme, session, authChecked, profile, isGuest]);
 
   const handleSignOut = async () => {
+    // Save-on-exit: Final flush of state to DB/Local before clearing references
+    const userId = session?.user?.id || (isGuest ? 'guest' : null);
+    if (userId && profile && initialSyncCompleteRef.current) {
+        if (playerAvatar !== profile.avatar_url) await updateProfileAvatar(userId, playerAvatar);
+        if (cardCoverStyle !== profile.equipped_sleeve) await updateProfileEquipped(userId, cardCoverStyle, undefined);
+        if (backgroundTheme !== (profile.active_board || profile.equipped_board)) {
+            // Re-verify board ownership for safety on sign out flush
+            if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
+                await updateActiveBoard(userId, backgroundTheme);
+            }
+        }
+    }
+
     isLoggingOutRef.current = true;
     initialSyncCompleteRef.current = false;
     
@@ -203,7 +209,6 @@ const App: React.FC = () => {
     setTimeout(() => { setView('VICTORY'); setIsTransitioning(false); }, 2500);
   }, []);
 
-  // Listen for Multiplayer match end
   useEffect(() => {
     const onGameState = (state: GameState) => {
       setMpGameState(state);
@@ -222,7 +227,6 @@ const App: React.FC = () => {
     };
   }, [view, triggerMatchEndTransition]);
 
-  // Listen for Single Player match end
   useEffect(() => {
     if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.FINISHED && view === 'GAME_TABLE' && !isTransitioning) {
         triggerMatchEndTransition();
