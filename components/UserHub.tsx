@@ -23,13 +23,22 @@ export interface ThemeConfig {
   highRoller?: boolean;   // New High Roller engine
   prestige?: boolean;     // New Prestige engine
   emperor?: boolean;      // Imperial gold patterns
-  koiPrestige?: boolean;  // New Imperial Koi engine
+  zenithAurum?: boolean;  // New Zenith Aurum engine
   spotlight?: string;     // Custom central light color
   tier: 'BASIC' | 'PREMIUM';
   isCityLightsPixel?: boolean;
 }
 
 export const PREMIUM_BOARDS: ThemeConfig[] = [
+  { 
+    id: 'CLASSIC_GREEN', 
+    name: 'Classic Imperial', 
+    tier: 'BASIC',
+    price: 0, 
+    base: 'bg-[#0a3d23]', 
+    colors: 'from-green-600/30 via-transparent to-black', 
+    texture: false 
+  },
   { 
     id: 'EMERALD', 
     name: 'Emerald Felt', 
@@ -84,11 +93,11 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
     name: 'Lotus Forest', 
     tier: 'PREMIUM',
     price: 4000, 
-    base: 'bg-[#064e3b]', 
-    colors: 'from-[#34d399]/40 via-[#10b981]/20 to-[#064e3b]', 
+    base: 'bg-[#022c22]', 
+    colors: 'from-[#f9a8d4]/20 via-[#134e4a]/10 to-[#022c22]', 
     lotusForest: true,
     emperor: true,
-    spotlight: 'rgba(252, 231, 243, 0.5)' 
+    spotlight: 'rgba(251, 207, 232, 0.2)' 
   },
   { 
     id: 'CHRISTMAS_YULETIDE', 
@@ -111,14 +120,14 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
     spotlight: 'rgba(251, 191, 36, 0.15)' 
   },
   { 
-    id: 'KOI_PRESTIGE', 
-    name: 'Imperial Koi Pavilion', 
+    id: 'ZENITH_AURUM', 
+    name: 'Zenith Aurum', 
     tier: 'PREMIUM',
     price: 8500, 
-    base: 'bg-[#0a2e3d]', 
-    colors: 'from-[#14b8a6]/20 via-[#0a2e3d]/40 to-[#020617]', 
-    koiPrestige: true,
-    spotlight: 'rgba(20, 184, 166, 0.2)' 
+    base: 'bg-[#020205]', 
+    colors: 'from-yellow-600/10 via-transparent to-black', 
+    zenithAurum: true,
+    spotlight: 'rgba(251, 191, 36, 0.05)' 
   },
   { 
     id: 'HIGH_ROLLER', 
@@ -143,139 +152,118 @@ export const ImperialGoldLayer: React.FC<{ opacity?: number; isMini?: boolean }>
 );
 
 /**
- * ImperialKoiEngine - Luxury prestige water environment.
- * Features procedural caustic light, gold flakes, and high-quality koi navigation.
+ * ZenithAurumEngine - Procedural Obsidian & Molten Gold
  */
-const ImperialKoiEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
-  const koi = useMemo(() => {
-    return Array.from({ length: isMini ? 3 : 8 }).map((_, i) => ({
-      id: `koi-${i}`,
-      delay: Math.random() * -40,
-      duration: 20 + Math.random() * 20,
-      top: 10 + Math.random() * 80,
-      scale: 0.6 + Math.random() * 0.8,
-      type: i % 3 === 0 ? 'KOHAKU' : i % 3 === 1 ? 'SANKE' : 'GOLDEN',
-      rotate: Math.random() > 0.5 ? 0 : 180,
-    }));
-  }, [isMini]);
+const ZenithAurumEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#020205]">
+      {/* 1. Deep Specular Obsidian Base */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#0a0a0f_0%,_#000000_100%)]"></div>
+      
+      {/* 2. Micro-Texture Grain */}
+      <div className="absolute inset-0 opacity-[0.15] mix-blend-overlay" style={{ 
+        backgroundImage: 'url("https://www.transparenttextures.com/patterns/carbon-fibre.png")',
+        backgroundSize: isMini ? '50px' : '150px'
+      }}></div>
 
-  const goldFlakes = useMemo(() => {
-    return Array.from({ length: isMini ? 10 : 40 }).map((_, i) => ({
-      id: `gold-${i}`,
+      {/* 3. Molten Gold Flow (SVG Liquid Shader) */}
+      <div className="absolute inset-0 opacity-40 mix-blend-screen filter blur-[2px]">
+        <svg width="100%" height="100%" className="scale-[1.8] origin-center animate-[aurum-pulse_60s_linear_infinite]">
+          <filter id="aurum-liquid">
+            <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="4" seed="88" result="noise" />
+            <feColorMatrix in="noise" type="matrix" values="1 0 0 0 0  0 0.8 0 0 0  0 0.4 0 0 0  0 0 0 1 0" />
+            <feComposite in="SourceGraphic" operator="in" />
+          </filter>
+          <rect width="100%" height="100%" fill="#fbbf24" filter="url(#aurum-liquid)" className="animate-[aurum-drift_20s_ease-in-out_infinite]" />
+        </svg>
+      </div>
+
+      {/* 4. Second Layer of High-Intensity Gold Veins */}
+      <div className="absolute inset-0 opacity-20 mix-blend-color-dodge">
+        <svg width="100%" height="100%" className="scale-[2.2] origin-bottom animate-[aurum-pulse-alt_45s_linear_infinite]">
+          <filter id="aurum-liquid-alt">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="123" result="noise2" />
+            <feColorMatrix in="noise2" type="matrix" values="1 0 0 0 0  0 0.9 0 0 0  0 0.6 0 0 0  0 0 0 1 0" />
+          </filter>
+          <rect width="100%" height="100%" fill="#fef08a" filter="url(#aurum-liquid-alt)" />
+        </svg>
+      </div>
+
+      {/* 5. Suspended Aurum Particles (Floating Gold Dust) */}
+      {!isMini && Array.from({ length: 40 }).map((_, i) => (
+        <div 
+          key={`gold-dust-${i}`}
+          className="absolute w-1 h-1 bg-yellow-400/40 rounded-full blur-[0.5px] animate-[aurum-drift-dust_15s_infinite_ease-in-out]"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * -15}s`,
+          }}
+        />
+      ))}
+
+      {/* 6. Atmospheric Glow Veil */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(251,191,36,0.08)_0%,_transparent_75%)] pointer-events-none"></div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes aurum-pulse {
+          0%, 100% { transform: scale(1.8) rotate(0deg); opacity: 0.3; }
+          50% { transform: scale(2.0) rotate(5deg); opacity: 0.5; }
+        }
+        @keyframes aurum-pulse-alt {
+          0%, 100% { transform: scale(2.2) rotate(0deg); opacity: 0.1; }
+          50% { transform: scale(2.5) rotate(-3deg); opacity: 0.3; }
+        }
+        @keyframes aurum-drift {
+          0%, 100% { transform: translateX(-5%); }
+          50% { transform: translateX(5%); }
+        }
+        @keyframes aurum-drift-dust {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.2; }
+          50% { transform: translate(100px, 80px) scale(1.5); opacity: 0.6; }
+        }
+      `}} />
+    </div>
+  );
+};
+
+/**
+ * SpaceEngine - Galactic Starfield & Nebulae
+ */
+const SpaceEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const stars = useMemo(() => {
+    return Array.from({ length: isMini ? 30 : 100 }).map((_, i) => ({
+      id: `star-${i}`,
       left: Math.random() * 100,
       top: Math.random() * 100,
-      size: 1 + Math.random() * 3,
-      delay: Math.random() * -10,
-      duration: 5 + Math.random() * 5
+      size: Math.random() * 2 + 0.5,
+      delay: Math.random() * -5,
+      duration: 2 + Math.random() * 3,
+      opacity: Math.random() * 0.5 + 0.3
     }));
   }, [isMini]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#020617]">
-      {/* 1. Deep Imperial Water Base */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0f766e]/20 via-[#0a2e3d] to-[#020617]"></div>
-
-      {/* 2. Procedural Water Caustics (Expensive Refraction Look) */}
-      <div className="absolute inset-0 opacity-[0.15] mix-blend-screen overflow-hidden">
-        <svg width="100%" height="100%" className="scale-[1.5]">
-            <filter id="waterCaustics">
-                <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="3" result="noise" seed="5" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale="50" />
-            </filter>
-            <rect width="100%" height="100%" fill="#14b8a6" filter="url(#waterCaustics)" className="animate-[caustic-drift_60s_linear_infinite]" />
-        </svg>
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black">
+      <div className="absolute inset-0 opacity-20 mix-blend-screen">
+        <div className="absolute top-[-20%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(circle_at_30%_40%,rgba(6,182,212,0.15),transparent_50%),radial-gradient(circle_at_70%_60%,rgba(217,70,239,0.15),transparent_50%)] animate-pulse"></div>
       </div>
-
-      {/* 3. Gold Leaf Sediment */}
-      {goldFlakes.map(f => (
+      {stars.map(s => (
         <div 
-            key={f.id}
-            className="absolute bg-yellow-500 rounded-sm opacity-20 blur-[0.5px] animate-pulse"
-            style={{
-                left: `${f.left}%`,
-                top: `${f.top}%`,
-                width: `${f.size}px`,
-                height: `${f.size}px`,
-                animationDelay: `${f.delay}s`,
-                animationDuration: `${f.duration}s`
-            }}
+          key={s.id}
+          className="absolute rounded-full bg-white animate-pulse"
+          style={{
+            left: `${s.left}%`,
+            top: `${s.top}%`,
+            width: `${s.size}px`,
+            height: `${s.size}px`,
+            opacity: s.opacity,
+            animationDelay: `${s.delay}s`,
+            animationDuration: `${s.duration}s`,
+            boxShadow: `0 0 ${s.size * 2}px white`
+          }}
         />
       ))}
-
-      {/* 4. Luxury Koi Navigation */}
-      {koi.map(k => {
-        let bodyColor = "from-white via-orange-500 to-red-600";
-        if (k.type === 'KOHAKU') bodyColor = "from-white via-red-500 to-white";
-        if (k.type === 'GOLDEN') bodyColor = "from-yellow-200 via-yellow-500 to-orange-400";
-
-        return (
-            <div 
-              key={k.id}
-              className="absolute animate-koi-swim-prestige opacity-60"
-              style={{
-                top: `${k.top}%`,
-                animationDelay: `${k.delay}s`,
-                animationDuration: `${k.duration}s`,
-                transform: `scale(${k.scale}) rotate(${k.rotate}deg)`,
-              } as any}
-            >
-                <div className="relative w-24 h-8 md:w-40 md:h-12 flex items-center justify-center">
-                    {/* Shadow layer */}
-                    <div className="absolute inset-0 bg-black/30 blur-xl translate-y-8 scale-x-110"></div>
-                    
-                    {/* Tail */}
-                    <div className="absolute right-0 w-1/3 h-full bg-inherit opacity-40 animate-koi-tail-wag" style={{ clipPath: 'polygon(0 40%, 100% 0, 100% 100%, 0 60%)' }}></div>
-                    
-                    {/* Body */}
-                    <div className={`w-full h-full rounded-full bg-gradient-to-r ${bodyColor} border border-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)] relative overflow-hidden`}>
-                         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 0)', backgroundSize: '4px 4px' }}></div>
-                         <div className="absolute top-1/4 left-1/4 w-1/2 h-1/2 bg-white/20 blur-md rounded-full"></div>
-                    </div>
-
-                    {/* Fins */}
-                    <div className="absolute top-[-20%] left-1/4 w-1/4 h-1/2 bg-white/30 rounded-full blur-[1px] rotate-[-20deg]"></div>
-                    <div className="absolute bottom-[-20%] left-1/4 w-1/4 h-1/2 bg-white/30 rounded-full blur-[1px] rotate-[20deg]"></div>
-                </div>
-            </div>
-        );
-      })}
-
-      {/* 5. Surface Sparkle (Top Layer) */}
-      {!isMini && Array.from({ length: 15 }).map((_, i) => (
-          <div 
-            key={`sparkle-${i}`}
-            className="absolute w-1 h-1 bg-white/80 rounded-full blur-[1px] animate-[sparkle_8s_infinite_ease-in-out]"
-            style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 10}s`
-            }}
-          />
-      ))}
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes caustic-drift {
-            0% { transform: translate(-10%, -10%) rotate(0deg); }
-            100% { transform: translate(10%, 10%) rotate(360deg); }
-        }
-        @keyframes koi-swim-prestige {
-            0% { left: -300px; transform: translateY(0px) scaleX(1); }
-            25% { transform: translateY(50px); }
-            50% { transform: translateY(-50px); }
-            75% { transform: translateY(30px); }
-            100% { left: 110%; transform: translateY(0px) scaleX(1); }
-        }
-        @keyframes koi-tail-wag {
-            0%, 100% { transform: scaleY(1); }
-            50% { transform: scaleY(1.4); }
-        }
-        @keyframes sparkle {
-          0%, 100% { opacity: 0; transform: scale(0); }
-          50% { opacity: 0.8; transform: scale(1.5); }
-        }
-        .animate-koi-swim-prestige { animation: koi-swim-prestige linear infinite; }
-        .animate-koi-tail-wag { animation: koi-tail-wag 0.8s ease-in-out infinite; transform-origin: left center; }
-      `}} />
     </div>
   );
 };
@@ -298,13 +286,8 @@ const CityLightsEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#050510]">
-      {/* 1. Deep Distant Skyline - High Quality Pixel Art (Penhouse View) */}
       <div className="absolute inset-0 opacity-40 bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-bottom mix-blend-screen filter brightness-[0.4] grayscale-[0.5] contrast-125"></div>
-      
-      {/* 2. City Glow Layer */}
       <div className="absolute bottom-0 left-0 w-full h-[60%] bg-gradient-to-t from-purple-900/30 via-blue-900/10 to-transparent"></div>
-      
-      {/* 3. Twinkling Window Pixels */}
       {pixelLights.map(p => (
         <div 
           key={p.id}
@@ -321,26 +304,12 @@ const CityLightsEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
           }}
         />
       ))}
-
-      {/* 4. Luxury Penthouse Overlay - Glass Balcony Reflection */}
       <div className="absolute inset-0 z-10">
-          {/* Subtle Vertical Reflections */}
           <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 49%, rgba(255,255,255,0.4) 51%, transparent 100%)', backgroundSize: '400px 100%' }}></div>
-          {/* Top-down Penthouse Light */}
           <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-purple-500/10 to-transparent"></div>
-          {/* Floor Reflection Gradient */}
           <div className="absolute bottom-0 left-0 w-full h-[40%] bg-gradient-to-t from-[#050510] to-transparent"></div>
       </div>
-
-      {/* 5. Scanline Aesthetic Overlay */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-20" style={{ backgroundImage: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))', backgroundSize: '100% 4px, 3px 100%' }}></div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes drift {
-          0% { background-position: 0% 0%; }
-          100% { background-position: 100% 0%; }
-        }
-      `}} />
     </div>
   );
 };
@@ -429,17 +398,6 @@ const HighRollerEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
           </svg>
         </div>
       ))}
-      {!isMini && Array.from({ length: 20 }).map((_, i) => (
-        <div 
-          key={`glint-castle-v3-${i}`}
-          className="absolute w-1.5 h-1.5 bg-yellow-400/30 rounded-full blur-[1px] animate-[sparkle_8s_infinite_ease-in-out]"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 12}s`,
-          }}
-        />
-      ))}
       <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(251,191,36,0.06)] pointer-events-none"></div>
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes castle-drift {
@@ -447,10 +405,6 @@ const HighRollerEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
           15% { opacity: 0.65; }
           85% { opacity: 0.65; }
           100% { transform: translateY(-135vh) translateX(var(--sway)) rotate(360deg) scale(1); opacity: 0; }
-        }
-        @keyframes sparkle {
-          0%, 100% { opacity: 0; transform: scale(0); }
-          50% { opacity: 1; transform: scale(1.2); }
         }
         .animate-castle-drift { animation: castle-drift linear infinite; }
       `}} />
@@ -489,21 +443,14 @@ const PrestigeEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#1a0000]">
-      {/* 1. Deep Imperial Lacquer Base */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#4d0000] via-[#1a0000] to-black"></div>
-      
-      {/* 2. Auspicious Lattice Background (Wow factor texture) */}
       <div className="absolute inset-0 opacity-[0.07] mix-blend-overlay" style={{ 
         backgroundImage: 'url("https://www.transparenttextures.com/patterns/oriental-tiles.png")',
         backgroundSize: '250px'
       }}></div>
-
-      {/* 3. High-Key Red Silk Radiance */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-40">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.15)_0%,transparent_70%)] animate-pulse"></div>
       </div>
-
-      {/* 4. Luxury Floating Gold Artifacts */}
       {symbols.map(s => (
         <div 
           key={s.id}
@@ -529,43 +476,16 @@ const PrestigeEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
                 </linearGradient>
              </defs>
              <path d={s.path} fill={`url(#goldGrad-${s.id})`} stroke="#d4af37" strokeWidth="0.5" strokeOpacity="0.4" />
-             {/* Metallic Sheen layer */}
              <path d={s.path} fill="white" opacity="0.1" className="animate-pulse" />
           </svg>
         </div>
       ))}
-
-      {/* 5. Imperial Gold Corner Framing (Mini only uses 2) */}
-      {!isMini && (
-          <>
-            <div className="absolute top-0 left-0 w-48 h-48 border-t-[3px] border-l-[3px] border-yellow-500/20 rounded-tl-[4rem] m-6"></div>
-            <div className="absolute bottom-0 right-0 w-48 h-48 border-b-[3px] border-r-[3px] border-yellow-500/20 rounded-br-[4rem] m-6"></div>
-          </>
-      )}
-
-      {/* 6. Pure Gold Dust Particles */}
-      {!isMini && Array.from({ length: 25 }).map((_, i) => (
-        <div 
-          key={`dust-${i}`}
-          className="absolute w-1 h-1 bg-yellow-500/60 rounded-full blur-[0.5px] animate-[gold-sparkle_10s_infinite_ease-in-out]"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 15}s`,
-          }}
-        />
-      ))}
-
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes prestige-drift {
           0% { transform: translateY(0vh) translateX(0) rotate(0deg) scale(0.65); opacity: 0; }
           15% { opacity: 0.9; }
           85% { opacity: 0.9; }
           100% { transform: translateY(-135vh) translateX(var(--sway)) rotate(450deg) scale(1.05); opacity: 0; }
-        }
-        @keyframes gold-sparkle {
-          0%, 100% { opacity: 0; transform: scale(0); }
-          50% { opacity: 1; transform: scale(1.5) rotate(45deg); }
         }
         .animate-prestige-drift { animation: prestige-drift linear infinite; }
       `}} />
@@ -574,298 +494,149 @@ const PrestigeEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 };
 
 /**
- * Yuletide Snow Path
- */
-const SNOWFLAKE_PATH = "M50,0 L53,35 L85,15 L65,45 L100,50 L65,55 L85,85 L53,65 L50,100 L47,65 L15,85 L35,55 L0,50 L35,45 L15,15 L47,35 Z";
-
-/**
- * YuletideEngine - Prestige Winter Atmosphere
- */
-const YuletideEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
-  const flakeCount = isMini ? 15 : 45;
-  const bokehCount = isMini ? 5 : 12;
-
-  const flakes = useMemo(() => {
-    return Array.from({ length: flakeCount }).map((_, i) => {
-      const sizeBase = Math.random();
-      const size = sizeBase > 0.8 ? (Math.random() * 20 + 20) : (Math.random() * 8 + 6);
-      return {
-        id: `flake-${i}`,
-        x: Math.random() * 100,
-        y: Math.random() * -100, 
-        size,
-        delay: Math.random() * -40,
-        duration: 15 + Math.random() * 15,
-        rotate: Math.random() * 360,
-        sway: Math.random() * 100 - 50,
-        blur: size < 10 ? 1 : 0
-      };
-    });
-  }, [flakeCount]);
-
-  const bokeh = useMemo(() => {
-    const colors = ['rgba(16, 185, 129, 0.15)', 'rgba(239, 68, 68, 0.15)', 'rgba(234, 179, 8, 0.15)'];
-    return Array.from({ length: bokehCount }).map((_, i) => ({
-      id: `bokeh-${i}`,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 150 + 100,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      duration: 10 + Math.random() * 10,
-      delay: Math.random() * -20
-    }));
-  }, [bokehCount]);
-
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#010b13]">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#021b2d] via-[#010b13] to-black"></div>
-      <div className="absolute inset-0 opacity-[0.04] mix-blend-screen" style={{ 
-        backgroundImage: 'url("https://www.transparenttextures.com/patterns/p6.png")',
-        backgroundSize: '200px'
-      }}></div>
-      {bokeh.map(b => (
-        <div 
-          key={b.id}
-          className="absolute rounded-full blur-[80px] animate-pulse"
-          style={{
-            left: `${b.x}%`,
-            top: `${b.y}%`,
-            width: `${b.size}px`,
-            height: `${b.size}px`,
-            backgroundColor: b.color,
-            animationDuration: `${b.duration}s`,
-            animationDelay: `${b.delay}s`
-          }}
-        />
-      ))}
-      {flakes.map(s => (
-        <div 
-          key={s.id}
-          className="absolute animate-yuletide-fall"
-          style={{
-            left: `${s.x}%`,
-            top: '-10%',
-            width: `${s.size}px`,
-            height: `${s.size}px`,
-            filter: s.blur ? `blur(${s.blur}px)` : 'none',
-            animationDelay: `${s.delay}s`,
-            animationDuration: `${s.duration}s`,
-            '--sway': `${s.sway}px`
-          } as any}
-        >
-          <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]">
-             <defs>
-                <linearGradient id={`flakeGrad-${s.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ffffff" />
-                    <stop offset="50%" stopColor="#bfdbfe" />
-                    <stop offset="100%" stopColor="#ffffff" stopOpacity="0.5" />
-                </linearGradient>
-             </defs>
-             <path d={SNOWFLAKE_PATH} fill={`url(#flakeGrad-${s.id})`} opacity="0.8" />
-          </svg>
-        </div>
-      ))}
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60%] aspect-square bg-[radial-gradient(circle_at_center,_rgba(234,179,8,0.1)_0%,_transparent_70%)]"></div>
-      <div className="absolute inset-0 border-[40px] border-transparent shadow-[inset_0_0_150px_rgba(191,219,254,0.08)] pointer-events-none"></div>
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes yuletide-fall {
-          0% { transform: translateY(-10vh) translateX(0) rotate(0deg) scale(0.8); opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { transform: translateY(110vh) translateX(var(--sway)) rotate(360deg) scale(1); opacity: 0; }
-        }
-        .animate-yuletide-fall { animation: yuletide-fall linear infinite; }
-      `}} />
-    </div>
-  );
-};
-
-/**
- * Lotus Symbol Paths
- */
-const SYMBOL_PATHS = {
-  LOTUS: "M50,5 C60,25 90,35 90,55 C90,75 70,85 50,85 C30,85 10,75 10,55 C10,35 40,25 50,5 Z M50,25 C55,40 75,50 75,60 C75,70 65,75 50,75 C35,75 25,70 25,60 C25,50 45,40 50,25 Z",
-  PETAL: "M50,15 C70,35 80,65 50,85 C20,65 30,35 50,15 Z",
-  DIAMOND_CRYSTAL: "M50,5 L85,35 L50,95 L15,35 Z M25,35 L75,35 M50,5 L50,95 M15,35 L85,35"
-};
-
-/**
- * LotusEngine - Prestige Nature & Crystal Vibes
+ * LotusEngine 3.0 - High Quality Nature/Zen Ambiance
+ * Features lighter, glowing Sakura-pink suit motifs and lush Jade greens.
  */
 const LotusEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
-  const particleCount = isMini ? 12 : 36;
-  
-  const symbols = useMemo(() => {
-    const types = Object.keys(SYMBOL_PATHS);
-    return Array.from({ length: particleCount }).map((_, i) => {
-      const sizeBase = Math.random();
-      const size = sizeBase > 0.85 ? (Math.random() * 25 + 40) : sizeBase > 0.3 ? (Math.random() * 15 + 15) : (Math.random() * 8 + 8);
-      
-      return {
-        id: `symbol-${i}`,
-        path: SYMBOL_PATHS[types[Math.floor(Math.random() * types.length)] as keyof typeof SYMBOL_PATHS],
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        size,
-        delay: Math.random() * -60,
-        duration: 30 + Math.random() * 40, 
-        rotate: Math.random() * 360,
-        sway: Math.random() * 160 - 80,
-        hue: Math.random() > 0.5 ? '#f472b6' : '#fbcfe8',
-        blur: size < 12 ? 1.5 : size > 45 ? 0 : 0.8, 
-        initialOpacity: size < 12 ? 0.2 : 0.7
-      };
-    });
-  }, [particleCount]);
+  const petals = useMemo(() => {
+    const shapes = ['PETAL', 'HEART', 'DIAMOND'];
+    return Array.from({ length: isMini ? 12 : 35 }).map((_, i) => ({
+      id: `lotus-v3-${i}`,
+      type: shapes[Math.floor(Math.random() * shapes.length)],
+      left: Math.random() * 100,
+      delay: Math.random() * -30,
+      duration: 12 + Math.random() * 15,
+      size: 14 + Math.random() * 18,
+      rotate: Math.random() * 360,
+      sway: 30 + Math.random() * 60,
+    }));
+  }, [isMini]);
 
-  const bambooStalks = useMemo(() => {
-    return Array.from({ length: isMini ? 4 : 12 }).map((_, i) => ({
-      id: `bamboo-${i}`,
-      x: (i * (100 / (isMini ? 4 : 12))) + (Math.random() * 6),
-      width: Math.random() * 5 + 3,
-      opacity: 0.04 + (Math.random() * 0.09),
-      height: 85 + Math.random() * 35
+  const fireflies = useMemo(() => {
+    return Array.from({ length: isMini ? 6 : 20 }).map((_, i) => ({
+        id: `firefly-${i}`,
+        left: Math.random() * 100,
+        top: Math.random() * 100,
+        delay: Math.random() * -10,
+        duration: 5 + Math.random() * 5
     }));
   }, [isMini]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#065f46]">
-      <div className="absolute inset-0 bg-gradient-to-br from-[#6ee7b7] via-[#10b981] to-[#064e3b]"></div>
-      <div className="absolute inset-0 opacity-[0.06] mix-blend-overlay" style={{ 
-        backgroundImage: 'url("https://www.transparenttextures.com/patterns/wave-cut.png")',
-        backgroundSize: '280px'
-      }}></div>
-      {bambooStalks.map(s => (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* Floating Petals & Suits */}
+      {petals.map(p => (
         <div 
-          key={s.id}
-          className="absolute bottom-0 rounded-full"
+          key={p.id}
+          className="absolute animate-lotus-fall"
           style={{
-            left: `${s.x}%`,
-            width: `${s.width}px`,
-            height: `${s.height}%`,
-            opacity: s.opacity,
-            background: 'linear-gradient(to right, rgba(255,255,255,0.4), rgba(255,255,255,0.1) 40%, rgba(0,0,0,0.1) 60%, rgba(255,255,255,0.3))',
-            boxShadow: 'inset 0 0 12px rgba(16,185,129,0.3)',
-            backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0px, transparent 140px, rgba(0,0,0,0.2) 140px, rgba(0,0,0,0.2) 144px, rgba(255,255,255,0.1) 144px, rgba(255,255,255,0.1) 146px)'
-          }}
-        />
-      ))}
-      <div className="absolute top-[-20%] right-[-10%] w-[120%] h-[120%] opacity-40 pointer-events-none">
-          <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_80px,transparent_80px,transparent_400px)] blur-[120px] animate-[pulse_18s_infinite]"></div>
-      </div>
-      {symbols.map(s => (
-        <div 
-          key={s.id}
-          className="absolute animate-lotus-drift-v3"
-          style={{
-            left: `${s.x}%`,
-            top: '110%',
-            width: `${s.size}px`,
-            height: `${s.size}px`,
-            filter: s.blur ? `blur(${s.blur}px)` : 'none',
-            animationDelay: `${s.delay}s`,
-            animationDuration: `${s.duration}s`,
-            '--sway': `${s.sway}px`
+            left: `${p.left}%`,
+            top: '-10%',
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            '--sway-amount': `${p.sway}px`
           } as any}
         >
-          <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_18px_rgba(255,255,255,0.5)]">
-             <defs>
-                <linearGradient id={`symbolGradV3-${s.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="white" />
-                    <stop offset="60%" stopColor={s.hue} />
-                    <stop offset="100%" stopColor={s.hue} stopOpacity="0.8" />
-                </linearGradient>
-             </defs>
-             <path d={s.path} fill={`url(#symbolGradV3-${s.id})`} />
-             <path d={s.path} fill="white" opacity="0.12" className="animate-pulse" />
+          <svg 
+            width={p.size} 
+            height={p.size} 
+            viewBox="0 0 100 100" 
+            style={{ 
+                transform: `rotate(${p.rotate}deg)`,
+                filter: 'drop-shadow(0 2px 6px rgba(249, 168, 212, 0.4))'
+            }}
+          >
+            <defs>
+              <linearGradient id={`lotusGrad-${p.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#fff1f2" />
+                <stop offset="40%" stopColor="#f9a8d4" />
+                <stop offset="100%" stopColor="#db2777" />
+              </linearGradient>
+            </defs>
+            {p.type === 'PETAL' && (
+               <path d="M50,5 C65,40 95,55 50,95 C5,55 35,40 50,5" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.8" />
+            )}
+            {p.type === 'HEART' && (
+               <path d="M50,30 C50,10 10,10 10,45 C10,70 50,90 50,90 C50,90 90,70 90,45 C90,10 50,10 50,30" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.7" />
+            )}
+            {p.type === 'DIAMOND' && (
+               <path d="M50,10 L85,50 L50,90 L15,50 Z" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.75" />
+            )}
+            <path d="M0,0 L100,100" stroke="white" strokeWidth="0.8" opacity="0.12" />
           </svg>
         </div>
       ))}
-      {!isMini && Array.from({ length: 18 }).map((_, i) => (
-        <div 
-          key={`glintV3-${i}`}
-          className="absolute w-2 h-2 bg-white shadow-[0_0_20px_white] animate-[lotus-sparkle-v3_7s_infinite_ease-in-out]"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 12}s`,
-            clipPath: 'polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%)'
-          }}
-        />
+
+      {/* Nature Ambiance Fireflies */}
+      {!isMini && fireflies.map(f => (
+          <div 
+            key={f.id}
+            className="absolute w-1.5 h-1.5 bg-[#bef264] rounded-full blur-[1px] animate-firefly"
+            style={{
+                left: `${f.left}%`,
+                top: `${f.top}%`,
+                animationDelay: `${f.delay}s`,
+                animationDuration: `${f.duration}s`,
+                boxShadow: '0 0 10px #bef264'
+            }}
+          />
       ))}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,_rgba(255,255,255,0.1)_0%,_transparent_60%)]"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_85%,_rgba(251,207,232,0.2)_0%,_transparent_60%)]"></div>
+
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes lotus-drift-v3 {
-          0% { transform: translateY(0vh) translateX(0) rotate(0deg) scale(0.6); opacity: 0; }
-          15% { opacity: 0.95; }
-          85% { opacity: 0.95; }
-          100% { transform: translateY(-140vh) translateX(var(--sway)) rotate(540deg) scale(1.1); opacity: 0; }
+        @keyframes lotus-fall {
+          0% { transform: translateY(0) translateX(0) rotate(0deg) scale(0.8); opacity: 0; }
+          15% { opacity: 0.9; }
+          85% { opacity: 0.9; }
+          100% { transform: translateY(115vh) translateX(var(--sway-amount)) rotate(540deg) scale(1.1); opacity: 0; }
         }
-        @keyframes lotus-sparkle-v3 {
-          0%, 100% { opacity: 0; transform: scale(0.1) rotate(0deg); }
-          50% { opacity: 0.7; transform: scale(1.5) rotate(180deg); }
+        @keyframes firefly {
+            0%, 100% { transform: translate(0, 0); opacity: 0.1; }
+            50% { transform: translate(40px, -60px); opacity: 0.6; }
         }
-        .animate-lotus-drift-v3 { animation: lotus-drift-v3 linear infinite; }
+        .animate-lotus-fall { animation: lotus-fall linear infinite; }
+        .animate-firefly { animation: firefly ease-in-out infinite; }
       `}} />
     </div>
   );
 };
 
 /**
- * SpaceEngine - Twinkling Galactic Sprawl
+ * YuletideEngine - Midnight snow fall
  */
-const SpaceEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
-  const starCount = isMini ? 100 : 800;
-  const starFields = useMemo(() => {
-    return Array.from({ length: starCount }).map((_, i) => ({
-      id: `star-${i}`,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 1.8 + 0.2,
-      opacity: 0.1 + Math.random() * 0.7,
-      color: Math.random() > 0.8 ? '#facc15' : Math.random() > 0.6 ? '#67e8f9' : '#ffffff', 
-      delay: Math.random() * 40,
-      duration: 10 + Math.random() * 20 
+const YuletideEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const flakes = useMemo(() => {
+    return Array.from({ length: isMini ? 15 : 50 }).map((_, i) => ({
+      id: `snow-flake-${i}`,
+      left: Math.random() * 100,
+      delay: Math.random() * -20,
+      duration: 8 + Math.random() * 8,
+      size: 2 + Math.random() * 3,
     }));
-  }, [starCount]);
+  }, [isMini]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#010103] via-[#02050c] to-[#000000]"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(34,211,238,0.02)_0%,_transparent_80%)] opacity-60"></div>
-      <div className="absolute inset-0 z-10">
-        {starFields.map(s => (
-          <div 
-            key={s.id}
-            className="absolute rounded-full animate-star-shimmer"
-            style={{
-              left: `${s.x}%`,
-              top: `${s.y}%`,
-              width: `${s.size}px`,
-              height: `${s.size}px`,
-              backgroundColor: s.color,
-              boxShadow: `0 0 ${s.size * 4}px ${s.color}`,
-              opacity: s.opacity,
-              animationDelay: `${s.delay}s`,
-              animationDuration: `${s.duration}s`
-            }}
-          />
-        ))}
-      </div>
-      <div className="absolute inset-0 z-20 pointer-events-none opacity-10">
-         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black"></div>
-         <div className="absolute inset-0 opacity-[0.04]" style={{ 
-            backgroundImage: 'repeating-linear-gradient(90deg, transparent 0, transparent 150px, #fff 151px, transparent 155px)', 
-            backgroundSize: '100% 400px' 
-         }}></div>
-      </div>
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {flakes.map(f => (
+        <div 
+          key={f.id}
+          className="absolute bg-white/60 rounded-full blur-[0.5px] animate-snow-fall"
+          style={{
+            left: `${f.left}%`,
+            top: '-5%',
+            width: `${f.size}px`,
+            height: `${f.size}px`,
+            animationDelay: `${f.delay}s`,
+            animationDuration: `${f.duration}s`,
+          } as any}
+        />
+      ))}
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes star-shimmer {
-          0%, 100% { opacity: 0.1; transform: scale(1); filter: brightness(1); }
-          50% { opacity: 1; transform: scale(1.2); filter: brightness(1.5); }
+        @keyframes snow-fall {
+          0% { transform: translateY(0) translateX(0); opacity: 0; }
+          10% { opacity: 1; }
+          100% { transform: translateY(110vh) translateX(30px); opacity: 0; }
         }
-        .animate-star-shimmer { animation: star-shimmer infinite ease-in-out; }
+        .animate-snow-fall { animation: snow-fall linear infinite; }
       `}} />
     </div>
   );
@@ -883,8 +654,11 @@ export const BoardSurface: React.FC<{
   
   return (
     <div className={`absolute inset-0 overflow-hidden ${theme.base} ${className}`}>
+      {theme.id === 'CLASSIC_GREEN' && (
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#115e34_0%,_#000000_100%)]"></div>
+      )}
       {theme.id === 'CITY_LIGHTS_PIXEL' && <CityLightsEngine isMini={isMini} />}
-      {theme.koiPrestige && <ImperialKoiEngine isMini={isMini} />}
+      {theme.zenithAurum && <ZenithAurumEngine isMini={isMini} />}
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen transition-all duration-1000 z-1`}></div>
       {theme.texture && (
         <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none z-2" 
@@ -893,7 +667,7 @@ export const BoardSurface: React.FC<{
                backgroundSize: isMini ? '2px 2px' : '3.5px 3.5px' 
              }}></div>
       )}
-      {theme.cityLights && <SpaceEngine isMini={isMini} />}
+      {theme.id === 'CYBERPUNK_NEON' && <SpaceEngine isMini={isMini} />}
       {theme.lotusForest && <LotusEngine isMini={isMini} />}
       {theme.yuletide && <YuletideEngine isMini={isMini} />}
       {theme.highRoller && <HighRollerEngine isMini={isMini} />}
@@ -907,36 +681,19 @@ export const BoardSurface: React.FC<{
       )}
       <div className="absolute inset-0 pointer-events-none z-4" 
            style={{ backgroundImage: `radial-gradient(circle at center, ${theme.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 80%)` }}></div>
-      {theme.emperor && <ImperialGoldLayer opacity={theme.id === 'LOTUS_FOREST' ? (isMini ? 0.15 : 0.25) : (isMini ? 0.4 : 0.6)} isMini={isMini} />}
+      {theme.emperor && <ImperialGoldLayer opacity={theme.id === 'LOTUS_FOREST' ? (isMini ? 0.1 : 0.2) : (isMini ? 0.4 : 0.6)} isMini={isMini} />}
       <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent pointer-events-none z-5"></div>
-      
-      <style dangerouslySetInnerHTML={{ __html: `
-        .board-city-lights {
-          background-image: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000&auto=format&fit=crop');
-          background-size: cover;
-          background-position: center;
-          position: relative;
-        }
-        .board-city-lights::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background-color: rgba(0, 0, 0, 0.6);
-        }
-      `}} />
     </div>
   );
 };
 
-/**
- * Individual Board Selection Preview Tile
- */
 export const BoardPreview: React.FC<{ 
   themeId: string; 
   className?: string; 
   active?: boolean;
   unlocked?: boolean;
-}> = ({ themeId, className = "", active, unlocked = true }) => {
+  hideActiveMarker?: boolean;
+}> = ({ themeId, className = "", active, unlocked = true, hideActiveMarker = false }) => {
   return (
     <div className={`relative w-full aspect-[16/10] rounded-2xl overflow-hidden border transition-all duration-500 ${active ? 'border-yellow-500/50 ring-2 ring-yellow-500 ring-inset shadow-2xl' : 'border-white/10 group-hover:border-white/20'} ${className}`}>
       <BoardSurface themeId={themeId} isMini />
@@ -947,7 +704,7 @@ export const BoardPreview: React.FC<{
           </div>
         </div>
       )}
-      {active && (
+      {active && !hideActiveMarker && (
         <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-yellow-500 text-black flex items-center justify-center text-[10px] font-black shadow-lg animate-in zoom-in duration-300">
            ✓
         </div>
@@ -1102,7 +859,7 @@ export const UserHub: React.FC<UserHubProps> = ({
         {/* Compact Header */}
         <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex justify-between items-center relative">
           <div className="flex flex-col">
-            <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/30 uppercase italic tracking-widest font-serif leading-none">PLAYER DOSSIER</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-widest font-serif leading-none">PLAYER DOSSIER</h2>
             <div className="flex items-center gap-2 mt-1.5">
                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
                <p className="text-[7px] font-black uppercase tracking-[0.4em] text-gray-500">Security Clearance Level A</p>

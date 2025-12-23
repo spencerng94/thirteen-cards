@@ -67,6 +67,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
     
     switch (themeId) {
+      case 'CLASSIC_GREEN':
+        return "bg-[#064e3b] text-emerald-300 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]";
       case 'EMERALD':
         return "bg-emerald-600/90 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-400/30";
       case 'CYBER_BLUE':
@@ -85,8 +87,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
       case 'HIGH_ROLLER':
         return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
-      case 'KOI_PRESTIGE':
-        return "bg-[#0a2e3d] text-teal-300 border-teal-500 shadow-[0_0_25px_rgba(20,184,166,0.4)] font-black italic";
+      case 'ZENITH_AURUM':
+        return "bg-[#020205] text-yellow-400 border-yellow-700 shadow-[0_0_25px_rgba(251,191,36,0.4)] font-black italic";
       default:
         return "bg-white/10 text-white";
     }
@@ -196,6 +198,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <SectionHeader>BOARD THEME</SectionHeader>
               <div className="grid grid-cols-2 gap-3 bg-white/[0.03] p-2 rounded-2xl border border-white/5">
                  {[
+                   { id: 'CLASSIC_GREEN', name: 'Classic' },
                    { id: 'EMERALD', name: 'Emerald' },
                    { id: 'CYBER_BLUE', name: 'Cobalt' },
                    { id: 'CRIMSON_VOID', name: 'Baccarat Ruby' },
@@ -205,7 +208,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                    { id: 'CHRISTMAS_YULETIDE', name: 'Yuletide' },
                    { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope' },
                    { id: 'HIGH_ROLLER', name: 'Le Blanc' },
-                   { id: 'KOI_PRESTIGE', name: 'Imperial Koi' }
+                   { id: 'ZENITH_AURUM', name: 'Zenith Aurum' }
                  ].map((theme) => (
                    <button 
                       key={theme.id}

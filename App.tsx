@@ -309,7 +309,7 @@ const App: React.FC = () => {
   return (
     <div className="w-full h-full bg-[#0a3d23]">
       {storeOpen && (
-        <Store onClose={() => setStoreOpen(false)} profile={profile} isGuest={isGuest} onRefreshProfile={handleRefreshProfile} currentSleeve={cardCoverStyle} onEquipSleeve={setCardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar} initialTab={storeTab} />
+        <Store onClose={() => setStoreOpen(false)} profile={profile} isGuest={isGuest} onRefreshProfile={handleRefreshProfile} currentSleeve={cardCoverStyle} onEquipSleeve={setCardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar} currentTheme={backgroundTheme} onEquipBoard={setBackgroundTheme} initialTab={storeTab} />
       )}
       {hubState.open && (
         <UserHub initialTab={hubState.tab} onClose={() => setHubState(p => ({ ...p, open: false }))} profile={profile} isGuest={isGuest} onRefreshProfile={handleRefreshProfile} currentSleeve={cardCoverStyle} onEquipSleeve={setCardCoverStyle} playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} onSignOut={handleSignOut} onOpenStore={handleOpenStore} />

@@ -6,7 +6,7 @@ import { AiDifficulty, UserProfile, BackgroundTheme } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName } from '../services/supabase';
-import { PREMIUM_BOARDS, BoardPreview } from './UserHub';
+import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
 
 export type WelcomeTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
@@ -202,7 +202,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     return (
       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
         <SectionLabel>Identity Command</SectionLabel>
-        <div className="flex flex-col items-center gap-4 bg-white/[0.02] p-6 rounded-3xl border border-white/5">
+        <div className="flex flex-col items-center gap-4 bg-black/40 p-6 rounded-3xl border border-white/10 backdrop-blur-md">
            <div className="relative">
               <div className="absolute inset-[-8px] bg-yellow-500/10 blur-xl rounded-full"></div>
               <div className="relative w-20 h-20 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center text-5xl shadow-inner">
@@ -218,7 +218,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               className="w-full max-w-xs bg-black/40 border border-white/10 px-6 py-3 rounded-2xl text-white font-black text-center uppercase tracking-widest focus:border-yellow-500/50 outline-none transition-all"
            />
         </div>
-        <div className="bg-white/[0.02] border border-white/5 p-5 rounded-3xl space-y-2">
+        <div className="bg-black/40 backdrop-blur-md border border-white/5 p-5 rounded-3xl space-y-2">
           <div className="flex justify-between items-end">
             <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Level {currentLevel}</span>
             <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">{nextLevelXp - (profile?.xp || 0)} XP TO RANK UP</span>
@@ -236,7 +236,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 key={a} 
                 title={getAvatarName(a)}
                 onClick={() => unlocked ? setPlayerAvatar(a) : handlePurchaseAttempt(a, 250, 'AVATAR')} 
-                className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-all ${active ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : unlocked ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale hover:opacity-40'}`}
+                className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-all ${active ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : unlocked ? 'bg-black/40 backdrop-blur-sm border border-white/5 hover:bg-white/10' : 'opacity-20 grayscale hover:opacity-40'}`}
               >
                 {a}
               </button>
@@ -247,7 +247,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <div className="flex flex-col items-center">
             <button 
                 onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} 
-                className={`group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 hover:bg-white/[0.08] transition-all duration-500 active:scale-90 shadow-lg`}
+                className={`group relative flex items-center justify-center w-10 h-10 rounded-full bg-black/40 border border-white/10 hover:border-yellow-500/40 hover:bg-black/60 transition-all duration-500 active:scale-90 shadow-lg backdrop-blur-sm`}
                 title={isCatalogExpanded ? "Collapse View" : "Expand All Options"}
             >
                 <div className={`absolute inset-0 rounded-full bg-yellow-500/10 blur-md opacity-0 group-hover:opacity-100 transition-opacity`}></div>
@@ -282,7 +282,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
         <SectionLabel 
           rightElement={
-            <div className="flex items-center gap-3 bg-black/20 px-4 py-2 rounded-full border border-white/5">
+            <div className="flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/5">
               <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${hideUnowned ? 'text-yellow-500' : 'text-white/40'}`}>Owned Only</span>
               <button 
                 onClick={() => setHideUnowned(!hideUnowned)}
@@ -301,7 +301,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             const unlocked = isSleeveUnlocked(s.id);
             const active = cardCoverStyle === s.style;
             return (
-              <div key={s.id} onClick={() => unlocked ? setCardCoverStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-white/[0.02] border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-white/[0.05] ${active ? 'border-emerald-500/40' : 'border-white/5'}`}>
+              <div key={s.id} onClick={() => unlocked ? setCardCoverStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'}`}>
                 <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
                 <Card faceDown coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} />
                 <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{s.name}</span>
@@ -336,13 +336,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
       <SectionLabel>System Config</SectionLabel>
       <div className="space-y-4">
-        <div className="flex items-center justify-between bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+        <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
            <span className="text-[10px] font-black text-white uppercase tracking-widest">Haptic Audio</span>
            <button onClick={() => setSoundEnabled(!soundEnabled)} className={`w-12 h-6 rounded-full relative ${soundEnabled ? 'bg-emerald-600' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
            </button>
         </div>
-        <div className="flex items-center justify-between bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+        <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
            <span className="text-[10px] font-black text-white uppercase tracking-widest">Single Player Turbo</span>
            <button onClick={() => setQuickFinish(!quickFinish)} className={`w-12 h-6 rounded-full relative ${quickFinish ? 'bg-yellow-500' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${quickFinish ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -350,7 +350,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </div>
         <div className="space-y-3">
           <p className="text-[9px] font-black text-white/40 uppercase tracking-widest text-center">AI Aggression</p>
-          <div className="grid grid-cols-3 gap-2 p-1 bg-black/40 rounded-xl">
+          <div className="grid grid-cols-3 gap-2 p-1 bg-black/60 backdrop-blur-md rounded-xl border border-white/5">
             {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map(d => {
               let activeClass = 'bg-yellow-500 text-black';
               if (d === 'EASY') activeClass = 'bg-emerald-600 text-white';
@@ -369,8 +369,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   );
 
   return (
-    <div className="min-h-screen w-full bg-[#0a3d23] relative overflow-hidden flex flex-col items-center justify-center p-4">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#115e34_0%,_#000000_100%)]"></div>
+    <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center p-4">
+      {/* Dynamic Master Board Surface - Syncs with backgroundTheme */}
+      <BoardSurface themeId={backgroundTheme} />
       
       {/* PURCHASE CONFIRMATION MODAL */}
       {pendingPurchase && (
@@ -417,10 +418,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                           <Card faceDown coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" />
                       ) : (
                           <div className="w-64 aspect-[16/10] rounded-3xl overflow-hidden ring-2 ring-yellow-500/50 shadow-2xl">
-                             {(() => {
-                               const b = PREMIUM_BOARDS.find(b => b.id === awardItem.id);
-                               return <div className={`absolute inset-0 ${b?.base}`}><div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${b?.colors} mix-blend-screen`}></div></div>;
-                             })()}
+                             <BoardPreview themeId={awardItem.id} active={false} />
                           </div>
                       )}
                   </div>

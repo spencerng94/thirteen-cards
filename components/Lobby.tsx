@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty } from '../types';
 import { socket } from '../services/socket';
 import { SignOutButton } from './SignOutButton';
+import { BoardSurface } from './UserHub';
 
 interface LobbyProps {
   playerName: string;
@@ -20,77 +21,24 @@ const MAX_PLAYERS = 4;
 // --- Helper Components ---
 
 const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: BackgroundTheme }> = ({ children, theme }) => {
-  let bgBase = '';
-  let orb1 = '';
-  let orb2 = '';
-  let cityLights = false;
-  let isLight = false;
-
-  switch (theme) {
-    case 'CYBER_BLUE':
-      bgBase = 'bg-[#020617]';
-      orb1 = 'bg-blue-600/10';
-      orb2 = 'bg-cyan-500/10';
-      break;
-    case 'CRIMSON_VOID':
-      bgBase = 'bg-[#0a0000]';
-      orb1 = 'bg-red-950/30';
-      orb2 = 'bg-rose-900/10';
-      break;
-    case 'CITY_LIGHTS_PIXEL':
-      bgBase = 'bg-[#050510]';
-      orb1 = 'bg-purple-600/15';
-      orb2 = 'bg-blue-500/10';
-      cityLights = true;
-      break;
-    case 'KOI_PRESTIGE':
-      bgBase = 'bg-[#0a2e3d]';
-      orb1 = 'bg-teal-600/20';
-      orb2 = 'bg-slate-900/40';
-      isLight = false;
-      break;
-    case 'EMERALD':
-    default:
-      bgBase = 'bg-[#051109]';
-      orb1 = 'bg-green-600/10';
-      orb2 = 'bg-emerald-500/10';
-      break;
-  }
-
   return (
-    <div className={`min-h-screen w-full ${bgBase} relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000`}>
-        {cityLights && (
-          <div className="absolute inset-0 opacity-40 animate-[slowZoom_20s_infinite_alternate]" style={{ 
-            backgroundImage: "url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000&auto=format&fit=crop')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'bottom',
-            filter: 'grayscale(0.5) brightness(0.6) contrast(1.2)'
-          }}></div>
-        )}
+    <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center p-4">
+        {/* Dynamic Master Board Surface - Replaced the simplistic BackgroundWrapper logic */}
+        <BoardSurface themeId={theme} />
         
-        {/* Dynamic Ambient Orbs */}
-        <div className={`absolute top-[-10%] left-[-10%] w-[50%] aspect-square ${orb1} blur-[120px] rounded-full animate-pulse`}></div>
-        <div className={`absolute bottom-[-10%] right-[-10%] w-[50%] aspect-square ${orb2} blur-[120px] rounded-full animate-pulse [animation-delay:2s]`}></div>
-        
-        {/* Technical Grid Overlay */}
-        <div className={`absolute inset-0 ${isLight ? 'opacity-[0.05]' : 'opacity-[0.03]'} pointer-events-none`} style={{ 
-            backgroundImage: `linear-gradient(${isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'} 1px, transparent 1px), linear-gradient(90deg, ${isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'} 1px, transparent 1px)`, 
+        {/* Technical Grid Overlay - Preserved for texture */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-10" style={{ 
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, 
             backgroundSize: '60px 60px' 
         }}></div>
         
         {children}
-        <style dangerouslySetInnerHTML={{ __html: `
-          @keyframes slowZoom {
-            from { transform: scale(1); }
-            to { transform: scale(1.1); }
-          }
-        `}} />
     </div>
   );
 };
 
 const GlassPanel: React.FC<{ children: React.ReactNode; className?: string; isLight?: boolean }> = ({ children, className = '', isLight = false }) => (
-  <div className={`relative ${isLight ? 'bg-white/60' : 'bg-black/40'} backdrop-blur-2xl border ${isLight ? 'border-pink-200/50' : 'border-white/10'} shadow-[0_0_50px_rgba(0,0,0,${isLight ? '0.1' : '0.5'})] rounded-[2.5rem] overflow-hidden ${className}`}>
+  <div className={`relative ${isLight ? 'bg-white/60' : 'bg-black/40'} backdrop-blur-3xl border ${isLight ? 'border-pink-200/50' : 'border-white/10'} shadow-[0_0_80px_rgba(0,0,0,${isLight ? '0.2' : '0.8'})] rounded-[2.5rem] overflow-hidden ${className}`}>
       {/* Precision Inner Glow */}
       <div className={`absolute inset-0 rounded-[2.5rem] ring-1 ring-inset ${isLight ? 'ring-white/80' : 'ring-white/5'} pointer-events-none`}></div>
       {children}
@@ -174,7 +122,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
      return (
        <BackgroundWrapper theme={backgroundTheme}>
-        <GlassPanel isLight={isLightTheme} className="w-full max-w-xl p-6 md:p-10 flex flex-col gap-8 z-10">
+        <GlassPanel isLight={isLightTheme} className="w-full max-w-xl p-6 md:p-10 flex flex-col gap-8 z-20">
             
             {/* Room Header Section */}
             <div className="flex flex-col items-center gap-4">
@@ -204,7 +152,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                   className={`group flex items-center gap-3 px-6 py-2.5 ${isLightTheme ? 'bg-black/5 hover:bg-black/10' : 'bg-white/[0.02] hover:bg-white/[0.05]'} border ${isLightTheme ? 'border-black/5' : 'border-white/5'} hover:border-white/20 rounded-full transition-all duration-300`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${isLightTheme ? 'text-pink-400' : 'text-gray-500'} group-hover:text-yellow-500 transition-colors`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                   </svg>
                   <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isLightTheme ? 'text-black/60' : 'text-gray-400'} group-hover:text-white transition-colors`}>{copyFeedback || "Copy Link"}</span>
                 </button>
@@ -353,7 +301,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
   return (
     <BackgroundWrapper theme={backgroundTheme}>
-      <GlassPanel isLight={isLightTheme} className="w-full max-w-md p-10 z-10">
+      <GlassPanel isLight={isLightTheme} className="w-full max-w-md p-10 z-20">
         <div className="text-center mb-10">
             <h1 className={`text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br ${isLightTheme ? 'from-pink-900 via-pink-700 to-pink-500' : 'from-white via-white to-gray-500'} uppercase tracking-tighter mb-4 italic`}>
                 The Arena

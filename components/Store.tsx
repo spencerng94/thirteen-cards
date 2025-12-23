@@ -14,6 +14,8 @@ interface StoreProps {
   currentSleeve: CardCoverStyle;
   playerAvatar: string;
   onEquipAvatar: (avatar: string) => void;
+  currentTheme: BackgroundTheme;
+  onEquipBoard: (theme: BackgroundTheme) => void;
   isGuest?: boolean;
   initialTab?: 'SLEEVES' | 'AVATARS' | 'BOARDS';
 }
@@ -94,7 +96,7 @@ const GridIcon4 = () => (
 
 export const Store: React.FC<StoreProps> = ({ 
   onClose, profile, onRefreshProfile, onEquipSleeve, 
-  currentSleeve, playerAvatar, onEquipAvatar, isGuest, 
+  currentSleeve, playerAvatar, onEquipAvatar, currentTheme, onEquipBoard, isGuest, 
   initialTab = 'SLEEVES' 
 }) => {
   const [activeTab, setActiveTab] = useState<'SLEEVES' | 'AVATARS' | 'BOARDS'>(initialTab as any);
@@ -162,7 +164,8 @@ export const Store: React.FC<StoreProps> = ({
     
     let isEquipped = false;
     if (isAvatar) isEquipped = playerAvatar === item;
-    if (!isAvatar && !isBoard) isEquipped = currentSleeve === item.style;
+    else if (isBoard) isEquipped = currentTheme === item.id;
+    else isEquipped = currentSleeve === item.style;
 
     const cardPadding = density === 4 ? 'p-2 sm:p-3' : density === 2 ? 'p-4 sm:p-6' : 'p-8 sm:p-10';
     const visualSize = density === 4 ? 'scale-[0.8]' : density === 2 ? 'scale-100' : 'scale-110';
@@ -179,14 +182,15 @@ export const Store: React.FC<StoreProps> = ({
           ) : isEquipped ? (
             <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] sm:text-[8px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>
           ) : (
-            <div onClick={(e) => { e.stopPropagation(); if (isAvatar) onEquipAvatar(item); else if (!isBoard) onEquipSleeve(item.style); }} className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-white/20 bg-transparent hover:border-white/50 cursor-pointer transition-colors"></div>
+            <div onClick={(e) => { e.stopPropagation(); if (isAvatar) onEquipAvatar(item); else if (isBoard) onEquipBoard(item.id); else onEquipSleeve(item.style); }} className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-white/20 bg-transparent hover:border-white/50 cursor-pointer transition-colors"></div>
           )}
         </div>
 
         <div className={`py-1 sm:py-3 flex-1 flex flex-col items-center justify-center w-full transition-transform duration-300 ${visualSize}`}>
           {isAvatar ? <div className="text-4xl sm:text-6xl group-hover:scale-125 transition-transform duration-500">{item}</div> : 
-           isBoard ? <div className="w-full" onClick={() => setPreviewThemeId(item.id)}>
-             <BoardPreview themeId={item.id} unlocked={unlocked} />
+           isBoard ? <div className="w-full cursor-pointer" onClick={() => setPreviewThemeId(item.id)}>
+             {/* Pass hideActiveMarker to prevent redundant yellow and green checkboxes in store */}
+             <BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker={true} />
            </div> :
            <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-12 !h-18 sm:!w-14 sm:!h-20' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />}
         </div>
@@ -197,8 +201,8 @@ export const Store: React.FC<StoreProps> = ({
 
         <div className="w-full mt-auto">
           <button
-            onClick={() => unlocked ? (isAvatar ? onEquipAvatar(item) : !isBoard ? onEquipSleeve(item.style) : null) : handlePurchaseAttempt(item, isAvatar, isBoard)}
-            disabled={(isEquipped && !isBoard) || (!unlocked && !canAfford) || buying === id}
+            onClick={() => unlocked ? (isAvatar ? onEquipAvatar(item) : isBoard ? onEquipBoard(item.id) : onEquipSleeve(item.style)) : handlePurchaseAttempt(item, isAvatar, isBoard)}
+            disabled={(isEquipped) || (!unlocked && !canAfford) || buying === id}
             className={`w-full py-2 rounded-xl font-black uppercase ${density === 4 ? 'text-[7px]' : 'text-[8px] sm:text-[9px]'} tracking-[0.15em] transition-all ${isEquipped ? 'bg-emerald-600 text-white shadow-lg' : unlocked ? 'bg-white/5 text-white/80 hover:bg-white/10' : canAfford ? 'bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black shadow-lg' : 'bg-white/5 text-white/20 cursor-not-allowed'}`}
           >
             {buying === id ? '...' : isEquipped ? 'Active' : unlocked ? 'Equip' : 'Buy'}
@@ -251,7 +255,7 @@ export const Store: React.FC<StoreProps> = ({
                   } as any}></div>
               ))}
               
-              <div className="relative flex flex-col items-center text-center max-w-sm">
+              <div className="relative flex flex-col items-center text-center max-sm:px-4">
                   <div className="absolute inset-0 bg-yellow-500/10 blur-[120px] animate-pulse"></div>
                   
                   <div className="relative mb-10 animate-award-pop">
