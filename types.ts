@@ -100,5 +100,7 @@ export interface UserProfile {
   unlocked_sleeves: string[];
   unlocked_avatars: string[];
   unlocked_boards: string[];
+  equipped_sleeve?: string;
+  equipped_board?: string;
   undo_count: number;
 }

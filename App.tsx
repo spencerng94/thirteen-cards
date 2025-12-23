@@ -15,7 +15,7 @@ import { Store } from './components/Store';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar } from './services/supabase';
+import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
@@ -94,6 +94,8 @@ const App: React.FC = () => {
       setProfile(data);
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
+      if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
+      if (data.equipped_board) setBackgroundTheme(data.equipped_board as BackgroundTheme);
     }
   };
 
@@ -103,6 +105,8 @@ const App: React.FC = () => {
       setProfile(data);
       if (data.username && !playerName) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
+      if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
+      if (data.equipped_board) setBackgroundTheme(data.equipped_board as BackgroundTheme);
     }
   }, [isGuest, session]);
 
@@ -116,12 +120,26 @@ const App: React.FC = () => {
     updateProfileAvatar(session?.user?.id || 'guest', playerAvatar);
   }, [playerAvatar, session, authChecked]);
 
+  // Persistence Effect for Sleeve Style
+  useEffect(() => {
+    if (!authChecked || firstLoadRef.current) return;
+    updateProfileEquipped(session?.user?.id || 'guest', cardCoverStyle, undefined);
+  }, [cardCoverStyle, session, authChecked]);
+
+  // Persistence Effect for Board Theme
+  useEffect(() => {
+    if (!authChecked || firstLoadRef.current) return;
+    updateProfileEquipped(session?.user?.id || 'guest', undefined, backgroundTheme);
+  }, [backgroundTheme, session, authChecked]);
+
   const handleSignOut = async () => {
     if (session) await supabase.auth.signOut();
     setIsGuest(false);
     setProfile(null);
     setPlayerName('');
     setPlayerAvatar('😎');
+    setCardCoverStyle('RED');
+    setBackgroundTheme('EMERALD');
     setView('WELCOME');
     setHubState({ open: false, tab: 'PROFILE' });
     setGameSettingsOpen(false);

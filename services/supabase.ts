@@ -36,6 +36,8 @@ const DEFAULT_GUEST_PROFILE = {
   unlocked_sleeves: ['BLUE', 'RED'],
   unlocked_avatars: [...DEFAULT_AVATARS],
   unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
+  equipped_sleeve: 'RED',
+  equipped_board: 'EMERALD',
   undo_count: 0,
   username: AVATAR_NAMES['😊'].toUpperCase(),
   avatar_url: '😎'
@@ -124,6 +126,8 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
       unlocked_sleeves: ['BLUE', 'RED'],
       unlocked_avatars: [...DEFAULT_AVATARS],
       unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
+      equipped_sleeve: 'RED',
+      equipped_board: 'EMERALD',
       undo_count: 0,
       username: googleName,
       avatar_url: currentAvatar
@@ -165,6 +169,19 @@ export const updateProfileAvatar = async (userId: string, avatar: string) => {
   await supabase.from('profiles').update({ avatar_url: avatar }).eq('id', userId);
 };
 
+export const updateProfileEquipped = async (userId: string, sleeve?: string, board?: string) => {
+  const updates: any = {};
+  if (sleeve) updates.equipped_sleeve = sleeve;
+  if (board) updates.equipped_board = board;
+
+  if (!supabaseUrl || !userId || userId === 'guest') {
+    const local = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, ...updates }));
+    return;
+  }
+  await supabase.from('profiles').update(updates).eq('id', userId);
+};
+
 export const transferGuestData = async (userId: string) => {
   const guestData = localStorage.getItem(GUEST_STORAGE_KEY);
   if (!guestData || !supabaseUrl) return;
@@ -178,7 +195,9 @@ export const transferGuestData = async (userId: string) => {
         games_played: (existing.games_played || 0) + (local.games_played || 0),
         coins: (existing.coins || 0) + (local.coins || 0),
         xp: (existing.xp || 0) + (local.xp || 0),
-        avatar_url: existing.avatar_url || local.avatar_url || '😎'
+        avatar_url: existing.avatar_url || local.avatar_url || '😎',
+        equipped_sleeve: existing.equipped_sleeve || local.equipped_sleeve || 'RED',
+        equipped_board: existing.equipped_board || local.equipped_board || 'EMERALD'
       }).eq('id', userId);
       localStorage.removeItem(GUEST_STORAGE_KEY);
     }
