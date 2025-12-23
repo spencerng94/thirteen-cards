@@ -93,11 +93,11 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
     name: 'Lotus Forest', 
     tier: 'PREMIUM',
     price: 4000, 
-    base: 'bg-[#022c22]', 
-    colors: 'from-[#f9a8d4]/20 via-[#134e4a]/10 to-[#022c22]', 
+    base: 'bg-[#064e3b]', 
+    colors: 'from-[#fbcfe8]/20 via-[#065f46]/30 to-[#064e3b]', 
     lotusForest: true,
     emperor: true,
-    spotlight: 'rgba(251, 207, 232, 0.2)' 
+    spotlight: 'rgba(251, 207, 232, 0.25)' 
   },
   { 
     id: 'CHRISTMAS_YULETIDE', 
@@ -549,18 +549,18 @@ const LotusEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
             <defs>
               <linearGradient id={`lotusGrad-${p.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#fff1f2" />
-                <stop offset="40%" stopColor="#f9a8d4" />
-                <stop offset="100%" stopColor="#db2777" />
+                <stop offset="40%" stopColor="#fbcfe8" />
+                <stop offset="100%" stopColor="#f472b6" />
               </linearGradient>
             </defs>
             {p.type === 'PETAL' && (
-               <path d="M50,5 C65,40 95,55 50,95 C5,55 35,40 50,5" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.8" />
+               <path d="M50,5 C65,40 95,55 50,95 C5,55 35,40 50,5" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.85" />
             )}
             {p.type === 'HEART' && (
-               <path d="M50,30 C50,10 10,10 10,45 C10,70 50,90 50,90 C50,90 90,70 90,45 C90,10 50,10 50,30" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.7" />
+               <path d="M50,30 C50,10 10,10 10,45 C10,70 50,90 50,90 C50,90 90,70 90,45 C90,10 50,10 50,30" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.8" />
             )}
             {p.type === 'DIAMOND' && (
-               <path d="M50,10 L85,50 L50,90 L15,50 Z" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.75" />
+               <path d="M50,10 L85,50 L50,90 L15,50 Z" fill={`url(#lotusGrad-${p.id})`} fillOpacity="0.8" />
             )}
             <path d="M0,0 L100,100" stroke="white" strokeWidth="0.8" opacity="0.12" />
           </svg>
@@ -571,13 +571,13 @@ const LotusEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
       {!isMini && fireflies.map(f => (
           <div 
             key={f.id}
-            className="absolute w-1.5 h-1.5 bg-[#bef264] rounded-full blur-[1px] animate-firefly"
+            className="absolute w-1.5 h-1.5 bg-[#fef08a] rounded-full blur-[1px] animate-firefly"
             style={{
                 left: `${f.left}%`,
                 top: `${f.top}%`,
                 animationDelay: `${f.delay}s`,
                 animationDuration: `${f.duration}s`,
-                boxShadow: '0 0 10px #bef264'
+                boxShadow: '0 0 10px #facc15'
             }}
           />
       ))}
@@ -585,13 +585,13 @@ const LotusEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes lotus-fall {
           0% { transform: translateY(0) translateX(0) rotate(0deg) scale(0.8); opacity: 0; }
-          15% { opacity: 0.9; }
-          85% { opacity: 0.9; }
+          15% { opacity: 0.95; }
+          85% { opacity: 0.95; }
           100% { transform: translateY(115vh) translateX(var(--sway-amount)) rotate(540deg) scale(1.1); opacity: 0; }
         }
         @keyframes firefly {
             0%, 100% { transform: translate(0, 0); opacity: 0.1; }
-            50% { transform: translate(40px, -60px); opacity: 0.6; }
+            50% { transform: translate(40px, -60px); opacity: 0.8; }
         }
         .animate-lotus-fall { animation: lotus-fall linear infinite; }
         .animate-firefly { animation: firefly ease-in-out infinite; }

@@ -55,7 +55,8 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean } | null>(null);
 
-  const firstLoadRef = useRef(true);
+  const isLoggingOutRef = useRef(false);
+  const isLoadingProfileRef = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -83,12 +84,15 @@ const App: React.FC = () => {
         await transferGuestData(session.user.id);
         loadProfile(session.user.id);
       }
-      else if (!isGuest) setProfile(null);
+      else if (!isGuest) {
+          setProfile(null);
+      }
     });
     return () => subscription.unsubscribe();
   }, [isGuest]);
 
   const loadProfile = async (uid: string) => {
+    isLoadingProfileRef.current = true;
     const data = await fetchProfile(uid, playerAvatar);
     if (data) {
       setProfile(data);
@@ -97,6 +101,7 @@ const App: React.FC = () => {
       if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
       if (data.equipped_board) setBackgroundTheme(data.equipped_board as BackgroundTheme);
     }
+    setTimeout(() => { isLoadingProfileRef.current = false; }, 500);
   };
 
   useEffect(() => {
@@ -112,27 +117,26 @@ const App: React.FC = () => {
 
   // Persistence Effect for Avatar Emoji
   useEffect(() => {
-    if (!authChecked) return;
-    if (firstLoadRef.current) {
-        firstLoadRef.current = false;
-        return;
-    }
+    if (!authChecked || isLoadingProfileRef.current || isLoggingOutRef.current || !profile) return;
     updateProfileAvatar(session?.user?.id || 'guest', playerAvatar);
-  }, [playerAvatar, session, authChecked]);
+  }, [playerAvatar, session, authChecked, profile]);
 
   // Persistence Effect for Sleeve Style
   useEffect(() => {
-    if (!authChecked || firstLoadRef.current) return;
+    if (!authChecked || isLoadingProfileRef.current || isLoggingOutRef.current || !profile) return;
+    if (profile.equipped_sleeve === cardCoverStyle) return;
     updateProfileEquipped(session?.user?.id || 'guest', cardCoverStyle, undefined);
-  }, [cardCoverStyle, session, authChecked]);
+  }, [cardCoverStyle, session, authChecked, profile]);
 
   // Persistence Effect for Board Theme
   useEffect(() => {
-    if (!authChecked || firstLoadRef.current) return;
+    if (!authChecked || isLoadingProfileRef.current || isLoggingOutRef.current || !profile) return;
+    if (profile.equipped_board === backgroundTheme) return;
     updateProfileEquipped(session?.user?.id || 'guest', undefined, backgroundTheme);
-  }, [backgroundTheme, session, authChecked]);
+  }, [backgroundTheme, session, authChecked, profile]);
 
   const handleSignOut = async () => {
+    isLoggingOutRef.current = true;
     if (session) await supabase.auth.signOut();
     setIsGuest(false);
     setProfile(null);
@@ -145,6 +149,7 @@ const App: React.FC = () => {
     setGameSettingsOpen(false);
     setStoreOpen(false);
     handleExit();
+    setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 
   const handleOpenStore = (tab?: 'SLEEVES' | 'AVATARS' | 'BOARDS') => {
