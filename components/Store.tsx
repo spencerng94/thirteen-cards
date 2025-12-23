@@ -306,7 +306,7 @@ export const Store: React.FC<StoreProps> = ({
 
         <div className="px-4 sm:px-8 pb-1 flex flex-col items-center justify-center mt-12 sm:mt-8">
           <div className="flex flex-col items-center text-center">
-            <h2 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif leading-none">ARMORY STORE</h2>
+            <h2 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif leading-none">XIII SHOP</h2>
             <p className="text-[8px] sm:text-[9px] font-black tracking-[0.6em] sm:tracking-[0.8em] text-gray-600 mt-1 sm:mt-2 uppercase">UP YOUR GAME</p>
           </div>
 
