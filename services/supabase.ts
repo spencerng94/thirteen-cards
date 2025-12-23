@@ -117,6 +117,14 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
       } as UserProfile;
     }
 
+    // Only create/upsert if we are sure there is NO existing record (error status 406 means table exists but no data)
+    // If error.code is 42P01 (relation does not exist), just use local fallback without trying to upsert
+    if (error && error.code === '42P01') {
+       console.warn("Supabase 'profiles' table not detected. Falling back to local storage for user:", userId);
+       const local = fetchGuestProfile();
+       return { ...local, id: userId, username: googleName };
+    }
+
     const fallbackProfile = {
       id: userId,
       coins: 500,
@@ -133,15 +141,12 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
       avatar_url: currentAvatar
     };
 
-    if (userId && (!error || (error.code !== '42P01' && error.status !== 406))) {
+    if (userId && !error) {
+       // Only perform upsert if table exists and no error was returned
        const { error: upsertError } = await supabase.from('profiles').upsert(fallbackProfile);
        if (upsertError) {
-         console.warn("Upsert failed, using fallback:", upsertError.message);
+         console.warn("Upsert failed, using fallback memory state:", upsertError.message);
        }
-    } else if (error && (error.status === 406 || error.code === '42P01')) {
-       console.warn("Supabase 'profiles' table not detected. Falling back to local storage for user:", userId);
-       const local = fetchGuestProfile();
-       return { ...local, id: userId, username: googleName };
     }
     
     return { 

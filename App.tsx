@@ -55,8 +55,10 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean } | null>(null);
 
+  // Critical Refs for Sync
   const isLoggingOutRef = useRef(false);
-  const isLoadingProfileRef = useRef(false);
+  const initialSyncCompleteRef = useRef(false);
+  const loadingProfileInProgressRef = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -85,23 +87,34 @@ const App: React.FC = () => {
         loadProfile(session.user.id);
       }
       else if (!isGuest) {
-          setProfile(null);
+        setProfile(null);
+        initialSyncCompleteRef.current = false;
       }
     });
     return () => subscription.unsubscribe();
   }, [isGuest]);
 
   const loadProfile = async (uid: string) => {
-    isLoadingProfileRef.current = true;
+    loadingProfileInProgressRef.current = true;
+    initialSyncCompleteRef.current = false; // Block saving during load
+    
     const data = await fetchProfile(uid, playerAvatar);
     if (data) {
-      setProfile(data);
+      // Step 1: Update local non-profile states first so they match profile when profile is set
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
       if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
       if (data.equipped_board) setBackgroundTheme(data.equipped_board as BackgroundTheme);
+      
+      // Step 2: Set the profile
+      setProfile(data);
     }
-    setTimeout(() => { isLoadingProfileRef.current = false; }, 500);
+    
+    // Step 3: Release block after a short delay to ensure state updates have settled in the DOM/Lifecycle
+    setTimeout(() => { 
+      initialSyncCompleteRef.current = true;
+      loadingProfileInProgressRef.current = false; 
+    }, 800);
   };
 
   useEffect(() => {
@@ -112,32 +125,41 @@ const App: React.FC = () => {
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
       if (data.equipped_sleeve) setCardCoverStyle(data.equipped_sleeve as CardCoverStyle);
       if (data.equipped_board) setBackgroundTheme(data.equipped_board as BackgroundTheme);
+      initialSyncCompleteRef.current = true;
     }
   }, [isGuest, session]);
 
-  // Persistence Effect for Avatar Emoji
+  // Combined Persistence Effect for Customization
   useEffect(() => {
-    if (!authChecked || isLoadingProfileRef.current || isLoggingOutRef.current || !profile) return;
-    updateProfileAvatar(session?.user?.id || 'guest', playerAvatar);
-  }, [playerAvatar, session, authChecked, profile]);
+    const userId = session?.user?.id || (isGuest ? 'guest' : null);
+    if (!authChecked || !userId || !profile || !initialSyncCompleteRef.current || isLoggingOutRef.current) return;
 
-  // Persistence Effect for Sleeve Style
-  useEffect(() => {
-    if (!authChecked || isLoadingProfileRef.current || isLoggingOutRef.current || !profile) return;
-    if (profile.equipped_sleeve === cardCoverStyle) return;
-    updateProfileEquipped(session?.user?.id || 'guest', cardCoverStyle, undefined);
-  }, [cardCoverStyle, session, authChecked, profile]);
+    // Only save if current state differs from the last known state in the profile object
+    const needsAvatarUpdate = playerAvatar !== profile.avatar_url;
+    const needsSleeveUpdate = cardCoverStyle !== profile.equipped_sleeve;
+    const needsBoardUpdate = backgroundTheme !== profile.equipped_board;
 
-  // Persistence Effect for Board Theme
-  useEffect(() => {
-    if (!authChecked || isLoadingProfileRef.current || isLoggingOutRef.current || !profile) return;
-    if (profile.equipped_board === backgroundTheme) return;
-    updateProfileEquipped(session?.user?.id || 'guest', undefined, backgroundTheme);
-  }, [backgroundTheme, session, authChecked, profile]);
+    if (needsAvatarUpdate) {
+      updateProfileAvatar(userId, playerAvatar);
+      setProfile(prev => prev ? { ...prev, avatar_url: playerAvatar } : null);
+    }
+
+    if (needsSleeveUpdate || needsBoardUpdate) {
+      updateProfileEquipped(userId, cardCoverStyle, backgroundTheme);
+      setProfile(prev => prev ? { 
+        ...prev, 
+        equipped_sleeve: cardCoverStyle, 
+        equipped_board: backgroundTheme 
+      } : null);
+    }
+  }, [playerAvatar, cardCoverStyle, backgroundTheme, session, authChecked, profile, isGuest]);
 
   const handleSignOut = async () => {
     isLoggingOutRef.current = true;
+    initialSyncCompleteRef.current = false;
+    
     if (session) await supabase.auth.signOut();
+    
     setIsGuest(false);
     setProfile(null);
     setPlayerName('');
@@ -149,6 +171,7 @@ const App: React.FC = () => {
     setGameSettingsOpen(false);
     setStoreOpen(false);
     handleExit();
+    
     setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 
@@ -189,13 +212,10 @@ const App: React.FC = () => {
     };
   }, [view, triggerMatchEndTransition]);
 
-  // Listen for Single Player match end - Optimized to transition immediately
+  // Listen for Single Player match end
   useEffect(() => {
     if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.FINISHED && view === 'GAME_TABLE' && !isTransitioning) {
-        // Step 1: Start transition immediately so UI doesn't hang on 'Match Over'
         triggerMatchEndTransition();
-
-        // Step 2: Record rewards in background/parallel
         const me = spGameState.players.find(p => p.id === 'player-me');
         const myRank = me?.finishedRank || 4;
         
