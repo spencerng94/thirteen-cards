@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme } from '../types';
 import { buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName } from '../services/supabase';
-import { PREMIUM_BOARDS } from './UserHub';
+import { PREMIUM_BOARDS, BoardPreview, ImperialGoldLayer } from './UserHub';
 import { audioService } from '../services/audio';
 
 interface StoreProps {
@@ -43,14 +43,61 @@ const SLEEVES: StoreItem[] = [
 const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => void }> = ({ themeId, onClose }) => {
   const theme = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center p-4 animate-in fade-in duration-500 scale-in-95" onClick={onClose}>
-      <div className={`absolute inset-0 ${theme.base} overflow-hidden`}>
-        <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} pointer-events-none opacity-100 mix-blend-screen`}></div>
+    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={onClose}>
+      {/* 1. Base Color */}
+      <div className={`absolute inset-0 ${theme.base}`}>
+        
+        {/* 2. Primary Color Diffusion */}
+        <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen`}></div>
+        
+        {/* 3. Repeating Texture (Felt/Grain) */}
+        {theme.texture && (
+          <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay" 
+               style={{ backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)', backgroundSize: '3.5px 3.5px' }}></div>
+        )}
+        
+        {/* 4. Techno-Grid Layer */}
+        {theme.technoGrid && (
+          <div className="absolute inset-0 opacity-[0.05]" 
+               style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+        )}
+        
+        {/* 5. Central Focus Lighting */}
+        <div className="absolute inset-0" 
+             style={{ backgroundImage: `radial-gradient(circle at center, ${theme.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 70%)` }}></div>
+        
+        {/* 6. Imperial Decorative Layer (Real Component) */}
+        {theme.emperor && <ImperialGoldLayer opacity={0.6} />}
       </div>
-      <div className="relative z-10 w-full max-w-5xl h-full flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
-        <div className="absolute top-8 left-8 right-8 flex justify-between items-start">
-            <h1 className="text-4xl font-black text-white tracking-tighter drop-shadow-2xl font-serif text-center w-full uppercase">ARENA PREVIEW</h1>
-            <button onClick={onClose} className="absolute right-0 px-8 py-4 rounded-2xl bg-red-600/90 text-white font-black uppercase tracking-[0.4em] text-xs shadow-2xl transition-all hover:bg-red-500 active:scale-95">EXIT ✕</button>
+
+      <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Top Bar Navigation */}
+        <div className="p-8 flex justify-between items-start">
+            <div className="flex flex-col">
+              <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] font-serif uppercase italic">ARENA PREVIEW</h1>
+              <div className="flex items-center gap-3 mt-2">
+                <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-md">{theme.name} Terrain Profile</p>
+              </div>
+            </div>
+            <button 
+              onClick={onClose} 
+              className="px-10 py-5 rounded-2xl bg-red-600/90 text-white font-black uppercase tracking-[0.4em] text-xs shadow-2xl transition-all hover:bg-red-500 hover:scale-105 active:scale-95 border border-white/20"
+            >
+              EXIT PREVIEW ✕
+            </button>
+        </div>
+
+        {/* Scaled Dummy Hand for context */}
+        <div className="mt-auto p-12 flex flex-col items-center gap-6 bg-gradient-to-t from-black/40 to-transparent">
+            <div className="flex -space-x-12 opacity-50 grayscale-[0.2] scale-90">
+                {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="transform hover:-translate-y-4 transition-transform duration-300">
+                      <Card faceDown coverStyle="GOLDEN_IMPERIAL" />
+                    </div>
+                ))}
+            </div>
+            <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.8em]">Tactical Interface Simulated</p>
         </div>
       </div>
     </div>
@@ -160,7 +207,9 @@ export const Store: React.FC<StoreProps> = ({
 
         <div className={`py-1 sm:py-3 flex-1 flex flex-col items-center justify-center w-full transition-transform duration-300 ${visualSize}`}>
           {isAvatar ? <div className="text-4xl sm:text-6xl group-hover:scale-125 transition-transform duration-500">{item}</div> : 
-           isBoard ? <div className="relative w-full aspect-[16/10] rounded-lg sm:rounded-2xl overflow-hidden border border-white/10 shadow-2xl group-hover:scale-[1.03] transition-transform duration-500 cursor-pointer" onClick={() => setPreviewThemeId(item.id)}><div className={`absolute inset-0 ${item.base}`}><div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${item.colors} opacity-100 mix-blend-screen`}></div></div></div> :
+           isBoard ? <div className="w-full" onClick={() => setPreviewThemeId(item.id)}>
+             <BoardPreview themeId={item.id} unlocked={unlocked} />
+           </div> :
            <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-12 !h-18 sm:!w-14 sm:!h-20' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />}
         </div>
 
@@ -237,10 +286,7 @@ export const Store: React.FC<StoreProps> = ({
                           </div>
                       ) : (
                           <div className="w-64 aspect-[16/10] rounded-3xl overflow-hidden ring-2 ring-yellow-500/50 shadow-2xl">
-                             {(() => {
-                               const b = PREMIUM_BOARDS.find(b => b.id === awardItem.id);
-                               return <div className={`absolute inset-0 ${b?.base}`}><div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${b?.colors} mix-blend-screen`}></div></div>;
-                             })()}
+                             <BoardPreview themeId={awardItem.id} active={false} />
                           </div>
                       )}
                   </div>
@@ -308,7 +354,7 @@ export const Store: React.FC<StoreProps> = ({
                >
                  <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-colors ${hideOwned ? 'text-yellow-500' : 'text-white/30'} whitespace-nowrap`}>Owned</span>
                  <div className={`w-8 h-4 sm:w-10 sm:h-5 rounded-full relative transition-all duration-500 ${hideOwned ? 'bg-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-white/5 border border-white/10'}`}>
-                    <div className={`absolute top-0.5 w-3 h-3 sm:w-4 sm:h-4 rounded-full transition-all duration-500 ease-out ${hideOwned ? 'translate-x-4 sm:translate-x-5.5 bg-white' : 'translate-x-0.5 bg-white/20'}`}></div>
+                    <div className={`absolute top-0.5 w-3 h-3 sm:w-4 sm:h-4 rounded-full transition-all duration-500 ease-out ${hideOwned ? 'translate-x-4 sm:translate-x-5 bg-white' : 'translate-x-0.5 bg-white/20'}`}></div>
                  </div>
                </button>
             </div>

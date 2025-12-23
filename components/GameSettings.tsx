@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
-import { PREMIUM_BOARDS } from './UserHub';
+import { PREMIUM_BOARDS, BoardPreview } from './UserHub';
 
 interface GameSettingsProps {
   onClose: () => void;
@@ -127,19 +127,10 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                   <div 
                     key={b.id} 
                     onClick={() => onChangeTheme(b.id as BackgroundTheme)}
-                    className={`relative group cursor-pointer transition-all ${active ? 'scale-105' : 'opacity-60 hover:opacity-100'}`}
+                    className="flex flex-col items-center gap-2 cursor-pointer group"
                   >
-                    <div className={`relative w-full aspect-[16/10] rounded-2xl overflow-hidden border transition-all ${active ? 'border-yellow-500 shadow-2xl' : 'border-white/10'}`}>
-                      <div className={`absolute inset-0 ${b.base}`}>
-                        <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${b.colors} opacity-80 mix-blend-screen`}></div>
-                      </div>
-                      {active && (
-                        <div className="absolute inset-0 bg-yellow-500/10 flex items-center justify-center">
-                           <div className="w-6 h-6 rounded-full bg-yellow-500 text-black flex items-center justify-center text-[10px] font-black">✓</div>
-                        </div>
-                      )}
-                    </div>
-                    <p className={`text-[8px] font-black uppercase tracking-widest text-center mt-2 ${active ? 'text-yellow-500' : 'text-white/40'}`}>{b.name}</p>
+                    <BoardPreview themeId={b.id} active={active} />
+                    <p className={`text-[8px] font-black uppercase tracking-widest text-center mt-1 ${active ? 'text-yellow-500' : 'text-white/40'}`}>{b.name}</p>
                   </div>
                 );
               })}

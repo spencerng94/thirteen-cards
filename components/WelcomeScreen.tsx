@@ -6,7 +6,7 @@ import { AiDifficulty, UserProfile, BackgroundTheme } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName } from '../services/supabase';
-import { PREMIUM_BOARDS } from './UserHub';
+import { PREMIUM_BOARDS, BoardPreview } from './UserHub';
 import { audioService } from '../services/audio';
 
 export type WelcomeTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
@@ -49,19 +49,19 @@ const SLEEVES = [
 ];
 
 const TAB_DESCRIPTIONS: Record<WelcomeTab, string> = {
-  PROFILE: "Analyze operator dossier and tactical achievements.",
-  CUSTOMIZE: "Configure signature assets and battlefield aesthetics.",
-  SETTINGS: "Optimize interface protocols and gameplay logic."
+  PROFILE: "Overview Player Stats",
+  CUSTOMIZE: "Configure Signature Assets",
+  SETTINGS: "Select Gameplay Settings"
 };
 
 const SectionLabel: React.FC<{ children: React.ReactNode; rightElement?: React.ReactNode }> = ({ children, rightElement }) => (
-  <div className="flex items-center justify-between gap-4 mb-4 mt-2 px-2">
-    <div className="flex items-center gap-3 flex-1">
-      <div className="h-[1px] w-4 bg-yellow-500/30"></div>
-      <span className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-500/70 italic whitespace-nowrap">{children}</span>
-      <div className="h-[1px] flex-1 bg-gradient-to-r from-yellow-500/30 to-transparent"></div>
+  <div className="flex flex-col items-center mb-4 mt-2 px-2 w-full text-center">
+    <div className="flex items-center justify-center gap-3 w-full">
+      <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-yellow-500/30"></div>
+      <span className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-500/70 italic whitespace-nowrap px-4">{children}</span>
+      <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-yellow-500/30"></div>
     </div>
-    {rightElement}
+    {rightElement && <div className="mt-4 flex justify-center w-full">{rightElement}</div>}
   </div>
 );
 
@@ -114,17 +114,21 @@ const LuxuryButton: React.FC<{
       <div className={`absolute inset-0 bg-gradient-to-b ${theme.highlight} opacity-90 transition-opacity duration-500 group-hover:opacity-100`}></div>
       <div className="relative z-10 flex flex-col items-center justify-center">
         <div className="flex items-center gap-2">
-            <span className={`text-[11px] md:text-[13px] font-black uppercase tracking-[0.25em] font-serif ${theme.text} drop-shadow-md`}>{label}</span>
+            <span className={`text-[11px] md:text-[13px] font-black uppercase tracking-[0.25em] font-serif ${theme.text} drop-shadow-md whitespace-nowrap`}>{label}</span>
             <span className="text-lg md:text-xl group-hover:scale-125 group-hover:rotate-12 transition-transform duration-500">{icon}</span>
         </div>
-        {sublabel && <span className={`text-[8px] font-black opacity-60 tracking-[0.3em] uppercase font-serif mt-1 ${theme.text}`}>{sublabel}</span>}
+        {sublabel && (
+          <span className={`text-[8px] font-black opacity-60 tracking-[0.3em] uppercase font-serif mt-1 ${theme.text} whitespace-nowrap overflow-hidden text-ellipsis max-w-full px-2`}>
+            {sublabel}
+          </span>
+        )}
       </div>
     </button>
   );
 };
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
-  onStart, onSignOut, profile, onRefreshProfile, onOpenHub, onOpenStore,
+  onStart, onSignOut, profile, onRefreshProfile, onOpenHub, onOpenHub: onOpenSettings, onOpenStore,
   playerName, setPlayerName, playerAvatar, setPlayerAvatar,
   cardCoverStyle, setCardCoverStyle, aiDifficulty, setAiDifficulty,
   quickFinish, setQuickFinish, soundEnabled, setSoundEnabled,
@@ -194,12 +198,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     const visibleAvatars = isCatalogExpanded ? allPossibleAvatars : allPossibleAvatars.slice(0, 10);
 
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
         <SectionLabel>Identity Command</SectionLabel>
-        <div className="flex flex-col items-center gap-6 bg-white/[0.02] p-8 rounded-3xl border border-white/5">
+        <div className="flex flex-col items-center gap-4 bg-white/[0.02] p-6 rounded-3xl border border-white/5">
            <div className="relative">
               <div className="absolute inset-[-8px] bg-yellow-500/10 blur-xl rounded-full"></div>
-              <div className="relative w-24 h-24 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center text-6xl shadow-inner">
+              <div className="relative w-20 h-20 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center text-5xl shadow-inner">
                 {playerAvatar}
               </div>
            </div>
@@ -212,7 +216,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               className="w-full max-w-xs bg-black/40 border border-white/10 px-6 py-3 rounded-2xl text-white font-black text-center uppercase tracking-widest focus:border-yellow-500/50 outline-none transition-all"
            />
         </div>
-        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl space-y-3">
+        <div className="bg-white/[0.02] border border-white/5 p-5 rounded-3xl space-y-2">
           <div className="flex justify-between items-end">
             <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Level {currentLevel}</span>
             <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">{nextLevelXp - (profile?.xp || 0)} XP TO RANK UP</span>
@@ -237,9 +241,33 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             );
           })}
         </div>
-        <button onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} className="w-full py-2 text-[9px] font-black text-white/20 uppercase tracking-widest hover:text-white transition-colors">
-          {isCatalogExpanded ? "Collapse Archive" : "Expand All Signatures"}
-        </button>
+        
+        <div className="flex flex-col items-center">
+            <button 
+                onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} 
+                className={`group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 hover:bg-white/[0.08] transition-all duration-500 active:scale-90 shadow-lg`}
+                title={isCatalogExpanded ? "Collapse View" : "Expand All Options"}
+            >
+                <div className={`absolute inset-0 rounded-full bg-yellow-500/10 blur-md opacity-0 group-hover:opacity-100 transition-opacity`}></div>
+                <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="3" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}
+                >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1.5 group-hover:text-white/40 transition-colors">
+                {isCatalogExpanded ? "MINIMIZE" : "EXPAND"}
+            </span>
+        </div>
       </div>
     );
   };
@@ -252,13 +280,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
         <SectionLabel 
           rightElement={
-            <button 
-              onClick={() => setHideUnowned(!hideUnowned)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[8px] font-black uppercase tracking-widest ${hideUnowned ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/5 text-white/40 border-white/10 hover:text-white'}`}
-            >
-              <div className={`w-2 h-2 rounded-full ${hideUnowned ? 'bg-black' : 'bg-white/20'}`}></div>
-              Owned Only
-            </button>
+            <div className="flex items-center gap-3 bg-black/20 px-4 py-2 rounded-full border border-white/5">
+              <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${hideUnowned ? 'text-yellow-500' : 'text-white/40'}`}>Owned Only</span>
+              <button 
+                onClick={() => setHideUnowned(!hideUnowned)}
+                className={`w-10 h-5 rounded-full relative transition-all duration-500 ${hideUnowned ? 'bg-yellow-500' : 'bg-white/10'}`}
+              >
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-lg ${hideUnowned ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
           }
         >
           Card Sleeve
@@ -284,14 +314,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             const unlocked = isBoardUnlocked(b.id);
             const active = backgroundTheme === b.id;
             return (
-              <div key={b.id} onClick={() => unlocked ? setBackgroundTheme(b.id as BackgroundTheme) : handlePurchaseAttempt(b, b.price as number, 'BOARD')} className={`relative group bg-white/[0.02] border rounded-2xl p-3 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-white/[0.05] ${active ? 'border-emerald-500/40' : 'border-white/5'}`}>
-                <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={b.price as number} onAction={() => !active && unlocked && setBackgroundTheme(b.id as BackgroundTheme)} />
-                <div className={`relative w-full aspect-[16/10] rounded-xl overflow-hidden border border-white/10 transition-transform duration-300 ${active ? 'scale-[1.03] shadow-lg' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`}>
-                  <div className={`absolute inset-0 ${b.base}`}>
-                     <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${b.colors} opacity-80 mix-blend-screen`}></div>
-                  </div>
-                </div>
-                <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{b.name}</span>
+              <div key={b.id} onClick={() => unlocked ? setBackgroundTheme(b.id as BackgroundTheme) : handlePurchaseAttempt(b, b.price as number, 'BOARD')} className="flex flex-col items-center gap-2 cursor-pointer group">
+                <BoardPreview 
+                  themeId={b.id} 
+                  active={active} 
+                  unlocked={unlocked}
+                  className="shadow-xl"
+                />
+                <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{b.name}</span>
               </div>
             );
           })}
@@ -427,8 +457,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <span className="relative w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_12px_#ef4444]"></span>
                </div>
                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-red-500 whitespace-nowrap">BETA PHASE: ACTIVE TESTING</span>
-               <div className="w-[1.5px] h-3 bg-red-500/30"></div>
-               <span className="text-[8px] font-bold text-red-500/60 tracking-widest uppercase">STABLE R.78</span>
             </div>
             {/* ONE LINER IMPLICATION */}
             <p className="text-[9px] font-black text-red-500/80 uppercase tracking-widest text-center px-4 max-w-md drop-shadow-sm">
@@ -455,12 +483,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
           <div className="flex-1 p-6 md:p-10 overflow-hidden flex flex-col">
             {/* TAGLINE HEADER */}
-            <div key={activeTab} className="mb-6 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
-               <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></div>
-               <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.25em] font-mono">
+            <div key={activeTab} className="mb-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500 overflow-hidden w-full">
+               <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse shrink-0"></div>
+               <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.25em] font-mono whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0">
                   {TAB_DESCRIPTIONS[activeTab]}
                </span>
-               <div className="h-[1px] flex-1 bg-gradient-to-r from-white/10 to-transparent"></div>
+               <div className="h-[1px] w-8 md:w-16 bg-gradient-to-r from-white/10 to-transparent shrink-0"></div>
             </div>
 
             {activeTab === 'PROFILE' && renderProfileTab()}

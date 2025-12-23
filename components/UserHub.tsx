@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { UserProfile, BackgroundTheme, AiDifficulty } from '../types';
 import { calculateLevel, getXpForLevel, DEFAULT_AVATARS, PREMIUM_AVATARS, buyItem, getAvatarName } from '../services/supabase';
@@ -62,6 +63,74 @@ export const ImperialGoldLayer: React.FC<{ opacity?: number }> = ({ opacity = 0.
     <div className="absolute bottom-8 right-8 w-32 h-32 border-b-4 border-r-4 border-yellow-500/30 rounded-br-3xl"></div>
   </div>
 );
+
+/**
+ * High-Fidelity Board Preview
+ * Used across selection menus to accurately represent terrain detail
+ */
+export const BoardPreview: React.FC<{ 
+  themeId: string; 
+  className?: string; 
+  active?: boolean;
+  unlocked?: boolean;
+}> = ({ themeId, className = "", active, unlocked = true }) => {
+  const theme = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
+  
+  return (
+    <div className={`relative w-full aspect-[16/10] rounded-2xl overflow-hidden border transition-all duration-500 ${active ? 'border-yellow-500 shadow-2xl scale-[1.02]' : 'border-white/10 group-hover:border-white/20'} ${className}`}>
+      {/* 1. Base Layer */}
+      <div className={`absolute inset-0 ${theme.base}`}>
+        
+        {/* 2. Primary Color Diffusion */}
+        <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen`}></div>
+        
+        {/* 3. Repeating Texture (Felt/Grain) */}
+        {theme.texture && (
+          <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay" 
+               style={{ backgroundImage: 'repeating-radial-gradient(circle at center, #fff 0, #fff 1px, transparent 0, transparent 100%)', backgroundSize: '3px 3px' }}></div>
+        )}
+        
+        {/* 4. Techno-Grid Layer */}
+        {theme.technoGrid && (
+          <div className="absolute inset-0 opacity-[0.08]" 
+               style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+        )}
+        
+        {/* 5. Central Focus Lighting */}
+        <div className="absolute inset-0" 
+             style={{ backgroundImage: `radial-gradient(circle at center, ${theme.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 80%)` }}></div>
+        
+        {/* 6. Imperial Decorative Layer (Scaled for Preview) */}
+        {theme.emperor && (
+          <div className="absolute inset-0 pointer-events-none opacity-40">
+             <div className="absolute top-2 left-2 w-6 h-6 border-t-2 border-l-2 border-yellow-500/40 rounded-tl-lg"></div>
+             <div className="absolute top-2 right-2 w-6 h-6 border-t-2 border-r-2 border-yellow-500/40 rounded-tr-lg"></div>
+             <div className="absolute bottom-2 left-2 w-6 h-6 border-b-2 border-l-2 border-yellow-500/40 rounded-bl-lg"></div>
+             <div className="absolute bottom-2 right-2 w-6 h-6 border-b-2 border-r-2 border-yellow-500/40 rounded-br-lg"></div>
+          </div>
+        )}
+
+        {/* 7. Glossy Sheen Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent pointer-events-none"></div>
+      </div>
+
+      {/* State Overlays */}
+      {!unlocked && (
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-black/60 border border-white/10 flex items-center justify-center opacity-60">
+            <span className="text-xs">🔒</span>
+          </div>
+        </div>
+      )}
+      
+      {active && (
+        <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-yellow-500 text-black flex items-center justify-center text-[10px] font-black shadow-lg animate-in zoom-in duration-300">
+           ✓
+        </div>
+      )}
+    </div>
+  );
+};
 
 export type HubTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
 
@@ -221,7 +290,7 @@ export const UserHub: React.FC<UserHubProps> = ({
         </div>
 
         {/* Condensed Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8 scrollbar-thin scrollbar-thumb-white/10">
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-5 sm:space-y-6 scrollbar-thin scrollbar-thumb-white/10">
           
           {/* Identity & Rank Section - More compact for mobile */}
           <div className="flex flex-col sm:flex-row gap-6 items-center">
@@ -232,7 +301,7 @@ export const UserHub: React.FC<UserHubProps> = ({
                 </div>
             </div>
             
-            <div className="flex-1 w-full space-y-4">
+            <div className="flex-1 w-full space-y-3 sm:space-y-4">
                 <div className="space-y-1">
                     <p className="text-[7px] font-black uppercase tracking-[0.4em] text-yellow-500/40 text-center sm:text-left">Operator Handle</p>
                     <input 
@@ -244,7 +313,7 @@ export const UserHub: React.FC<UserHubProps> = ({
                     />
                 </div>
 
-                <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-3">
+                <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2 sm:space-y-3">
                     <div className="flex justify-between items-end">
                         <span className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em]">Mastery Level {currentLevel}</span>
                         <span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-widest">{nextLevelXp - profile.xp} XP TO ASCEND</span>
@@ -256,8 +325,8 @@ export const UserHub: React.FC<UserHubProps> = ({
             </div>
           </div>
 
-          {/* Signature Archive - Grid Selection */}
-          <div className="space-y-4">
+          {/* Signature Archive - Grid Selection - Reduced Spacing */}
+          <div className="space-y-2">
             <div className="flex items-center gap-3">
               <span className="text-[8px] font-black uppercase tracking-[0.4em] text-white/20 whitespace-nowrap">Signature Archive</span>
               <div className="h-[1px] flex-1 bg-white/5"></div>
@@ -278,9 +347,34 @@ export const UserHub: React.FC<UserHubProps> = ({
                 );
               })}
             </div>
-            <button onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} className="w-full py-2 text-[8px] font-black text-white/20 uppercase tracking-widest hover:text-white transition-colors">
-              {isCatalogExpanded ? "Collapse Archive" : "Expand All Signatures"}
-            </button>
+            
+            {/* ENHANCED ICON TOGGLE BUTTON - REDUCED TOP PADDING */}
+            <div className="flex flex-col items-center pt-1">
+                <button 
+                    onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} 
+                    className={`group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 hover:bg-white/[0.08] transition-all duration-500 active:scale-90 shadow-lg`}
+                    title={isCatalogExpanded ? "Collapse View" : "Expand All Options"}
+                >
+                    <div className={`absolute inset-0 rounded-full bg-yellow-500/10 blur-md opacity-0 group-hover:opacity-100 transition-opacity`}></div>
+                    <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="3" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}
+                    >
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+                <span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1">
+                    {isCatalogExpanded ? "MINIMIZE" : "EXPAND"}
+                </span>
+            </div>
           </div>
 
           {/* Tactical Analytics - Compact grid */}

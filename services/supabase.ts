@@ -7,7 +7,7 @@ const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (pro
 
 const GUEST_STORAGE_KEY = 'thirteen_stats';
 
-export const DEFAULT_AVATARS = ['😀', '😊', '😃', '😄', '☺️'];
+export const DEFAULT_AVATARS = ['😀', '😊', '😃', '😄', '😎'];
 export const PREMIUM_AVATARS = [
   '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', 
   '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦄',
