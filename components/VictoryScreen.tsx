@@ -131,17 +131,17 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   const config = getRankConfig(myRank);
 
   return (
-    <div className={`fixed inset-0 z-[200] flex flex-col items-center justify-center p-6 bg-black overflow-hidden select-none`}>
+    <div className={`fixed inset-0 z-[200] flex flex-col items-center p-6 bg-black overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent select-none`}>
       {/* Background Layers */}
-      <div className={`absolute inset-0 bg-gradient-to-b ${config.bg} to-black transition-all duration-1000`}></div>
-      <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(circle at center, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+      <div className={`fixed inset-0 bg-gradient-to-b ${config.bg} to-black transition-all duration-1000`}></div>
+      <div className="fixed inset-0 opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(circle at center, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
       
       {/* Dynamic Particle Burst */}
       {isWinner && Array.from({ length: 60 }).map((_, i) => (
           <Particle key={i} color={i % 2 === 0 ? '#fbbf24' : '#fff7ed'} />
       ))}
 
-      <div className="relative z-10 w-full max-w-xl flex flex-col items-center gap-8">
+      <div className="relative z-10 w-full max-w-xl flex flex-col items-center gap-8 py-12 md:py-24">
         
         {/* Title Block */}
         <div className="text-center space-y-2 animate-in fade-in zoom-in duration-1000 slide-in-from-top-12">
