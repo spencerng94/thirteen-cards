@@ -85,7 +85,7 @@ export enum SocketEvents {
   ERROR = 'error'
 }
 
-export type BackgroundTheme = 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'CITY_LIGHTS_PIXEL';
+export type BackgroundTheme = 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'CITY_LIGHTS_PIXEL' | 'KOI_PRESTIGE';
 
 export interface UserProfile {
   id: string;

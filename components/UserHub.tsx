@@ -23,6 +23,7 @@ export interface ThemeConfig {
   highRoller?: boolean;   // New High Roller engine
   prestige?: boolean;     // New Prestige engine
   emperor?: boolean;      // Imperial gold patterns
+  koiPrestige?: boolean;  // New Imperial Koi engine
   spotlight?: string;     // Custom central light color
   tier: 'BASIC' | 'PREMIUM';
   isCityLightsPixel?: boolean;
@@ -110,6 +111,16 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
     spotlight: 'rgba(251, 191, 36, 0.15)' 
   },
   { 
+    id: 'KOI_PRESTIGE', 
+    name: 'Imperial Koi Pavilion', 
+    tier: 'PREMIUM',
+    price: 8500, 
+    base: 'bg-[#0a2e3d]', 
+    colors: 'from-[#14b8a6]/20 via-[#0a2e3d]/40 to-[#020617]', 
+    koiPrestige: true,
+    spotlight: 'rgba(20, 184, 166, 0.2)' 
+  },
+  { 
     id: 'HIGH_ROLLER', 
     name: 'Le Blanc', 
     tier: 'PREMIUM',
@@ -130,6 +141,144 @@ export const ImperialGoldLayer: React.FC<{ opacity?: number; isMini?: boolean }>
     <div className={`absolute ${isMini ? 'bottom-2 right-2 w-6 h-6 border-b-2 border-r-2' : 'bottom-8 right-8 w-32 h-32 border-b-4 border-r-4'} border-yellow-500/30 ${isMini ? 'rounded-br-lg' : 'rounded-br-3xl'}`}></div>
   </div>
 );
+
+/**
+ * ImperialKoiEngine - Luxury prestige water environment.
+ * Features procedural caustic light, gold flakes, and high-quality koi navigation.
+ */
+const ImperialKoiEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const koi = useMemo(() => {
+    return Array.from({ length: isMini ? 3 : 8 }).map((_, i) => ({
+      id: `koi-${i}`,
+      delay: Math.random() * -40,
+      duration: 20 + Math.random() * 20,
+      top: 10 + Math.random() * 80,
+      scale: 0.6 + Math.random() * 0.8,
+      type: i % 3 === 0 ? 'KOHAKU' : i % 3 === 1 ? 'SANKE' : 'GOLDEN',
+      rotate: Math.random() > 0.5 ? 0 : 180,
+    }));
+  }, [isMini]);
+
+  const goldFlakes = useMemo(() => {
+    return Array.from({ length: isMini ? 10 : 40 }).map((_, i) => ({
+      id: `gold-${i}`,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      size: 1 + Math.random() * 3,
+      delay: Math.random() * -10,
+      duration: 5 + Math.random() * 5
+    }));
+  }, [isMini]);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#020617]">
+      {/* 1. Deep Imperial Water Base */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0f766e]/20 via-[#0a2e3d] to-[#020617]"></div>
+
+      {/* 2. Procedural Water Caustics (Expensive Refraction Look) */}
+      <div className="absolute inset-0 opacity-[0.15] mix-blend-screen overflow-hidden">
+        <svg width="100%" height="100%" className="scale-[1.5]">
+            <filter id="waterCaustics">
+                <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="3" result="noise" seed="5" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="50" />
+            </filter>
+            <rect width="100%" height="100%" fill="#14b8a6" filter="url(#waterCaustics)" className="animate-[caustic-drift_60s_linear_infinite]" />
+        </svg>
+      </div>
+
+      {/* 3. Gold Leaf Sediment */}
+      {goldFlakes.map(f => (
+        <div 
+            key={f.id}
+            className="absolute bg-yellow-500 rounded-sm opacity-20 blur-[0.5px] animate-pulse"
+            style={{
+                left: `${f.left}%`,
+                top: `${f.top}%`,
+                width: `${f.size}px`,
+                height: `${f.size}px`,
+                animationDelay: `${f.delay}s`,
+                animationDuration: `${f.duration}s`
+            }}
+        />
+      ))}
+
+      {/* 4. Luxury Koi Navigation */}
+      {koi.map(k => {
+        let bodyColor = "from-white via-orange-500 to-red-600";
+        if (k.type === 'KOHAKU') bodyColor = "from-white via-red-500 to-white";
+        if (k.type === 'GOLDEN') bodyColor = "from-yellow-200 via-yellow-500 to-orange-400";
+
+        return (
+            <div 
+              key={k.id}
+              className="absolute animate-koi-swim-prestige opacity-60"
+              style={{
+                top: `${k.top}%`,
+                animationDelay: `${k.delay}s`,
+                animationDuration: `${k.duration}s`,
+                transform: `scale(${k.scale}) rotate(${k.rotate}deg)`,
+              } as any}
+            >
+                <div className="relative w-24 h-8 md:w-40 md:h-12 flex items-center justify-center">
+                    {/* Shadow layer */}
+                    <div className="absolute inset-0 bg-black/30 blur-xl translate-y-8 scale-x-110"></div>
+                    
+                    {/* Tail */}
+                    <div className="absolute right-0 w-1/3 h-full bg-inherit opacity-40 animate-koi-tail-wag" style={{ clipPath: 'polygon(0 40%, 100% 0, 100% 100%, 0 60%)' }}></div>
+                    
+                    {/* Body */}
+                    <div className={`w-full h-full rounded-full bg-gradient-to-r ${bodyColor} border border-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)] relative overflow-hidden`}>
+                         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 0)', backgroundSize: '4px 4px' }}></div>
+                         <div className="absolute top-1/4 left-1/4 w-1/2 h-1/2 bg-white/20 blur-md rounded-full"></div>
+                    </div>
+
+                    {/* Fins */}
+                    <div className="absolute top-[-20%] left-1/4 w-1/4 h-1/2 bg-white/30 rounded-full blur-[1px] rotate-[-20deg]"></div>
+                    <div className="absolute bottom-[-20%] left-1/4 w-1/4 h-1/2 bg-white/30 rounded-full blur-[1px] rotate-[20deg]"></div>
+                </div>
+            </div>
+        );
+      })}
+
+      {/* 5. Surface Sparkle (Top Layer) */}
+      {!isMini && Array.from({ length: 15 }).map((_, i) => (
+          <div 
+            key={`sparkle-${i}`}
+            className="absolute w-1 h-1 bg-white/80 rounded-full blur-[1px] animate-[sparkle_8s_infinite_ease-in-out]"
+            style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 10}s`
+            }}
+          />
+      ))}
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes caustic-drift {
+            0% { transform: translate(-10%, -10%) rotate(0deg); }
+            100% { transform: translate(10%, 10%) rotate(360deg); }
+        }
+        @keyframes koi-swim-prestige {
+            0% { left: -300px; transform: translateY(0px) scaleX(1); }
+            25% { transform: translateY(50px); }
+            50% { transform: translateY(-50px); }
+            75% { transform: translateY(30px); }
+            100% { left: 110%; transform: translateY(0px) scaleX(1); }
+        }
+        @keyframes koi-tail-wag {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(1.4); }
+        }
+        @keyframes sparkle {
+          0%, 100% { opacity: 0; transform: scale(0); }
+          50% { opacity: 0.8; transform: scale(1.5); }
+        }
+        .animate-koi-swim-prestige { animation: koi-swim-prestige linear infinite; }
+        .animate-koi-tail-wag { animation: koi-tail-wag 0.8s ease-in-out infinite; transform-origin: left center; }
+      `}} />
+    </div>
+  );
+};
 
 /**
  * CityLightsEngine - Premium Nocturnal Vantage Point
@@ -735,6 +884,7 @@ export const BoardSurface: React.FC<{
   return (
     <div className={`absolute inset-0 overflow-hidden ${theme.base} ${className}`}>
       {theme.id === 'CITY_LIGHTS_PIXEL' && <CityLightsEngine isMini={isMini} />}
+      {theme.koiPrestige && <ImperialKoiEngine isMini={isMini} />}
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen transition-all duration-1000 z-1`}></div>
       {theme.texture && (
         <div className="absolute inset-0 opacity-[0.2] mix-blend-overlay pointer-events-none z-2" 

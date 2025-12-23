@@ -37,7 +37,8 @@ const DEFAULT_GUEST_PROFILE = {
   unlocked_avatars: [...DEFAULT_AVATARS],
   unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
   undo_count: 0,
-  username: AVATAR_NAMES['😊'].toUpperCase()
+  username: AVATAR_NAMES['😊'].toUpperCase(),
+  avatar_url: '😎'
 };
 
 export const calculateLevel = (xp: number) => {
@@ -89,7 +90,7 @@ export const fetchGuestProfile = (): UserProfile => {
   } as UserProfile;
 };
 
-export const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
+export const fetchProfile = async (userId: string, currentAvatar: string = '😎'): Promise<UserProfile | null> => {
   if (!supabaseUrl || !supabaseAnonKey) return fetchGuestProfile();
   
   const { data: authData } = await supabase.auth.getUser();
@@ -124,7 +125,8 @@ export const fetchProfile = async (userId: string): Promise<UserProfile | null> 
       unlocked_avatars: [...DEFAULT_AVATARS],
       unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
       undo_count: 0,
-      username: googleName
+      username: googleName,
+      avatar_url: currentAvatar
     };
 
     if (userId && (!error || (error.code !== '42P01' && error.status !== 406))) {
@@ -154,6 +156,15 @@ export const fetchProfile = async (userId: string): Promise<UserProfile | null> 
   }
 };
 
+export const updateProfileAvatar = async (userId: string, avatar: string) => {
+  if (!supabaseUrl || !userId || userId === 'guest') {
+    const local = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, avatar_url: avatar }));
+    return;
+  }
+  await supabase.from('profiles').update({ avatar_url: avatar }).eq('id', userId);
+};
+
 export const transferGuestData = async (userId: string) => {
   const guestData = localStorage.getItem(GUEST_STORAGE_KEY);
   if (!guestData || !supabaseUrl) return;
@@ -167,6 +178,7 @@ export const transferGuestData = async (userId: string) => {
         games_played: (existing.games_played || 0) + (local.games_played || 0),
         coins: (existing.coins || 0) + (local.coins || 0),
         xp: (existing.xp || 0) + (local.xp || 0),
+        avatar_url: existing.avatar_url || local.avatar_url || '😎'
       }).eq('id', userId);
       localStorage.removeItem(GUEST_STORAGE_KEY);
     }

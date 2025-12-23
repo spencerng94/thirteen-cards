@@ -43,7 +43,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   soundEnabled,
   setSoundEnabled
 }) => {
-  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS'];
+  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR'];
 
   const getThemeStyles = (themeId: BackgroundTheme, active: boolean) => {
     if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
@@ -67,6 +67,8 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
         return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
       case 'HIGH_ROLLER':
         return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
+      case 'KOI_PRESTIGE':
+        return "bg-[#0a2e3d] text-teal-300 border-teal-500 shadow-[0_0_25px_rgba(20,184,166,0.4)] font-black italic";
       default:
         return "bg-white/10 text-white";
     }

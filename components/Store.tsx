@@ -38,6 +38,8 @@ const SLEEVES: StoreItem[] = [
   { id: 'DRAGON_SCALE', name: 'Dragon Skin', price: 2500, type: 'SLEEVE', style: 'DRAGON_SCALE', description: 'Ancient high-heat plating.' },
   { id: 'NEON_CYBER', name: 'Neon Circuit', price: 3500, type: 'SLEEVE', style: 'NEON_CYBER', description: 'Active energetic circuitry.' },
   { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 3500, type: 'SLEEVE', style: 'PIXEL_CITY_LIGHTS', description: 'Nocturnal pixel glow.' },
+  { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, type: 'SLEEVE', style: 'AMETHYST_ROYAL', description: 'Velvet silk with silver filigree.' },
+  { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, type: 'SLEEVE', style: 'CHERRY_BLOSSOM_NOIR', description: 'Obsidian wood with glowing blossoms.' },
 ];
 
 const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => void }> = ({ themeId, onClose }) => {

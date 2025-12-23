@@ -46,6 +46,8 @@ const SLEEVES = [
   { id: 'DRAGON_SCALE', name: 'Dragon Skin', price: 2500, style: 'DRAGON_SCALE' as CardCoverStyle },
   { id: 'NEON_CYBER', name: 'Neon Circuit', price: 3500, style: 'NEON_CYBER' as CardCoverStyle },
   { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 3500, style: 'PIXEL_CITY_LIGHTS' as CardCoverStyle },
+  { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, style: 'AMETHYST_ROYAL' as CardCoverStyle },
+  { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, style: 'CHERRY_BLOSSOM_NOIR' as CardCoverStyle },
 ];
 
 const TAB_DESCRIPTIONS: Record<WelcomeTab, string> = {

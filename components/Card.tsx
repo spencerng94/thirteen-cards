@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
-export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS';
+export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR';
 
 interface CardProps {
   card?: CardType; // Optional because faceDown cards might not need data
@@ -168,6 +168,40 @@ export const Card: React.FC<CardProps> = ({
                                 opacity: Math.random() * 0.6 + 0.2,
                                 animationDelay: `${Math.random() * 3}s`,
                                 animationDuration: `${2 + Math.random() * 3}s`
+                            }}
+                        />
+                    ))}
+                </div>
+            );
+            break;
+        case 'AMETHYST_ROYAL':
+            bgClass = 'bg-gradient-to-br from-violet-900 via-purple-800 to-indigo-950';
+            borderClass = 'border-purple-300/40 shadow-[0_0_15px_rgba(168,85,247,0.4)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-purple-200/30 to-transparent";
+            patternContent = (
+                <div className="absolute inset-0 opacity-30 mix-blend-screen"
+                     style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/gray-floral.png")', backgroundSize: '150px' }}>
+                </div>
+            );
+            break;
+        case 'CHERRY_BLOSSOM_NOIR':
+            bgClass = 'bg-[#0a0a0a]';
+            borderClass = 'border-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-pink-300/10 to-transparent";
+            patternContent = (
+                <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute inset-0 opacity-[0.15] bg-[url('https://www.transparenttextures.com/patterns/padded-cells.png')]"></div>
+                    {/* Floating Sakura Petals */}
+                    {Array.from({ length: 8 }).map((_, i) => (
+                        <div 
+                            key={i}
+                            className="absolute w-2 h-2 bg-pink-400/60 blur-[0.5px] rounded-full animate-pulse"
+                            style={{
+                                top: `${20 + i * 10}%`,
+                                left: `${(i * 13) % 100}%`,
+                                opacity: 0.4,
+                                transform: `rotate(${i * 45}deg)`,
+                                animationDelay: `${i * 0.5}s`,
                             }}
                         />
                     ))}

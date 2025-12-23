@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
@@ -74,6 +75,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return "bg-rose-900/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
       case 'CYBERPUNK_NEON':
         return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
+      case 'CITY_LIGHTS_PIXEL':
+        return "bg-purple-900/90 text-white shadow-[0_0_20px_rgba(168,85,247,0.5)] border-purple-400/30";
       case 'LOTUS_FOREST':
         return "bg-pink-600/90 text-white shadow-[0_0_15px_rgba(219,39,119,0.4)] border-pink-400/30";
       case 'CHRISTMAS_YULETIDE':
@@ -82,6 +85,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
       case 'HIGH_ROLLER':
         return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
+      case 'KOI_PRESTIGE':
+        return "bg-[#0a2e3d] text-teal-300 border-teal-500 shadow-[0_0_25px_rgba(20,184,166,0.4)] font-black italic";
       default:
         return "bg-white/10 text-white";
     }
@@ -92,7 +97,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setHasChanged(true);
   };
 
-  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS'];
+  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR'];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={onClose}>
@@ -195,10 +200,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                    { id: 'CYBER_BLUE', name: 'Cobalt' },
                    { id: 'CRIMSON_VOID', name: 'Baccarat Ruby' },
                    { id: 'CYBERPUNK_NEON', name: 'Onyx' },
+                   { id: 'CITY_LIGHTS_PIXEL', name: 'Penthouse' },
                    { id: 'LOTUS_FOREST', name: 'Lotus' },
                    { id: 'CHRISTMAS_YULETIDE', name: 'Yuletide' },
                    { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope' },
-                   { id: 'HIGH_ROLLER', name: 'Le Blanc' }
+                   { id: 'HIGH_ROLLER', name: 'Le Blanc' },
+                   { id: 'KOI_PRESTIGE', name: 'Imperial Koi' }
                  ].map((theme) => (
                    <button 
                       key={theme.id}
@@ -235,7 +242,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         small 
                         className={`!w-16 !h-24 transition-all ${currentCoverStyle === style ? 'ring-2 ring-yellow-500 shadow-[0_15px_30px_rgba(0,0,0,0.6)]' : 'shadow-lg border-white/5'}`} 
                      />
-                     {(style === 'GOLDEN_IMPERIAL' || style === 'VOID_ONYX' || style === 'ROYAL_JADE' || style === 'CRYSTAL_EMERALD' || style === 'DRAGON_SCALE' || style === 'NEON_CYBER') && (
+                     {(style === 'GOLDEN_IMPERIAL' || style === 'VOID_ONYX' || style === 'ROYAL_JADE' || style === 'CRYSTAL_EMERALD' || style === 'DRAGON_SCALE' || style === 'NEON_CYBER' || style === 'AMETHYST_ROYAL' || style === 'CHERRY_BLOSSOM_NOIR') && (
                        <span className="text-[7px] font-black text-yellow-500 uppercase tracking-tighter">Elite</span>
                      )}
                    </div>

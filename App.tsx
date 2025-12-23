@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Player, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile } from './types';
 import { GameTable } from './components/GameTable';
@@ -15,7 +15,7 @@ import { Store } from './components/Store';
 import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES } from './services/supabase';
+import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
@@ -55,6 +55,8 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean } | null>(null);
 
+  const firstLoadRef = useRef(true);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
@@ -84,13 +86,14 @@ const App: React.FC = () => {
       else if (!isGuest) setProfile(null);
     });
     return () => subscription.unsubscribe();
-  }, [isGuest, playerAvatar]);
+  }, [isGuest]);
 
   const loadProfile = async (uid: string) => {
-    const data = await fetchProfile(uid);
+    const data = await fetchProfile(uid, playerAvatar);
     if (data) {
       setProfile(data);
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
+      if (data.avatar_url) setPlayerAvatar(data.avatar_url);
     }
   };
 
@@ -99,14 +102,26 @@ const App: React.FC = () => {
       const data = fetchGuestProfile();
       setProfile(data);
       if (data.username && !playerName) setPlayerName(data.username);
+      if (data.avatar_url) setPlayerAvatar(data.avatar_url);
     }
   }, [isGuest, session]);
+
+  // Persistence Effect for Avatar Emoji
+  useEffect(() => {
+    if (!authChecked) return;
+    if (firstLoadRef.current) {
+        firstLoadRef.current = false;
+        return;
+    }
+    updateProfileAvatar(session?.user?.id || 'guest', playerAvatar);
+  }, [playerAvatar, session, authChecked]);
 
   const handleSignOut = async () => {
     if (session) await supabase.auth.signOut();
     setIsGuest(false);
     setProfile(null);
     setPlayerName('');
+    setPlayerAvatar('😎');
     setView('WELCOME');
     setHubState({ open: false, tab: 'PROFILE' });
     setGameSettingsOpen(false);
