@@ -25,6 +25,7 @@ export interface ThemeConfig {
   zenPond?: boolean;
   obsidianMadness?: boolean;
   crystalTokyo?: boolean;
+  lasVegas?: boolean;
   spotlight?: string;
   tier: 'BASIC' | 'PREMIUM';
   isCityLightsPixel?: boolean;
@@ -37,7 +38,7 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'CRIMSON_VOID', name: 'Baccarat Ruby', tier: 'BASIC', price: 1000, base: 'bg-[#7f1d1d]', colors: 'from-rose-400/40 via-rose-700/20 to-[#450a0a]', texture: true, spotlight: 'rgba(251, 113, 133, 0.25)' },
   { id: 'CYBERPUNK_NEON', name: 'Onyx Space', tier: 'PREMIUM', price: 2500, base: 'bg-[#010103]', colors: 'from-indigo-950/20 via-black to-black', technoGrid: false, cityLights: false, spotlight: 'rgba(255, 255, 255, 0.03)' },
   { id: 'OBSIDIAN_MADNESS', name: 'Obsidian Madness', tier: 'PREMIUM', price: 3500, base: 'bg-[#000000]', colors: 'from-red-950/40 via-black to-black', obsidianMadness: true, spotlight: 'rgba(220, 38, 38, 0.05)' },
-  { id: 'CRYSTAL_TOKYO', name: 'Crystal Tokyo', tier: 'PREMIUM', price: 12000, base: 'bg-[#02020a]', colors: 'from-cyan-950/30 via-black to-black', crystalTokyo: true, spotlight: 'rgba(34, 211, 238, 0.15)' },
+  { id: 'LAS_VEGAS', name: 'Las Vegas Strip', tier: 'PREMIUM', price: 5000, base: 'bg-[#050505]', colors: 'from-yellow-500/10 via-red-500/5 to-black', lasVegas: true, spotlight: 'rgba(251, 191, 36, 0.15)' },
   { id: 'LOTUS_FOREST', name: 'Lotus Deal', tier: 'PREMIUM', price: 4000, base: 'bg-[#011a0f]', colors: 'from-emerald-500/20 via-emerald-900/10 to-black', lotusForest: true, spotlight: 'rgba(182, 227, 143, 0.3)' },
   { id: 'CHRISTMAS_YULETIDE', name: 'Midnight Yuletide', tier: 'PREMIUM', price: 4500, base: 'bg-[#010b13]', colors: 'from-blue-900/30 via-[#010b13] to-black', yuletide: true, spotlight: 'rgba(191, 219, 254, 0.2)' },
   { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope', tier: 'PREMIUM', price: 5000, base: 'bg-[#080000]', colors: 'from-[#660000] via-[#1a0000] to-black', prestige: true, spotlight: 'rgba(251, 191, 36, 0.12)' },
@@ -45,6 +46,116 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'GOLD_FLUX', name: 'Gold Flux', tier: 'PREMIUM', price: 8500, base: 'bg-[#fffbeb]', colors: 'from-white via-yellow-50/80 to-yellow-100/40', goldFlux: true, spotlight: 'rgba(255, 255, 255, 0.8)' },
   { id: 'HIGH_ROLLER', name: 'Sanctum Oblivion', tier: 'PREMIUM', price: 15000, base: 'bg-[#ffffff]', colors: 'from-white via-slate-100 to-indigo-950/20', highRoller: true, spotlight: 'rgba(255, 255, 255, 0.4)' }
 ];
+
+import React, { useMemo } from 'react';
+
+const LasVegasEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const dice = useMemo(() => Array.from({ length: isMini ? 4 : 8 }).map((_, i) => ({
+    id: `dice-${i}`,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    delay: Math.random() * -20,
+    duration: 20 + Math.random() * 25,
+    scale: 0.3 + Math.random() * 0.3,
+  })), [isMini]);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#020205] perspective-[1200px]">
+      
+      {/* 1. The MSG Sphere (Ambient Glow) */}
+      <div className="absolute -bottom-20 -right-20 w-[400px] h-[400px] rounded-full opacity-30 mix-blend-screen animate-pulse">
+        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-600 via-purple-600 to-cyan-400 blur-[80px]"></div>
+        <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,_transparent_20%,_rgba(0,0,0,0.8)_70%)] opacity-50"></div>
+      </div>
+
+      {/* 2. Iconic Vegas Sign Silhouette (Simplified Premium Style) */}
+      {!isMini && (
+        <div className="absolute top-10 left-10 opacity-60 scale-75 lg:scale-100">
+          <div className="relative w-32 h-20 border-2 border-white/80 rounded-[50%] flex items-center justify-center bg-black/40 backdrop-blur-sm shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+            <div className="text-center">
+              <p className="text-[6px] text-white uppercase tracking-tighter">Welcome to Fabulous</p>
+              <p className="text-[10px] font-black text-white uppercase leading-none">Las Vegas</p>
+              <p className="text-[5px] text-red-500 font-bold uppercase">Nevada</p>
+            </div>
+            {/* Sign "Stars" */}
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-6 h-6 bg-red-600 rotate-45 shadow-[0_0_10px_red]"></div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Luxury Gold Backdrop Gradient */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(234,179,8,0.08)_0%,_transparent_50%)]"></div>
+
+      {/* 4. Floating Premium Gold Dice */}
+      {dice.map(d => (
+        <div 
+          key={d.id}
+          className="absolute opacity-30 animate-[vegas-float_linear_infinite]"
+          style={{ 
+            left: `${d.x}%`, 
+            top: `${d.y}%`, 
+            animationDuration: `${d.duration}s`, 
+            animationDelay: `${d.delay}s`,
+            transform: `scale(${d.scale})`
+          }}
+        >
+          <div className="relative w-12 h-12 transform-style-3d animate-[vegas-spin_12s_linear_infinite]">
+            {/* Dice faces using Gold/Black High Roller Colors */}
+            {[
+              { transform: 'translateZ(24px)', content: '●' },
+              { transform: 'rotateY(180deg) translateZ(24px)', content: '● ●' },
+              { transform: 'rotateX(90deg) translateZ(24px)', content: '● ● ●' },
+              { transform: 'rotateX(-90deg) translateZ(24px)', content: '● ●\n● ●' },
+              { transform: 'rotateY(90deg) translateZ(24px)', content: '● ● ●\n● ● ●' },
+              { transform: 'rotateY(-90deg) translateZ(24px)', content: '● ● ●' },
+            ].map((face, i) => (
+              <div 
+                key={i}
+                className="absolute inset-0 bg-[#1a1a1a] border border-yellow-500/50 rounded-md flex items-center justify-center text-yellow-500 text-xs whitespace-pre shadow-[inset_0_0_10px_rgba(234,179,8,0.2)]"
+                style={{ transform: face.transform }}
+              >
+                {face.content}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* 5. Spotlight Rays (The Strip Beam) */}
+      {!isMini && (
+        <div className="absolute inset-0">
+          <div className="absolute bottom-0 left-[20%] w-32 h-[150%] bg-blue-500/10 blur-[60px] -rotate-12 origin-bottom"></div>
+          <div className="absolute bottom-0 right-[15%] w-24 h-[120%] bg-purple-500/10 blur-[50px] rotate-12 origin-bottom"></div>
+        </div>
+      )}
+
+      {/* 6. Gold Bordering */}
+      {!isMini && (
+        <div className="absolute inset-6 border border-yellow-600/20 rounded-[2rem]">
+          <div className="absolute -top-px left-1/2 -translate-x-1/2 flex gap-1">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="w-1 h-1 bg-yellow-500/40 rounded-full shadow-[0_0_5px_rgba(234,179,8,0.8)]"></div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .transform-style-3d { transform-style: preserve-3d; }
+        @keyframes vegas-float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-20px, -40px) scale(1.1); }
+        }
+        @keyframes vegas-spin {
+          from { transform: rotateX(0) rotateY(0) rotateZ(0); }
+          to { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); }
+        }
+      `}} />
+    </div>
+  );
+};
+
+export default LasVegasEngine;
 
 const CastleOblivionEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
   const shards = useMemo(() => Array.from({ length: isMini ? 12 : 35 }).map((_, i) => ({
@@ -747,8 +858,8 @@ export const BoardSurface: React.FC<{ themeId: string; isMini?: boolean; classNa
       {theme.id === 'GOLDEN_EMPEROR' && <GoldenEmperorEngine isMini={isMini} />}
       {theme.yuletide && <YuletideEngine isMini={isMini} />}
       {theme.obsidianMadness && <MadnessEngine isMini={isMini} />}
-      {theme.crystalTokyo && <TokyoEngine isMini={isMini} />}
-      {theme.highRoller && <CastleOblivionEngine isMini={isMini} />}
+      {theme.lasVegas && <LasVegasEngine isMini={isMini} />}
+      {theme.id === 'HIGH_ROLLER' && <CastleOblivionEngine isMini={isMini} />}
       
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen transition-all duration-1000 z-1`}></div>
       <div className="absolute inset-0 pointer-events-none z-4" style={{ backgroundImage: `radial-gradient(circle at center, ${theme.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 80%)` }}></div>

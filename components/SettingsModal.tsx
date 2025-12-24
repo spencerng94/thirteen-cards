@@ -79,6 +79,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
       case 'OBSIDIAN_MADNESS':
         return "bg-black text-red-600 border-red-950 shadow-[0_0_20px_rgba(153,27,27,0.6)] font-black italic";
+      case 'LAS_VEGAS':
+        return "bg-black text-yellow-500 border-yellow-500 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic uppercase tracking-widest";
       case 'LOTUS_FOREST':
         return "bg-pink-600/90 text-white shadow-[0_0_15px_rgba(219,39,119,0.4)] border-pink-400/30";
       case 'CHRISTMAS_YULETIDE':
@@ -211,7 +213,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                    { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope' },
                    { id: 'ZEN_POND', name: 'Zen Pond' },
                    { id: 'HIGH_ROLLER', name: 'Le Blanc' },
-                   { id: 'GOLD_FLUX', name: 'Gold Flux' }
+                   { id: 'GOLD_FLUX', name: 'Gold Flux' },
+                   { id: 'LAS_VEGAS', name: 'Vegas' }
                  ].map((theme) => (
                    <button 
                       key={theme.id}

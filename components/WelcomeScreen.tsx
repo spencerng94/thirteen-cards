@@ -1,11 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
-import { AiDifficulty, UserProfile, BackgroundTheme } from '../types';
+import { AiDifficulty, UserProfile, BackgroundTheme, Emote } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
-import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName } from '../services/supabase';
+import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
@@ -141,9 +141,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [activeTab, setActiveTab] = useState<WelcomeTab>('PROFILE');
   const [hideUnowned, setHideUnowned] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
+  const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
 
   const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
+
+  useEffect(() => {
+    fetchEmotes().then(setRemoteEmotes);
+  }, []);
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {
@@ -157,7 +162,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     
     setPendingPurchase({
       id: type === 'AVATAR' ? item : item.id,
-      name: type === 'AVATAR' ? getAvatarName(item) : item.name,
+      name: type === 'AVATAR' ? getAvatarName(item, remoteEmotes) : item.name,
       price,
       type,
       style: type === 'SLEEVE' ? item.style : undefined
@@ -211,8 +216,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
            <div className="relative">
               <div className="absolute inset-[-20px] bg-yellow-500/10 blur-[40px] rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
               <div className="relative w-28 h-28 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-500 overflow-hidden">
-                {/* Updated to use VisualEmote for profile header image display with significantly increased size */}
-                <VisualEmote trigger={playerAvatar} size="xl" />
+                <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" />
               </div>
            </div>
            
@@ -346,7 +350,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <BoardSurface themeId={backgroundTheme} />
       
       {pendingPurchase && (
-          <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
               <div className="bg-[#0a0a0a] border border-yellow-500/20 w-full max-w-xs rounded-[2rem] p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)]">
                   <div className="text-4xl mb-4">💳</div>
                   <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Confirm Purchase?</h3>
@@ -368,7 +372,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       )}
 
       {awardItem && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500 overflow-hidden">
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500 overflow-hidden" onClick={e => e.stopPropagation()}>
               {Array.from({ length: 20 }).map((_, i) => (
                   <div key={i} className="absolute w-2 h-2 rounded-sm bg-yellow-500/40 animate-award-particle" style={{
                       left: '50%',
@@ -384,7 +388,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <div className="relative mb-10 animate-award-pop">
                       {awardItem.type === 'AVATAR' ? (
                           <div className="w-40 h-40 flex items-center justify-center">
-                            <VisualEmote trigger={awardItem.id} size="xl" />
+                            <VisualEmote trigger={awardItem.id} remoteEmotes={remoteEmotes} size="xl" />
                           </div>
                       ) : awardItem.type === 'SLEEVE' ? (
                           <Card faceDown coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" />
@@ -394,7 +398,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                           </div>
                       )}
                   </div>
-                  <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-yellow-200 to-yellow-500 uppercase tracking-tighter italic animate-award-pop">ASSET SECURED</h2>
+                  <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-yellow-200 to-yellow-500 uppercase tracking-tighter italic animate-award-text">ASSET SECURED</h2>
                   <p className="text-[10px] font-black uppercase tracking-[0.6em] text-gray-500 mt-4 animate-award-text [animation-delay:0.2s]">{awardItem.name} • UNLOCKED</p>
                   <button onClick={() => setAwardItem(null)} className="mt-12 px-12 py-4 rounded-full bg-white text-black font-black uppercase tracking-[0.3em] text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl animate-award-text [animation-delay:0.4s]">DEPLOY ASSET</button>
               </div>
@@ -413,7 +417,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </div>
 
       <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-right-2 fade-in duration-700 pointer-events-none">
-        <UserBar profile={profile} isGuest={isGuest} avatar={playerAvatar} onClick={() => onOpenHub('PROFILE')} className="pointer-events-auto" />
+        <UserBar profile={profile} isGuest={isGuest} avatar={playerAvatar} remoteEmotes={remoteEmotes} onClick={() => onOpenHub('PROFILE')} className="pointer-events-auto" />
       </div>
 
       <div className="max-w-2xl w-full z-10 flex flex-col items-center gap-1.5 mt-10 md:mt-0">
@@ -489,7 +493,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         }
         @keyframes awardParticle {
             0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1) rotate(var(--rot)); opacity: 0; }
+            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0) rotate(var(--rot)); opacity: 0; }
         }
         .animate-award-pop { animation: awardPop 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
         .animate-award-text { opacity: 0; animation: awardText 0.6s ease-out forwards; }
