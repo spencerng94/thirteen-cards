@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { UserProfile, BackgroundTheme, AiDifficulty } from '../types';
+import { UserProfile, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { calculateLevel, getXpForLevel, DEFAULT_AVATARS, PREMIUM_AVATARS, buyItem, getAvatarName } from '../services/supabase';
 import { SignOutButton } from './SignOutButton';
 import { CardCoverStyle, Card } from './Card';
 import { audioService } from '../services/audio';
+import { VisualEmote } from './VisualEmote';
 
 export interface ThemeConfig {
   id: string;
@@ -37,7 +38,7 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'CYBERPUNK_NEON', name: 'Onyx Space', tier: 'PREMIUM', price: 2500, base: 'bg-[#010103]', colors: 'from-indigo-950/20 via-black to-black', technoGrid: false, cityLights: false, spotlight: 'rgba(255, 255, 255, 0.03)' },
   { id: 'OBSIDIAN_MADNESS', name: 'Obsidian Madness', tier: 'PREMIUM', price: 3500, base: 'bg-[#000000]', colors: 'from-red-950/40 via-black to-black', obsidianMadness: true, spotlight: 'rgba(220, 38, 38, 0.05)' },
   { id: 'CRYSTAL_TOKYO', name: 'Crystal Tokyo', tier: 'PREMIUM', price: 12000, base: 'bg-[#02020a]', colors: 'from-cyan-950/30 via-black to-black', crystalTokyo: true, spotlight: 'rgba(34, 211, 238, 0.15)' },
-  { id: 'LOTUS_FOREST', name: 'Lotus Sanctuary', tier: 'PREMIUM', price: 4000, base: 'bg-[#022115]', colors: 'from-emerald-400/30 via-emerald-600/10 to-black', lotusForest: true, spotlight: 'rgba(182, 227, 143, 0.4)' },
+  { id: 'LOTUS_FOREST', name: 'Lotus Deal', tier: 'PREMIUM', price: 4000, base: 'bg-[#011a0f]', colors: 'from-emerald-500/20 via-emerald-900/10 to-black', lotusForest: true, spotlight: 'rgba(182, 227, 143, 0.3)' },
   { id: 'CHRISTMAS_YULETIDE', name: 'Midnight Yuletide', tier: 'PREMIUM', price: 4500, base: 'bg-[#010b13]', colors: 'from-blue-900/30 via-[#010b13] to-black', yuletide: true, spotlight: 'rgba(191, 219, 254, 0.2)' },
   { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope', tier: 'PREMIUM', price: 5000, base: 'bg-[#080000]', colors: 'from-[#660000] via-[#1a0000] to-black', prestige: true, spotlight: 'rgba(251, 191, 36, 0.12)' },
   { id: 'ZEN_POND', name: 'Zen Pond', tier: 'PREMIUM', price: 6000, base: 'bg-[#000000]', colors: 'from-[#083344]/40 via-[#010810]/60 to-black', zenPond: true, spotlight: 'rgba(34, 211, 238, 0.15)' },
@@ -303,16 +304,13 @@ const MadnessEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black perspective-[1000px]">
-      {/* Background Gradients */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#0a0000_0%,_#000000_70%,_#000000_100%)]"></div>
       
-      {/* Cursed Fog Layers */}
       <div className="absolute inset-0 opacity-40 mix-blend-multiply">
           <div className="absolute bottom-0 left-0 w-full h-[60%] bg-gradient-to-t from-red-950/30 to-transparent animate-pulse"></div>
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.1] scale-150"></div>
       </div>
 
-      {/* The Brand / Eclipse pulse */}
       {!isMini && (
         <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] opacity-[0.08] mix-blend-plus-lighter pointer-events-none">
            <div className="w-full h-full rounded-full bg-red-600 blur-[150px] animate-pulse"></div>
@@ -323,7 +321,6 @@ const MadnessEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
         </div>
       )}
 
-      {/* Obsidian Monoliths */}
       {!isMini && monoliths.map(m => (
         <div 
           key={m.id}
@@ -342,7 +339,6 @@ const MadnessEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
         </div>
       ))}
 
-      {/* Falling Ash / Embers */}
       {ash.map(a => (
         <div 
           key={a.id}
@@ -359,7 +355,6 @@ const MadnessEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
         />
       ))}
 
-      {/* Atmospheric Scratches / Grain */}
       <div className="absolute inset-0 opacity-[0.04] bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')] mix-blend-screen"></div>
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -446,94 +441,76 @@ const SpaceEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 const LotusForestEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
   const suits = ['SPADE', 'HEART', 'CLUB', 'DIAMOND'];
   
-  const shards = useMemo(() => Array.from({ length: isMini ? 15 : 60 }).map((_, i) => ({
-    id: `lotus-suit-v17-${i}`,
-    suitType: suits[i % 4],
+  const shards = useMemo(() => Array.from({ length: isMini ? 15 : 50 }).map((_, i) => ({
+    id: `kh-bijou-v26-${i}`,
+    type: suits[i % 4],
     x: Math.random() * 110 - 5,
-    delay: Math.random() * -45,
-    duration: 22 + Math.random() * 12, 
-    size: 28 + Math.random() * 40,
-    rotSpeed: 12 + Math.random() * 18,
-    opacity: 0.7 + Math.random() * 0.3,
-    glow: true,
-    zDepth: Math.floor(Math.random() * 1200),
-    swayX: (Math.random() - 0.5) * 600,
+    delay: Math.random() * -60,
+    duration: 30 + Math.random() * 20, 
+    size: 35 + Math.random() * 25, 
+    rotSpeed: 15 + Math.random() * 15,
+    zDepth: Math.floor(Math.random() * 2000),
+    swayX: (Math.random() - 0.5) * 500,
+    isPink: i % 2 === 0,
   })), [isMini]);
 
   const SUIT_PATHS: Record<string, string> = {
     SPADE: "M50 5 C65 40 100 65 75 90 C65 100 55 95 50 85 C45 95 35 100 25 90 C0 65 35 40 50 5 M50 80 L58 100 L42 100 Z",
-    HEART: "M50 90 C15 65 10 25 50 15 C90 25 85 65 50 90 Z",
-    CLUB: "M50 5 L60 40 L95 50 L60 60 L50 95 L40 60 L5 50 L40 40 Z M50 45 A5 5 0 1 0 50 55 A5 5 0 1 0 50 45",
+    HEART: "M50 30 C50 10 10 10 10 45 C10 75 50 95 50 95 C50 95 90 75 90 45 C90 10 50 10 50 30 Z",
+    CLUB: "M50 25 A18 18 0 1 1 68 43 A18 18 0 1 1 55 65 L55 85 L65 95 L35 95 L45 85 L45 65 A18 18 0 1 1 32 43 A18 18 0 1 1 50 25 Z",
     DIAMOND: "M50 5 L90 50 L50 95 L10 50 Z"
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#022115] perspective-[2500px]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,_#b6e38f66_0%,_#10b98133_30%,_#022115_85%,_#000000_100%)]"></div>
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#eafaf1] perspective-[3000px]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,_#f2fff9_0%,_#d5eee2_50%,_#b8dfcd_100%)]"></div>
       
-      {!isMini && (
-          <div className="absolute inset-0 opacity-40 mix-blend-plus-lighter">
-              <div className="absolute top-[-30%] left-[-20%] w-[100%] h-[180%] bg-[linear-gradient(110deg,transparent_40%,#ff69b422_50%,transparent_60%)] rotate-[30deg] animate-[lotus-light-sweep_25s_infinite_alternate_ease-in-out]"></div>
-          </div>
-      )}
+      <div className="absolute inset-0 opacity-20 mix-blend-soft-light">
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_#fff_0%,_transparent_60%)] animate-[kh-flare_20s_infinite_alternate]"></div>
+      </div>
 
       <div className="absolute inset-0 transform-style-3d">
         {shards.map(p => (
             <div 
                 key={p.id}
-                className="absolute transform-style-3d will-change-transform animate-[lotus-drift-v17_linear_infinite]"
+                className="absolute transform-style-3d will-change-transform animate-[kh-drift-v26_linear_infinite]"
                 style={{ 
                     left: `${p.x}%`, 
-                    top: '-300px',
+                    top: '-150px',
                     animationDelay: `${p.delay}s`, 
                     animationDuration: `${p.duration}s`,
-                    opacity: p.opacity,
                     '--sway': `${p.swayX}px`,
                     '--z': `${p.zDepth}px`
                 } as any}
             >
                 <div 
-                    className="relative transform-style-3d animate-[lotus-tumble-3d-v17_linear_infinite]"
+                    className="relative transform-style-3d animate-[kh-tumble-v26_linear_infinite]"
                     style={{ animationDuration: `${p.rotSpeed}s` }}
                 >
-                    <svg 
-                        width={p.size} 
-                        height={p.size} 
-                        viewBox="0 0 100 100" 
-                        className="overflow-visible transform-style-3d drop-shadow-[0_0_15px_rgba(255,105,180,0.7)]"
+                    <div 
+                        className="relative flex items-center justify-center rounded-[2px] border border-white/60 shadow-lg backdrop-blur-[1px]"
+                        style={{ 
+                            width: `${p.size * 0.72}px`, 
+                            height: `${p.size}px`,
+                            background: p.isPink 
+                                ? 'linear-gradient(145deg, #fff1f2, #fb7185)' 
+                                : 'linear-gradient(145deg, #f0fff4, #4ade80)',
+                            opacity: 0.95
+                        }}
                     >
-                        <defs>
-                            <linearGradient id={`grad-suit-ethereal-v17-${p.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#fff" />
-                                <stop offset="40%" stopColor="#ffb6c1" />
-                                <stop offset="100%" stopColor="#d946ef" />
-                            </linearGradient>
-                            <filter id={`specular-v17-${p.id}`} colorInterpolationFilters="sRGB">
-                                <feGaussianBlur stdDeviation="0.8" result="blur" />
-                                <feSpecularLighting surfaceScale="5" specularConstant="1.8" specularExponent="35" lightingColor="#ffffff" in="blur" result="spec">
-                                    <fePointLight x="-150" y="-150" z="400" />
-                                </feSpecularLighting>
-                                <feComposite in="spec" in2="SourceGraphic" operator="in" result="lit" />
-                                <feMerge>
-                                    <feMergeNode in="SourceGraphic" />
-                                    <feMergeNode in="lit" />
-                                </feMerge>
-                            </filter>
-                        </defs>
-                        <path 
-                            d={SUIT_PATHS[p.suitType]} 
-                            fill={`url(#grad-suit-ethereal-v17-${p.id})`}
-                            filter={`url(#specular-v17-${p.id})`}
-                            className="mix-blend-screen opacity-95"
-                        />
-                        <path 
-                            d={SUIT_PATHS[p.suitType]}
-                            fill="none" 
-                            stroke="#ffffff66" 
-                            strokeWidth="1" 
-                            opacity="0.5"
-                        />
-                    </svg>
+                        <div className="absolute inset-0 bg-[linear-gradient(105deg,transparent_45%,rgba(255,255,255,0.6)_50%,transparent_55%)] animate-[kh-glint-v26_3s_infinite_ease-in-out]"></div>
+
+                        <svg width="65%" height="65%" viewBox="0 0 100 100" className="opacity-80 drop-shadow-sm">
+                            <path 
+                                d={SUIT_PATHS[p.type]} 
+                                fill={p.isPink ? '#881337' : '#064e3b'}
+                                className="mix-blend-multiply opacity-40"
+                            />
+                        </svg>
+
+                        <div className="absolute top-0.5 left-0.5 w-1.5 h-1.5 border-t border-l border-white/70"></div>
+                        <div className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 border-b border-r border-white/70"></div>
+                    </div>
                 </div>
             </div>
         ))}
@@ -541,19 +518,23 @@ const LotusForestEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 
       <style dangerouslySetInnerHTML={{ __html: `
         .transform-style-3d { transform-style: preserve-3d; }
-        @keyframes lotus-drift-v17 {
+        @keyframes kh-drift-v26 {
           0% { transform: translate3d(0, 0, var(--z)); opacity: 0; }
           10% { opacity: 1; }
           90% { opacity: 1; }
-          100% { transform: translate3d(var(--sway), 150vh, var(--z)); opacity: 0; }
+          100% { transform: translate3d(var(--sway), 130vh, var(--z)); opacity: 0; }
         }
-        @keyframes lotus-tumble-3d-v17 {
-          from { transform: rotate3d(1, 0.4, 0.8, 0deg); }
-          to { transform: rotate3d(1, 0.4, 0.8, 360deg); }
+        @keyframes kh-tumble-v26 {
+          from { transform: rotate3d(0.4, 1, 0.3, 0deg); }
+          to { transform: rotate3d(0.4, 1, 0.3, 360deg); }
         }
-        @keyframes lotus-light-sweep {
-            from { transform: translateX(-30%) rotate(30deg); opacity: 0.2; }
-            to { transform: translateX(30%) rotate(30deg); opacity: 0.4; }
+        @keyframes kh-glint-v26 {
+          0% { transform: translateX(-150%) skewX(-15deg); }
+          100% { transform: translateX(150%) skewX(-15deg); }
+        }
+        @keyframes kh-flare {
+          from { opacity: 0.1; transform: scale(1); }
+          to { opacity: 0.3; transform: scale(1.1); }
         }
       `}} />
     </div>
@@ -689,24 +670,19 @@ const ZenPondEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#000208]">
-      {/* Deep dark water base */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#081d2b_0%,_#000208_70%,_#000000_100%)]"></div>
       
-      {/* Flowing Water Effect - Cinematic Horizontal Shimmers */}
       <div className="absolute inset-0 opacity-20 mix-blend-screen">
           <div className="absolute top-0 left-[-50%] w-[200%] h-full bg-[linear-gradient(90deg,transparent_0%,rgba(34,211,238,0.1)_50%,transparent_100%)] animate-[water-flow_12s_linear_infinite]"></div>
           <div className="absolute top-0 left-[-50%] w-[200%] h-full bg-[linear-gradient(90deg,transparent_0%,rgba(34,211,238,0.05)_50%,transparent_100%)] animate-[water-flow_18s_linear_infinite_reverse] [animation-delay:2s]"></div>
       </div>
 
-      {/* Moon Reflection - The centerpiece */}
       <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isMini ? 'w-40 h-40' : 'w-96 h-96'} transition-all duration-1000`}>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.4)_0%,_rgba(34,211,238,0.1)_40%,_transparent_70%)] animate-pulse blur-xl"></div>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.8)_0%,_transparent_20%)] mix-blend-screen"></div>
-          {/* Surface texture on moon reflection */}
           <div className="absolute inset-0 opacity-40 mix-blend-overlay animate-[moon-shimmer_6s_ease-in-out_infinite]" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '15px 15px' }}></div>
       </div>
 
-      {/* Ambient Ripples */}
       {ripples.map(r => (
         <div 
           key={r.id}
@@ -722,7 +698,6 @@ const ZenPondEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
         />
       ))}
 
-      {/* Falling Ethereal Petals (Nature Aesthetic) */}
       {!isMini && Array.from({ length: 15 }).map((_, i) => (
         <div 
           key={`petal-${i}`}
@@ -790,7 +765,7 @@ export const BoardPreview: React.FC<{ themeId: string; className?: string; activ
   );
 };
 
-export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, setPlayerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest }) => {
+export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, setPlayerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, remoteEmotes = [] }) => {
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'STATS'>('PROFILE');
   const [isCatalogExpanded, setIsCatalogExpanded] = useState(false);
 
@@ -816,7 +791,7 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
       <div className="relative bg-[#050505] border border-white/10 w-full max-w-2xl max-h-[90vh] rounded-[2.5rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex flex-col gap-4">
           <div className="flex justify-between items-center w-full">
-            <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-widest leading-none">PLAYER PROFILE</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/90 to-white/40 uppercase italic tracking-widest leading-none">PLAYER PROFILE</h2>
             <button onClick={onClose} className="w-10 h-10 bg-red-600/10 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all group border border-white/5"><span className="text-lg font-black group-hover:rotate-90 transition-transform">✕</span></button>
           </div>
           
@@ -839,8 +814,14 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
         <div className="flex-1 overflow-y-auto p-6 sm:p-8 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           {activeTab === 'PROFILE' ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex flex-col sm:flex-row gap-6 items-center">
-                    <div className="relative shrink-0"><div className="absolute inset-[-10px] bg-yellow-500/10 blur-[20px] rounded-full"></div><div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center text-5xl sm:text-6xl shadow-inner">{playerAvatar}</div></div>
+                <div className="flex flex-col sm:flex-row gap-8 items-center">
+                    <div className="relative shrink-0">
+                      <div className="absolute inset-[-15px] bg-yellow-500/10 blur-[40px] rounded-full"></div>
+                      <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center shadow-inner overflow-hidden">
+                        {/* Player Profile Large Avatar Slot uses VisualEmote significantly boosted in size */}
+                        <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" />
+                      </div>
+                    </div>
                     <div className="flex-1 w-full space-y-3 sm:space-y-4">
                         <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value.toUpperCase())} maxLength={12} className="w-full bg-black/40 border border-white/5 px-4 py-2 rounded-xl text-white font-black uppercase tracking-widest text-lg sm:text-xl focus:border-yellow-500/30 outline-none transition-all shadow-inner" />
                         <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2"><div className="flex justify-between items-end"><span className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em]">Mastery {currentLevel}</span><span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-widest">{nextLevelXp - profile.xp} XP TO ASCEND</span></div><div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5"><div className="h-full bg-gradient-to-r from-yellow-700 via-yellow-400 to-yellow-200 transition-all duration-1000" style={{ width: `${progress}%` }} /></div></div>
@@ -848,14 +829,21 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
                 </div>
 
                 <div className="grid grid-cols-5 gap-2">
-                    {visibleAvatars.map(a => (<button key={a} onClick={() => isAvatarUnlocked(a) ? setPlayerAvatar(a) : null} className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-all ${playerAvatar === a ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : isAvatarUnlocked(a) ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale'}`}>{a}</button>))}
+                    {visibleAvatars.map(a => (
+                      <button 
+                        key={a} 
+                        onClick={() => isAvatarUnlocked(a) ? setPlayerAvatar(a) : null} 
+                        className={`aspect-square rounded-xl flex items-center justify-center transition-all ${playerAvatar === a ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : isAvatarUnlocked(a) ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale'}`}
+                      >
+                        <VisualEmote trigger={a} remoteEmotes={remoteEmotes} size="md" />
+                      </button>
+                    ))}
                 </div>
 
                 <div className="flex flex-col items-center pt-1"><button onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} className="group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 transition-all duration-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}><polyline points="6 9 12 15 18 9"></polyline></svg></button><span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1">{isCatalogExpanded ? "MINIMIZE" : "EXPAND"}</span></div>
             </div>
           ) : (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {/* High Level Stats Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
                         { label: 'Battles', value: profile.games_played, icon: '⚔️' },
@@ -871,7 +859,6 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
                     ))}
                 </div>
 
-                {/* Secondary Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] space-y-4">
                         <div className="flex justify-between items-center">
@@ -898,7 +885,6 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
                     </div>
                 </div>
 
-                {/* Finish Distribution Chart */}
                 <div className="space-y-4">
                     <SectionHeader>Placement Distribution</SectionHeader>
                     <div className="space-y-3">

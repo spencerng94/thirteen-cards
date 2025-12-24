@@ -8,6 +8,7 @@ import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
+import { VisualEmote } from './VisualEmote';
 
 export type WelcomeTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
 
@@ -53,7 +54,7 @@ const SLEEVES = [
 
 const TAB_DESCRIPTIONS: Record<WelcomeTab, string> = {
   PROFILE: "Overview Player Stats",
-  CUSTOMIZE: "Configure Signature Assets",
+  CUSTOMIZE: "Configure Game Visuals",
   SETTINGS: "Select Gameplay Settings"
 };
 
@@ -203,14 +204,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         {/* Clickable Profile Card */}
         <div 
           onClick={() => onOpenHub('PROFILE')}
-          className="flex flex-col items-center gap-4 bg-black/40 p-6 rounded-3xl border border-white/10 backdrop-blur-md cursor-pointer group hover:bg-black/60 transition-all active:scale-[0.98] relative overflow-hidden"
+          className="flex flex-col items-center gap-6 bg-black/40 p-8 rounded-3xl border border-white/10 backdrop-blur-md cursor-pointer group hover:bg-black/60 transition-all active:scale-[0.98] relative overflow-hidden"
         >
            <div className="absolute inset-0 bg-gradient-to-tr from-yellow-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
            
            <div className="relative">
-              <div className="absolute inset-[-12px] bg-yellow-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
-              <div className="relative w-20 h-20 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center text-5xl shadow-inner group-hover:scale-110 transition-transform duration-500">
-                {playerAvatar}
+              <div className="absolute inset-[-20px] bg-yellow-500/10 blur-[40px] rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
+              <div className="relative w-28 h-28 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-500 overflow-hidden">
+                {/* Updated to use VisualEmote for profile header image display with significantly increased size */}
+                <VisualEmote trigger={playerAvatar} size="xl" />
               </div>
            </div>
            
@@ -381,7 +383,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <div className="absolute inset-0 bg-yellow-500/10 blur-[120px] animate-pulse"></div>
                   <div className="relative mb-10 animate-award-pop">
                       {awardItem.type === 'AVATAR' ? (
-                          <div className="text-9xl drop-shadow-[0_0_40px_rgba(234,179,8,0.5)]">{awardItem.id}</div>
+                          <div className="w-40 h-40 flex items-center justify-center">
+                            <VisualEmote trigger={awardItem.id} size="xl" />
+                          </div>
                       ) : awardItem.type === 'SLEEVE' ? (
                           <Card faceDown coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" />
                       ) : (
@@ -390,7 +394,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                           </div>
                       )}
                   </div>
-                  <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-yellow-200 to-yellow-500 uppercase tracking-tighter italic animate-award-text">ASSET SECURED</h2>
+                  <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-yellow-200 to-yellow-500 uppercase tracking-tighter italic animate-award-pop">ASSET SECURED</h2>
                   <p className="text-[10px] font-black uppercase tracking-[0.6em] text-gray-500 mt-4 animate-award-text [animation-delay:0.2s]">{awardItem.name} • UNLOCKED</p>
                   <button onClick={() => setAwardItem(null)} className="mt-12 px-12 py-4 rounded-full bg-white text-black font-black uppercase tracking-[0.3em] text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl animate-award-text [animation-delay:0.4s]">DEPLOY ASSET</button>
               </div>

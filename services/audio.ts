@@ -207,11 +207,24 @@ class AudioService {
     });
   }
 
-  /**
-   * Soothing Zen Start sound.
-   * Deep bass resonance (C3) followed by warm, mid-range harmonics (C4, E4, G4).
-   * Low-pass filtered to ensure no sharp/piercing high frequencies.
-   */
+  playEmote() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+    const now = this.context.currentTime;
+    const osc = this.context.createOscillator();
+    const gain = this.createGain(0.2, 0.1);
+    if (!gain) return;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.2);
+    osc.connect(gain);
+    gain.connect(this.context.destination);
+    osc.start();
+    osc.stop(now + 0.2);
+  }
+
   playStartMatch() {
     if (!this.enabled) return;
     this.initContext();

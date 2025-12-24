@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -47,7 +48,7 @@ interface GameRoom {
   isFirstTurnOfGame: boolean;
 }
 
-const BOT_AVATARS = ['🤖', '👾', '👽', '🤡', '👹', '👺', '👻'];
+const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
 
 const app = express();
 const httpServer = createServer(app);
@@ -366,6 +367,10 @@ io.on('connection', (socket: Socket) => {
     const bot = room.players.find(p => p.id === botId);
     if (bot) bot.difficulty = difficulty;
     broadcastState(roomId);
+  });
+
+  socket.on('emote_sent', ({ roomId, emote }) => {
+    socket.to(roomId).emit('receive_emote', { playerId: socket.id, emote });
   });
 
   socket.on('start_game', ({ roomId }) => {

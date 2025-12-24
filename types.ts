@@ -1,46 +1,41 @@
 
-// Card Suits
 export enum Suit {
-  Spades = 0,   // Lowest
+  Spades = 0,
   Clubs = 1,
   Diamonds = 2,
-  Hearts = 3    // Highest
+  Hearts = 3
 }
 
-// Card Ranks (3 is lowest, 2 is highest in Tien Len)
 export enum Rank {
-  Three = 3,
-  Four = 4,
-  Five = 5,
-  Six = 6,
-  Seven = 7,
-  Eight = 8,
-  Nine = 9,
-  Ten = 10,
-  Jack = 11,
-  Queen = 12,
-  King = 13,
-  Ace = 14,
-  Two = 15      // Highest
+  Three = 3, Four = 4, Five = 5, Six = 6, Seven = 7, Eight = 8, Nine = 9, Ten = 10, Jack = 11, Queen = 12, King = 13, Ace = 14, Two = 15
 }
 
 export interface Card {
   rank: Rank;
   suit: Suit;
-  id: string; // Unique ID for React keys and tracking
+  id: string;
 }
 
 export type AiDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
 
+export interface Emote {
+  id: string;
+  name: string;
+  file_path: string;
+  trigger_code: string;
+  fallback_emoji: string;
+  price: number;
+}
+
 export interface Player {
   id: string;
   name: string;
-  avatar: string; // User selected emoji
+  avatar: string;
   cardCount: number;
   isHost: boolean;
   isTurn?: boolean;
   hasPassed?: boolean;
-  finishedRank?: number | null; // 1 = 1st, 2 = 2nd, etc. Null if still playing.
+  finishedRank?: number | null;
   isBot?: boolean;
   difficulty?: AiDifficulty;
 }
@@ -62,15 +57,14 @@ export interface GameState {
   status: GameStatus;
   players: Player[];
   currentPlayerId: string | null;
-  currentPlayPile: PlayTurn[]; // Turns of the ACTIVE round
-  roundHistory?: PlayTurn[][]; // Archives of COMPLETED rounds
+  currentPlayPile: PlayTurn[];
+  roundHistory?: PlayTurn[][];
   lastPlayerToPlayId: string | null;
-  winnerId: string | null; // Kept for backward compat
-  finishedPlayers: string[]; // Array of player IDs in order of finishing
+  winnerId: string | null;
+  finishedPlayers: string[];
   isFirstTurnOfGame?: boolean;
 }
 
-// Events
 export enum SocketEvents {
   CREATE_ROOM = 'create_room',
   JOIN_ROOM = 'join_room',
@@ -80,8 +74,10 @@ export enum SocketEvents {
   GAME_STATE = 'game_state',
   PLAY_CARDS = 'play_cards',
   PASS_TURN = 'pass_turn',
-  PLAYER_HAND = 'player_hand', // Private event for receiving cards
+  PLAYER_HAND = 'player_hand',
   UPDATE_BOT_DIFFICULTY = 'update_bot_difficulty',
+  EMOTE_SENT = 'emote_sent',
+  RECEIVE_EMOTE = 'receive_emote',
   ERROR = 'error'
 }
 
@@ -93,13 +89,14 @@ export interface UserProfile {
   avatar_url?: string;
   wins: number;
   games_played: number;
-  currency: number; // For backward compat
-  coins: number;    // Standard naming
+  currency: number;
+  coins: number;
   xp: number;
   level: number;
   unlocked_sleeves: string[];
   unlocked_avatars: string[];
   unlocked_boards: string[];
+  unlocked_emotes?: string[]; // IDs of custom emotes
   equipped_sleeve?: string;
   equipped_board?: string;
   active_board?: string;
@@ -107,8 +104,7 @@ export interface UserProfile {
   sfx_enabled?: boolean;
   turbo_enabled?: boolean;
   undo_count: number;
-  // Advanced Stats
-  finish_dist: number[]; // [1st, 2nd, 3rd, 4th]
+  finish_dist: number[];
   total_chops: number;
   total_cards_left_sum: number;
   current_streak: number;

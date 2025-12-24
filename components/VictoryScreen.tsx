@@ -1,8 +1,9 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Player, UserProfile } from '../types';
-import { calculateLevel, getXpForLevel } from '../services/supabase';
+import { Player, UserProfile, Emote } from '../types';
+import { calculateLevel, getXpForLevel, fetchEmotes } from '../services/supabase';
 import { audioService } from '../services/audio';
+import { VisualEmote } from './VisualEmote';
 
 interface VictoryScreenProps {
   players: Player[];
@@ -47,6 +48,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   const [phase, setPhase] = useState<'intro' | 'rewards' | 'ready'>('intro');
   const [displayLevel, setDisplayLevel] = useState(1);
   const [xpRemaining, setXpRemaining] = useState(0);
+  const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
 
   const sortedPlayers = useMemo(() => [...players].sort((a, b) => {
     const rankA = a.finishedRank || 99;
@@ -57,6 +59,10 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   const me = players.find(p => p.id === myId);
   const myRank = me?.finishedRank || 4;
   const isWinner = myRank === 1;
+
+  useEffect(() => {
+    fetchEmotes().then(setRemoteEmotes);
+  }, []);
 
   useEffect(() => {
     audioService.playVictory();
@@ -245,8 +251,11 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
                                     <div className="absolute inset-0 bg-yellow-500/30 blur-2xl rounded-full scale-150 animate-pulse"></div>
                                 )}
                                 <div className="absolute inset-0 bg-white/10 blur-xl rounded-full scale-150 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                <span className="text-4xl md:text-5xl relative z-10">{p.avatar || '👤'}</span>
-                                {isVictor && <span className="absolute -top-2 -right-2 text-sm animate-bounce">👑</span>}
+                                {/* Use VisualEmote for the avatar portrait */}
+                                <div className="w-14 h-14 md:w-20 md:h-20 relative z-10 flex items-center justify-center overflow-hidden rounded-full border border-white/10 bg-black/40">
+                                  <VisualEmote trigger={p.avatar || ':smile:'} remoteEmotes={remoteEmotes} size="lg" />
+                                </div>
+                                {isVictor && <span className="absolute -top-2 -right-2 text-sm animate-bounce z-20">👑</span>}
                             </div>
 
                             <div className="flex-1 min-w-0 flex flex-col">

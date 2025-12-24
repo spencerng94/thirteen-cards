@@ -1,6 +1,8 @@
+
 import React from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, Emote } from '../types';
 import { calculateLevel, getXpForLevel } from '../services/supabase';
+import { VisualEmote } from './VisualEmote';
 
 interface UserBarProps {
   profile: UserProfile | null;
@@ -9,9 +11,18 @@ interface UserBarProps {
   onPromptAuth?: () => void;
   onClick?: () => void;
   avatar?: string;
+  remoteEmotes?: Emote[];
 }
 
-export const UserBar: React.FC<UserBarProps> = ({ profile, className = '', isGuest, onPromptAuth, onClick, avatar }) => {
+export const UserBar: React.FC<UserBarProps> = ({ 
+  profile, 
+  className = '', 
+  isGuest, 
+  onPromptAuth, 
+  onClick, 
+  avatar,
+  remoteEmotes = [] 
+}) => {
   if (!profile) return null;
 
   const currentLevel = calculateLevel(profile.xp);
@@ -30,8 +41,8 @@ export const UserBar: React.FC<UserBarProps> = ({ profile, className = '', isGue
     >
       {/* Mini Avatar */}
       <div className="relative mb-3">
-        <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-white/10 to-transparent border border-white/10 flex items-center justify-center text-lg shadow-inner group-hover:scale-110 transition-transform duration-500">
-          {avatar || '👤'}
+        <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-white/10 to-transparent border border-white/10 flex items-center justify-center text-lg shadow-inner group-hover:scale-110 transition-transform duration-500 overflow-hidden">
+          <VisualEmote trigger={avatar || ':smile:'} remoteEmotes={remoteEmotes} size="sm" />
         </div>
         {showSecurityPrompt && (
           <div className="absolute -top-0.5 -left-0.5 w-2 h-2 bg-rose-500 rounded-full animate-ping"></div>

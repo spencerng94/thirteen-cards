@@ -18,10 +18,11 @@ import { audioService } from './services/audio';
 import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
-type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
-type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL' | null;
+const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
 
-const BOT_AVATARS = ['🤖', '👾', '💩', '🤡', '👹', '👺', '👻'];
+// Added missing type definitions for ViewState and GameMode to fix build errors
+type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
+type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -420,7 +421,7 @@ const App: React.FC = () => {
           {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} />}
           {view === 'GAME_TABLE' && (
             <div className="relative w-full h-full">
-              <GameTable gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c }) : handleLocalPlay('player-me', c)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId }) : handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
+              <GameTable profile={profile} gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c }) : handleLocalPlay('player-me', c)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId }) : handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
               {isTransitioning && <GameEndTransition />}
             </div>
           )}

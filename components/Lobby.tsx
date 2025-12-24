@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { GameState, SocketEvents, BackgroundTheme, AiDifficulty } from '../types';
+import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket } from '../services/socket';
 import { SignOutButton } from './SignOutButton';
 import { BoardSurface } from './UserHub';
+import { VisualEmote } from './VisualEmote';
+import { fetchEmotes } from '../services/supabase';
 
 interface LobbyProps {
   playerName: string;
@@ -18,20 +20,14 @@ interface LobbyProps {
 
 const MAX_PLAYERS = 4;
 
-// --- Helper Components ---
-
 const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: BackgroundTheme }> = ({ children, theme }) => {
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center p-4">
-        {/* Dynamic Master Board Surface - Replaced the simplistic BackgroundWrapper logic */}
         <BoardSurface themeId={theme} />
-        
-        {/* Technical Grid Overlay - Preserved for texture */}
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-10" style={{ 
             backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, 
             backgroundSize: '60px 60px' 
         }}></div>
-        
         {children}
     </div>
   );
@@ -39,13 +35,10 @@ const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: Background
 
 const GlassPanel: React.FC<{ children: React.ReactNode; className?: string; isLight?: boolean }> = ({ children, className = '', isLight = false }) => (
   <div className={`relative ${isLight ? 'bg-white/60' : 'bg-black/40'} backdrop-blur-3xl border ${isLight ? 'border-pink-200/50' : 'border-white/10'} shadow-[0_0_80px_rgba(0,0,0,${isLight ? '0.2' : '0.8'})] rounded-[2.5rem] overflow-hidden ${className}`}>
-      {/* Precision Inner Glow */}
-      <div className={`absolute inset-0 rounded-[2.5rem] ring-1 ring-inset ${isLight ? 'ring-white/80' : 'ring-white/5'} pointer-events-none`}></div>
+      <div className="absolute inset-0 rounded-[2.5rem] ring-1 ring-inset ${isLight ? 'ring-white/80' : 'ring-white/5'} pointer-events-none"></div>
       {children}
   </div>
 );
-
-// --- Main Component ---
 
 export const Lobby: React.FC<LobbyProps> = ({ 
   playerName, 
@@ -59,10 +52,12 @@ export const Lobby: React.FC<LobbyProps> = ({
 }) => {
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const isLightTheme = backgroundTheme === 'HIGH_ROLLER'; 
 
   useEffect(() => {
     if (initialRoomCode) setRoomIdInput(initialRoomCode);
+    fetchEmotes().then(setRemoteEmotes);
   }, [initialRoomCode]);
 
   const createRoom = () => {
@@ -124,7 +119,6 @@ export const Lobby: React.FC<LobbyProps> = ({
        <BackgroundWrapper theme={backgroundTheme}>
         <GlassPanel isLight={isLightTheme} className="w-full max-w-xl p-6 md:p-10 flex flex-col gap-8 z-20">
             
-            {/* Room Header Section */}
             <div className="flex flex-col items-center gap-4">
                 <div className={`flex items-center gap-3 px-4 py-1.5 rounded-full ${isLightTheme ? 'bg-black/[0.05]' : 'bg-white/[0.03]'} border ${isLightTheme ? 'border-black/10' : 'border-white/10'}`}>
                     <div className="flex gap-1">
@@ -143,7 +137,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                     >
                         {gameState.roomId}
                     </div>
-                    {/* Decorative Scanner line */}
                     <div className={`absolute top-1/2 left-0 w-full h-[1px] ${isLightTheme ? 'bg-black/5' : 'bg-white/5'} pointer-events-none`}></div>
                 </div>
 
@@ -158,7 +151,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                 </button>
             </div>
 
-            {/* Players Grid */}
             <div className="grid grid-cols-2 gap-4 md:gap-6">
                 {gameState.players.map((p) => (
                     <div key={p.id} className="relative group">
@@ -180,8 +172,9 @@ export const Lobby: React.FC<LobbyProps> = ({
 
                              <div className="relative mb-4">
                                  <div className={`absolute inset-[-10px] blur-xl rounded-full opacity-0 group-hover:opacity-20 transition-opacity ${p.isBot ? 'bg-emerald-500' : 'bg-yellow-500'}`}></div>
-                                 <div className={`relative w-20 h-20 md:w-24 md:h-24 ${isLightTheme ? 'bg-white' : 'bg-gradient-to-br from-white/[0.03] to-white/[0.01]'} rounded-full flex items-center justify-center text-5xl md:text-6xl border ${isLightTheme ? 'border-pink-100' : 'border-white/10'} shadow-inner group-hover:scale-105 transition-transform duration-500`}>
-                                     {p.avatar || '😊'}
+                                 <div className={`relative w-20 h-20 md:w-24 md:h-24 ${isLightTheme ? 'bg-white' : 'bg-gradient-to-br from-white/[0.03] to-white/[0.01]'} rounded-full flex items-center justify-center border ${isLightTheme ? 'border-pink-100' : 'border-white/10'} shadow-inner group-hover:scale-105 transition-transform duration-500 overflow-hidden`}>
+                                     {/* Updated to use VisualEmote in Lobby */}
+                                     <VisualEmote trigger={p.avatar || ':smile:'} remoteEmotes={remoteEmotes} size="lg" />
                                  </div>
                                  {p.isHost && (
                                      <div className={`absolute -top-1 -right-2 ${isLightTheme ? 'bg-pink-600 text-white' : 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black'} text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-lg ring-2 ${isLightTheme ? 'ring-white' : 'ring-black/50'}`}>Host</div>
@@ -213,16 +206,16 @@ export const Lobby: React.FC<LobbyProps> = ({
                                                      ${getDifficultyColor(d, (p.difficulty || 'MEDIUM') === d)}
                                                      ${!isHost ? 'opacity-40 cursor-not-allowed' : 'hover:scale-[1.03] active:scale-95'}
                                                  `}
-                                             >
+                                              >
                                                  {d[0]}
                                              </button>
-                                         ))}
+                                          ))}
                                      </div>
                                  </div>
                              )}
                         </div>
                     </div>
-                ))}
+                 ))}
                 
                 {Array.from({ length: emptySlots }).map((_, i) => (
                     <div key={`empty-${i}`} className={`flex flex-col items-center justify-center p-6 rounded-[2rem] ${isLightTheme ? 'bg-black/[0.02]' : 'bg-black/20'} border ${isLightTheme ? 'border-black/[0.05]' : 'border-white/[0.02]'} border-dashed group transition-all hover:bg-white/[0.02] hover:border-white/10`}>
@@ -230,7 +223,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                           <button 
                             onClick={addBot}
                             className={`w-16 h-16 rounded-full ${isLightTheme ? 'bg-black/[0.03] hover:bg-black/[0.08]' : 'bg-white/[0.02] hover:bg-white/[0.05]'} border ${isLightTheme ? 'border-black/5' : 'border-white/5'} flex items-center justify-center mb-4 transition-all hover:scale-110 active:scale-90 shadow-lg`}
-                          >
+                           >
                             <span className={`${isLightTheme ? 'text-pink-600' : 'text-white/40'} group-hover:text-white text-3xl font-light transition-colors`}>+</span>
                           </button>
                         ) : (
@@ -242,17 +235,16 @@ export const Lobby: React.FC<LobbyProps> = ({
                           {isHost ? "Recruit Bot" : "Awaiting..."}
                         </span>
                     </div>
-                ))}
+                 ))}
             </div>
             
-            {/* Footer Actions */}
             <div className="flex flex-col gap-4 mt-2">
                 {isHost ? (
                     <button
                         onClick={startGame}
                         disabled={gameState.players.length < 2}
                         className="w-full group relative overflow-hidden py-5 rounded-[1.5rem] font-black text-lg uppercase tracking-[0.3em] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_15px_40px_rgba(0,0,0,0.4)]"
-                    >
+                     >
                         <div className={`absolute inset-0 bg-gradient-to-r ${isLightTheme ? 'from-pink-600 via-pink-400 to-pink-600' : 'from-emerald-600 via-green-500 to-emerald-600'} group-hover:scale-110 transition-transform duration-500`}></div>
                         <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                         <span className="relative z-10 text-white flex items-center justify-center gap-4 drop-shadow-md">
@@ -277,7 +269,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                 </div>
             </div>
 
-            {/* UPGRADED BETA DISCLOSURE */}
             <div className="flex flex-col items-center gap-2 mt-2 px-6">
                 <div className="flex items-center gap-2 text-red-500 font-black uppercase tracking-[0.2em] text-[9px] animate-pulse">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
@@ -286,7 +277,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                 <p className={`text-[7px] font-black ${isLightTheme ? 'text-black/40' : 'text-gray-600'} uppercase tracking-widest text-center leading-relaxed`}>
                    NOTICE: This match is running on a development branch. System variations, link desynchronization, and gameplay iterations may occur during active testing.
                 </p>
-            </div>
+             </div>
         </GlassPanel>
 
         <style dangerouslySetInnerHTML={{ __html: `
@@ -308,7 +299,7 @@ export const Lobby: React.FC<LobbyProps> = ({
             </h1>
             <div className={`h-[2.5px] w-20 ${isLightTheme ? 'bg-pink-500 shadow-[0_0_10px_#ec4899]' : 'bg-red-500 shadow-[0_0_10px_#ef4444]'} mx-auto rounded-full`}></div>
             <p className={`text-[9px] font-black ${isLightTheme ? 'text-pink-600/60' : 'text-red-500'} uppercase tracking-[0.4em] mt-4`}>Beta Testing Active</p>
-        </div>
+         </div>
 
         <div className="space-y-10">
            <div className="space-y-4">
@@ -318,22 +309,22 @@ export const Lobby: React.FC<LobbyProps> = ({
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                     <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">Global Node Active</span>
                 </div>
-             </div>
+              </div>
              <button 
                onClick={createRoom}
                className={`group w-full relative overflow-hidden py-5 rounded-2xl ${isLightTheme ? 'bg-pink-600 hover:bg-pink-500' : 'bg-emerald-600 hover:bg-emerald-500'} transition-all shadow-lg active:scale-95`}
-             >
+              >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
                 <span className="relative z-10 text-white font-black uppercase tracking-[0.3em] text-xs">CREATE LOBBY</span>
              </button>
-           </div>
+            </div>
 
            <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className={`w-full border-t ${isLightTheme ? 'border-black/5' : 'border-white/5'}`}></div></div>
               <div className="relative flex justify-center">
                 <span className={`px-4 text-[10px] ${isLightTheme ? 'text-pink-900/40 bg-[#fffcfc]' : 'text-gray-700 bg-[#020617]'} font-black tracking-[0.6em] uppercase`}>Interlink</span>
               </div>
-           </div>
+            </div>
 
            <div className="space-y-4">
              <p className={`text-[10px] font-black ${isLightTheme ? 'text-black/40' : 'text-gray-500'} uppercase tracking-[0.4em] px-1`}>MULTIPLAYER LOBBY</p>
@@ -345,28 +336,28 @@ export const Lobby: React.FC<LobbyProps> = ({
                   placeholder="CODE"
                   maxLength={4}
                   className={`w-1/3 ${isLightTheme ? 'bg-white' : 'bg-black/40'} border ${isLightTheme ? 'border-pink-200' : 'border-white/10'} rounded-2xl px-4 py-5 text-center ${isLightTheme ? 'text-gray-900' : 'text-white'} font-mono font-black text-xl tracking-[0.4em] focus:outline-none ${isLightTheme ? 'focus:border-pink-500/50 focus:ring-pink-500/30' : 'focus:border-yellow-500/50 focus:ring-yellow-500/30'} transition-all placeholder:text-gray-800`}
-                />
+                 />
                 <button 
                   onClick={joinRoom}
                   className={`flex-1 ${isLightTheme ? 'bg-black/5 hover:bg-black/10 text-gray-900' : 'bg-white/[0.03] hover:bg-white/[0.06] text-white'} border ${isLightTheme ? 'border-black/5' : 'border-white/5'} hover:border-white/20 rounded-2xl font-black uppercase tracking-[0.3em] text-xs transition-all active:scale-95`}
-                >
+                 >
                   Join Arena
                 </button>
-             </div>
-           </div>
+              </div>
+            </div>
 
            <div className="pt-4 flex flex-col gap-3">
              {onBack && (
                 <button 
                   onClick={onBack}
                   className={`w-full py-2 ${isLightTheme ? 'text-black/40' : 'text-gray-600'} hover:text-gray-300 text-[10px] font-black uppercase tracking-[0.5em] transition-colors`}
-                >
+                 >
                   Go Back
                 </button>
              )}
              <SignOutButton onSignOut={onSignOut} className="w-full" />
-           </div>
-        </div>
+            </div>
+         </div>
       </GlassPanel>
 
        <style dangerouslySetInnerHTML={{ __html: `
@@ -376,5 +367,5 @@ export const Lobby: React.FC<LobbyProps> = ({
             }
         `}} />
     </BackgroundWrapper>
-  );
-};
+   );
+ };
