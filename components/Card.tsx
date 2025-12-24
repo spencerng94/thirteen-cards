@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
-export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR';
+export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR' | 'AETHER_VOID';
 
 interface CardProps {
   card?: CardType;
@@ -184,7 +184,7 @@ export const Card: React.FC<CardProps> = ({
             );
             break;
         case 'CHERRY_BLOSSOM_NOIR':
-            bgClass = 'bg-[#0a0a0a]';
+            bgClass = 'bg-[#0a0a1a]';
             borderClass = 'border-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]';
             metallicReflect = "bg-gradient-to-tr from-transparent via-pink-300/10 to-transparent";
             patternContent = (
@@ -203,6 +203,37 @@ export const Card: React.FC<CardProps> = ({
                             }}
                         />
                     ))}
+                </div>
+            );
+            break;
+        case 'AETHER_VOID':
+            bgClass = 'bg-[#050505]';
+            borderClass = 'border-[#facc15] shadow-[0_0_25px_rgba(250,204,21,0.6),inset_0_0_15px_rgba(255,255,255,0.2)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-white/40 to-transparent";
+            patternContent = (
+                <div className="absolute inset-0 overflow-hidden">
+                    {/* The Light vs Dark Split */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/60"></div>
+                    {/* Celestial Glow Shards */}
+                    {Array.from({ length: 12 }).map((_, i) => (
+                        <div 
+                            key={i}
+                            className="absolute bg-white/20 blur-[2px] transform rotate-45 animate-pulse"
+                            style={{
+                                top: `${Math.random() * 100}%`,
+                                left: `${Math.random() * 100}%`,
+                                width: `${2 + Math.random() * 8}px`,
+                                height: `${10 + Math.random() * 30}px`,
+                                animationDelay: `${Math.random() * 2}s`,
+                                animationDuration: `${3 + Math.random() * 4}s`
+                            }}
+                        />
+                    ))}
+                    {/* Central Ethereal Seal */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                        <div className="w-12 h-12 rounded-full border-2 border-white/40 animate-[spin_10s_linear_infinite]"></div>
+                        <div className="absolute w-8 h-8 rounded-full border border-yellow-400/40 animate-[spin_6s_linear_infinite_reverse]"></div>
+                    </div>
                 </div>
             );
             break;

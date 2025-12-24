@@ -21,8 +21,8 @@ export interface ThemeConfig {
   prestige?: boolean;
   emperor?: boolean;
   goldFlux?: boolean;
-  koiWaters?: boolean;
-  obsidianSanctum?: boolean;
+  zenPond?: boolean;
+  obsidianMadness?: boolean;
   crystalTokyo?: boolean;
   spotlight?: string;
   tier: 'BASIC' | 'PREMIUM';
@@ -35,46 +35,52 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'CYBER_BLUE', name: 'Cobalt Felt', tier: 'BASIC', price: 500, base: 'bg-[#1e3a8a]', colors: 'from-blue-400/40 via-blue-600/20 to-[#172554]', texture: true },
   { id: 'CRIMSON_VOID', name: 'Baccarat Ruby', tier: 'BASIC', price: 1000, base: 'bg-[#7f1d1d]', colors: 'from-rose-400/40 via-rose-700/20 to-[#450a0a]', texture: true, spotlight: 'rgba(251, 113, 133, 0.25)' },
   { id: 'CYBERPUNK_NEON', name: 'Onyx Space', tier: 'PREMIUM', price: 2500, base: 'bg-[#010103]', colors: 'from-indigo-950/20 via-black to-black', technoGrid: false, cityLights: false, spotlight: 'rgba(255, 255, 255, 0.03)' },
-  { id: 'CITY_LIGHTS_PIXEL', name: 'Obsidian Sanctum', tier: 'PREMIUM', price: 3500, base: 'bg-[#010103]', colors: 'from-purple-950/20 via-[#010103] to-black', obsidianSanctum: true, spotlight: 'rgba(168, 85, 247, 0.06)' },
+  { id: 'OBSIDIAN_MADNESS', name: 'Obsidian Madness', tier: 'PREMIUM', price: 3500, base: 'bg-[#000000]', colors: 'from-red-950/40 via-black to-black', obsidianMadness: true, spotlight: 'rgba(220, 38, 38, 0.05)' },
   { id: 'CRYSTAL_TOKYO', name: 'Crystal Tokyo', tier: 'PREMIUM', price: 12000, base: 'bg-[#02020a]', colors: 'from-cyan-950/30 via-black to-black', crystalTokyo: true, spotlight: 'rgba(34, 211, 238, 0.15)' },
   { id: 'LOTUS_FOREST', name: 'Lotus Sanctuary', tier: 'PREMIUM', price: 4000, base: 'bg-[#022115]', colors: 'from-emerald-400/30 via-emerald-600/10 to-black', lotusForest: true, spotlight: 'rgba(182, 227, 143, 0.4)' },
   { id: 'CHRISTMAS_YULETIDE', name: 'Midnight Yuletide', tier: 'PREMIUM', price: 4500, base: 'bg-[#010b13]', colors: 'from-blue-900/30 via-[#010b13] to-black', yuletide: true, spotlight: 'rgba(191, 219, 254, 0.2)' },
   { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope', tier: 'PREMIUM', price: 5000, base: 'bg-[#080000]', colors: 'from-[#660000] via-[#1a0000] to-black', prestige: true, spotlight: 'rgba(251, 191, 36, 0.12)' },
-  { id: 'KOI_WATERS', name: 'Koi Waters', tier: 'PREMIUM', price: 6000, base: 'bg-[#000000]', colors: 'from-[#083344]/40 via-[#010810]/60 to-black', koiWaters: true, spotlight: 'rgba(34, 211, 238, 0.15)' },
+  { id: 'ZEN_POND', name: 'Zen Pond', tier: 'PREMIUM', price: 6000, base: 'bg-[#000000]', colors: 'from-[#083344]/40 via-[#010810]/60 to-black', zenPond: true, spotlight: 'rgba(34, 211, 238, 0.15)' },
   { id: 'GOLD_FLUX', name: 'Gold Flux', tier: 'PREMIUM', price: 8500, base: 'bg-[#fffbeb]', colors: 'from-white via-yellow-50/80 to-yellow-100/40', goldFlux: true, spotlight: 'rgba(255, 255, 255, 0.8)' },
   { id: 'HIGH_ROLLER', name: 'Sanctum Oblivion', tier: 'PREMIUM', price: 15000, base: 'bg-[#ffffff]', colors: 'from-white via-slate-100 to-indigo-950/20', highRoller: true, spotlight: 'rgba(255, 255, 255, 0.4)' }
 ];
 
 const CastleOblivionEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
-  const shards = useMemo(() => Array.from({ length: isMini ? 10 : 30 }).map((_, i) => ({
-    id: `oblivion-shard-${i}`,
+  const shards = useMemo(() => Array.from({ length: isMini ? 12 : 35 }).map((_, i) => ({
+    id: `oblivion-shard-v15-${i}`,
     x: Math.random() * 100,
     y: Math.random() * 100,
-    size: 15 + Math.random() * 40,
+    size: 15 + Math.random() * 50,
     rot: Math.random() * 360,
-    duration: 10 + Math.random() * 20,
-    delay: Math.random() * -20,
+    duration: 15 + Math.random() * 25,
+    delay: Math.random() * -30,
     type: i % 2 === 0 ? 'light' : 'dark'
   })), [isMini]);
 
-  const chains = useMemo(() => Array.from({ length: isMini ? 2 : 6 }).map((_, i) => ({
-    id: `chain-${i}`,
+  const chains = useMemo(() => Array.from({ length: isMini ? 2 : 5 }).map((_, i) => ({
+    id: `chain-v15-${i}`,
     x: Math.random() * 100,
-    delay: Math.random() * -30,
-    duration: 60 + Math.random() * 40
+    delay: Math.random() * -40,
+    duration: 50 + Math.random() * 30
   })), [isMini]);
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden bg-white">
-      <div className="absolute inset-0 bg-gradient-to-br from-white via-slate-100 to-indigo-950 opacity-100"></div>
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')] opacity-10 mix-blend-multiply"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-slate-100 to-indigo-950/30 opacity-100"></div>
+      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')] opacity-[0.08] mix-blend-multiply"></div>
+
+      {!isMini && (
+        <div className="absolute inset-0 opacity-20 mix-blend-soft-light">
+          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[150%] bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.4)_50%,transparent_100%)] rotate-[25deg] animate-[oblivion-ray-v15_30s_infinite_alternate_ease-in-out]"></div>
+        </div>
+      )}
 
       {!isMini && (
         <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] mix-blend-multiply">
-           <svg viewBox="0 0 1000 1000" className="w-[120%] h-[120%] text-black fill-current">
-              <path d="M100,1000 L100,400 Q100,100 500,100 Q900,100 900,400 L900,1000 M500,100 L500,1000 M200,1000 L200,450 Q200,200 500,200 Q800,200 800,450 L800,1000" fill="none" stroke="currentColor" strokeWidth="2" />
-              {Array.from({ length: 8 }).map((_, i) => (
-                <rect key={i} x={200 + i * 80} y="400" width="40" height="400" rx="20" />
+           <svg viewBox="0 0 1000 1000" className="w-[120%] h-[120%] text-indigo-900 fill-current">
+              <path d="M100,1000 L100,400 Q100,100 500,100 Q900,100 900,400 L900,1000" fill="none" stroke="currentColor" strokeWidth="1" />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <rect key={i} x={250 + i * 100} y="400" width="30" height="500" rx="15" />
               ))}
            </svg>
         </div>
@@ -83,17 +89,17 @@ const CastleOblivionEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
       {!isMini && chains.map(c => (
         <div 
           key={c.id}
-          className="absolute top-[-20%] w-[1px] h-[140%] bg-gradient-to-b from-transparent via-indigo-900/20 to-transparent animate-[oblivion-chain-sway_linear_infinite_alternate]"
+          className="absolute top-[-20%] w-[1px] h-[140%] bg-gradient-to-b from-transparent via-indigo-900/10 to-transparent animate-[oblivion-sway-v15_linear_infinite_alternate]"
           style={{ left: `${c.x}%`, animationDuration: `${c.duration}s`, animationDelay: `${c.delay}s` }}
         >
-          <div className="absolute inset-0 shadow-[0_0_10px_rgba(49,46,129,0.3)]"></div>
+          <div className="absolute inset-0 shadow-[0_0_15px_rgba(49,46,129,0.2)]"></div>
         </div>
       ))}
 
       {shards.map(s => (
         <div 
           key={s.id}
-          className="absolute animate-[oblivion-drift_linear_infinite]"
+          className="absolute animate-[oblivion-drift-v15_linear_infinite]"
           style={{ 
             left: `${s.x}%`, 
             top: `${s.y}%`, 
@@ -103,15 +109,16 @@ const CastleOblivionEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
         >
           <div 
             className={`
-              w-12 h-16 border transform rotate-45 transition-all duration-1000
+              w-12 h-16 border transform transition-all duration-1000
               ${s.type === 'light' 
-                ? 'bg-white/40 border-yellow-200 shadow-[0_0_20px_rgba(255,255,255,0.8)] backdrop-blur-sm' 
-                : 'bg-indigo-950/60 border-indigo-400 shadow-[0_0_15px_rgba(79,70,229,0.4)] backdrop-blur-md'}
+                ? 'bg-white/40 border-white/60 shadow-[0_0_20px_rgba(255,255,255,0.7)] backdrop-blur-sm' 
+                : 'bg-indigo-950/40 border-indigo-400/30 shadow-[0_0_15px_rgba(49,46,129,0.3)] backdrop-blur-md'}
             `}
             style={{ 
               width: `${s.size}px`, 
-              height: `${s.size * 1.4}px`,
-              transform: `rotate(${s.rot}deg)`
+              height: `${s.size * 1.5}px`,
+              transform: `rotate(${s.rot}deg)`,
+              clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)'
             }}
           >
              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent"></div>
@@ -119,49 +126,29 @@ const CastleOblivionEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
         </div>
       ))}
 
-      {!isMini && Array.from({ length: 12 }).map((_, i) => (
-        <div 
-          key={`particle-${i}`}
-          className={`absolute rounded-full animate-oblivion-particle`}
-          style={{ 
-            left: '50%', 
-            top: '50%', 
-            width: `${2 + Math.random() * 4}px`, 
-            height: `${2 + Math.random() * 4}px`,
-            backgroundColor: i % 2 === 0 ? '#ffffff' : '#312e81',
-            boxShadow: i % 2 === 0 ? '0 0 10px white' : '0 0 8px #4338ca',
-            animationDelay: `${Math.random() * -10}s`,
-            animationDuration: `${5 + Math.random() * 10}s`,
-            '--tx': `${(Math.random() - 0.5) * 1200}px`,
-            '--ty': `${(Math.random() - 0.5) * 1200}px`,
-          } as any}
-        />
-      ))}
-
       {!isMini && (
-        <div className="absolute top-[15%] left-1/2 -translate-x-1/2 opacity-[0.05] mix-blend-multiply flex flex-col items-center">
-           <div className="text-[260px] font-serif font-black italic tracking-tighter leading-none text-black select-none">XIII</div>
-           <div className="w-96 h-[1px] bg-gradient-to-r from-transparent via-black to-transparent mt-[-40px]"></div>
+        <div className="absolute top-[18%] left-1/2 -translate-x-1/2 opacity-[0.06] mix-blend-multiply flex flex-col items-center select-none">
+           <div className="text-[280px] font-serif font-black italic tracking-tighter leading-none text-black">XIII</div>
+           <div className="w-80 h-[1px] bg-gradient-to-r from-transparent via-indigo-950 to-transparent mt-[-35px]"></div>
         </div>
       )}
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(255,255,255,0.1)_60%,rgba(49,46,129,0.15)_100%)]"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(255,255,255,0.05)_70%,rgba(49,46,129,0.15)_100%)]"></div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes oblivion-drift {
+        @keyframes oblivion-drift-v15 {
           0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
           20% { opacity: 0.8; }
           80% { opacity: 0.8; }
-          100% { transform: translate(-100px, -200px) rotate(360deg); opacity: 0; }
+          100% { transform: translate(-80px, -220px) rotate(360deg); opacity: 0; }
         }
-        @keyframes oblivion-chain-sway {
-          from { transform: rotate(-1deg) translateX(-10px); }
-          to { transform: rotate(1deg) translateX(10px); }
+        @keyframes oblivion-sway-v15 {
+          from { transform: rotate(-1.5deg) translateX(-15px); }
+          to { transform: rotate(1.5deg) translateX(15px); }
         }
-        @keyframes oblivion-particle {
-          0% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
-          20% { opacity: 1; }
-          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; }
+        @keyframes oblivion-ray-v15 {
+          from { transform: translateX(-10%) rotate(25deg); opacity: 0.1; }
+          to { transform: translateX(10%) rotate(25deg); opacity: 0.3; }
         }
       `}} />
     </div>
@@ -293,134 +280,98 @@ const FeltTextureLayer: React.FC = () => (
   </div>
 );
 
-const SovereignEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
-  const spires = useMemo(() => Array.from({ length: isMini ? 4 : 12 }).map((_, i) => ({
-    id: `void-spire-${i}`,
+const MadnessEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const monoliths = useMemo(() => Array.from({ length: isMini ? 4 : 10 }).map((_, i) => ({
+    id: `madness-mono-${i}`,
     x: Math.random() * 100,
-    h: 40 + Math.random() * 60,
-    w: 2 + Math.random() * 4,
-    delay: Math.random() * -60,
-    duration: 120 + Math.random() * 100,
-    depth: i % 4 
+    h: 60 + Math.random() * 40,
+    w: 5 + Math.random() * 15,
+    delay: Math.random() * -30,
+    speed: 40 + Math.random() * 20,
+    z: Math.random() * -400
   })), [isMini]);
 
-  const ribbons = useMemo(() => Array.from({ length: isMini ? 2 : 5 }).map((_, i) => ({
-    id: `mana-ribbon-${i}`,
-    delay: Math.random() * -20,
-    duration: 15 + Math.random() * 10,
-    y: 20 + Math.random() * 60
-  })), [isMini]);
-
-  const dust = useMemo(() => Array.from({ length: isMini ? 10 : 40 }).map((_, i) => ({
-    id: `dust-${i}`,
+  const ash = useMemo(() => Array.from({ length: isMini ? 20 : 60 }).map((_, i) => ({
+    id: `ash-${i}`,
     x: Math.random() * 100,
     y: Math.random() * 100,
-    size: Math.random() * 1.5 + 0.5,
-    delay: Math.random() * -10,
-    speed: 5 + Math.random() * 10
+    size: 1 + Math.random() * 2.5,
+    delay: Math.random() * -20,
+    speed: 5 + Math.random() * 8,
+    tx: (Math.random() - 0.5) * 150
   })), [isMini]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#010103] perspective-[2000px]">
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black perspective-[1000px]">
+      {/* Background Gradients */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#0a0000_0%,_#000000_70%,_#000000_100%)]"></div>
+      
+      {/* Cursed Fog Layers */}
+      <div className="absolute inset-0 opacity-40 mix-blend-multiply">
+          <div className="absolute bottom-0 left-0 w-full h-[60%] bg-gradient-to-t from-red-950/30 to-transparent animate-pulse"></div>
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.1] scale-150"></div>
+      </div>
+
+      {/* The Brand / Eclipse pulse */}
       {!isMini && (
-        <div className="absolute bottom-0 left-0 w-full h-full opacity-20 transition-all duration-1000">
-           <div className="absolute inset-0 bg-gradient-to-t from-purple-900/10 to-transparent"></div>
-           {spires.map(s => (
-             <div 
-               key={s.id} 
-               className="absolute bottom-0 bg-gradient-to-t from-[#0a0a1a] via-[#020205] to-transparent border-x border-white/5"
-               style={{ 
-                 left: `${s.x}%`, 
-                 height: `${s.h}%`, 
-                 width: `${s.w}px`,
-                 opacity: (s.depth + 1) / 5,
-                 filter: s.depth < 2 ? 'blur(2px)' : 'none',
-                 transform: `translateZ(${s.depth * -200}px)`
-               }}
-             />
-           ))}
-        </div>
-      )}
-
-      {!isMini && ribbons.map(r => (
-        <div 
-          key={r.id}
-          className="absolute w-[200%] h-32 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent blur-3xl animate-mana-flow"
-          style={{ top: `${r.y}%`, left: '-50%', animationDelay: `${r.delay}s`, animationDuration: `${r.duration}s` }}
-        />
-      ))}
-
-      {!isMini && (
-        <div className="absolute inset-0 opacity-20 mix-blend-plus-lighter">
-          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[150%] bg-[linear-gradient(110deg,transparent_0%,rgba(168,85,247,0.3)_45%,rgba(255,255,255,0.1)_50%,rgba(168,85,247,0.3)_55%,transparent_100%)] rotate-[35deg] animate-[godray-sweep_40s_infinite_alternate_ease-in-out]"></div>
-          <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[150%] bg-[linear-gradient(110deg,transparent_0%,rgba(139,92,246,0.2)_50%,transparent_100%)] rotate-[25deg] animate-[godray-sweep_30s_infinite_alternate-reverse_ease-in-out]"></div>
-        </div>
-      )}
-
-      {!isMini && dust.map(d => (
-        <div 
-          key={d.id}
-          className="absolute rounded-full bg-white/40 animate-dust-float"
-          style={{ 
-            left: `${d.x}%`, 
-            top: `${d.y}%`, 
-            width: `${d.size}px`, 
-            height: `${d.size}px`, 
-            animationDelay: `${d.delay}s`,
-            animationDuration: `${d.speed}s`
-          }}
-        />
-      ))}
-
-      {!isMini && Array.from({ length: 15 }).map((_, i) => (
-        <div 
-          key={`splinter-${i}`}
-          className="absolute w-[1px] h-[30px] bg-gradient-to-t from-transparent via-purple-400 to-white/80 opacity-0 animate-splinter-orbit"
-          style={{ 
-            left: '50%', 
-            top: '50%', 
-            animationDelay: `${Math.random() * -10}s`,
-            animationDuration: `${2 + Math.random() * 3}s`,
-            '--tx': `${(Math.random() - 0.5) * 800}px`,
-            '--ty': `${(Math.random() - 0.5) * 800}px`,
-          } as any}
-        />
-      ))}
-
-      {!isMini && (
-        <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] mix-blend-screen pointer-events-none translate-y-[-10%]">
-           <div className="w-[1400px] h-[1400px] rounded-full border border-purple-500/20 animate-[prestige-slow-spin-v11_400s_linear_infinite] flex items-center justify-center">
-              <svg viewBox="0 0 100 100" className="w-[80%] h-[80%] text-white fill-none stroke-current opacity-40">
-                 <circle cx="50" cy="50" r="48" strokeWidth="0.1" />
-                 <path d="M50,2 L50,98 M2,50 L98,50" strokeWidth="0.05" />
-                 <text x="50" y="52" textAnchor="middle" fontSize="12" fontWeight="100" fontFamily="serif" className="italic opacity-20">XIII</text>
-              </svg>
+        <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] opacity-[0.08] mix-blend-plus-lighter pointer-events-none">
+           <div className="w-full h-full rounded-full bg-red-600 blur-[150px] animate-pulse"></div>
+           <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-64 h-64 rounded-full border-[1px] border-red-500/20 animate-[spin_60s_linear_infinite]"></div>
+              <div className="absolute w-80 h-80 rounded-full border-[2px] border-red-900/10 animate-[spin_45s_linear_infinite_reverse]"></div>
            </div>
         </div>
       )}
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,rgba(0,0,0,0.4)_60%,rgba(0,0,0,0.9)_100%)]"></div>
+      {/* Obsidian Monoliths */}
+      {!isMini && monoliths.map(m => (
+        <div 
+          key={m.id}
+          className="absolute bottom-[-10%] bg-gradient-to-t from-black via-[#0a0a0a] to-transparent border-x border-white/[0.03] shadow-[0_0_50px_rgba(0,0,0,1)] animate-[madness-sway_linear_infinite_alternate]"
+          style={{ 
+            left: `${m.x}%`, 
+            height: `${m.h}%`, 
+            width: `${m.w}px`,
+            transform: `translateZ(${m.z}px)`,
+            animationDuration: `${m.speed}s`,
+            animationDelay: `${m.delay}s`
+          }}
+        >
+           <div className="absolute top-0 left-0 w-full h-[1px] bg-red-600/10 shadow-[0_0_15px_rgba(220,38,38,0.3)]"></div>
+           <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '100% 12px' }}></div>
+        </div>
+      ))}
+
+      {/* Falling Ash / Embers */}
+      {ash.map(a => (
+        <div 
+          key={a.id}
+          className="absolute bg-white/20 blur-[0.5px] rounded-sm animate-[ash-fall_linear_infinite]"
+          style={{ 
+            left: `${a.x}%`, 
+            top: '-20px',
+            width: `${a.size}px`,
+            height: `${a.size}px`,
+            animationDelay: `${a.delay}s`,
+            animationDuration: `${a.speed}s`,
+            '--tx': `${a.tx}px`
+          } as any}
+        />
+      ))}
+
+      {/* Atmospheric Scratches / Grain */}
+      <div className="absolute inset-0 opacity-[0.04] bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')] mix-blend-screen"></div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes godray-sweep {
-          from { transform: translateX(-10%) rotate(35deg); opacity: 0.1; }
-          to { transform: translateX(10%) rotate(35deg); opacity: 0.25; }
+        @keyframes madness-sway {
+          from { transform: translateX(-10px); }
+          to { transform: translateX(10px); }
         }
-        @keyframes dust-float {
-          0% { transform: translate(0, 0); opacity: 0; }
-          50% { opacity: 0.6; }
-          100% { transform: translate(40px, -60px); opacity: 0; }
-        }
-        @keyframes mana-flow {
-          0% { transform: translateX(-10%) translateY(0) scale(1); }
-          50% { transform: translateX(10%) translateY(-20px) scale(1.1); }
-          100% { transform: translateX(-10%) translateY(0) scale(1); }
-        }
-        @keyframes splinter-orbit {
-          0% { transform: translate(-50%, -50%) rotate(0deg) translateX(200px) scaleX(0.1); opacity: 0; }
-          20% { opacity: 1; }
-          80% { opacity: 1; }
-          100% { transform: translate(-50%, -50%) rotate(360deg) translateX(600px) scaleX(1); opacity: 0; }
+        @keyframes ash-fall {
+          0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+          20% { opacity: 0.6; }
+          80% { opacity: 0.6; }
+          100% { transform: translateY(120vh) translateX(var(--tx)) rotate(360deg); opacity: 0; }
         }
       `}} />
     </div>
@@ -500,8 +451,8 @@ const LotusForestEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
     suitType: suits[i % 4],
     x: Math.random() * 110 - 5,
     delay: Math.random() * -45,
-    duration: 22 + Math.random() * 12, // Slightly faster for more 'energy'
-    size: 28 + Math.random() * 40, // Larger variance
+    duration: 22 + Math.random() * 12, 
+    size: 28 + Math.random() * 40,
     rotSpeed: 12 + Math.random() * 18,
     opacity: 0.7 + Math.random() * 0.3,
     glow: true,
@@ -512,24 +463,20 @@ const LotusForestEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
   const SUIT_PATHS: Record<string, string> = {
     SPADE: "M50 5 C65 40 100 65 75 90 C65 100 55 95 50 85 C45 95 35 100 25 90 C0 65 35 40 50 5 M50 80 L58 100 L42 100 Z",
     HEART: "M50 90 C15 65 10 25 50 15 C90 25 85 65 50 90 Z",
-    // UPGRADED TO 4-POINTED NINJA STAR (SHURIKEN)
     CLUB: "M50 5 L60 40 L95 50 L60 60 L50 95 L40 60 L5 50 L40 40 Z M50 45 A5 5 0 1 0 50 55 A5 5 0 1 0 50 45",
     DIAMOND: "M50 5 L90 50 L50 95 L10 50 Z"
   };
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#022115] perspective-[2500px]">
-      {/* 1. MEGANIUM EMERALD VIBRANT ARENA */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,_#b6e38f66_0%,_#10b98133_30%,_#022115_85%,_#000000_100%)]"></div>
       
-      {/* 2. VOLUMETRIC EMERALD GOD-RAYS */}
       {!isMini && (
           <div className="absolute inset-0 opacity-40 mix-blend-plus-lighter">
               <div className="absolute top-[-30%] left-[-20%] w-[100%] h-[180%] bg-[linear-gradient(110deg,transparent_40%,#ff69b422_50%,transparent_60%)] rotate-[30deg] animate-[lotus-light-sweep_25s_infinite_alternate_ease-in-out]"></div>
           </div>
       )}
 
-      {/* 3. ETHEREAL PINK SUIT-PETAL STORM */}
       <div className="absolute inset-0 transform-style-3d">
         {shards.map(p => (
             <div 
@@ -579,7 +526,6 @@ const LotusForestEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
                             filter={`url(#specular-v17-${p.id})`}
                             className="mix-blend-screen opacity-95"
                         />
-                        {/* Blade rim highlight */}
                         <path 
                             d={SUIT_PATHS[p.suitType]}
                             fill="none" 
@@ -732,74 +678,83 @@ const YuletideEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
   );
 };
 
-const KoiWatersEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
-  const [customImage, setCustomImage] = useState<string | null>(localStorage.getItem('thirteen_custom_koi'));
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const handleUpdate = () => {
-        const item = localStorage.getItem('thirteen_custom_koi');
-        setCustomImage(item === "null" ? null : item);
-        setIsReady(false);
-    };
-    window.addEventListener('thirteen_koi_synthesis_complete', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
-    return () => {
-        window.removeEventListener('thirteen_koi_synthesis_complete', handleUpdate);
-        window.removeEventListener('storage', handleUpdate);
-    };
-  }, []);
-
-  const FALLBACK = "https://images.unsplash.com/photo-1544923246-77307dd654ca?q=90&w=1200&auto=format&fit=crop";
-  const KOI_SOURCE = (customImage && customImage.startsWith('data:image')) ? customImage : FALLBACK;
-
-  const silhouettes = useMemo(() => Array.from({ length: isMini ? 2 : 4 }).map((_, i) => ({
-    id: `koi-v11-${i}`,
-    delay: Math.random() * -40,
-    duration: 35 + Math.random() * 20,
-    scale: 0.4 + Math.random() * 0.3,
-    type: i % 2 === 0 ? 'white' : 'gold'
+const ZenPondEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const ripples = useMemo(() => Array.from({ length: isMini ? 4 : 8 }).map((_, i) => ({
+    id: `ripple-${i}`,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    delay: Math.random() * -10,
+    duration: 4 + Math.random() * 4
   })), [isMini]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#000508]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,_#03141a_0%,_#000508_60%,_#000000_100%)]"></div>
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#000208]">
+      {/* Deep dark water base */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#081d2b_0%,_#000208_70%,_#000000_100%)]"></div>
       
-      {silhouettes.map(s => (
-        <div 
-          key={s.id}
-          className="absolute pointer-events-none opacity-0 mix-blend-screen will-change-transform"
-          style={{ 
-              width: '300px', height: '300px', 
-              animation: `prestige-koi-swim-v11 ${s.duration}s infinite linear`,
-              animationDelay: `${s.delay}s`,
-              transform: `scale(${s.scale})`
-          }}
-        >
-          <svg viewBox="0 0 1000 1000" className="w-full h-full drop-shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-             <path d="M500,200 C450,250 420,350 420,500 C420,650 450,750 500,800 C550,750 580,650 580,500 C580,350 550,250 500,200" fill={s.type === 'gold' ? '#f59e0b' : '#f8fafc'} opacity="0.25" />
-          </svg>
-        </div>
-      ))}
-
-      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isMini ? 'w-[140%] h-[140%]' : 'w-[115vw] h-[115vw] max-w-[1400px] max-h-[1400px]'} animate-[prestige-slow-spin-v11_400s_linear_infinite] transition-all duration-1000`}>
-          <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-[3000ms] ${isReady ? 'opacity-100' : 'opacity-0'}`}>
-              <div className="absolute w-[44%] h-[82%] -translate-y-[24%] -translate-x-[6%] -rotate-[12deg]">
-                <img src={KOI_SOURCE} className="w-full h-full object-contain mix-blend-screen grayscale brightness-[2.5] contrast-[6]" onLoad={() => setIsReady(true)} onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK; }} />
-              </div>
-              <div className="absolute w-[44%] h-[82%] translate-y-[24%] translate-x-[6%] rotate-[168deg]">
-                <img src={KOI_SOURCE} className="w-full h-full object-contain mix-blend-screen sepia-[0.8] saturate-[40] hue-rotate-[340deg] brightness-[1.8] contrast-[5]" />
-              </div>
-          </div>
+      {/* Flowing Water Effect - Cinematic Horizontal Shimmers */}
+      <div className="absolute inset-0 opacity-20 mix-blend-screen">
+          <div className="absolute top-0 left-[-50%] w-[200%] h-full bg-[linear-gradient(90deg,transparent_0%,rgba(34,211,238,0.1)_50%,transparent_100%)] animate-[water-flow_12s_linear_infinite]"></div>
+          <div className="absolute top-0 left-[-50%] w-[200%] h-full bg-[linear-gradient(90deg,transparent_0%,rgba(34,211,238,0.05)_50%,transparent_100%)] animate-[water-flow_18s_linear_infinite_reverse] [animation-delay:2s]"></div>
       </div>
 
+      {/* Moon Reflection - The centerpiece */}
+      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isMini ? 'w-40 h-40' : 'w-96 h-96'} transition-all duration-1000`}>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.4)_0%,_rgba(34,211,238,0.1)_40%,_transparent_70%)] animate-pulse blur-xl"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.8)_0%,_transparent_20%)] mix-blend-screen"></div>
+          {/* Surface texture on moon reflection */}
+          <div className="absolute inset-0 opacity-40 mix-blend-overlay animate-[moon-shimmer_6s_ease-in-out_infinite]" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '15px 15px' }}></div>
+      </div>
+
+      {/* Ambient Ripples */}
+      {ripples.map(r => (
+        <div 
+          key={r.id}
+          className="absolute rounded-full border border-cyan-400/20 animate-pond-ripple"
+          style={{ 
+              left: `${r.x}%`, 
+              top: `${r.y}%`, 
+              width: '1px', 
+              height: '1px',
+              animationDelay: `${r.delay}s`,
+              animationDuration: `${r.duration}s`
+          }}
+        />
+      ))}
+
+      {/* Falling Ethereal Petals (Nature Aesthetic) */}
+      {!isMini && Array.from({ length: 15 }).map((_, i) => (
+        <div 
+          key={`petal-${i}`}
+          className="absolute w-2 h-2 bg-white/40 rounded-full blur-[1px] animate-petal-fall"
+          style={{ 
+            left: `${Math.random() * 100}%`, 
+            top: '-20px', 
+            animationDelay: `${Math.random() * -15}s`,
+            animationDuration: `${10 + Math.random() * 10}s`,
+            '--tx': `${(Math.random() - 0.5) * 200}px`
+          } as any}
+        />
+      ))}
+
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes prestige-slow-spin-v11 { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
-        @keyframes prestige-koi-swim-v11 {
-            0% { transform: translate(-100%, 120vh) rotate(-30deg); opacity: 0; }
-            15% { opacity: 0.1; }
-            85% { opacity: 0.1; }
-            100% { transform: translate(120%, -100px) rotate(30deg); opacity: 0; }
+        @keyframes water-flow {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(50%); }
+        }
+        @keyframes moon-shimmer {
+          0%, 100% { transform: scale(1) opacity(0.4); }
+          50% { transform: scale(1.1) opacity(0.6); }
+        }
+        @keyframes pond-ripple {
+          0% { transform: scale(1); opacity: 0.8; }
+          100% { transform: scale(300); opacity: 0; }
+        }
+        @keyframes petal-fall {
+          0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+          20% { opacity: 0.6; }
+          80% { opacity: 0.6; }
+          100% { transform: translateY(120vh) translateX(var(--tx)) rotate(720deg); opacity: 0; }
         }
       `}} />
     </div>
@@ -812,11 +767,11 @@ export const BoardSurface: React.FC<{ themeId: string; isMini?: boolean; classNa
     <div className={`absolute inset-0 overflow-hidden ${theme.base} ${className}`}>
       {theme.texture && <FeltTextureLayer />}
       {theme.id === 'CYBERPUNK_NEON' && <SpaceEngine isMini={isMini} />}
-      {theme.koiWaters && <KoiWatersEngine isMini={isMini} />}
+      {theme.zenPond && <ZenPondEngine isMini={isMini} />}
       {theme.lotusForest && <LotusForestEngine isMini={isMini} />}
       {theme.id === 'GOLDEN_EMPEROR' && <GoldenEmperorEngine isMini={isMini} />}
       {theme.yuletide && <YuletideEngine isMini={isMini} />}
-      {theme.obsidianSanctum && <SovereignEngine isMini={isMini} />}
+      {theme.obsidianMadness && <MadnessEngine isMini={isMini} />}
       {theme.crystalTokyo && <TokyoEngine isMini={isMini} />}
       {theme.highRoller && <CastleOblivionEngine isMini={isMini} />}
       
@@ -836,6 +791,7 @@ export const BoardPreview: React.FC<{ themeId: string; className?: string; activ
 };
 
 export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, setPlayerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest }) => {
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'STATS'>('PROFILE');
   const [isCatalogExpanded, setIsCatalogExpanded] = useState(false);
 
   if (!profile) return null;
@@ -848,35 +804,141 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
   const isAvatarUnlocked = (emoji: string) => profile?.unlocked_avatars?.includes(emoji) || DEFAULT_AVATARS.includes(emoji);
   const visibleAvatars = isCatalogExpanded ? [...DEFAULT_AVATARS, ...PREMIUM_AVATARS] : [...DEFAULT_AVATARS, ...PREMIUM_AVATARS].slice(0, 10);
 
+  // Stats Logic
+  const gamesLost = profile.games_played - profile.wins;
+  const avgCardsLeft = gamesLost > 0 ? (profile.total_cards_left_sum / gamesLost).toFixed(1) : '0.0';
+  const finishDist = profile.finish_dist || [0, 0, 0, 0];
+  const maxFinish = Math.max(...finishDist, 1);
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
       
       <div className="relative bg-[#050505] border border-white/10 w-full max-w-2xl max-h-[90vh] rounded-[2.5rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex justify-between items-center">
-          <div className="flex flex-col">
+        <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex flex-col gap-4">
+          <div className="flex justify-between items-center w-full">
             <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-widest leading-none">PLAYER PROFILE</h2>
+            <button onClick={onClose} className="w-10 h-10 bg-red-600/10 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all group border border-white/5"><span className="text-lg font-black group-hover:rotate-90 transition-transform">✕</span></button>
           </div>
-          <button onClick={onClose} className="w-10 h-10 bg-red-600/10 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all group border border-white/5"><span className="text-lg font-black group-hover:rotate-90 transition-transform">✕</span></button>
+          
+          <div className="flex gap-2 p-1 bg-black/40 rounded-2xl border border-white/5 w-full">
+            <button 
+                onClick={() => setActiveTab('PROFILE')}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'PROFILE' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+            >
+                Credentials
+            </button>
+            <button 
+                onClick={() => setActiveTab('STATS')}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'STATS' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+            >
+                Arena Stats
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          <div className="flex flex-col sm:flex-row gap-6 items-center">
-            <div className="relative shrink-0"><div className="absolute inset-[-10px] bg-yellow-500/10 blur-[20px] rounded-full"></div><div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center text-5xl sm:text-6xl shadow-inner">{playerAvatar}</div></div>
-            <div className="flex-1 w-full space-y-3 sm:space-y-4">
-                <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value.toUpperCase())} maxLength={12} className="w-full bg-black/40 border border-white/5 px-4 py-2 rounded-xl text-white font-black uppercase tracking-widest text-lg sm:text-xl focus:border-yellow-500/30 outline-none transition-all shadow-inner" />
-                <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2"><div className="flex justify-between items-end"><span className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em]">Mastery {currentLevel}</span><span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-widest">{nextLevelXp - profile.xp} XP TO ASCEND</span></div><div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5"><div className="h-full bg-gradient-to-r from-yellow-700 via-yellow-400 to-yellow-200 transition-all duration-1000" style={{ width: `${progress}%` }} /></div></div>
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          {activeTab === 'PROFILE' ? (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex flex-col sm:flex-row gap-6 items-center">
+                    <div className="relative shrink-0"><div className="absolute inset-[-10px] bg-yellow-500/10 blur-[20px] rounded-full"></div><div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center text-5xl sm:text-6xl shadow-inner">{playerAvatar}</div></div>
+                    <div className="flex-1 w-full space-y-3 sm:space-y-4">
+                        <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value.toUpperCase())} maxLength={12} className="w-full bg-black/40 border border-white/5 px-4 py-2 rounded-xl text-white font-black uppercase tracking-widest text-lg sm:text-xl focus:border-yellow-500/30 outline-none transition-all shadow-inner" />
+                        <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2"><div className="flex justify-between items-end"><span className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em]">Mastery {currentLevel}</span><span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-widest">{nextLevelXp - profile.xp} XP TO ASCEND</span></div><div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5"><div className="h-full bg-gradient-to-r from-yellow-700 via-yellow-400 to-yellow-200 transition-all duration-1000" style={{ width: `${progress}%` }} /></div></div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-5 gap-2">
+                    {visibleAvatars.map(a => (<button key={a} onClick={() => isAvatarUnlocked(a) ? setPlayerAvatar(a) : null} className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-all ${playerAvatar === a ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : isAvatarUnlocked(a) ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale'}`}>{a}</button>))}
+                </div>
+
+                <div className="flex flex-col items-center pt-1"><button onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} className="group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 transition-all duration-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}><polyline points="6 9 12 15 18 9"></polyline></svg></button><span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1">{isCatalogExpanded ? "MINIMIZE" : "EXPAND"}</span></div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {/* High Level Stats Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                        { label: 'Battles', value: profile.games_played, icon: '⚔️' },
+                        { label: 'Elite Chops', value: profile.total_chops, icon: '💣' },
+                        { label: 'Win Streak', value: profile.current_streak, icon: '🔥' },
+                        { label: 'Max Streak', value: profile.longest_streak, icon: '👑' }
+                    ].map(stat => (
+                        <div key={stat.label} className="bg-white/[0.02] border border-white/5 p-4 rounded-3xl flex flex-col items-center gap-1 group hover:bg-white/[0.04] transition-all">
+                            <span className="text-xl mb-1">{stat.icon}</span>
+                            <span className="text-xl font-black text-white">{stat.value}</span>
+                            <span className="text-[7px] font-black uppercase tracking-widest text-white/30">{stat.label}</span>
+                        </div>
+                    ))}
+                </div>
 
-          <div className="grid grid-cols-5 gap-2">
-            {visibleAvatars.map(a => (<button key={a} onClick={() => isAvatarUnlocked(a) ? setPlayerAvatar(a) : null} className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-all ${playerAvatar === a ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : isAvatarUnlocked(a) ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale'}`}>{a}</button>))}
-          </div>
+                {/* Secondary Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] space-y-4">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-yellow-500">Defeat Severity</span>
+                            <span className="text-xs font-black text-white">{avgCardsLeft}</span>
+                        </div>
+                        <p className="text-[9px] text-white/40 leading-relaxed uppercase tracking-widest">Typical hand size when failing to extract from arena.</p>
+                        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
+                            <div className="h-full bg-rose-500/60" style={{ width: `${Math.min(100, parseFloat(avgCardsLeft) * 7.7)}%` }}></div>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] space-y-4">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Victory Efficiency</span>
+                            <span className="text-xs font-black text-white">
+                                {profile.games_played > 0 ? ((profile.wins / profile.games_played) * 100).toFixed(0) : 0}%
+                            </span>
+                        </div>
+                        <p className="text-[9px] text-white/40 leading-relaxed uppercase tracking-widest">Protocol success rate across all historical deployments.</p>
+                        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500/60" style={{ width: `${(profile.wins / Math.max(1, profile.games_played)) * 100}%` }}></div>
+                        </div>
+                    </div>
+                </div>
 
-          <div className="flex flex-col items-center pt-1"><button onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} className="group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 transition-all duration-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}><polyline points="6 9 12 15 18 9"></polyline></svg></button><span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1">{isCatalogExpanded ? "MINIMIZE" : "EXPAND"}</span></div>
-          <SignOutButton onSignOut={onSignOut} className="!py-4 w-full" />
+                {/* Finish Distribution Chart */}
+                <div className="space-y-4">
+                    <SectionHeader>Placement Distribution</SectionHeader>
+                    <div className="space-y-3">
+                        {['1ST', '2ND', '3RD', '4TH'].map((label, i) => {
+                            const val = finishDist[i];
+                            const percent = (val / maxFinish) * 100;
+                            const colorClass = i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-300' : i === 2 ? 'bg-orange-400' : 'bg-red-500';
+                            return (
+                                <div key={label} className="group flex items-center gap-4">
+                                    <span className="text-[8px] font-black text-white/40 w-6">{label}</span>
+                                    <div className="flex-1 h-3 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                        <div 
+                                            className={`h-full ${colorClass} transition-all duration-1000 ease-out flex items-center justify-end px-2`}
+                                            style={{ width: `${percent}%` }}
+                                        >
+                                            {val > 0 && <span className="text-[7px] font-black text-black/60">{val}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+          )}
+
+          <div className="pt-8 border-t border-white/5">
+            <SignOutButton onSignOut={onSignOut} className="!py-4 w-full" />
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div className="flex items-center gap-3 mb-4">
+        <span className="text-[9px] font-black uppercase tracking-[0.4em] text-yellow-500/70 italic whitespace-nowrap">{children}</span>
+        <div className="h-[1px] flex-1 bg-gradient-to-r from-yellow-500/30 to-transparent"></div>
+    </div>
+);
+
 export type HubTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';

@@ -42,6 +42,7 @@ const SLEEVES: StoreItem[] = [
   { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 3500, type: 'SLEEVE', style: 'PIXEL_CITY_LIGHTS', description: 'Nocturnal pixel glow.' },
   { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, type: 'SLEEVE', style: 'AMETHYST_ROYAL', description: 'Velvet silk with silver filigree.' },
   { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, type: 'SLEEVE', style: 'CHERRY_BLOSSOM_NOIR', description: 'Obsidian wood with glowing blossoms.' },
+  { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, type: 'SLEEVE', style: 'AETHER_VOID', description: 'Legendary clash of celestial light and eternal darkness.' },
 ];
 
 const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => void }> = ({ themeId, onClose }) => {
@@ -178,14 +179,10 @@ export const Store: React.FC<StoreProps> = ({
     return (
       <div key={id} className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl`}>
         <div className="absolute top-2.5 right-2.5 z-10">
-          {!unlocked ? (
-            <div className={`flex items-center gap-1 bg-black/40 ${density === 4 ? 'px-1 py-0.5' : 'px-1.5 py-0.5'} rounded-full border border-yellow-500/20 shadow-lg backdrop-blur-sm`}>
-              <span className={density === 4 ? 'text-[6px]' : 'text-[8px]'}>💰</span>
-              <span className={`font-black tracking-tighter ${canAfford ? 'text-yellow-500' : 'text-gray-600'} ${density === 4 ? 'text-[6px]' : 'text-[8px]'}`}>{price}</span>
-            </div>
-          ) : isEquipped ? (
+          {unlocked && isEquipped && (
             <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] sm:text-[8px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>
-          ) : (
+          )}
+          {unlocked && !isEquipped && (
             <div onClick={(e) => { e.stopPropagation(); if (isAvatar) onEquipAvatar(item); else if (isBoard) onEquipBoard(item.id); else onEquipSleeve(item.style); }} className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-white/20 bg-transparent hover:border-white/50 cursor-pointer transition-colors"></div>
           )}
         </div>
@@ -193,7 +190,6 @@ export const Store: React.FC<StoreProps> = ({
         <div className={`py-1 sm:py-3 flex-1 flex flex-col items-center justify-center w-full transition-transform duration-300 ${visualSize}`}>
           {isAvatar ? <div className="text-4xl sm:text-6xl group-hover:scale-125 transition-transform duration-500">{item}</div> : 
            isBoard ? <div className="w-full cursor-pointer" onClick={() => setPreviewThemeId(item.id)}>
-             {/* Pass hideActiveMarker to prevent redundant yellow and green checkboxes in store */}
              <BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker={true} />
            </div> :
            <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-12 !h-18 sm:!w-14 sm:!h-20' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />}
@@ -206,10 +202,19 @@ export const Store: React.FC<StoreProps> = ({
         <div className="w-full mt-auto">
           <button
             onClick={() => unlocked ? (isAvatar ? onEquipAvatar(item) : isBoard ? onEquipBoard(item.id) : onEquipSleeve(item.style)) : handlePurchaseAttempt(item, isAvatar, isBoard)}
-            disabled={(isEquipped) || (!unlocked && !canAfford) || buying === id}
-            className={`w-full py-2 rounded-xl font-black uppercase ${density === 4 ? 'text-[7px]' : 'text-[8px] sm:text-[9px]'} tracking-[0.15em] transition-all ${isEquipped ? 'bg-emerald-600 text-white shadow-lg' : unlocked ? 'bg-white/5 text-white/80 hover:bg-white/10' : canAfford ? 'bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black shadow-lg' : 'bg-white/5 text-white/20 cursor-not-allowed'}`}
+            disabled={isEquipped || (!unlocked && !canAfford) || buying === id}
+            className={`
+              w-full py-2 rounded-xl font-black uppercase ${density === 4 ? 'text-[7px]' : 'text-[8px] sm:text-[9px]'} tracking-[0.15em] transition-all 
+              ${isEquipped 
+                ? 'bg-emerald-600 text-white shadow-lg' 
+                : unlocked 
+                  ? 'bg-white/5 text-white/80 hover:bg-white/10' 
+                  : canAfford 
+                    ? 'bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black shadow-lg hover:scale-105 active:scale-95' 
+                    : 'bg-white/[0.03] text-white/10 border border-white/5 cursor-not-allowed grayscale'}
+            `}
           >
-            {buying === id ? '...' : isEquipped ? 'Active' : unlocked ? 'Equip' : 'Buy'}
+            {buying === id ? '...' : isEquipped ? 'Active' : unlocked ? 'Equip' : `💰 ${price}`}
           </button>
         </div>
       </div>
@@ -315,7 +320,7 @@ export const Store: React.FC<StoreProps> = ({
           </div>
 
           <div className="flex flex-col items-center gap-2 sm:gap-4 mt-3 sm:mt-5 w-full">
-            <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 rounded-full border border-white/10 w-full max-w-sm sm:max-w-md shadow-inner">
+            <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 rounded-full border border-white/10 w-full max-sm:max-w-[280px] max-w-sm sm:max-w-md shadow-inner">
               {(['SLEEVES', 'AVATARS', 'BOARDS'] as const).map(tab => (
                 <button key={tab} onClick={() => setActiveTab(tab)} className={`py-1.5 sm:py-2 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white hover:bg-white/5'}`}>{tab}</button>
               ))}

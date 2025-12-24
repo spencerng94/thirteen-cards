@@ -48,6 +48,7 @@ const SLEEVES = [
   { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 3500, style: 'PIXEL_CITY_LIGHTS' as CardCoverStyle },
   { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, style: 'AMETHYST_ROYAL' as CardCoverStyle },
   { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, style: 'CHERRY_BLOSSOM_NOIR' as CardCoverStyle },
+  { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, style: 'AETHER_VOID' as CardCoverStyle },
 ];
 
 const TAB_DESCRIPTIONS: Record<WelcomeTab, string> = {
@@ -137,7 +138,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   backgroundTheme, setBackgroundTheme, isGuest
 }) => {
   const [activeTab, setActiveTab] = useState<WelcomeTab>('PROFILE');
-  const [isCatalogExpanded, setIsCatalogExpanded] = useState(false);
   const [hideUnowned, setHideUnowned] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
 
@@ -186,38 +186,44 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   const isSleeveUnlocked = (id: string) => profile?.unlocked_sleeves.includes(id) || SLEEVES.find(s => s.id === id)?.price === 0;
-  const isAvatarUnlocked = (emoji: string) => profile?.unlocked_avatars?.includes(emoji) || DEFAULT_AVATARS.includes(emoji);
   const isBoardUnlocked = (id: string) => profile?.unlocked_boards.includes(id) || PREMIUM_BOARDS.find(b => b.id === id)?.price === 0;
 
   const renderProfileTab = () => {
-    const allPossibleAvatars = [...DEFAULT_AVATARS, ...PREMIUM_AVATARS];
     const currentLevel = profile ? calculateLevel(profile.xp) : 1;
     const nextLevelXp = getXpForLevel(currentLevel + 1);
     const curLevelXpFloor = getXpForLevel(currentLevel);
     const xpInRange = (profile?.xp || 0) - curLevelXpFloor;
     const rangeTotal = Math.max(1, nextLevelXp - curLevelXpFloor);
     const progress = Math.min(100, Math.max(0, (xpInRange / rangeTotal) * 100));
-    const visibleAvatars = isCatalogExpanded ? allPossibleAvatars : allPossibleAvatars.slice(0, 10);
 
     return (
       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <SectionLabel>Identity Command</SectionLabel>
-        <div className="flex flex-col items-center gap-4 bg-black/40 p-6 rounded-3xl border border-white/10 backdrop-blur-md">
+        <SectionLabel>PLAYER PROFILE</SectionLabel>
+        
+        {/* Clickable Profile Card */}
+        <div 
+          onClick={() => onOpenHub('PROFILE')}
+          className="flex flex-col items-center gap-4 bg-black/40 p-6 rounded-3xl border border-white/10 backdrop-blur-md cursor-pointer group hover:bg-black/60 transition-all active:scale-[0.98] relative overflow-hidden"
+        >
+           <div className="absolute inset-0 bg-gradient-to-tr from-yellow-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+           
            <div className="relative">
-              <div className="absolute inset-[-8px] bg-yellow-500/10 blur-xl rounded-full"></div>
-              <div className="relative w-20 h-20 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center text-5xl shadow-inner">
+              <div className="absolute inset-[-12px] bg-yellow-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
+              <div className="relative w-20 h-20 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center text-5xl shadow-inner group-hover:scale-110 transition-transform duration-500">
                 {playerAvatar}
               </div>
            </div>
-           <input 
-              type="text" 
-              value={playerName} 
-              onChange={e => setPlayerName(e.target.value.toUpperCase())}
-              placeholder="ENTER CALLSIGN"
-              maxLength={12}
-              className="w-full max-w-xs bg-black/40 border border-white/10 px-6 py-3 rounded-2xl text-white font-black text-center uppercase tracking-widest focus:border-yellow-500/50 outline-none transition-all"
-           />
+           
+           <div className="flex flex-col items-center gap-1.5">
+              <span className="text-white font-black text-xl md:text-2xl uppercase tracking-widest drop-shadow-lg">
+                {playerName || 'CALLSIGN REQUIRED'}
+              </span>
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/5 group-hover:bg-yellow-500/10 group-hover:border-yellow-500/30 transition-all">
+                <span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-[0.4em]">Update Credentials</span>
+              </div>
+           </div>
         </div>
+
         <div className="bg-black/40 backdrop-blur-md border border-white/5 p-5 rounded-3xl space-y-2">
           <div className="flex justify-between items-end">
             <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Level {currentLevel}</span>
@@ -226,49 +232,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
             <div className="h-full bg-yellow-500 transition-all duration-1000" style={{ width: `${progress}%` }} />
           </div>
-        </div>
-        <div className="grid grid-cols-5 gap-2">
-          {visibleAvatars.map(a => {
-            const unlocked = isAvatarUnlocked(a);
-            const active = playerAvatar === a;
-            return (
-              <button 
-                key={a} 
-                title={getAvatarName(a)}
-                onClick={() => unlocked ? setPlayerAvatar(a) : handlePurchaseAttempt(a, 250, 'AVATAR')} 
-                className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-all ${active ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : unlocked ? 'bg-black/40 backdrop-blur-sm border border-white/5 hover:bg-white/10' : 'opacity-20 grayscale hover:opacity-40'}`}
-              >
-                {a}
-              </button>
-            );
-          })}
-        </div>
-        
-        <div className="flex flex-col items-center">
-            <button 
-                onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} 
-                className={`group relative flex items-center justify-center w-10 h-10 rounded-full bg-black/40 border border-white/10 hover:border-yellow-500/40 hover:bg-black/60 transition-all duration-500 active:scale-90 shadow-lg backdrop-blur-sm`}
-                title={isCatalogExpanded ? "Collapse View" : "Expand All Options"}
-            >
-                <div className={`absolute inset-0 rounded-full bg-yellow-500/10 blur-md opacity-0 group-hover:opacity-100 transition-opacity`}></div>
-                <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    width="20" 
-                    height="20" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="3" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}
-                >
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-            </button>
-            <span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1.5 group-hover:text-white/40 transition-colors">
-                {isCatalogExpanded ? "MINIMIZE" : "EXPAND"}
-            </span>
         </div>
       </div>
     );
@@ -300,11 +263,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           {filteredSleeves.map(s => {
             const unlocked = isSleeveUnlocked(s.id);
             const active = cardCoverStyle === s.style;
+            const isLegendary = s.id === 'AETHER_VOID';
             return (
-              <div key={s.id} onClick={() => unlocked ? setCardCoverStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'}`}>
+              <div key={s.id} onClick={() => unlocked ? setCardCoverStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'} ${isLegendary ? 'ring-1 ring-yellow-500/20' : ''}`}>
                 <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
                 <Card faceDown coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} />
-                <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{s.name}</span>
+                <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center ${active ? 'text-emerald-400' : unlocked ? (isLegendary ? 'text-yellow-400' : 'text-white/60') : 'text-white/20'}`}>{s.name}</span>
               </div>
             );
           })}

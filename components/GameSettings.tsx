@@ -43,7 +43,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   soundEnabled,
   setSoundEnabled
 }) => {
-  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR'];
+  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID'];
 
   const getThemeStyles = (themeId: BackgroundTheme, active: boolean) => {
     if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
@@ -59,15 +59,15 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
         return "bg-rose-900/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
       case 'CYBERPUNK_NEON':
         return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
-      case 'CITY_LIGHTS_PIXEL':
-        return "bg-purple-900/90 text-white shadow-[0_0_20px_rgba(168,85,247,0.5)] border-purple-400/30";
+      case 'OBSIDIAN_MADNESS':
+        return "bg-black text-red-600 border-red-900 shadow-[0_0_20px_rgba(153,27,27,0.5)] font-black italic";
       case 'LOTUS_FOREST':
         return "bg-pink-600/90 text-white shadow-[0_0_15px_rgba(219,39,119,0.4)] border-pink-400/30";
       case 'CHRISTMAS_YULETIDE':
         return "bg-blue-800/90 text-white shadow-[0_0_15px_rgba(30,58,138,0.4)] border-blue-400/30";
       case 'GOLDEN_EMPEROR':
         return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
-      case 'KOI_WATERS':
+      case 'ZEN_POND':
         return "bg-[#082f49] text-cyan-400 border-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.4)]";
       case 'HIGH_ROLLER':
         return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
@@ -81,7 +81,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300" onClick={onClose}>
       <div 
-        className="relative bg-[#050505] border border-white/10 w-full max-w-lg max-h-[90vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" 
+        className="relative bg-[#050505] border border-white/10 w-full max-lg max-h-[90vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" 
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -176,6 +176,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
               {coverStyles.map(style => {
                 const active = currentCoverStyle === style;
+                const isLegendary = style === 'AETHER_VOID';
                 return (
                   <div 
                     key={style} 
@@ -184,6 +185,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                   >
                     <Card faceDown coverStyle={style} small className={`!w-12 !h-18 rounded-lg shadow-xl ${active ? 'ring-2 ring-yellow-500' : 'border-white/5'}`} />
                     {active && <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center text-[8px] text-black font-black border border-black shadow-lg">✓</div>}
+                    {isLegendary && <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-white rounded-full flex items-center justify-center text-[6px] shadow-lg animate-pulse">✨</div>}
                   </div>
                 );
               })}

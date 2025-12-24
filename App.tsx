@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const [spGameState, setSpGameState] = useState<GameState | null>(null);
   const [spMyHand, setSpMyHand] = useState<Card[]>([]);
   const [spOpponentHands, setSpOpponentHands] = useState<Record<string, Card[]>>({});
+  const [spChops, setSpChops] = useState(0);
   
   const [error, setError] = useState<string | null>(null);
   const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean } | null>(null);
@@ -263,8 +264,9 @@ const App: React.FC = () => {
         triggerMatchEndTransition();
         const me = spGameState.players.find(p => p.id === 'player-me');
         const myRank = me?.finishedRank || 4;
+        const cardsLeft = spMyHand.length;
         
-        recordGameResult(myRank, true, aiDifficulty, !!isGuest, profile?.id)
+        recordGameResult(myRank, true, aiDifficulty, !!isGuest, profile?.id, spChops, cardsLeft)
           .then(res => {
               setLastMatchRewards({ 
                 xp: res.xpGained, 
@@ -278,7 +280,7 @@ const App: React.FC = () => {
               console.error("Single Player reward processing failed:", err);
           });
     }
-  }, [spGameState?.status, gameMode, view, isTransitioning, aiDifficulty, isGuest, profile?.id, triggerMatchEndTransition]);
+  }, [spGameState?.status, gameMode, view, isTransitioning, aiDifficulty, isGuest, profile?.id, triggerMatchEndTransition, spChops, spMyHand.length]);
 
   const handleLocalPass = (pid: string) => {
     if (!spGameState || spGameState.status !== GameStatus.PLAYING || spGameState.currentPlayerId !== pid) return;
@@ -312,6 +314,12 @@ const App: React.FC = () => {
     if (!res.isValid && pid === 'player-me') { 
       setError(res.reason); setTimeout(() => setError(null), 3000); return; 
     }
+    
+    // Check for Chop!
+    if (res.reason === 'Bomb!' && pid === 'player-me') {
+       setSpChops(prev => prev + 1);
+    }
+
     setSpGameState(prev => {
       if (!prev) return null;
       if (pid === 'player-me') {
@@ -364,6 +372,7 @@ const App: React.FC = () => {
     ];
     setSpMyHand(hands[0]);
     setSpOpponentHands({ 'bot-1': hands[1], 'bot-2': hands[2], 'bot-3': hands[3] });
+    setSpChops(0);
     let starterId = 'player-me';
     hands.forEach((hand, i) => { if (hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starterId = players[i].id; });
     setSpGameState({ roomId: 'LOCAL', status: GameStatus.PLAYING, players, currentPlayerId: starterId, currentPlayPile: [], finishedPlayers: [], isFirstTurnOfGame: true, lastPlayerToPlayId: null, winnerId: null });

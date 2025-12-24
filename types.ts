@@ -85,7 +85,7 @@ export enum SocketEvents {
   ERROR = 'error'
 }
 
-export type BackgroundTheme = 'CLASSIC_GREEN' | 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'CITY_LIGHTS_PIXEL' | 'GOLD_FLUX' | 'KOI_WATERS';
+export type BackgroundTheme = 'CLASSIC_GREEN' | 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'OBSIDIAN_MADNESS' | 'GOLD_FLUX' | 'ZEN_POND';
 
 export interface UserProfile {
   id: string;
@@ -107,4 +107,10 @@ export interface UserProfile {
   sfx_enabled?: boolean;
   turbo_enabled?: boolean;
   undo_count: number;
+  // Advanced Stats
+  finish_dist: number[]; // [1st, 2nd, 3rd, 4th]
+  total_chops: number;
+  total_cards_left_sum: number;
+  current_streak: number;
+  longest_streak: number;
 }

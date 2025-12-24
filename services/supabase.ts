@@ -35,7 +35,7 @@ const DEFAULT_GUEST_PROFILE = {
   xp: 0,
   unlocked_sleeves: ['BLUE', 'RED'],
   unlocked_avatars: [...DEFAULT_AVATARS],
-  unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
+  unlocked_boards: ['EMERALD', 'CLASSIC_GREEN', 'CYBER_BLUE', 'CRIMSON_VOID'],
   equipped_sleeve: 'RED',
   equipped_board: 'EMERALD',
   active_board: 'EMERALD',
@@ -44,7 +44,12 @@ const DEFAULT_GUEST_PROFILE = {
   turbo_enabled: true,
   undo_count: 0,
   username: AVATAR_NAMES['😊'].toUpperCase(),
-  avatar_url: '😎'
+  avatar_url: '😎',
+  finish_dist: [0, 0, 0, 0],
+  total_chops: 0,
+  total_cards_left_sum: 0,
+  current_streak: 0,
+  longest_streak: 0
 };
 
 export const calculateLevel = (xp: number) => {
@@ -92,7 +97,12 @@ export const fetchGuestProfile = (): UserProfile => {
     id: 'guest',
     level: calculateLevel(data.xp || 0),
     currency: data.coins,
-    coins: data.coins
+    coins: data.coins,
+    finish_dist: data.finish_dist || [0, 0, 0, 0],
+    total_chops: data.total_chops || 0,
+    total_cards_left_sum: data.total_cards_left_sum || 0,
+    current_streak: data.current_streak || 0,
+    longest_streak: data.longest_streak || 0
   } as UserProfile;
 };
 
@@ -110,7 +120,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
       .eq('id', userId)
       .maybeSingle();
     
-    // If table exists and profile found
     if (!error && data) {
       return {
         ...data,
@@ -121,11 +130,15 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
         active_board: data.active_board || data.equipped_board || 'EMERALD',
         active_sleeve: data.active_sleeve || data.equipped_sleeve || 'RED',
         sfx_enabled: data.sfx_enabled ?? true,
-        turbo_enabled: data.turbo_enabled ?? true
+        turbo_enabled: data.turbo_enabled ?? true,
+        finish_dist: data.finish_dist || [0, 0, 0, 0],
+        total_chops: data.total_chops || 0,
+        total_cards_left_sum: data.total_cards_left_sum || 0,
+        current_streak: data.current_streak || 0,
+        longest_streak: data.longest_streak || 0
       } as UserProfile;
     }
 
-    // Only create/upsert if we are sure there is NO existing record
     if (error && error.code === '42P01') {
        console.warn("Supabase 'profiles' table not detected. Falling back to local storage for user:", userId);
        const local = fetchGuestProfile();
@@ -140,7 +153,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
       games_played: 0,
       unlocked_sleeves: ['BLUE', 'RED'],
       unlocked_avatars: [...DEFAULT_AVATARS],
-      unlocked_boards: ['EMERALD', 'CYBER_BLUE', 'CRIMSON_VOID'],
+      unlocked_boards: ['EMERALD', 'CLASSIC_GREEN', 'CYBER_BLUE', 'CRIMSON_VOID'],
       equipped_sleeve: 'RED',
       equipped_board: 'EMERALD',
       active_board: 'EMERALD',
@@ -149,7 +162,12 @@ export const fetchProfile = async (userId: string, currentAvatar: string = '😎
       turbo_enabled: true,
       undo_count: 0,
       username: googleName,
-      avatar_url: currentAvatar
+      avatar_url: currentAvatar,
+      finish_dist: [0, 0, 0, 0],
+      total_chops: 0,
+      total_cards_left_sum: 0,
+      current_streak: 0,
+      longest_streak: 0
     };
 
     if (userId && !error) {
@@ -230,6 +248,9 @@ export const transferGuestData = async (userId: string) => {
     const { data: existing, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
 
     if (!error && existing) {
+      const existingDist = existing.finish_dist || [0, 0, 0, 0];
+      const localDist = local.finish_dist || [0, 0, 0, 0];
+      
       await supabase.from('profiles').update({
         wins: (existing.wins || 0) + (local.wins || 0),
         games_played: (existing.games_played || 0) + (local.games_played || 0),
@@ -241,7 +262,11 @@ export const transferGuestData = async (userId: string) => {
         active_board: existing.active_board || local.active_board || existing.equipped_board || local.equipped_board || 'EMERALD',
         active_sleeve: existing.active_sleeve || local.active_sleeve || existing.equipped_sleeve || local.equipped_sleeve || 'RED',
         sfx_enabled: existing.sfx_enabled ?? local.sfx_enabled ?? true,
-        turbo_enabled: existing.turbo_enabled ?? local.turbo_enabled ?? true
+        turbo_enabled: existing.turbo_enabled ?? local.turbo_enabled ?? true,
+        total_chops: (existing.total_chops || 0) + (local.total_chops || 0),
+        total_cards_left_sum: (existing.total_cards_left_sum || 0) + (local.total_cards_left_sum || 0),
+        finish_dist: existingDist.map((v: number, i: number) => v + localDist[i]),
+        longest_streak: Math.max(existing.longest_streak || 0, local.longest_streak || 0)
       }).eq('id', userId);
       localStorage.removeItem(GUEST_STORAGE_KEY);
     }
@@ -284,7 +309,7 @@ export const buyItem = async (userId: string, price: number, itemName: string, t
   return true;
 };
 
-export const recordGameResult = async (rank: number, isBot: boolean, difficulty: AiDifficulty, isGuest: boolean, userId?: string) => {
+export const recordGameResult = async (rank: number, isBot: boolean, difficulty: AiDifficulty, isGuest: boolean, userId?: string, chopsInMatch: number = 0, cardsRemaining: number = 0) => {
   const isWinner = rank === 1;
   const baseRankXp = rank === 1 ? 10 : rank === 2 ? 5 : rank === 3 ? 2 : 1;
   const diffMult = difficulty === 'HARD' ? 2 : difficulty === 'MEDIUM' ? 1.5 : 1;
@@ -296,21 +321,46 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
   const localStats = JSON.parse(localStorage.getItem(GUEST_STORAGE_KEY) || JSON.stringify(DEFAULT_GUEST_PROFILE));
   if ((localStats.games_played || 0) < 5) { xpGained *= 2; xpBonusApplied = true; }
   
-  if (isWinner) localStats.wins += 1;
+  // Internal update logic for local stats
+  if (isWinner) {
+    localStats.wins += 1;
+    localStats.current_streak = (localStats.current_streak || 0) + 1;
+    localStats.longest_streak = Math.max(localStats.longest_streak || 0, localStats.current_streak);
+  } else {
+    localStats.current_streak = 0;
+    localStats.total_cards_left_sum = (localStats.total_cards_left_sum || 0) + cardsRemaining;
+  }
+
   localStats.games_played = (localStats.games_played || 0) + 1;
   localStats.coins = (localStats.coins || 0) + coinsGained;
   localStats.xp = (localStats.xp || 0) + xpGained;
+  localStats.total_chops = (localStats.total_chops || 0) + chopsInMatch;
+  
+  const dist = localStats.finish_dist || [0, 0, 0, 0];
+  dist[rank - 1] += 1;
+  localStats.finish_dist = dist;
+
   localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(localStats));
 
   if (!isGuest && userId && userId !== 'guest' && supabaseUrl) {
     const profile = await fetchProfile(userId);
     if (profile) {
       const newXpValue = (profile.xp || 0) + xpGained;
+      const newWinStreak = isWinner ? (profile.current_streak || 0) + 1 : 0;
+      const newLongestStreak = Math.max(profile.longest_streak || 0, newWinStreak);
+      const newDist = profile.finish_dist || [0, 0, 0, 0];
+      newDist[rank - 1] += 1;
+
       const { error } = await supabase.from('profiles').update({ 
           wins: isWinner ? (profile.wins || 0) + 1 : profile.wins, 
           games_played: (profile.games_played || 0) + 1, 
           coins: (profile.coins || 0) + coinsGained, 
-          xp: newXpValue 
+          xp: newXpValue,
+          total_chops: (profile.total_chops || 0) + chopsInMatch,
+          total_cards_left_sum: (profile.total_cards_left_sum || 0) + cardsRemaining,
+          current_streak: newWinStreak,
+          longest_streak: newLongestStreak,
+          finish_dist: newDist
       }).eq('id', userId);
       
       if (error) {

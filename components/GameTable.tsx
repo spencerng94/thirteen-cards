@@ -251,7 +251,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                 const isActive = typedVars[comboVariations[type] || 0].every(c => selectedCardIds.has(c.id)) && typedVars[comboVariations[type] || 0].length === selectedCardIds.size;
                 return (
                   <button key={type} onClick={() => selectCombo(type)} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all flex items-center justify-between gap-3 ${isActive ? 'bg-yellow-500 text-black border-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.4)] scale-105' : 'bg-black/40 backdrop-blur-md border-white/10 text-white/70 hover:bg-white/5'}`}>
-                    <span>{type.replace('_', ' ')}</span>
+                    <span>{type === 'QUAD' ? 'BOMB' : type.replace('_', ' ')}</span>
                     {typedVars.length > 1 && <span className={`px-1.5 py-0.5 rounded-md text-[7px] ${isActive ? 'bg-black/20' : 'bg-white/10'}`}>{currentVar}/{typedVars.length}</span>}
                   </button>
                 );
@@ -287,7 +287,9 @@ export const GameTable: React.FC<GameTableProps> = ({
       {bombEffect && (
         <div className="fixed inset-0 z-[200] pointer-events-none flex items-center justify-center overflow-hidden">
             <div className={`relative flex flex-col items-center animate-bomb-impact-v2`}>
-                <h1 className="text-[12vw] md:text-[15rem] font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-red-400 via-orange-600 to-red-950 drop-shadow-[0_0_80px_rgba(220,38,38,0.8)] filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">{bombEffect.type === 'QUAD' ? 'FOUR-OF-A-KIND' : bombEffect.type.replace('_', ' ')}</h1>
+                <h1 className="text-[12vw] md:text-[15rem] font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-red-400 via-orange-600 to-red-950 drop-shadow-[0_0_80px_rgba(220,38,38,0.8)] filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+                  {['QUAD', '3_PAIRS', '4_PAIRS'].includes(bombEffect.type) ? 'BOMB' : bombEffect.type.replace('_', ' ')}
+                </h1>
                 <div className="absolute inset-0 bg-red-600/20 blur-[100px] animate-pulse"></div>
             </div>
             <div className="absolute inset-0 bg-white opacity-0 animate-bomb-flash"></div>
@@ -396,6 +398,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         @keyframes screenShake { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 10%, 30%, 50%, 70%, 90% { transform: translate(-4px, -4px) rotate(-0.5deg); } 20%, 40%, 60%, 80% { transform: translate(4px, 4px) rotate(0.5deg); } }
         @keyframes bombFlash { 0% { opacity: 0; } 5% { opacity: 0.8; } 15% { opacity: 0; } }
         @keyframes shockwave { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(40); opacity: 0; } }
+        @keyframes winnerGlow { 0% { transform: translateX(-150%) skewX(-45deg); } 50% { transform: translateX(150%) skewX(-45deg); } 100% { transform: translateX(150%) skewX(-45deg); } }
         .animate-bomb-impact-v2 { animation: bombImpactV2 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-screen-shake { animation: screenShake 0.4s ease-in-out 3; }
         .animate-bomb-flash { animation: bombFlash 2.5s ease-out forwards; }

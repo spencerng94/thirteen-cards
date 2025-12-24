@@ -121,10 +121,10 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
 
   const getRankConfig = (rank: number) => {
     switch(rank) {
-      case 1: return { title: "SUPREME VICTORY", medal: "🏆", color: "text-yellow-400", bg: "from-yellow-900/40" };
+      case 1: return { title: "SUPREME VICTORY", medal: "🥇", color: "text-yellow-400", bg: "from-yellow-900/40" };
       case 2: return { title: "ELITE MERIT", medal: "🥈", color: "text-gray-200", bg: "from-gray-800/40" };
       case 3: return { title: "DISTINGUISHED", medal: "🥉", color: "text-orange-400", bg: "from-orange-900/40" };
-      default: return { title: "TACTICAL SETBACK", medal: "⚔️", color: "text-red-500", bg: "from-red-950/40" };
+      default: return { title: "TACTICAL SETBACK", medal: "💩", color: "text-red-500", bg: "from-red-950/40" };
     }
   };
 
@@ -159,7 +159,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
         </div>
 
         {/* Reward Reveal Area */}
-        <div className={`w-full grid grid-cols-1 gap-6 transition-all duration-700 ${phase !== 'intro' ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-95'}`}>
+        <div className={`w-full flex flex-col gap-6 transition-all duration-700 ${phase !== 'intro' ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-95'}`}>
             
             {/* Main Stats Card */}
             <div className="bg-black/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-8 shadow-[0_40px_80px_rgba(0,0,0,0.8)] relative overflow-hidden group">
@@ -183,14 +183,14 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
 
                 <div className="grid grid-cols-2 gap-4 mb-8">
                     <div className="bg-white/[0.03] p-6 rounded-[2rem] border border-white/5 flex flex-col items-center group/item hover:bg-white/[0.05] transition-all">
-                        <span className="text-3xl mb-2 group-hover/item:scale-110 transition-transform">🎖️</span>
+                        <span className="text-3xl mb-2 group/item:scale-110 transition-transform">🎖️</span>
                         <div className="flex items-baseline gap-1">
                             <span className="text-3xl font-black text-white">{animatedXp}</span>
                             <span className="text-xs font-black text-white/20 uppercase tracking-widest">XP</span>
                         </div>
                     </div>
                     <div className="bg-white/[0.03] p-6 rounded-[2rem] border border-white/5 flex flex-col items-center group/item hover:bg-white/[0.05] transition-all">
-                        <span className="text-3xl mb-2 group-hover/item:scale-110 transition-transform">💰</span>
+                        <span className="text-3xl mb-2 group/item:scale-110 transition-transform">💰</span>
                         <div className="flex items-baseline gap-1">
                             <span className="text-3xl font-black text-emerald-400">{animatedCoins}</span>
                             <span className="text-xs font-black text-emerald-900 uppercase tracking-widest">GOLD</span>
@@ -213,26 +213,56 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
                         <div className="w-full h-full rounded-full overflow-hidden flex">
                             <div className="h-full bg-white/5 transition-all duration-[1000ms] ease-out" style={{ width: `${baseBarProgress}%` }} />
                             <div className="h-full bg-gradient-to-r from-yellow-600 via-yellow-300 to-white transition-all duration-[1000ms] ease-out" style={{ width: `${addedBarProgress}%` }}>
-                                <div className="w-full h-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.4)_50%,transparent_100%)] animate-[shimmer_1.5s_infinite]"></div>
+                                <div className="w-full h-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.2)_50%,transparent_100%)] animate-[shimmer_1.5s_infinite]"></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Players List */}
-            <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-all duration-700 ${phase === 'ready' ? 'opacity-100' : 'opacity-0'}`}>
+            {/* Players List - Sequential Row-by-Row Layout */}
+            <div className={`flex flex-col gap-3 w-full transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                 {sortedPlayers.map((p, idx) => {
                     const isMe = p.id === myId;
                     const rank = idx + 1;
+                    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '💩';
+                    const rankColor = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-gray-300' : rank === 3 ? 'text-orange-400' : 'text-gray-500';
+                    const isVictor = rank === 1;
+                    
                     return (
-                        <div key={p.id} className={`p-4 rounded-3xl border flex flex-col items-center gap-2 transition-all ${isMe ? 'bg-white/[0.08] border-yellow-500/40 shadow-xl' : 'bg-black/40 border-white/5 opacity-60'}`}>
-                            <div className="relative">
-                                <span className="text-3xl">{p.avatar || '👤'}</span>
-                                {rank === 1 && <span className="absolute -top-1 -right-1 text-xs">👑</span>}
+                        <div key={p.id} className={`group relative flex items-center gap-5 p-4 rounded-[2rem] border transition-all duration-500 overflow-hidden ${isVictor ? 'bg-yellow-500/10 border-yellow-500/40 shadow-[0_0_50px_rgba(234,179,8,0.4)] ring-2 ring-yellow-400/20' : isMe ? 'bg-white/[0.08] border-white/20 shadow-lg' : 'bg-black/40 border-white/5 opacity-70'}`}>
+                            {/* Animated winner highlight sweep */}
+                            {isVictor && (
+                                <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/0 via-yellow-500/10 to-yellow-500/0 animate-[winnerGlow_4s_infinite_linear]"></div>
+                            )}
+
+                            <div className={`w-12 h-12 rounded-2xl bg-black/40 flex items-center justify-center text-2xl filter drop-shadow-sm ${rankColor} font-black italic`}>
+                                {rankEmoji}
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest truncate w-full text-center ${isMe ? 'text-white' : 'text-gray-500'}`}>{p.name}</span>
-                            <span className={`text-[10px] font-black italic ${rank === 1 ? 'text-yellow-500' : 'text-white/20'}`}>#{rank}</span>
+
+                            <div className="relative">
+                                {isVictor && (
+                                    <div className="absolute inset-0 bg-yellow-500/30 blur-2xl rounded-full scale-150 animate-pulse"></div>
+                                )}
+                                <div className="absolute inset-0 bg-white/10 blur-xl rounded-full scale-150 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <span className="text-4xl md:text-5xl relative z-10">{p.avatar || '👤'}</span>
+                                {isVictor && <span className="absolute -top-2 -right-2 text-sm animate-bounce">👑</span>}
+                            </div>
+
+                            <div className="flex-1 min-w-0 flex flex-col">
+                                <span className={`font-black uppercase tracking-[0.15em] truncate text-base md:text-lg ${isVictor ? 'text-yellow-400' : isMe ? 'text-white' : 'text-gray-400'}`}>
+                                    {p.name} {isMe && <span className="text-[10px] text-yellow-500/60 ml-2 font-black tracking-widest">(YOU)</span>}
+                                </span>
+                                <span className="text-[8px] font-bold text-white/20 uppercase tracking-[0.4em] mt-0.5">
+                                    {isVictor ? "Supreme Combatant" : p.cardCount === 0 ? "Strategic Withdrawal" : "Defeated in Arena"}
+                                </span>
+                            </div>
+
+                            {isVictor && (
+                                <div className="hidden sm:flex items-center gap-2 px-5 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                                     <span className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.4em]">Elite Victor</span>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
@@ -279,6 +309,11 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
+        }
+        @keyframes winnerGlow {
+          0% { transform: translateX(-150%) skewX(-45deg); }
+          50% { transform: translateX(150%) skewX(-45deg); }
+          100% { transform: translateX(150%) skewX(-45deg); }
         }
         .animate-victory-bounce { animation: victoryBounce 3s ease-in-out infinite; }
         .animate-victory-particle { animation: victoryParticle 4s ease-out infinite; }

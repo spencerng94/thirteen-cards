@@ -77,15 +77,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return "bg-rose-900/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
       case 'CYBERPUNK_NEON':
         return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
-      case 'CITY_LIGHTS_PIXEL':
-        return "bg-purple-900/90 text-white shadow-[0_0_20px_rgba(168,85,247,0.5)] border-purple-400/30";
+      case 'OBSIDIAN_MADNESS':
+        return "bg-black text-red-600 border-red-950 shadow-[0_0_20px_rgba(153,27,27,0.6)] font-black italic";
       case 'LOTUS_FOREST':
         return "bg-pink-600/90 text-white shadow-[0_0_15px_rgba(219,39,119,0.4)] border-pink-400/30";
       case 'CHRISTMAS_YULETIDE':
         return "bg-blue-800/90 text-white shadow-[0_0_15px_rgba(30,58,138,0.4)] border-blue-400/30";
       case 'GOLDEN_EMPEROR':
         return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
-      case 'KOI_WATERS':
+      case 'ZEN_POND':
         return "bg-[#082f49] text-cyan-400 border-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.4)] font-black italic";
       case 'HIGH_ROLLER':
         return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
@@ -101,12 +101,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setHasChanged(true);
   };
 
-  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR'];
+  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID'];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={onClose}>
       <div 
-        className="relative bg-black/60 backdrop-blur-2xl border border-white/10 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.8)] flex flex-col transition-all duration-500 scale-100" 
+        className="relative bg-black/60 backdrop-blur-2xl border border-white/10 w-full max-md rounded-[2.5rem] overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.8)] flex flex-col transition-all duration-500 scale-100" 
         onClick={e => e.stopPropagation()}
       >
         <div className="absolute inset-0 rounded-[2.5rem] ring-1 ring-inset ring-white/5 pointer-events-none"></div>
@@ -205,11 +205,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                    { id: 'CYBER_BLUE', name: 'Cobalt' },
                    { id: 'CRIMSON_VOID', name: 'Baccarat Ruby' },
                    { id: 'CYBERPUNK_NEON', name: 'Onyx' },
-                   { id: 'CITY_LIGHTS_PIXEL', name: 'Penthouse' },
+                   { id: 'OBSIDIAN_MADNESS', name: 'Madness' },
                    { id: 'LOTUS_FOREST', name: 'Lotus' },
                    { id: 'CHRISTMAS_YULETIDE', name: 'Yuletide' },
                    { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope' },
-                   { id: 'KOI_WATERS', name: 'Koi Waters' },
+                   { id: 'ZEN_POND', name: 'Zen Pond' },
                    { id: 'HIGH_ROLLER', name: 'Le Blanc' },
                    { id: 'GOLD_FLUX', name: 'Gold Flux' }
                  ].map((theme) => (
@@ -248,8 +248,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         small 
                         className={`!w-16 !h-24 transition-all ${currentCoverStyle === style ? 'ring-2 ring-yellow-500 shadow-[0_15px_30px_rgba(0,0,0,0.6)]' : 'shadow-lg border-white/5'}`} 
                      />
-                     {(style === 'GOLDEN_IMPERIAL' || style === 'VOID_ONYX' || style === 'ROYAL_JADE' || style === 'CRYSTAL_EMERALD' || style === 'DRAGON_SCALE' || style === 'NEON_CYBER' || style === 'AMETHYST_ROYAL' || style === 'CHERRY_BLOSSOM_NOIR') && (
-                       <span className="text-[7px] font-black text-yellow-500 uppercase tracking-tighter">Elite</span>
+                     {(style === 'GOLDEN_IMPERIAL' || style === 'VOID_ONYX' || style === 'ROYAL_JADE' || style === 'CRYSTAL_EMERALD' || style === 'DRAGON_SCALE' || style === 'NEON_CYBER' || style === 'AMETHYST_ROYAL' || style === 'CHERRY_BLOSSOM_NOIR' || style === 'AETHER_VOID') && (
+                       <span className="text-[7px] font-black text-yellow-500 uppercase tracking-tighter">{style === 'AETHER_VOID' ? 'Legendary' : 'Elite'}</span>
                      )}
                    </div>
                  ))}
