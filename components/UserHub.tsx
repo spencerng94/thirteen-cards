@@ -26,6 +26,7 @@ export interface ThemeConfig {
   obsidianMadness?: boolean;
   crystalTokyo?: boolean;
   lasVegas?: boolean;
+  shiba?: boolean;
   spotlight?: string;
   tier: 'BASIC' | 'PREMIUM';
   isCityLightsPixel?: boolean;
@@ -38,6 +39,7 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'CRIMSON_VOID', name: 'Baccarat Ruby', tier: 'BASIC', price: 1000, base: 'bg-[#7f1d1d]', colors: 'from-rose-400/40 via-rose-700/20 to-[#450a0a]', texture: true, spotlight: 'rgba(251, 113, 133, 0.25)' },
   { id: 'CYBERPUNK_NEON', name: 'Onyx Space', tier: 'PREMIUM', price: 2500, base: 'bg-[#010103]', colors: 'from-indigo-950/20 via-black to-black', technoGrid: false, cityLights: false, spotlight: 'rgba(255, 255, 255, 0.03)' },
   { id: 'OBSIDIAN_MADNESS', name: 'Obsidian Madness', tier: 'PREMIUM', price: 3500, base: 'bg-[#000000]', colors: 'from-red-950/40 via-black to-black', obsidianMadness: true, spotlight: 'rgba(220, 38, 38, 0.05)' },
+  { id: 'SHIBA', name: 'Shiba Sanctuary', tier: 'PREMIUM', price: 4000, base: 'bg-[#fff7ed]', colors: 'from-orange-200/50 via-white to-orange-100/30', shiba: true, spotlight: 'rgba(251, 191, 36, 0.2)' },
   { id: 'LAS_VEGAS', name: 'Las Vegas Strip', tier: 'PREMIUM', price: 5000, base: 'bg-[#050505]', colors: 'from-yellow-500/10 via-red-500/5 to-black', lasVegas: true, spotlight: 'rgba(251, 191, 36, 0.15)' },
   { id: 'LOTUS_FOREST', name: 'Lotus Deal', tier: 'PREMIUM', price: 4000, base: 'bg-[#011a0f]', colors: 'from-emerald-500/20 via-emerald-900/10 to-black', lotusForest: true, spotlight: 'rgba(182, 227, 143, 0.3)' },
   { id: 'CHRISTMAS_YULETIDE', name: 'Midnight Yuletide', tier: 'PREMIUM', price: 4500, base: 'bg-[#010b13]', colors: 'from-blue-900/30 via-[#010b13] to-black', yuletide: true, spotlight: 'rgba(191, 219, 254, 0.2)' },
@@ -47,7 +49,50 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'HIGH_ROLLER', name: 'Sanctum Oblivion', tier: 'PREMIUM', price: 15000, base: 'bg-[#ffffff]', colors: 'from-white via-slate-100 to-indigo-950/20', highRoller: true, spotlight: 'rgba(255, 255, 255, 0.4)' }
 ];
 
-import React, { useMemo } from 'react';
+const ShibaEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const elements = useMemo(() => Array.from({ length: isMini ? 6 : 15 }).map((_, i) => ({
+    id: `shiba-item-${i}`,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    delay: Math.random() * -20,
+    duration: 10 + Math.random() * 15,
+    type: i % 2 === 0 ? '🐾' : '🦴',
+    scale: 0.5 + Math.random() * 0.5,
+  })), [isMini]);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#fff7ed]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_rgba(251,191,36,0.05)_100%)]"></div>
+      
+      {elements.map(e => (
+        <div 
+          key={e.id}
+          className="absolute opacity-20 animate-[shiba-drift_linear_infinite]"
+          style={{ 
+            left: `${e.x}%`, 
+            top: `${e.y}%`, 
+            animationDuration: `${e.duration}s`, 
+            animationDelay: `${e.delay}s`,
+            fontSize: `${24 * e.scale}px`
+          }}
+        >
+          {e.type}
+        </div>
+      ))}
+
+      <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cream-pixels.png')]"></div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes shiba-drift {
+          0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+          20% { opacity: 0.3; }
+          80% { opacity: 0.3; }
+          100% { transform: translate(-50px, -150px) rotate(360deg); opacity: 0; }
+        }
+      `}} />
+    </div>
+  );
+};
 
 const LasVegasEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
   const dice = useMemo(() => Array.from({ length: isMini ? 4 : 8 }).map((_, i) => ({
@@ -55,42 +100,23 @@ const LasVegasEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
     x: Math.random() * 100,
     y: Math.random() * 100,
     delay: Math.random() * -20,
-    duration: 20 + Math.random() * 25,
-    scale: 0.3 + Math.random() * 0.3,
+    duration: 15 + Math.random() * 20,
+    scale: 0.4 + Math.random() * 0.4,
+    rotX: Math.random() * 360,
+    rotY: Math.random() * 360
   })), [isMini]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#020205] perspective-[1200px]">
-      
-      {/* 1. The MSG Sphere (Ambient Glow) */}
-      <div className="absolute -bottom-20 -right-20 w-[400px] h-[400px] rounded-full opacity-30 mix-blend-screen animate-pulse">
-        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-600 via-purple-600 to-cyan-400 blur-[80px]"></div>
-        <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,_transparent_20%,_rgba(0,0,0,0.8)_70%)] opacity-50"></div>
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#050505] perspective-[1000px]">
+      <div className="absolute inset-0 opacity-40">
+        <div className="absolute top-0 left-0 w-full h-[30%] bg-gradient-to-b from-yellow-500/10 to-transparent"></div>
+        <div className="absolute bottom-0 right-0 w-[40%] h-full bg-gradient-to-l from-red-600/5 to-transparent"></div>
       </div>
 
-      {/* 2. Iconic Vegas Sign Silhouette (Simplified Premium Style) */}
-      {!isMini && (
-        <div className="absolute top-10 left-10 opacity-60 scale-75 lg:scale-100">
-          <div className="relative w-32 h-20 border-2 border-white/80 rounded-[50%] flex items-center justify-center bg-black/40 backdrop-blur-sm shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-            <div className="text-center">
-              <p className="text-[6px] text-white uppercase tracking-tighter">Welcome to Fabulous</p>
-              <p className="text-[10px] font-black text-white uppercase leading-none">Las Vegas</p>
-              <p className="text-[5px] text-red-500 font-bold uppercase">Nevada</p>
-            </div>
-            {/* Sign "Stars" */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-6 h-6 bg-red-600 rotate-45 shadow-[0_0_10px_red]"></div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. Luxury Gold Backdrop Gradient */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(234,179,8,0.08)_0%,_transparent_50%)]"></div>
-
-      {/* 4. Floating Premium Gold Dice */}
       {dice.map(d => (
         <div 
           key={d.id}
-          className="absolute opacity-30 animate-[vegas-float_linear_infinite]"
+          className="absolute opacity-20 animate-[vegas-float_linear_infinite]"
           style={{ 
             left: `${d.x}%`, 
             top: `${d.y}%`, 
@@ -99,63 +125,54 @@ const LasVegasEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
             transform: `scale(${d.scale})`
           }}
         >
-          <div className="relative w-12 h-12 transform-style-3d animate-[vegas-spin_12s_linear_infinite]">
-            {/* Dice faces using Gold/Black High Roller Colors */}
-            {[
-              { transform: 'translateZ(24px)', content: '●' },
-              { transform: 'rotateY(180deg) translateZ(24px)', content: '● ●' },
-              { transform: 'rotateX(90deg) translateZ(24px)', content: '● ● ●' },
-              { transform: 'rotateX(-90deg) translateZ(24px)', content: '● ●\n● ●' },
-              { transform: 'rotateY(90deg) translateZ(24px)', content: '● ● ●\n● ● ●' },
-              { transform: 'rotateY(-90deg) translateZ(24px)', content: '● ● ●' },
-            ].map((face, i) => (
-              <div 
-                key={i}
-                className="absolute inset-0 bg-[#1a1a1a] border border-yellow-500/50 rounded-md flex items-center justify-center text-yellow-500 text-xs whitespace-pre shadow-[inset_0_0_10px_rgba(234,179,8,0.2)]"
-                style={{ transform: face.transform }}
-              >
-                {face.content}
-              </div>
-            ))}
+          <div className="relative w-12 h-12 transform-style-3d animate-[vegas-spin_10s_linear_infinite]">
+            <div className="absolute inset-0 bg-white border border-red-600 rounded-sm translate-z-[24px] flex items-center justify-center font-bold text-red-600">.</div>
+            <div className="absolute inset-0 bg-white border border-red-600 rounded-sm -translate-z-[24px] rotate-y-180 flex items-center justify-center font-bold text-red-600">::</div>
+            <div className="absolute inset-0 bg-white border border-red-600 rounded-sm rotate-x-90 translate-z-[24px] flex items-center justify-center font-bold text-red-600">:</div>
+            <div className="absolute inset-0 bg-white border border-red-600 rounded-sm -rotate-x-90 translate-z-[24px] flex items-center justify-center font-bold text-red-600">::</div>
+            <div className="absolute inset-0 bg-white border border-red-600 rounded-sm rotate-y-90 translate-z-[24px] flex items-center justify-center font-bold text-red-600">: :</div>
+            <div className="absolute inset-0 bg-white border border-red-600 rounded-sm -rotate-y-90 translate-z-[24px] flex items-center justify-center font-bold text-red-600">:::</div>
           </div>
         </div>
       ))}
 
-      {/* 5. Spotlight Rays (The Strip Beam) */}
       {!isMini && (
-        <div className="absolute inset-0">
-          <div className="absolute bottom-0 left-[20%] w-32 h-[150%] bg-blue-500/10 blur-[60px] -rotate-12 origin-bottom"></div>
-          <div className="absolute bottom-0 right-[15%] w-24 h-[120%] bg-purple-500/10 blur-[50px] rotate-12 origin-bottom"></div>
+        <div className="absolute inset-0 opacity-20 mix-blend-plus-lighter">
+          <div className="absolute top-0 left-1/4 w-1 h-full bg-yellow-400 blur-md animate-pulse"></div>
+          <div className="absolute top-0 right-1/3 w-0.5 h-full bg-red-500 blur-sm animate-pulse [animation-delay:1s]"></div>
         </div>
       )}
 
-      {/* 6. Gold Bordering */}
       {!isMini && (
-        <div className="absolute inset-6 border border-yellow-600/20 rounded-[2rem]">
-          <div className="absolute -top-px left-1/2 -translate-x-1/2 flex gap-1">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="w-1 h-1 bg-yellow-500/40 rounded-full shadow-[0_0_5px_rgba(234,179,8,0.8)]"></div>
-            ))}
+        <div className="absolute inset-4 border border-yellow-500/10 rounded-[3rem] pointer-events-none">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-yellow-500/10 px-6 py-1 rounded-b-xl border-x border-b border-yellow-500/20">
+            <span className="text-[8px] font-black text-yellow-500/40 uppercase tracking-[0.8em]">The Strip</span>
           </div>
         </div>
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .transform-style-3d { transform-style: preserve-3d; }
+        .translate-z-\\[24px\\] { transform: translateZ(24px); }
+        .-translate-z-\\[24px\\] { transform: translateZ(-24px); }
+        .rotate-y-180 { transform: rotateY(180deg); }
+        .rotate-x-90 { transform: rotateX(90deg); }
+        .-rotate-x-90 { transform: rotateX(-90deg); }
+        .rotate-y-90 { transform: rotateY(90deg); }
+        .-rotate-y-90 { transform: rotateY(-90deg); }
         @keyframes vegas-float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-20px, -40px) scale(1.1); }
+          0% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-30px) rotate(180deg); }
+          100% { transform: translateY(0) rotate(360deg); }
         }
         @keyframes vegas-spin {
-          from { transform: rotateX(0) rotateY(0) rotateZ(0); }
-          to { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); }
+          from { transform: rotateX(0) rotateY(0); }
+          to { transform: rotateX(360deg) rotateY(720deg); }
         }
       `}} />
     </div>
   );
 };
-
-export default LasVegasEngine;
 
 const CastleOblivionEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
   const shards = useMemo(() => Array.from({ length: isMini ? 12 : 35 }).map((_, i) => ({
@@ -379,10 +396,10 @@ const FeltTextureLayer: React.FC = () => (
     <svg width="100%" height="100%" className="absolute inset-0 opacity-[1] mix-blend-soft-light">
       <filter id="felt-specular-hd">
         <feTurbulence type="fractalNoise" baseFrequency="0.98" numOctaves="5" stitchTiles="stitch" result="fineNoise" />
-        <feSpecularLighting in="fineNoise" surfaceScale="2.5" specularConstant="1.4" specularExponent="45" lightingColor="#ffffff" result="fiberSpec">
+        <feSpecularLighting in="fineNoise" surfaceScale="2.5" specularConstant="1.4" specularExponent="45" lightingColor="#ffffff" result="fineSpec">
           <feDistantLight azimuth="45" elevation="65" />
         </feSpecularLighting>
-        <feComposite in="fiberSpec" in2="lowNoise" operator="arithmetic" k1="0.4" k2="0.6" k3="0" k4="0" />
+        <feComposite in="fineSpec" in2="fineNoise" operator="arithmetic" k1="0.4" k2="0.6" k3="0" k4="0" />
         <feColorMatrix type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.9 0" />
       </filter>
       <rect width="100%" height="100%" filter="url(#felt-specular-hd)" />
@@ -781,7 +798,7 @@ const ZenPondEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#000208]">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#081d2b_0%,_#000208_70%,_#000000_100%)]"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#081d2b_0%,_#000008_70%,_#000000_100%)]"></div>
       
       <div className="absolute inset-0 opacity-20 mix-blend-screen">
           <div className="absolute top-0 left-[-50%] w-[200%] h-full bg-[linear-gradient(90deg,transparent_0%,rgba(34,211,238,0.1)_50%,transparent_100%)] animate-[water-flow_12s_linear_infinite]"></div>
@@ -859,6 +876,7 @@ export const BoardSurface: React.FC<{ themeId: string; isMini?: boolean; classNa
       {theme.yuletide && <YuletideEngine isMini={isMini} />}
       {theme.obsidianMadness && <MadnessEngine isMini={isMini} />}
       {theme.lasVegas && <LasVegasEngine isMini={isMini} />}
+      {theme.shiba && <ShibaEngine isMini={isMini} />}
       {theme.id === 'HIGH_ROLLER' && <CastleOblivionEngine isMini={isMini} />}
       
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen transition-all duration-1000 z-1`}></div>
@@ -879,6 +897,9 @@ export const BoardPreview: React.FC<{ themeId: string; className?: string; activ
 export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, setPlayerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, remoteEmotes = [] }) => {
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'STATS'>('PROFILE');
   const [isCatalogExpanded, setIsCatalogExpanded] = useState(false);
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
+  const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'AVATAR' } | null>(null);
 
   if (!profile) return null;
 
@@ -890,15 +911,106 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
   const isAvatarUnlocked = (emoji: string) => profile?.unlocked_avatars?.includes(emoji) || DEFAULT_AVATARS.includes(emoji);
   const visibleAvatars = isCatalogExpanded ? [...DEFAULT_AVATARS, ...PREMIUM_AVATARS] : [...DEFAULT_AVATARS, ...PREMIUM_AVATARS].slice(0, 10);
 
-  // Stats Logic
   const gamesLost = profile.games_played - profile.wins;
   const avgCardsLeft = gamesLost > 0 ? (profile.total_cards_left_sum / gamesLost).toFixed(1) : '0.0';
   const finishDist = profile.finish_dist || [0, 0, 0, 0];
   const maxFinish = Math.max(...finishDist, 1);
 
+  const handlePurchaseAvatar = async (avatar: string) => {
+    if (!profile || buying) return;
+    const price = 250;
+    if (profile.coins < price) return;
+    setBuying(avatar);
+    try {
+      await buyItem(profile.id, price, avatar, 'AVATAR', !!isGuest);
+      audioService.playPurchase();
+      setAwardItem({
+        id: avatar,
+        name: getAvatarName(avatar, remoteEmotes),
+        type: 'AVATAR'
+      });
+      onRefreshProfile();
+      setPreviewAvatar(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBuying(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
       
+      {/* Avatar Preview Modal */}
+      {previewAvatar && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in zoom-in-95 duration-200" onClick={() => setPreviewAvatar(null)}>
+          <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-10 flex flex-col items-center text-center shadow-[0_0_150px_rgba(251,191,36,0.1)] relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setPreviewAvatar(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"><span className="text-xl font-black">✕</span></button>
+            <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-black/60 border border-yellow-500/20 flex items-center justify-center mb-8 overflow-hidden shadow-inner">
+               <VisualEmote trigger={previewAvatar} remoteEmotes={remoteEmotes} size="xl" />
+            </div>
+            <h3 className="text-white font-black uppercase tracking-widest text-lg mb-2">{getAvatarName(previewAvatar, remoteEmotes)}</h3>
+            <p className="text-gray-500 text-[10px] uppercase tracking-[0.4em] mb-10 italic">Elite Signature Series</p>
+            
+            <div className="w-full">
+              {isAvatarUnlocked(previewAvatar) ? (
+                <button 
+                  onClick={() => { setPlayerAvatar(previewAvatar); setPreviewAvatar(null); }}
+                  className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] transition-all shadow-xl ${playerAvatar === previewAvatar ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 cursor-default' : 'bg-emerald-600 text-white hover:scale-105 active:scale-95'}`}
+                  disabled={playerAvatar === previewAvatar}
+                >
+                  {playerAvatar === previewAvatar ? 'EQUIPPED' : 'EQUIP'}
+                </button>
+              ) : (
+                <button 
+                  onClick={() => handlePurchaseAvatar(previewAvatar)}
+                  disabled={profile.coins < 250 || !!buying}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black font-black uppercase tracking-[0.25em] text-[11px] shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+                >
+                  {buying === previewAvatar ? 'UNREELING...' : `UNLOCK | 💰 250`}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ASSET SECURED AWARD ANIMATION */}
+      {awardItem && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500 overflow-hidden" onClick={e => e.stopPropagation()}>
+              {Array.from({ length: 20 }).map((_, i) => (
+                  <div key={i} className="absolute w-2 h-2 rounded-sm bg-yellow-500/40 animate-award-particle" style={{
+                      left: '50%',
+                      top: '50%',
+                      '--tx': `${(Math.random() - 0.5) * 600}px`,
+                      '--ty': `${(Math.random() - 0.5) * 600}px`,
+                      '--rot': `${Math.random() * 360}deg`,
+                      animationDelay: `${Math.random() * 0.2}s`
+                  } as any}></div>
+              ))}
+              
+              <div className="relative flex flex-col items-center text-center max-sm:px-4">
+                  <div className="absolute inset-0 bg-yellow-500/10 blur-[120px] animate-pulse"></div>
+                  
+                  <div className="relative mb-10 animate-award-pop">
+                      <div className="w-40 h-40 flex items-center justify-center">
+                        <VisualEmote trigger={awardItem.id} remoteEmotes={remoteEmotes} size="xl" />
+                      </div>
+                  </div>
+
+                  <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-yellow-200 to-yellow-500 uppercase tracking-tighter italic animate-award-text">ASSET SECURED</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.6em] text-gray-500 mt-4 animate-award-text [animation-delay:0.2s]">{awardItem.name} • UNLOCKED</p>
+                  
+                  <button 
+                    onClick={() => setAwardItem(null)} 
+                    className="mt-12 px-12 py-4 rounded-full bg-white text-black font-black uppercase tracking-[0.3em] text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl animate-award-text [animation-delay:0.4s]"
+                  >
+                    DEPLOY ASSET
+                  </button>
+              </div>
+          </div>
+      )}
+
       <div className="relative bg-[#050505] border border-white/10 w-full max-w-2xl max-h-[90vh] rounded-[2.5rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex flex-col gap-4">
           <div className="flex justify-between items-center w-full">
@@ -928,9 +1040,8 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
                 <div className="flex flex-col sm:flex-row gap-8 items-center">
                     <div className="relative shrink-0">
                       <div className="absolute inset-[-15px] bg-yellow-500/10 blur-[40px] rounded-full"></div>
-                      <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center shadow-inner overflow-hidden">
-                        {/* Player Profile Large Avatar Slot uses VisualEmote significantly boosted in size */}
-                        <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" />
+                      <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center shadow-inner overflow-hidden cursor-pointer group" onClick={() => setPreviewAvatar(playerAvatar)}>
+                        <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" className="group-hover:scale-110 transition-transform duration-500" />
                       </div>
                     </div>
                     <div className="flex-1 w-full space-y-3 sm:space-y-4">
@@ -943,8 +1054,8 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
                     {visibleAvatars.map(a => (
                       <button 
                         key={a} 
-                        onClick={() => isAvatarUnlocked(a) ? setPlayerAvatar(a) : null} 
-                        className={`aspect-square rounded-xl flex items-center justify-center transition-all ${playerAvatar === a ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : isAvatarUnlocked(a) ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale'}`}
+                        onClick={() => setPreviewAvatar(a)} 
+                        className={`aspect-square rounded-xl flex items-center justify-center transition-all ${playerAvatar === a ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : isAvatarUnlocked(a) ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale hover:opacity-40'}`}
                       >
                         <VisualEmote trigger={a} remoteEmotes={remoteEmotes} size="md" />
                       </button>
@@ -1027,6 +1138,24 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
           </div>
         </div>
       </div>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes awardPop {
+            0% { transform: scale(0.5); opacity: 0; filter: blur(20px); }
+            60% { transform: scale(1.1); opacity: 1; filter: blur(0); }
+            100% { transform: scale(1); }
+        }
+        @keyframes awardText {
+            0% { transform: translateY(20px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes awardParticle {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0) rotate(var(--rot)); opacity: 0; }
+        }
+        .animate-award-pop { animation: awardPop 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
+        .animate-award-text { opacity: 0; animation: awardText 0.6s ease-out forwards; }
+        .animate-award-particle { animation: awardParticle 1.2s ease-out forwards; }
+      `}} />
     </div>
   );
 };

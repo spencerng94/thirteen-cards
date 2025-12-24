@@ -79,6 +79,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
       case 'OBSIDIAN_MADNESS':
         return "bg-black text-red-600 border-red-950 shadow-[0_0_20px_rgba(153,27,27,0.6)] font-black italic";
+      case 'SHIBA':
+        return "bg-orange-100 text-orange-600 border-orange-300 shadow-[0_0_20px_rgba(251,191,36,0.4)] font-black italic";
       case 'LAS_VEGAS':
         return "bg-black text-yellow-500 border-yellow-500 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic uppercase tracking-widest";
       case 'LOTUS_FOREST':
@@ -208,6 +210,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                    { id: 'CRIMSON_VOID', name: 'Baccarat Ruby' },
                    { id: 'CYBERPUNK_NEON', name: 'Onyx' },
                    { id: 'OBSIDIAN_MADNESS', name: 'Madness' },
+                   { id: 'SHIBA', name: 'Shiba' },
                    { id: 'LOTUS_FOREST', name: 'Lotus' },
                    { id: 'CHRISTMAS_YULETIDE', name: 'Yuletide' },
                    { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope' },

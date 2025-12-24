@@ -5,7 +5,7 @@ import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
 import { BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
-import { sortCards, validateMove, getComboType, findAllValidCombos } from '../utils/gameLogic';
+import { sortCards, validateMove, getComboType, findAllValidCombos, canPlayAnyMove } from '../utils/gameLogic';
 import { socket } from '../services/socket';
 import { DEFAULT_AVATARS, fetchEmotes } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
@@ -41,17 +41,57 @@ interface ActiveEmote {
 
 const EMOTE_COOLDOWN = 2000;
 
+// Icons for the Row Toggle
+const OneRowIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+    <rect x="5" y="4" width="14" height="16" rx="2" />
+  </svg>
+);
+
+const TwoRowIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+    <rect x="4" y="2" width="10" height="9" rx="1.5" />
+    <rect x="10" y="13" width="10" height="9" rx="1.5" />
+  </svg>
+);
+
 const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'bottom' | 'left' | 'top' | 'right' }> = ({ emote, remoteEmotes, position }) => {
-  const posClasses = {
-    bottom: "bottom-80 left-1/2 -translate-x-1/2",
-    left: "left-36 top-1/2 -translate-y-1/2",
-    top: "top-40 left-1/2 -translate-x-1/2",
-    right: "right-36 top-1/2 -translate-y-1/2"
+  // Define coordinate paths based on player position for a refined middle-ground feel
+  const paths: Record<string, { start: string; focus: string; end: string }> = {
+    bottom: {
+      start: "translate(0, 45vh) scale(0.2)",
+      focus: "translate(0, 15vh) scale(1.9)",
+      end: "translate(0, -15vh) scale(1.7)"
+    },
+    left: {
+      start: "translate(-45vw, 0) scale(0.2)",
+      focus: "translate(-25vw, -15vh) scale(1.9)", // Floats right and up from profile
+      end: "translate(-20vw, -45vh) scale(1.7)"
+    },
+    right: {
+      start: "translate(45vw, 0) scale(0.2)",
+      focus: "translate(25vw, -15vh) scale(1.9)", // Floats left and up from profile
+      end: "translate(20vw, -45vh) scale(1.7)"
+    },
+    top: {
+      start: "translate(0, -45vh) scale(0.2)",
+      focus: "translate(15vw, -35vh) scale(1.9)", // Floats to the right of top profile
+      end: "translate(18vw, -65vh) scale(1.7)" // Floats up
+    }
   };
 
+  const path = paths[position];
+
   return (
-    <div className={`fixed z-[400] pointer-events-none transition-all duration-500 ${posClasses[position]}`}>
-      <div className="animate-emote-pop bg-black/90 border-2 border-yellow-500/40 p-3 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,1)] backdrop-blur-2xl ring-4 ring-yellow-500/10 w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center overflow-hidden">
+    <div className="fixed inset-0 z-[400] pointer-events-none flex items-center justify-center">
+      <div 
+        className="animate-emote-fly bg-black/95 border-2 border-yellow-500/40 p-2.5 rounded-[2.5rem] shadow-[0_20px_80px_rgba(0,0,0,1)] backdrop-blur-3xl ring-4 ring-yellow-500/10 w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center overflow-hidden"
+        style={{ 
+          '--start-pos': path.start,
+          '--focus-pos': path.focus,
+          '--end-pos': path.end
+        } as any}
+      >
         <VisualEmote trigger={emote} remoteEmotes={remoteEmotes} size="xl" />
       </div>
     </div>
@@ -67,18 +107,16 @@ const PlayerSlot: React.FC<{ player: Player; position: 'top' | 'left' | 'right';
         ? 'flex-row items-center gap-3 sm:gap-8' 
         : 'flex-col items-center gap-2 sm:gap-4'}`}>
         
-        {/* PLAYER IDENTITY NODE */}
         <div className="relative flex flex-col items-center shrink-0">
             <div className="relative">
                 {isTurn && !isFinished && (
                     <div className="absolute inset-[-12px] rounded-full border-2 border-emerald-500/50 animate-ping"></div>
                 )}
-                {/* Unified size for all opponents: w-20 on mobile, w-24 on desktop */}
                 <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full border-2 transition-all duration-500 overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? 'border-emerald-400 scale-110 shadow-emerald-500/40' : 'border-white/10'}`}>
                     <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="lg" />
                 </div>
                 {isFinished && (
-                    <div className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border border-black shadow-lg z-20">
+                    <div className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border border-black shadow-lg z-20">
                         #{player.finishedRank}
                     </div>
                 )}
@@ -90,13 +128,12 @@ const PlayerSlot: React.FC<{ player: Player; position: 'top' | 'left' | 'right';
             </div>
 
             <div className="bg-black/60 backdrop-blur-md px-3 py-1 sm:px-4 sm:py-1.5 rounded-full border border-white/5 min-w-[75px] sm:min-w-[95px] text-center shadow-lg mt-2.5">
-                <span className="text-[9px] sm:text-[10px] font-black text-white/90 uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] inline-block">{player.name}</span>
+                <span className="text-[8px] sm:text-[10px] font-black text-white/90 uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] inline-block">{player.name}</span>
             </div>
         </div>
 
-        {/* CARD STACK NODE - Scaled to match the profile increase */}
         {!isFinished && (
-            <div className={`relative animate-in slide-in-from-bottom-2 duration-700 shrink-0`}>
+            <div className={`relative animate-in slide-in-from-bottom-2 duration-700 shrink-0 landscape:scale-90 transition-transform`}>
                 <Card faceDown coverStyle={coverStyle} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" />
                 <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ring-1 ring-yellow-400/50">
                     {player.cardCount}
@@ -115,6 +152,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [activeEmotes, setActiveEmotes] = useState<ActiveEmote[]>([]);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [handRows, setHandRows] = useState<1 | 2>(1);
   const lastEmoteSentAt = useRef<number>(0);
 
   const availableEmotes = useMemo(() => profile?.unlocked_avatars || DEFAULT_AVATARS, [profile]);
@@ -132,9 +170,22 @@ export const GameTable: React.FC<GameTableProps> = ({
     return () => { socket.off(SocketEvents.RECEIVE_EMOTE, handleReceiveEmote); };
   }, []);
 
+  // Revert rows to 1 if selection is empty or hand size falls below requirement
+  useEffect(() => {
+    if (handRows === 2 && (selectedCardIds.size === 0 || myHand.length < 9)) {
+      setHandRows(1);
+    }
+  }, [selectedCardIds.size, myHand.length, handRows]);
+
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
   const myIndex = gameState.players.findIndex(p => p.id === myId);
   const isMyTurn = gameState.currentPlayerId === myId;
+
+  // New logic for checking if any moves are possible
+  const noMovesPossible = useMemo(() => {
+    if (!isMyTurn) return false;
+    return !canPlayAnyMove(myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame);
+  }, [isMyTurn, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
   const combosByGroup = useMemo(() => {
     if (!isMyTurn || selectedCardIds.size === 0) return {};
@@ -184,10 +235,14 @@ export const GameTable: React.FC<GameTableProps> = ({
     if (validateMove(cards, gameState.currentPlayPile, gameState.isFirstTurnOfGame).isValid) {
       onPlayCards(cards);
       setSelectedCardIds(new Set());
+      setHandRows(1); // Explicitly reset to 1 row after playing
     }
   };
 
-  const handleClear = () => setSelectedCardIds(new Set());
+  const handleClear = () => {
+    setSelectedCardIds(new Set());
+    setHandRows(1); // Explicitly reset when clearing
+  };
 
   const currentSelectionIsValid = useMemo(() => {
     if (selectedCardIds.size === 0) return false;
@@ -204,6 +259,15 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
 
+      {/* RENDER EMOTES */}
+      {activeEmotes.map(ae => {
+        const playerIdx = gameState.players.findIndex(p => p.id === ae.playerId);
+        if (playerIdx === -1) return null;
+        const pos = getPlayerPosition(playerIdx);
+        return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={pos as any} />;
+      })}
+
+      {/* Top Action Bar */}
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
         <button onClick={onOpenSettings} className="w-10 h-10 sm:w-11 sm:h-11 landscape:w-9 landscape:h-9 rounded-2xl landscape:rounded-xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 landscape:h-4 landscape:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -214,7 +278,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             onClick={() => setShowEmotePicker(!showEmotePicker)}
             className={`w-10 h-10 sm:w-11 sm:h-11 landscape:w-9 landscape:h-9 rounded-2xl landscape:rounded-xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-xl sm:text-2xl landscape:text-lg transition-all shadow-xl hover:scale-110 active:scale-95 group ${showEmotePicker ? 'ring-2 ring-yellow-500 bg-black/80' : ''}`}
           >
-            <span className="group-hover:rotate-12 transition-transform">🎭</span>
+            <span className="group-hover:rotate-12 transition-transform">😊</span>
           </button>
           {showEmotePicker && (
             <div className="absolute top-12 sm:top-14 landscape:top-10 right-0 bg-black/95 backdrop-blur-3xl border border-white/10 p-5 rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-200 w-[240px] sm:w-[280px] grid grid-cols-4 gap-3 sm:gap-4 z-[200]">
@@ -234,10 +298,15 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       <div className={`fixed z-[150] transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} 
         landscape:top-12 landscape:right-4 landscape:left-auto landscape:bottom-auto
-        portrait:hidden`}>
+        portrait:hidden flex flex-col items-center gap-2`}>
         <div className="bg-emerald-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(16,185,129,0.3)] animate-pulse border border-emerald-400/20 backdrop-blur-md">
           Your Turn
         </div>
+        {noMovesPossible && (
+          <div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">
+            No Moves Possible
+          </div>
+        )}
       </div>
 
       <div className="fixed top-4 left-4 z-[150] flex flex-col items-start gap-4 transition-all duration-500">
@@ -282,6 +351,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           )}
       </div>
 
+      {/* Opponent Slots */}
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
         <div className="col-start-2 row-start-1 flex justify-center items-start pt-2">
           {opponents.find(o => o.position === 'top') && (
@@ -300,7 +370,8 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500 ${isMyTurn ? 'landscape:translate-y-0 portrait:-translate-y-20' : 'landscape:translate-y-0 portrait:-translate-y-12'}`}>
+      {/* Play Area */}
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500 ${isMyTurn ? (handRows === 2 ? 'portrait:-translate-y-28' : 'portrait:-translate-y-20') : 'landscape:translate-y-0 portrait:-translate-y-12'}`}>
         <div className="relative flex flex-col items-center">
           {gameState.currentPlayPile.length > 0 ? (
             <div className="flex flex-col items-center gap-4 sm:gap-6 animate-in zoom-in duration-300 scale-90 sm:scale-125 landscape:scale-75">
@@ -325,6 +396,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
+      {/* Landscape Controls */}
       <div className={`fixed inset-0 pointer-events-none z-[200] transition-all duration-500 ${isMyTurn ? 'opacity-100' : 'opacity-0'}`}>
           <div className="absolute bottom-6 left-6 landscape:flex hidden pointer-events-auto">
               <button 
@@ -352,12 +424,18 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
       </div>
 
+      {/* Hand & Mobile Controls */}
       <div className="absolute bottom-0 left-0 w-full p-2 sm:p-6 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
         <div className="relative z-[100] flex flex-col items-center gap-3 mb-2 sm:mb-4 w-full landscape:hidden">
-          <div className={`portrait:flex hidden transition-all duration-700 pointer-events-none mb-1 ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <div className={`portrait:flex hidden transition-all duration-700 pointer-events-none mb-1 ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} flex-col items-center gap-2`}>
             <div className="bg-emerald-600/90 text-white px-7 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(16,185,129,0.5)] animate-pulse border border-emerald-400/30 backdrop-blur-md">
               Your Turn
             </div>
+            {noMovesPossible && (
+              <div className="bg-rose-600/90 text-white px-7 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(225,29,72,0.5)] animate-bounce border border-rose-400/30 backdrop-blur-md">
+                No Moves Possible
+              </div>
+            )}
           </div>
           <div className={`flex flex-row items-center justify-center gap-3 w-full max-w-sm sm:max-w-none transition-all duration-500 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
             <button 
@@ -382,10 +460,12 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
         </div>
         <div className="relative group/hand flex items-center justify-center w-full max-w-[96vw] overflow-visible px-2 sm:px-4">
+           {/* Smooth Hand Container with stable padding/gap transitions */}
            <div className={`
-             flex transition-all duration-500 origin-bottom
+             flex transition-all duration-500 ease-in-out origin-bottom will-change-[max-width,gap,transform]
              landscape:py-2 landscape:scale-[0.6] landscape:sm:scale-[0.8] landscape:-space-x-14 landscape:sm:-space-x-16
-             portrait:pt-4 portrait:pb-16 portrait:scale-[0.95] portrait:sm:scale-[1.2] portrait:-space-x-[12vw] portrait:sm:-space-x-14
+             portrait:pt-4 portrait:pb-16 portrait:scale-[0.95] portrait:sm:scale-[1.2]
+             ${handRows === 2 ? 'portrait:flex-wrap portrait:justify-center portrait:-space-x-10 portrait:max-w-[360px]' : 'portrait:flex-nowrap portrait:-space-x-[12vw] portrait:sm:-space-x-14 portrait:max-w-full'}
            `}>
             {sortedHand.map((c) => (
               <Card 
@@ -393,30 +473,59 @@ export const GameTable: React.FC<GameTableProps> = ({
                 card={c} 
                 selected={selectedCardIds.has(c.id)}
                 onClick={() => toggleCard(c.id)}
-                className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:z-50 sm:hover:-translate-y-12' : 'cursor-default grayscale-[0.5] scale-95 opacity-80'}`}
+                className={`transform transition-all duration-500 ease-in-out ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:z-50 sm:hover:-translate-y-12' : 'cursor-default grayscale-[0.5] scale-95 opacity-80'} ${handRows === 2 ? 'portrait:m-0.5' : ''}`}
               />
             ))}
            </div>
         </div>
       </div>
 
-      {activeEmotes.map(e => {
-         const pIdx = gameState.players.findIndex(p => p.id === e.playerId);
-         const pos = getPlayerPosition(pIdx);
-         return <EmoteBubble key={e.id} emote={e.emote} remoteEmotes={remoteEmotes} position={pos as any} />;
-      })}
+      {/* Action Stack: Row Toggle ONLY (Bottom Right) */}
+      <div className="absolute bottom-8 right-8 flex flex-col items-end gap-4 z-[200]">
+        {/* Row Toggle Button - Conditionally rendered based on selection and hand size */}
+        {selectedCardIds.size >= 1 && myHand.length >= 9 && (
+          <button
+            onClick={() => setHandRows(handRows === 1 ? 2 : 1)}
+            className="portrait:flex landscape:hidden w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-black/40 backdrop-blur-md border border-white/10 items-center justify-center text-white/60 hover:text-white hover:bg-black/60 hover:scale-110 active:scale-95 shadow-xl transition-all animate-in zoom-in duration-300"
+            title={handRows === 1 ? "Switch to 2 rows" : "Switch to 1 row"}
+          >
+            {handRows === 1 ? <TwoRowIcon /> : <OneRowIcon />}
+          </button>
+        )}
+      </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes emotePop {
-          0% { transform: scale(0.4) translateY(40px); opacity: 0; }
-          15% { transform: scale(1.3) translateY(0); opacity: 1; }
-          25% { transform: scale(1) translateY(0); opacity: 1; }
-          85% { transform: scale(1) translateY(0); opacity: 1; }
-          100% { transform: scale(0.8) translateY(-100px); opacity: 0; }
+        @keyframes emoteFly {
+          0% { 
+            transform: var(--start-pos); 
+            opacity: 0; 
+            filter: blur(15px);
+          }
+          10% {
+            opacity: 1;
+            filter: blur(0px);
+          }
+          /* Focus phase with refined middle-ground scale */
+          15% { 
+            transform: var(--focus-pos); 
+            opacity: 1; 
+            filter: blur(0px);
+          }
+          80% { 
+            transform: var(--focus-pos); 
+            opacity: 1;
+            filter: blur(0px);
+          }
+          /* Final drift exit */
+          100% { 
+            transform: var(--end-pos); 
+            opacity: 0; 
+            filter: blur(10px);
+          }
         }
-        .animate-emote-pop { animation: emotePop 3s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .animate-emote-fly {
+          animation: emoteFly 3.2s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+        }
       `}} />
     </div>
   );
