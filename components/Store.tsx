@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardCoverStyle } from './Card';
-import { UserProfile, BackgroundTheme } from '../types';
-import { buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName } from '../services/supabase';
+import { UserProfile, BackgroundTheme, Emote } from '../types';
+import { buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
+import { VisualEmote } from './VisualEmote';
 
 interface StoreProps {
   onClose: () => void;
@@ -109,12 +110,16 @@ export const Store: React.FC<StoreProps> = ({
   const [previewThemeId, setPreviewThemeId] = useState<BackgroundTheme | null>(null);
   const [density, setDensity] = useState<1 | 2 | 4>(2);
   const [hideOwned, setHideOwned] = useState(false);
+  const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   
   // Purchase states
   const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
 
-  useEffect(() => { setActiveTab(initialTab as any); }, [initialTab]);
+  useEffect(() => { 
+    setActiveTab(initialTab as any);
+    fetchEmotes().then(setRemoteEmotes);
+  }, [initialTab]);
 
   const isUnlockedSleeve = (itemId: string) => profile?.unlocked_sleeves.includes(itemId) || SLEEVES.find(s => s.id === itemId)?.price === 0;
   const isUnlockedAvatar = (avatar: string) => profile?.unlocked_avatars?.includes(avatar) || DEFAULT_AVATARS.includes(avatar);
@@ -130,7 +135,7 @@ export const Store: React.FC<StoreProps> = ({
 
     setPendingPurchase({
       id,
-      name: isAvatar ? getAvatarName(id) : item.name,
+      name: isAvatar ? getAvatarName(id, remoteEmotes) : item.name,
       price,
       type,
       style: isAvatar ? undefined : item.style
@@ -165,7 +170,7 @@ export const Store: React.FC<StoreProps> = ({
     const id = isAvatar ? item : item.id;
     const price = isAvatar ? 250 : item.price;
     const canAfford = (profile?.coins || 0) >= price;
-    const itemName = isAvatar ? getAvatarName(item) : item.name;
+    const itemName = isAvatar ? getAvatarName(item, remoteEmotes) : item.name;
     
     let isEquipped = false;
     if (isAvatar) isEquipped = playerAvatar === item;
@@ -188,11 +193,17 @@ export const Store: React.FC<StoreProps> = ({
         </div>
 
         <div className={`py-1 sm:py-3 flex-1 flex flex-col items-center justify-center w-full transition-transform duration-300 ${visualSize}`}>
-          {isAvatar ? <div className="text-4xl sm:text-6xl group-hover:scale-125 transition-transform duration-500">{item}</div> : 
-           isBoard ? <div className="w-full cursor-pointer" onClick={() => setPreviewThemeId(item.id)}>
-             <BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker={true} />
-           </div> :
-           <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-12 !h-18 sm:!w-14 sm:!h-20' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />}
+          {isAvatar ? (
+            <div className="w-20 h-20 sm:w-28 sm:h-28 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+               <VisualEmote trigger={item} remoteEmotes={remoteEmotes} size="lg" />
+            </div>
+          ) : isBoard ? (
+            <div className="w-full cursor-pointer" onClick={() => setPreviewThemeId(item.id)}>
+              <BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker={true} />
+            </div>
+          ) : (
+           <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-12 !h-18 sm:!w-14 sm:!h-20' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />
+          )}
         </div>
 
         <span className={`${nameSize} font-black uppercase text-center tracking-widest text-white/50 truncate w-full px-1 mb-1 group-hover:text-yellow-500/80 transition-colors`}>
@@ -269,7 +280,9 @@ export const Store: React.FC<StoreProps> = ({
                   
                   <div className="relative mb-10 animate-award-pop">
                       {awardItem.type === 'AVATAR' ? (
-                          <div className="text-9xl drop-shadow-[0_0_40px_rgba(234,179,8,0.5)]">{awardItem.id}</div>
+                          <div className="w-40 h-40 flex items-center justify-center">
+                            <VisualEmote trigger={awardItem.id} remoteEmotes={remoteEmotes} size="xl" />
+                          </div>
                       ) : awardItem.type === 'SLEEVE' ? (
                           <div className="relative">
                             <div className="absolute inset-0 bg-white/10 blur-3xl rounded-full scale-150"></div>
