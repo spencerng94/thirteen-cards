@@ -268,6 +268,37 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   };
 
+  const selectCombo = (cards: CardType[]) => {
+    setSelectedCardIds(new Set(cards.map(c => c.id)));
+  };
+
+  // Function to cycle through combos of a specific type
+  const cycleComboType = (type: string) => {
+    const list = combosByGroup[type];
+    if (!list || list.length === 0) return;
+    
+    // Find if current selection is in this list
+    const currentIndex = list.findIndex(combo => 
+      combo.length === selectedCardIds.size && 
+      combo.every(c => selectedCardIds.has(c.id))
+    );
+    
+    const nextIndex = (currentIndex + 1) % list.length;
+    selectCombo(list[nextIndex]);
+    audioService.playExpandHand(); // Use a subtle feedback sound
+  };
+
+  // Determine spacing classes based on selection status to "fan out" the hand
+  const getHandSpacing = () => {
+    const isSelected = selectedCardIds.size > 0;
+    return {
+      landscape: isSelected ? 'landscape:-space-x-12 sm:landscape:-space-x-14' : 'landscape:-space-x-14 sm:landscape:-space-x-16',
+      portrait: isSelected ? 'portrait:-space-x-[8vw] sm:portrait:-space-x-10' : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14'
+    };
+  };
+
+  const spacing = getHandSpacing();
+
   return (
     <div className="fixed inset-0 w-full h-full bg-[#030303] overflow-hidden select-none">
       <BoardSurface themeId={backgroundTheme} />
@@ -282,10 +313,66 @@ export const GameTable: React.FC<GameTableProps> = ({
         return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={pos as any} />;
       })}
 
+      {/* Top Left: Combination Selector HUD (Cycle Buttons) */}
+      {isMyTurn && hasSelection && (
+          <div className="fixed top-4 left-4 z-[200] flex flex-col gap-2 animate-in slide-in-from-left-4 duration-500 max-w-[160px]">
+              <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-[1.5rem] shadow-2xl">
+                  <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5">
+                      <span className="w-1 h-1 rounded-full bg-yellow-500 animate-pulse"></span>
+                      <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2">
+                      {Object.entries(combosByGroup).map(([type, lists]) => {
+                          if (lists.length === 0) return null;
+                          
+                          // Determine if the current selection matches an item in this specific list
+                          const currentIndex = lists.findIndex(combo => 
+                            combo.length === selectedCardIds.size && 
+                            combo.every(c => selectedCardIds.has(c.id))
+                          );
+                          const isTypeSelected = currentIndex !== -1;
+                          
+                          return (
+                              <button
+                                  key={type}
+                                  onClick={() => cycleComboType(type)}
+                                  className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all text-left flex flex-col group/btn relative overflow-hidden
+                                    ${isTypeSelected 
+                                      ? 'bg-yellow-500 text-black border-yellow-400' 
+                                      : 'bg-white/[0.04] text-white/60 border-white/5 hover:bg-white/10 hover:text-white'}`}
+                              >
+                                  <div className="flex justify-between items-center w-full z-10 gap-3">
+                                      <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span>
+                                      <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}>
+                                        {isTypeSelected ? `${currentIndex + 1} of ${lists.length}` : `${lists.length} avail.`}
+                                      </span>
+                                  </div>
+                                  
+                                  {/* Progress mini-dots if multiple exist and selected */}
+                                  {isTypeSelected && lists.length > 1 && (
+                                    <div className="flex gap-0.5 mt-1.5 z-10 w-full">
+                                      {lists.map((_, dotIdx) => (
+                                        <div key={dotIdx} className={`h-0.5 flex-1 rounded-full ${dotIdx === currentIndex ? 'bg-black' : 'bg-black/20'}`}></div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {!isTypeSelected && (
+                                    <span className="absolute right-1 bottom-1 opacity-0 group-hover/btn:opacity-100 transition-opacity text-[7px] text-yellow-500 font-black">NEXT »</span>
+                                  )}
+                              </button>
+                          );
+                      })}
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Top Action Bar */}
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
         <button onClick={onOpenSettings} className="w-10 h-10 sm:w-11 sm:h-11 landscape:w-9 landscape:h-9 rounded-2xl landscape:rounded-xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 landscape:h-4 landscape:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 landscape:h-4 landscape:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
         </button>
 
         <div className="relative">
@@ -454,9 +541,9 @@ export const GameTable: React.FC<GameTableProps> = ({
            <div 
              className={`
                flex transition-all duration-800 cubic-bezier(0.19, 1, 0.22, 1) origin-bottom will-change-[max-width,gap,transform]
-               landscape:py-2 landscape:scale-[0.55] landscape:sm:scale-[0.75] landscape:-space-x-14 landscape:sm:-space-x-16
+               landscape:py-2 landscape:scale-[0.55] landscape:sm:scale-[0.75] ${spacing.landscape}
                portrait:pt-4 portrait:pb-16 portrait:scale-[0.9] portrait:sm:scale-[1.1]
-               ${handRows === 2 ? 'portrait:flex-wrap portrait:justify-center portrait:-space-x-10 portrait:max-w-[340px]' : 'portrait:flex-nowrap portrait:-space-x-[12vw] portrait:sm:-space-x-14 portrait:max-w-full'}
+               ${handRows === 2 ? 'portrait:flex-wrap portrait:justify-center portrait:-space-x-10 portrait:max-w-[340px]' : `portrait:flex-nowrap ${spacing.portrait} portrait:max-w-full`}
              `}
              style={{ perspective: '1200px' }}
            >
@@ -482,6 +569,8 @@ export const GameTable: React.FC<GameTableProps> = ({
           100% { transform: var(--end-pos); opacity: 0; filter: blur(10px); }
         }
         .animate-emote-fly { animation: emoteFly 3.2s cubic-bezier(0.19, 1, 0.22, 1) forwards; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
     </div>
   );
