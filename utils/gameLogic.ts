@@ -1,3 +1,4 @@
+
 import { Card, Rank, Suit, PlayTurn, AiDifficulty } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -99,7 +100,7 @@ export const validateMove = (
   if (isFirstTurnOfGame && playPile.length === 0) {
     const has3Spades = playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
     if (!has3Spades) {
-      return { isValid: false, reason: 'First move of the game must include the 3 of Spades (3♠).' };
+      return { isValid: false, reason: 'First move of the game must include the 3♠.' };
     }
   }
 
@@ -159,9 +160,9 @@ export const validateMove = (
   // Only valid if same type and same count (unless it was a bomb check above)
   if (pType === lType && playedCards.length === lastPlayedCards.length) {
     if (getCardScore(pHigh) > getCardScore(lHigh)) {
-      return { isValid: true, reason: 'Beat.' };
+      return { isValid: true, reason: 'Valid Move.' };
     } else {
-      return { isValid: false, reason: 'Must play a higher value card/combo.' };
+      return { isValid: false, reason: 'Cards must be higher value.' };
     }
   }
 
@@ -204,12 +205,10 @@ export const dealCards = (): Card[][] => {
 const getAllPairs = (hand: Card[]) => {
   const pairs: Card[][] = [];
   const sorted = sortCards(hand);
-  const seenRanks = new Set<number>();
   for (let i = 0; i < sorted.length - 1; i++) {
     if (sorted[i].rank === sorted[i+1].rank) {
       pairs.push([sorted[i], sorted[i+1]]);
-      seenRanks.add(sorted[i].rank);
-      i++; // Skip to next rank check
+      i++; 
     }
   }
   return pairs;
@@ -268,13 +267,11 @@ export const canPlayAnyMove = (
 ): boolean => {
   if (playPile.length === 0) return hand.length > 0;
 
-  // Single check
   const lastTurn = playPile[playPile.length - 1];
   const lType = getComboType(lastTurn.cards);
   const lHigh = getHighestCard(lastTurn.cards);
   const lLen = lastTurn.cards.length;
 
-  // Optimized legal check: try to find at least ONE valid move
   const sorted = sortCards(hand);
   
   // 1. Try Singles
@@ -444,9 +441,7 @@ export const findBestMove = (
         return [threeSpades];
     }
 
-    // Strategic lead: Prefer long runs or triples to shorten hand
     if (isHard || (difficulty === 'MEDIUM' && Math.random() > 0.5)) {
-      // Find longest run
       const uniqueRanks = Array.from(new Set(sortedHand.filter(c => c.rank !== Rank.Two).map(c => c.rank))).sort((a,b) => a-b);
       for (let len = 13; len >= 3; len--) {
         for (let i = 0; i <= uniqueRanks.length - len; i++) {
@@ -458,16 +453,13 @@ export const findBestMove = (
           }
         }
       }
-      // If no runs, try triples then pairs
       const triples = getAllTriples(sortedHand);
       if (triples.length > 0) return triples[0];
       const pairs = getAllPairs(sortedHand);
       if (pairs.length > 0) return pairs[0];
     }
 
-    // Default lead: Lowest card
     if (isHard && sortedHand.length > 5) {
-       // Find a low card that isn't part of a pair
        const single = sortedHand.find(c => !sortedHand.some(other => other.id !== c.id && other.rank === c.rank));
        if (single) return [single];
     }
@@ -480,7 +472,6 @@ export const findBestMove = (
   const lType = getComboType(lastPlayedCards) as ComboType;
   const lHigh = getHighestCard(lastPlayedCards);
   
-  // 1. Check for standard beat (same type)
   let standardMove: Card[] | null = null;
   if (lType === 'SINGLE') {
       const match = sortedHand.find(c => getCardScore(c) > getCardScore(lHigh));
@@ -523,7 +514,6 @@ export const findBestMove = (
       if (match) standardMove = match;
   }
 
-  // 2. Check for Bombs (if responding to 2s or other bombs)
   let bombMove: Card[] | null = null;
   const targetIsTwo = lHigh.rank === Rank.Two;
   const targetIsBomb = ['QUAD', '3_PAIRS', '4_PAIRS'].includes(lType);

@@ -64,7 +64,6 @@ const io = new Server(httpServer, {
 });
 
 const rooms: Record<string, GameRoom> = {};
-// Map socketId to RoomId for cleanup
 const socketToRoom: Record<string, string> = {};
 
 // --- Logic Helpers ---
@@ -107,28 +106,33 @@ const getComboType = (cards: Card[]): string => {
   return 'INVALID';
 };
 
-const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: boolean): boolean => {
+const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: boolean): { isValid: boolean; reason: string } => {
   const pType = getComboType(playedCards);
-  if (pType === 'INVALID') return false;
+  if (pType === 'INVALID') return { isValid: false, reason: 'Invalid combo.' };
+  
   if (isFirstTurn && playPile.length === 0) {
-    if (!playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) return false;
+    if (!playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) {
+      return { isValid: false, reason: 'First play must have 3♠.' };
+    }
   }
-  if (playPile.length === 0) return true;
+  
+  if (playPile.length === 0) return { isValid: true, reason: 'Lead' };
+  
   const lastTurn = playPile[playPile.length - 1];
   const lastCards = lastTurn.cards;
   const lType = getComboType(lastCards);
   const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastCards);
 
-  if (lType === 'SINGLE' && lHigh.rank === Rank.Two && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(pType)) return true;
-  if (lType === 'PAIR' && lHigh.rank === Rank.Two && ['QUAD', '4_PAIRS'].includes(pType)) return true;
-  if (lType === 'QUAD' && pType === 'QUAD' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
-  if (lType === '3_PAIRS' && pType === '3_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
-  if (lType === '4_PAIRS' && pType === '4_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
-  if (pType === '4_PAIRS' && (lType === '3_PAIRS' || lType === 'QUAD')) return true;
+  if (lType === 'SINGLE' && lHigh.rank === Rank.Two && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(pType)) return { isValid: true, reason: 'Chop!' };
+  if (lType === 'PAIR' && lHigh.rank === Rank.Two && ['QUAD', '4_PAIRS'].includes(pType)) return { isValid: true, reason: 'Chop!' };
+  if (lType === 'QUAD' && pType === 'QUAD' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
+  if (lType === '3_PAIRS' && pType === '3_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
+  if (lType === '4_PAIRS' && pType === '4_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
+  if (pType === '4_PAIRS' && (lType === '3_PAIRS' || lType === 'QUAD')) return { isValid: true, reason: 'Chop!' };
 
-  if (pType !== lType || playedCards.length !== lastCards.length) return false;
-  return getCardScore(pHigh) > getCardScore(lHigh);
+  if (pType !== lType || playedCards.length !== lastCards.length) return { isValid: false, reason: 'Must match combo type.' };
+  return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Beat.' } : { isValid: false, reason: 'Cards too low.' };
 };
 
 const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass: boolean = false): number => {
@@ -262,7 +266,12 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   if (!room) return;
   const player = room.players.find(p => p.id === playerId);
   if (!player || room.players[room.currentPlayerIndex].id !== playerId) return;
-  if (!validateMove(cards, room.currentPlayPile, room.isFirstTurnOfGame)) return;
+  
+  const validation = validateMove(cards, room.currentPlayPile, room.isFirstTurnOfGame);
+  if (!validation.isValid) {
+    io.to(player.socketId).emit('error', validation.reason);
+    return;
+  }
 
   player.hand = player.hand.filter(c => !cards.some(pc => pc.id === c.id));
   room.currentPlayPile.push({ playerId, cards, comboType: getComboType(cards) });
@@ -302,6 +311,13 @@ const handlePass = (roomId: string, playerId: string) => {
   const room = rooms[roomId];
   if (!room) return;
   if (room.players[room.currentPlayerIndex].id !== playerId) return;
+  
+  if (room.isFirstTurnOfGame) {
+    const player = room.players.find(p => p.id === playerId);
+    if (player) io.to(player.socketId).emit('error', 'Must play 3♠ on first turn.');
+    return;
+  }
+
   const player = room.players.find(p => p.id === playerId);
   if (player) player.hasPassed = true;
 
@@ -348,28 +364,23 @@ io.on('connection', (socket: Socket) => {
     }
     const player = room.players.find(p => p.id === playerId);
     if (!player) {
-        socket.emit('error', 'Player not found in session');
+        socket.emit('error', 'Player not found');
         return;
     }
 
-    // Restore seat
     if (player.reconnectionTimeout) {
         clearTimeout(player.reconnectionTimeout);
         player.reconnectionTimeout = undefined;
     }
     
-    // Update socket mapping
     delete socketToRoom[player.socketId];
     player.socketId = socket.id;
     player.isOffline = false;
     socketToRoom[socket.id] = roomId;
     
     socket.join(roomId);
-    
-    // Send full state to reconnected client
     socket.emit('game_state', getGameStateData(room));
     socket.emit('player_hand', player.hand);
-    
     broadcastState(roomId);
   });
 
@@ -417,7 +428,6 @@ io.on('connection', (socket: Socket) => {
   socket.on('disconnect', () => {
     const roomId = socketToRoom[socket.id];
     if (!roomId) return;
-    
     const room = rooms[roomId];
     if (!room) return;
 
@@ -425,23 +435,16 @@ io.on('connection', (socket: Socket) => {
     if (!player) return;
 
     if (room.status === 'PLAYING') {
-        // Flag for reconnection
         player.isOffline = true;
         broadcastState(roomId);
-        
         player.reconnectionTimeout = setTimeout(() => {
             const roomRef = rooms[roomId];
             if (!roomRef) return;
             roomRef.players = roomRef.players.filter(p => p.id !== player.id);
-            if (roomRef.players.filter(p => !p.isBot).length === 0) {
-                delete rooms[roomId];
-            } else {
-                broadcastState(roomId);
-                // If it was their turn, handle skip logic here if needed
-            }
+            if (roomRef.players.filter(p => !p.isBot).length === 0) delete rooms[roomId];
+            else broadcastState(roomId);
         }, RECONNECTION_GRACE_PERIOD);
     } else {
-        // Not playing, just remove
         room.players = room.players.filter(p => p.id !== player.id);
         if (room.players.length === 0) delete rooms[roomId];
         else broadcastState(roomId);

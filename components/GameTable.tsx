@@ -187,13 +187,19 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const noMovesPossible = useMemo(() => {
     if (!isMyTurn) return false;
-    return !canPlayAnyMove(myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame);
+    return !canPlayAnyMove(myHand, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame);
   }, [isMyTurn, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
+
+  const validationResult = useMemo(() => {
+    if (selectedCardIds.size === 0) return { isValid: false, reason: '' };
+    const cards = myHand.filter(c => selectedCardIds.has(c.id));
+    return validateMove(cards, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame);
+  }, [selectedCardIds, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
   const combosByGroup = useMemo(() => {
     if (!isMyTurn || selectedCardIds.size === 0) return {};
     const pivotId = Array.from(selectedCardIds).pop()!;
-    return findAllValidCombos(myHand, pivotId, gameState.currentPlayPile, gameState.isFirstTurnOfGame);
+    return findAllValidCombos(myHand, pivotId, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame);
   }, [selectedCardIds, myHand, gameState.currentPlayPile, isMyTurn, gameState.isFirstTurnOfGame]);
 
   const sendEmote = (triggerCode: string) => {
@@ -235,7 +241,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   const handlePlay = () => {
     if (selectedCardIds.size === 0 || !isMyTurn) return;
     const cards = myHand.filter(c => selectedCardIds.has(c.id));
-    if (validateMove(cards, gameState.currentPlayPile, gameState.isFirstTurnOfGame).isValid) {
+    if (validateMove(cards, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame).isValid) {
       onPlayCards(cards);
       setSelectedCardIds(new Set());
       if (handRows === 2) {
@@ -248,12 +254,6 @@ export const GameTable: React.FC<GameTableProps> = ({
   const handleClear = () => {
     setSelectedCardIds(new Set());
   };
-
-  const currentSelectionIsValid = useMemo(() => {
-    if (selectedCardIds.size === 0) return false;
-    const cards = myHand.filter(c => selectedCardIds.has(c.id));
-    return validateMove(cards, gameState.currentPlayPile, gameState.isFirstTurnOfGame).isValid;
-  }, [selectedCardIds, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
   const hasSelection = selectedCardIds.size > 0;
   const lastTurn = gameState.currentPlayPile[gameState.currentPlayPile.length - 1];
@@ -285,7 +285,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     
     const nextIndex = (currentIndex + 1) % list.length;
     selectCombo(list[nextIndex]);
-    audioService.playExpandHand(); // Use a subtle feedback sound
+    audioService.playExpandHand(); 
   };
 
   // Determine spacing classes based on selection status to "fan out" the hand
@@ -372,7 +372,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       {/* Top Action Bar */}
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
         <button onClick={onOpenSettings} className="w-10 h-10 sm:w-11 sm:h-11 landscape:w-9 landscape:h-9 rounded-2xl landscape:rounded-xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 landscape:h-4 landscape:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 landscape:h-4 landscape:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
         </button>
 
         <div className="relative">
@@ -414,9 +414,14 @@ export const GameTable: React.FC<GameTableProps> = ({
         <div className="bg-emerald-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(16,185,129,0.3)] animate-pulse border border-emerald-400/20 backdrop-blur-md">
           Your Turn
         </div>
-        {noMovesPossible && (
+        {noMovesPossible && !hasSelection && (
           <div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">
             No Moves Possible
+          </div>
+        )}
+        {hasSelection && !validationResult.isValid && (
+          <div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] border border-rose-400/20 backdrop-blur-md">
+            {validationResult.reason}
           </div>
         )}
       </div>
@@ -481,8 +486,8 @@ export const GameTable: React.FC<GameTableProps> = ({
           <div className="absolute bottom-6 right-6 landscape:flex hidden pointer-events-auto">
               <button 
                 onClick={handlePlay}
-                disabled={!isMyTurn || !currentSelectionIsValid}
-                className={`px-12 py-5 rounded-2xl font-black uppercase tracking-[0.25em] text-[12px] transition-all shadow-[0_20px_50px_rgba(0,0,0,0.6)] active:scale-95 min-w-[180px] ${currentSelectionIsValid ? 'bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 text-white border border-emerald-400/30' : 'bg-white/5 text-white/20 border border-white/5 grayscale pointer-events-none'}`}
+                disabled={!isMyTurn || !validationResult.isValid}
+                className={`px-12 py-5 rounded-2xl font-black uppercase tracking-[0.25em] text-[12px] transition-all shadow-[0_20px_50px_rgba(0,0,0,0.6)] active:scale-95 min-w-[180px] ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 text-white border border-emerald-400/30' : 'bg-white/5 text-white/20 border border-white/5 grayscale pointer-events-none'}`}
               >
                 Play Cards
               </button>
@@ -496,9 +501,14 @@ export const GameTable: React.FC<GameTableProps> = ({
             <div className="bg-emerald-600/90 text-white px-7 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(16,185,129,0.5)] animate-pulse border border-emerald-400/30 backdrop-blur-md">
               Your Turn
             </div>
-            {noMovesPossible && (
+            {noMovesPossible && !hasSelection && (
               <div className="bg-rose-600/90 text-white px-7 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(225,29,72,0.5)] animate-bounce border border-rose-400/30 backdrop-blur-md">
                 No Moves Possible
+              </div>
+            )}
+            {hasSelection && !validationResult.isValid && (
+              <div className="bg-rose-600/90 text-white px-7 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(225,29,72,0.5)] border border-rose-400/30 backdrop-blur-md">
+                {validationResult.reason}
               </div>
             )}
           </div>
@@ -518,8 +528,8 @@ export const GameTable: React.FC<GameTableProps> = ({
             <div className="flex flex-row items-center gap-2 flex-[2] sm:flex-none">
               <button 
                 onClick={handlePlay}
-                disabled={!currentSelectionIsValid}
-                className={`flex-1 px-6 sm:px-12 py-4 rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] transition-all shadow-[0_20px_50px_rgba(0,0,0,0.6)] active:scale-95 min-w-[150px] sm:min-w-[180px] ${currentSelectionIsValid ? 'bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 text-white border border-emerald-400/30' : 'bg-white/5 text-white/20 border border-white/5 grayscale pointer-events-none'}`}
+                disabled={!validationResult.isValid}
+                className={`flex-1 px-6 sm:px-12 py-4 rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] transition-all shadow-[0_20px_50px_rgba(0,0,0,0.6)] active:scale-95 min-w-[150px] sm:min-w-[180px] ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 text-white border border-emerald-400/30' : 'bg-white/5 text-white/20 border border-white/5 grayscale pointer-events-none'}`}
               >
                 Play Cards
               </button>
