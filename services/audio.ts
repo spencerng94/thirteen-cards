@@ -232,7 +232,6 @@ class AudioService {
 
     const now = this.context.currentTime;
 
-    // 1. The "Base Gong" (Deep & Soothing)
     const base = this.context.createOscillator();
     const baseGain = this.context.createGain();
     const filter = this.context.createBiquadFilter();
@@ -253,14 +252,13 @@ class AudioService {
     base.start(now);
     base.stop(now + 2.0);
 
-    // 2. Warm Harmonic Arpeggio (Asian Inspired Pentatonic Roots)
     const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
     notes.forEach((freq, i) => {
       const startTime = now + (i * 0.1);
       const osc = this.context!.createOscillator();
       const hGain = this.context!.createGain();
       
-      osc.type = 'sine'; // Sine is much softer than Triangle or Saw
+      osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, startTime);
       
       hGain.gain.setValueAtTime(0, startTime);
@@ -273,7 +271,6 @@ class AudioService {
       osc.stop(startTime + 1.2);
     });
 
-    // 3. Subtle "Wood Block" Tap (Tactile Start)
     const tap = this.context.createOscillator();
     const tapGain = this.context.createGain();
     tap.type = 'triangle';
@@ -285,6 +282,40 @@ class AudioService {
     tapGain.connect(this.context.destination);
     tap.start(now);
     tap.stop(now + 0.05);
+  }
+
+  playExpandHand() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+    const now = this.context.currentTime;
+    const osc = this.context.createOscillator();
+    const gain = this.createGain(0.15, 0.06);
+    if (!gain) return;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+    osc.connect(gain);
+    gain.connect(this.context.destination);
+    osc.start();
+    osc.stop(now + 0.15);
+  }
+
+  playCollapseHand() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+    const now = this.context.currentTime;
+    const osc = this.context.createOscillator();
+    const gain = this.createGain(0.12, 0.05);
+    if (!gain) return;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(500, now);
+    osc.frequency.exponentialRampToValueAtTime(250, now + 0.12);
+    osc.connect(gain);
+    gain.connect(this.context.destination);
+    osc.start();
+    osc.stop(now + 0.12);
   }
 }
 

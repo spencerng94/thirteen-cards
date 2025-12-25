@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player } from './types';
@@ -18,11 +17,12 @@ import { audioService } from './services/audio';
 import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
-const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
-
-// Added missing type definitions for ViewState and GameMode to fix build errors
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
+
+const SESSION_KEY = 'thirteen_active_session';
+// Added BOT_AVATARS constant to fix "Cannot find name 'BOT_AVATARS'" errors in initSinglePlayer
+const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -48,6 +48,7 @@ const App: React.FC = () => {
   
   const [mpGameState, setMpGameState] = useState<GameState | null>(null);
   const [mpMyHand, setMpMyHand] = useState<Card[]>([]);
+  const [playerId, setPlayerId] = useState<string | null>(null);
   
   const [spGameState, setSpGameState] = useState<GameState | null>(null);
   const [spMyHand, setSpMyHand] = useState<Card[]>([]);
@@ -57,10 +58,49 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean } | null>(null);
 
-  // Critical Refs for Sync
   const isLoggingOutRef = useRef(false);
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
+
+  // --- Session Restoration ---
+
+  const attemptReconnection = useCallback(() => {
+    const saved = localStorage.getItem(SESSION_KEY);
+    if (saved) {
+      const { roomId, playerId, timestamp } = JSON.parse(saved);
+      // Only reconnect if within 5 minutes of inactivity
+      if (Date.now() - timestamp < 300000) {
+        setGameMode('MULTI_PLAYER');
+        setPlayerId(playerId);
+        connectSocket();
+        socket.on('connect', () => {
+          socket.emit(SocketEvents.RECONNECT, { roomId, playerId });
+        });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    attemptReconnection();
+    
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && gameMode === 'MULTI_PLAYER') {
+        if (!socket.connected) {
+           connectSocket();
+           const saved = localStorage.getItem(SESSION_KEY);
+           if (saved) {
+              const { roomId, playerId } = JSON.parse(saved);
+              socket.emit(SocketEvents.RECONNECT, { roomId, playerId });
+           }
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [gameMode, attemptReconnection]);
+
+  // --- Initial Setup & Auth ---
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -71,7 +111,6 @@ const App: React.FC = () => {
         const meta = session.user.user_metadata || {};
         const googleName = meta.full_name || meta.name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
         if (!playerName) setPlayerName(googleName.toUpperCase());
-        
         await transferGuestData(session.user.id);
         loadProfile(session.user.id);
       }
@@ -84,7 +123,6 @@ const App: React.FC = () => {
         const meta = session.user.user_metadata || {};
         const googleName = meta.full_name || meta.name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
         if (!playerName) setPlayerName(googleName.toUpperCase());
-
         await transferGuestData(session.user.id);
         loadProfile(session.user.id);
       }
@@ -98,26 +136,17 @@ const App: React.FC = () => {
 
   const loadProfile = async (uid: string) => {
     loadingProfileInProgressRef.current = true;
-    initialSyncCompleteRef.current = false; // Block saving during load
-    
+    initialSyncCompleteRef.current = false;
     const data = await fetchProfile(uid, playerAvatar);
     if (data) {
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
-      
-      // Load saved preferences
-      if (data.active_sleeve || data.equipped_sleeve) {
-        setCardCoverStyle((data.active_sleeve || data.equipped_sleeve) as CardCoverStyle);
-      }
-      if (data.active_board || data.equipped_board) {
-        setBackgroundTheme((data.active_board || data.equipped_board) as BackgroundTheme);
-      }
+      if (data.active_sleeve || data.equipped_sleeve) setCardCoverStyle((data.active_sleeve || data.equipped_sleeve) as CardCoverStyle);
+      if (data.active_board || data.equipped_board) setBackgroundTheme((data.active_board || data.equipped_board) as BackgroundTheme);
       if (data.sfx_enabled !== undefined) setSoundEnabled(data.sfx_enabled);
       if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
-      
       setProfile(data);
     }
-    
     setTimeout(() => { 
       initialSyncCompleteRef.current = true;
       loadingProfileInProgressRef.current = false; 
@@ -130,13 +159,10 @@ const App: React.FC = () => {
       setProfile(data);
       if (data.username && !playerName) setPlayerName(data.username);
       if (data.avatar_url) setPlayerAvatar(data.avatar_url);
-      
-      // Load guest preferences from local storage data
       if (data.active_sleeve) setCardCoverStyle(data.active_sleeve as CardCoverStyle);
       if (data.active_board) setBackgroundTheme(data.active_board as BackgroundTheme);
       if (data.sfx_enabled !== undefined) setSoundEnabled(data.sfx_enabled);
       if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
-      
       initialSyncCompleteRef.current = true;
     }
   }, [isGuest, session]);
@@ -144,98 +170,36 @@ const App: React.FC = () => {
   useEffect(() => {
     const userId = session?.user?.id || (isGuest ? 'guest' : null);
     if (!authChecked || !userId || !profile || !initialSyncCompleteRef.current || isLoggingOutRef.current) return;
-
-    const needsAvatarUpdate = playerAvatar !== profile.avatar_url;
-    const needsSleeveUpdate = cardCoverStyle !== profile.active_sleeve;
-    const needsBoardUpdate = backgroundTheme !== profile.active_board;
-    const needsAudioUpdate = soundEnabled !== profile.sfx_enabled;
-    const needsTurboUpdate = spQuickFinish !== profile.turbo_enabled;
-
-    if (needsAvatarUpdate) {
-      updateProfileAvatar(userId, playerAvatar);
-      setProfile(prev => prev ? { ...prev, avatar_url: playerAvatar } : null);
-    }
-
-    if (needsSleeveUpdate || needsBoardUpdate || needsAudioUpdate || needsTurboUpdate) {
-      const updates: Partial<UserProfile> = {};
-      if (needsSleeveUpdate) {
-        updates.active_sleeve = cardCoverStyle;
-        updates.equipped_sleeve = cardCoverStyle;
-      }
-      if (needsBoardUpdate) {
-        // Validate ownership before updating board
-        if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
-          updates.active_board = backgroundTheme;
-          updates.equipped_board = backgroundTheme;
-        }
-      }
-      if (needsAudioUpdate) updates.sfx_enabled = soundEnabled;
-      if (needsTurboUpdate) updates.turbo_enabled = spQuickFinish;
-
+    const updates: Partial<UserProfile> = {};
+    if (playerAvatar !== profile.avatar_url) updateProfileAvatar(userId, playerAvatar);
+    if (cardCoverStyle !== profile.active_sleeve) { updates.active_sleeve = cardCoverStyle; updates.equipped_sleeve = cardCoverStyle; }
+    if (backgroundTheme !== profile.active_board) { updates.active_board = backgroundTheme; updates.equipped_board = backgroundTheme; }
+    if (soundEnabled !== profile.sfx_enabled) updates.sfx_enabled = soundEnabled;
+    if (spQuickFinish !== profile.turbo_enabled) updates.turbo_enabled = spQuickFinish;
+    if (Object.keys(updates).length > 0) {
       updateProfileSettings(userId, updates);
       setProfile(prev => prev ? { ...prev, ...updates } : null);
     }
   }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, session, authChecked, profile, isGuest]);
 
   const handleSignOut = async () => {
-    // Save-on-exit: Final flush of all settings to DB/Local before clearing session
-    const userId = session?.user?.id || (isGuest ? 'guest' : null);
-    if (userId && profile && initialSyncCompleteRef.current) {
-        const finalUpdates: Partial<UserProfile> = {};
-        if (playerAvatar !== profile.avatar_url) await updateProfileAvatar(userId, playerAvatar);
-        
-        if (cardCoverStyle !== profile.active_sleeve) {
-          finalUpdates.active_sleeve = cardCoverStyle;
-          finalUpdates.equipped_sleeve = cardCoverStyle;
-        }
-        if (backgroundTheme !== profile.active_board) {
-          if (profile.unlocked_boards.includes(backgroundTheme) || backgroundTheme === 'EMERALD' || backgroundTheme === 'CLASSIC_GREEN' || backgroundTheme === 'CYBER_BLUE' || backgroundTheme === 'CRIMSON_VOID') {
-            finalUpdates.active_board = backgroundTheme;
-            finalUpdates.equipped_board = backgroundTheme;
-          }
-        }
-        if (soundEnabled !== profile.sfx_enabled) finalUpdates.sfx_enabled = soundEnabled;
-        if (spQuickFinish !== profile.turbo_enabled) finalUpdates.turbo_enabled = spQuickFinish;
-        
-        if (Object.keys(finalUpdates).length > 0) {
-          await updateProfileSettings(userId, finalUpdates);
-        }
-    }
-
+    localStorage.removeItem(SESSION_KEY);
     isLoggingOutRef.current = true;
     initialSyncCompleteRef.current = false;
-    
     if (session) await supabase.auth.signOut();
-    
-    setIsGuest(false);
-    setProfile(null);
-    setPlayerName('');
-    setPlayerAvatar('😎');
-    setCardCoverStyle('RED');
-    setBackgroundTheme('EMERALD');
-    setSoundEnabled(true);
-    setSpQuickFinish(true);
-    setView('WELCOME');
-    setHubState({ open: false, tab: 'PROFILE' });
-    setGameSettingsOpen(false);
-    setStoreOpen(false);
-    handleExit();
-    
+    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar('😎'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); handleExit();
     setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 
-  const handleOpenStore = (tab?: 'SLEEVES' | 'AVATARS' | 'BOARDS') => {
-    if (tab) setStoreTab(tab);
-    setStoreOpen(true);
-  };
+  const handleOpenStore = (tab?: 'SLEEVES' | 'AVATARS' | 'BOARDS') => { if (tab) setStoreTab(tab); setStoreOpen(true); };
 
   useEffect(() => { audioService.setEnabled(soundEnabled); }, [soundEnabled]);
 
   useEffect(() => {
     const state = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
-    const myId = gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me';
+    const myId = gameMode === 'MULTI_PLAYER' ? (playerId || socket.id) : 'player-me';
     if (state?.currentPlayerId === myId && state?.status === GameStatus.PLAYING) audioService.playTurn();
-  }, [mpGameState?.currentPlayerId, spGameState?.currentPlayerId, gameMode]);
+  }, [mpGameState?.currentPlayerId, spGameState?.currentPlayerId, gameMode, playerId]);
 
   const triggerMatchEndTransition = useCallback(() => {
     setIsTransitioning(true);
@@ -245,6 +209,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const onGameState = (state: GameState) => {
       setMpGameState(state);
+      if (state.roomId !== 'LOCAL') {
+         localStorage.setItem(SESSION_KEY, JSON.stringify({ 
+           roomId: state.roomId, 
+           playerId: playerId || socket.id, 
+           timestamp: Date.now() 
+         }));
+      }
       if (state.status === GameStatus.PLAYING) setView('GAME_TABLE');
       else if (state.status === GameStatus.FINISHED && view === 'GAME_TABLE') triggerMatchEndTransition();
       else if (state.status === GameStatus.FINISHED && view !== 'GAME_TABLE') setView('VICTORY');
@@ -253,33 +224,24 @@ const App: React.FC = () => {
     const onPlayerHand = (cards: Card[]) => setMpMyHand(cards);
     socket.on(SocketEvents.GAME_STATE, onGameState);
     socket.on(SocketEvents.PLAYER_HAND, onPlayerHand);
-    socket.on(SocketEvents.ERROR, (m) => { setError(m); setTimeout(() => setError(null), 3000); });
+    socket.on(SocketEvents.ERROR, (m) => { 
+        if (m === 'Session Expired') localStorage.removeItem(SESSION_KEY);
+        setError(m); setTimeout(() => setError(null), 3000); 
+    });
     return () => {
       socket.off(SocketEvents.GAME_STATE); socket.off(SocketEvents.PLAYER_HAND);
       socket.off(SocketEvents.ERROR);
     };
-  }, [view, triggerMatchEndTransition]);
+  }, [view, triggerMatchEndTransition, playerId]);
 
   useEffect(() => {
     if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.FINISHED && view === 'GAME_TABLE' && !isTransitioning) {
         triggerMatchEndTransition();
         const me = spGameState.players.find(p => p.id === 'player-me');
-        const myRank = me?.finishedRank || 4;
-        const cardsLeft = spMyHand.length;
-        
-        recordGameResult(myRank, true, aiDifficulty, !!isGuest, profile?.id, spChops, cardsLeft)
-          .then(res => {
-              setLastMatchRewards({ 
-                xp: res.xpGained, 
-                coins: res.coinsGained, 
-                diff: aiDifficulty, 
-                bonus: res.xpBonusApplied 
-              });
-              handleRefreshProfile();
-          })
-          .catch(err => {
-              console.error("Single Player reward processing failed:", err);
-          });
+        recordGameResult(me?.finishedRank || 4, true, aiDifficulty, !!isGuest, profile?.id, spChops, spMyHand.length).then(res => {
+            setLastMatchRewards({ xp: res.xpGained, coins: res.coinsGained, diff: aiDifficulty, bonus: res.xpBonusApplied });
+            handleRefreshProfile();
+        });
     }
   }, [spGameState?.status, gameMode, view, isTransitioning, aiDifficulty, isGuest, profile?.id, triggerMatchEndTransition, spChops, spMyHand.length]);
 
@@ -288,22 +250,13 @@ const App: React.FC = () => {
     setSpGameState(prev => {
       if (!prev) return null;
       const players = prev.players.map(p => p.id === pid ? { ...p, hasPassed: true } : p);
-      let currentIndex = prev.players.findIndex(p => p.id === pid);
-      let nextIndex = (currentIndex + 1) % 4;
-      let searchCount = 0;
-      while ((players[nextIndex].hasPassed || players[nextIndex].finishedRank) && searchCount < 4) {
-        nextIndex = (nextIndex + 1) % 4;
-        searchCount++;
-      }
+      let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % 4;
+      while ((players[nextIndex].hasPassed || players[nextIndex].finishedRank)) { nextIndex = (nextIndex + 1) % 4; }
       let finalPlayPile = prev.currentPlayPile;
       let nextPlayerId = players[nextIndex].id;
       if (nextPlayerId === prev.lastPlayerToPlayId) {
-        finalPlayPile = [];
-        players.forEach(p => p.hasPassed = false);
-        if (players[nextIndex].finishedRank) {
-            while (players[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; }
-            nextPlayerId = players[nextIndex].id;
-        }
+        finalPlayPile = []; players.forEach(p => p.hasPassed = false);
+        if (players[nextIndex].finishedRank) { while (players[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; } nextPlayerId = players[nextIndex].id; }
       }
       return { ...prev, players, currentPlayerId: nextPlayerId, currentPlayPile: finalPlayPile };
     });
@@ -312,50 +265,30 @@ const App: React.FC = () => {
   const handleLocalPlay = (pid: string, cards: Card[]) => {
     if (!spGameState || spGameState.status !== GameStatus.PLAYING || spGameState.currentPlayerId !== pid) return;
     const res = validateMove(cards, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame);
-    if (!res.isValid && pid === 'player-me') { 
-      setError(res.reason); setTimeout(() => setError(null), 3000); return; 
-    }
-    
-    // Check for Chop!
-    if (res.reason === 'Bomb!' && pid === 'player-me') {
-       setSpChops(prev => prev + 1);
-    }
-
+    if (!res.isValid && pid === 'player-me') { setError(res.reason); setTimeout(() => setError(null), 3000); return; }
+    if (res.reason === 'Bomb!' && pid === 'player-me') setSpChops(prev => prev + 1);
     setSpGameState(prev => {
       if (!prev) return null;
-      if (pid === 'player-me') {
-        setSpMyHand(prevHand => prevHand.filter(c => !cards.some(pc => pc.id === c.id)));
-      } else {
-        setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id)) }));
-      }
+      if (pid === 'player-me') setSpMyHand(prevHand => prevHand.filter(c => !cards.some(pc => pc.id === c.id)));
+      else setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id)) }));
       let updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: p.cardCount - cards.length } : p);
       const newPlayPile = [...prev.currentPlayPile, { playerId: pid, cards, comboType: getComboType(cards) }];
       let playerWhoJustPlayed = updatedPlayers.find(p => p.id === pid)!;
       let finishedPlayers = [...prev.finishedPlayers];
-      if (playerWhoJustPlayed.cardCount === 0) {
-          finishedPlayers.push(pid);
-          playerWhoJustPlayed.finishedRank = finishedPlayers.length;
-      }
+      if (playerWhoJustPlayed.cardCount === 0) { finishedPlayers.push(pid); playerWhoJustPlayed.finishedRank = finishedPlayers.length; }
       if (pid === 'player-me' && playerWhoJustPlayed.cardCount === 0 && spQuickFinish) {
           const remaining = updatedPlayers.filter(p => !p.finishedRank).sort((a, b) => a.cardCount - b.cardCount);
-          remaining.forEach((p, idx) => {
-              const r = updatedPlayers.find(up => up.id === p.id)!;
-              r.finishedRank = finishedPlayers.length + idx + 1;
-              finishedPlayers.push(p.id);
-          });
+          remaining.forEach((p, idx) => { const r = updatedPlayers.find(up => up.id === p.id)!; r.finishedRank = finishedPlayers.length + idx + 1; finishedPlayers.push(p.id); });
           return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
-      const playersRemaining = updatedPlayers.filter(p => !p.finishedRank).length;
-      if (playersRemaining <= 1) {
-          const loser = updatedPlayers.find(p => !p.finishedRank);
-          if (loser) { finishedPlayers.push(loser.id); loser.finishedRank = finishedPlayers.length; }
+      if (updatedPlayers.filter(p => !p.finishedRank).length <= 1) {
+          const loser = updatedPlayers.find(p => !p.finishedRank); if (loser) { finishedPlayers.push(loser.id); loser.finishedRank = finishedPlayers.length; }
           return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
       let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % 4;
       while (updatedPlayers[nextIndex].finishedRank || updatedPlayers[nextIndex].hasPassed) { nextIndex = (nextIndex + 1) % 4; }
       if (updatedPlayers[nextIndex].id === pid && playerWhoJustPlayed.finishedRank) {
-          updatedPlayers.forEach(p => p.hasPassed = false);
-          while (updatedPlayers[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; }
+          updatedPlayers.forEach(p => p.hasPassed = false); while (updatedPlayers[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; }
           return { ...prev, players: updatedPlayers, currentPlayPile: [], currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
       }
       return { ...prev, players: updatedPlayers, currentPlayPile: newPlayPile, currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
@@ -363,29 +296,24 @@ const App: React.FC = () => {
   };
 
   const initSinglePlayer = (name: string, avatar: string) => {
-    const hands = dealCards();
-    const botNames = ['VALKYRIE', 'SABER', 'LANCE'];
+    localStorage.removeItem(SESSION_KEY);
+    const hands = dealCards(); const botNames = ['VALKYRIE', 'SABER', 'LANCE'];
     const players: Player[] = [
       { id: 'player-me', name: name || AVATAR_NAMES[avatar]?.toUpperCase() || 'COMMANDER', avatar, cardCount: 13, isHost: true, finishedRank: null },
       { id: 'bot-1', name: botNames[0], avatar: BOT_AVATARS[0], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty },
       { id: 'bot-2', name: botNames[1], avatar: BOT_AVATARS[1], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty },
       { id: 'bot-3', name: botNames[2], avatar: BOT_AVATARS[2], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty }
     ];
-    setSpMyHand(hands[0]);
-    setSpOpponentHands({ 'bot-1': hands[1], 'bot-2': hands[2], 'bot-3': hands[3] });
-    setSpChops(0);
-    let starterId = 'player-me';
-    hands.forEach((hand, i) => { if (hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starterId = players[i].id; });
+    setSpMyHand(hands[0]); setSpOpponentHands({ 'bot-1': hands[1], 'bot-2': hands[2], 'bot-3': hands[3] }); setSpChops(0);
+    let starterId = 'player-me'; hands.forEach((hand, i) => { if (hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starterId = players[i].id; });
     setSpGameState({ roomId: 'LOCAL', status: GameStatus.PLAYING, players, currentPlayerId: starterId, currentPlayPile: [], finishedPlayers: [], isFirstTurnOfGame: true, lastPlayerToPlayId: null, winnerId: null });
     setGameMode('SINGLE_PLAYER'); setView('GAME_TABLE');
   };
 
   useEffect(() => {
     if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.PLAYING && spGameState.currentPlayerId?.startsWith('bot-')) {
-      const meFinished = spGameState.players.find(p => p.id === 'player-me')?.finishedRank;
-      if (meFinished && spQuickFinish) return;
-      const botId = spGameState.currentPlayerId;
-      const botHand = spOpponentHands[botId];
+      if (spGameState.players.find(p => p.id === 'player-me')?.finishedRank && spQuickFinish) return;
+      const botId = spGameState.currentPlayerId; const botHand = spOpponentHands[botId];
       const timer = setTimeout(() => {
         const move = findBestMove(botHand, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame, aiDifficulty);
         if (move) handleLocalPlay(botId, move); else handleLocalPass(botId);
@@ -401,7 +329,7 @@ const App: React.FC = () => {
     if (m === 'SINGLE_PLAYER') initSinglePlayer(n, a); else { connectSocket(); setView('LOBBY'); }
   };
 
-  const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); setGameMode(null); setMpGameState(null); setSpGameState(null); setView('WELCOME'); setGameSettingsOpen(false); };
+  const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); localStorage.removeItem(SESSION_KEY); setGameMode(null); setMpGameState(null); setSpGameState(null); setView('WELCOME'); setGameSettingsOpen(false); };
   const handleRefreshProfile = () => { if(session?.user?.id) loadProfile(session.user.id); else if(isGuest) setProfile(fetchGuestProfile()); };
 
   return (
@@ -421,11 +349,11 @@ const App: React.FC = () => {
           {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} />}
           {view === 'GAME_TABLE' && (
             <div className="relative w-full h-full">
-              <GameTable profile={profile} gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c }) : handleLocalPlay('player-me', c)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId }) : handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
+              <GameTable profile={profile} gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} myId={gameMode === 'MULTI_PLAYER' ? (playerId || socket.id) : 'player-me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c }) : handleLocalPlay('player-me', c)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId }) : handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
               {isTransitioning && <GameEndTransition />}
             </div>
           )}
-          {view === 'VICTORY' && <VictoryScreen profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} players={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!.players} myId={gameMode === 'MULTI_PLAYER' ? socket.id : 'player-me'} onPlayAgain={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.START_GAME, { roomId: mpGameState!.roomId }) : initSinglePlayer(playerName, playerAvatar)} onGoHome={handleExit} />}
+          {view === 'VICTORY' && <VictoryScreen profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} players={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!.players} myId={gameMode === 'MULTI_PLAYER' ? (playerId || socket.id) : 'player-me'} onPlayAgain={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.START_GAME, { roomId: mpGameState!.roomId }) : initSinglePlayer(playerName, playerAvatar)} onGoHome={handleExit} />}
           {view === 'TUTORIAL' && <TutorialMode onExit={handleExit} />}
         </div>
       )}

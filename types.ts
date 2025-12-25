@@ -38,6 +38,7 @@ export interface Player {
   finishedRank?: number | null;
   isBot?: boolean;
   difficulty?: AiDifficulty;
+  isOffline?: boolean; // New: track reconnection status
 }
 
 export enum GameStatus {
@@ -68,6 +69,7 @@ export interface GameState {
 export enum SocketEvents {
   CREATE_ROOM = 'create_room',
   JOIN_ROOM = 'join_room',
+  RECONNECT = 'reconnect_session', // New: reconnect event
   ADD_BOT = 'add_bot',
   REMOVE_BOT = 'remove_bot',
   START_GAME = 'start_game',
@@ -96,7 +98,7 @@ export interface UserProfile {
   unlocked_sleeves: string[];
   unlocked_avatars: string[];
   unlocked_boards: string[];
-  unlocked_emotes?: string[]; // IDs of custom emotes
+  unlocked_emotes?: string[];
   equipped_sleeve?: string;
   equipped_board?: string;
   active_board?: string;

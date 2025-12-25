@@ -123,10 +123,17 @@ const PlayerSlot: React.FC<{ player: Player; position: 'top' | 'left' | 'right';
                         <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest text-center leading-none">Passed</span>
                     </div>
                 )}
+                {player.isOffline && !isFinished && (
+                    <div className="absolute inset-0 bg-amber-600/40 backdrop-blur-[2px] rounded-full flex items-center justify-center z-10 animate-pulse border-2 border-amber-500/50">
+                        <span className="text-[8px] font-black text-white uppercase tracking-tighter text-center leading-none shadow-lg">Offline</span>
+                    </div>
+                )}
             </div>
 
-            <div className="bg-black/60 backdrop-blur-md px-3 py-1 sm:px-4 sm:py-1.5 rounded-full border border-white/5 min-w-[75px] sm:min-w-[95px] text-center shadow-lg mt-2.5">
-                <span className="text-[8px] sm:text-[10px] font-black text-white/90 uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] inline-block">{player.name}</span>
+            <div className={`bg-black/60 backdrop-blur-md px-3 py-1 sm:px-4 sm:py-1.5 rounded-full border min-w-[75px] sm:min-w-[95px] text-center shadow-lg mt-2.5 transition-colors ${player.isOffline ? 'border-amber-500/50' : 'border-white/5'}`}>
+                <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] inline-block ${player.isOffline ? 'text-amber-500' : 'text-white/90'}`}>
+                  {player.name}
+                </span>
             </div>
         </div>
 
@@ -231,7 +238,10 @@ export const GameTable: React.FC<GameTableProps> = ({
     if (validateMove(cards, gameState.currentPlayPile, gameState.isFirstTurnOfGame).isValid) {
       onPlayCards(cards);
       setSelectedCardIds(new Set());
-      setHandRows(1); // Auto-revert to 1 row after playing
+      if (handRows === 2) {
+        setHandRows(1);
+        audioService.playCollapseHand();
+      }
     }
   };
 
@@ -247,6 +257,16 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const hasSelection = selectedCardIds.size > 0;
   const lastTurn = gameState.currentPlayPile[gameState.currentPlayPile.length - 1];
+
+  const handleToggleRows = () => {
+    const next = handRows === 1 ? 2 : 1;
+    setHandRows(next as any);
+    if (next === 2) {
+      audioService.playExpandHand();
+    } else {
+      audioService.playCollapseHand();
+    }
+  };
 
   return (
     <div className="fixed inset-0 w-full h-full bg-[#030303] overflow-hidden select-none">
@@ -290,6 +310,15 @@ export const GameTable: React.FC<GameTableProps> = ({
           <span className="text-lg font-black landscape:text-sm">?</span>
         </button>
       </div>
+
+      {/* Reconnecting Overlay */}
+      {gameState.players.some(p => p.id === myId && p.isOffline) && (
+          <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center text-center p-8">
+              <div className="w-16 h-16 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-6"></div>
+              <h2 className="text-white font-black text-2xl uppercase tracking-widest italic mb-2">Establishing Link...</h2>
+              <p className="text-gray-400 text-xs uppercase tracking-[0.4em] animate-pulse">Syncing Arena State</p>
+          </div>
+      )}
 
       {/* Landscape and Global Turn Indicators */}
       <div className={`fixed z-[150] transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} 
@@ -410,7 +439,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               {/* Row Toggle - Vertical Mobile Only */}
               {myHand.length >= 8 && (
                 <button
-                  onClick={() => setHandRows(handRows === 1 ? 2 : 1)}
+                  onClick={handleToggleRows}
                   className="w-11 h-11 shrink-0 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all shadow-xl active:scale-90"
                   title={handRows === 1 ? "Switch to 2 rows" : "Switch to 1 row"}
                 >
@@ -422,7 +451,6 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
 
         <div className="relative group/hand flex items-center justify-center w-full max-w-[96vw] overflow-visible px-2 sm:px-4">
-           {/* Card animation speed: duration-800 for smoother slower movement */}
            <div 
              className={`
                flex transition-all duration-800 cubic-bezier(0.19, 1, 0.22, 1) origin-bottom will-change-[max-width,gap,transform]

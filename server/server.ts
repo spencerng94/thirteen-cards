@@ -28,6 +28,8 @@ interface Player {
   finishedRank: number | null;
   isBot?: boolean;
   difficulty?: AiDifficulty;
+  isOffline?: boolean;
+  reconnectionTimeout?: NodeJS.Timeout;
 }
 
 interface PlayTurn {
@@ -49,6 +51,7 @@ interface GameRoom {
 }
 
 const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
+const RECONNECTION_GRACE_PERIOD = 30000; // 30 seconds
 
 const app = express();
 const httpServer = createServer(app);
@@ -61,6 +64,8 @@ const io = new Server(httpServer, {
 });
 
 const rooms: Record<string, GameRoom> = {};
+// Map socketId to RoomId for cleanup
+const socketToRoom: Record<string, string> = {};
 
 // --- Logic Helpers ---
 
@@ -115,11 +120,8 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
   const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastCards);
 
-  // Chopping logic (Bombs)
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(pType)) return true;
   if (lType === 'PAIR' && lHigh.rank === Rank.Two && ['QUAD', '4_PAIRS'].includes(pType)) return true;
-  
-  // Higher Bombs
   if (lType === 'QUAD' && pType === 'QUAD' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
   if (lType === '3_PAIRS' && pType === '3_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
   if (lType === '4_PAIRS' && pType === '4_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return true;
@@ -163,7 +165,6 @@ const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, 
         const threeS = sorted.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
         return threeS ? [threeS] : [sorted[0]];
     }
-    // Lead lowest
     return [sorted[0]];
   }
 
@@ -196,18 +197,15 @@ const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, 
       }
     }
   }
-
-  // Hard AI: Hoarding logic for Pig
   if (standardMove && isHard && getHighestCard(standardMove).rank === Rank.Two) {
     if (sorted.length > 5) return null;
   }
-
   return standardMove;
 };
 
 // --- Game Logic ---
 
-const getGameState = (room: GameRoom) => ({
+const getGameStateData = (room: GameRoom) => ({
   roomId: room.id,
   status: room.status,
   players: room.players.map(p => ({
@@ -219,7 +217,8 @@ const getGameState = (room: GameRoom) => ({
     hasPassed: p.hasPassed,
     finishedRank: p.finishedRank,
     isBot: p.isBot,
-    difficulty: p.difficulty
+    difficulty: p.difficulty,
+    isOffline: p.isOffline
   })),
   currentPlayerId: room.status === 'PLAYING' ? room.players[room.currentPlayerIndex]?.id : null,
   currentPlayPile: room.currentPlayPile,
@@ -232,10 +231,10 @@ const getGameState = (room: GameRoom) => ({
 const broadcastState = (roomId: string) => {
   const room = rooms[roomId];
   if (!room) return;
-  const state = getGameState(room);
+  const state = getGameStateData(room);
   io.to(roomId).emit('game_state', state);
   room.players.forEach(p => {
-    if (!p.isBot) io.to(p.socketId).emit('player_hand', p.hand);
+    if (!p.isBot && !p.isOffline) io.to(p.socketId).emit('player_hand', p.hand);
   });
 };
 
@@ -247,13 +246,10 @@ const checkBotTurn = (roomId: string) => {
     setTimeout(() => {
         const roomRef = rooms[roomId];
         if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
-        
-        // Easy AI randomness
         if (curPlayer.difficulty === 'EASY' && roomRef.currentPlayPile.length > 0 && Math.random() < 0.4) {
           handlePass(roomId, curPlayer.id);
           return;
         }
-
         const move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame, curPlayer.difficulty || 'MEDIUM');
         if (move) handlePlay(roomId, curPlayer.id, move);
         else handlePass(roomId, curPlayer.id);
@@ -273,14 +269,11 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   room.lastPlayerToPlayId = playerId;
   room.isFirstTurnOfGame = false;
 
-  const isGameOver = room.players.filter(p => !p.finishedRank && p.hand.length > 0).length <= 1;
-
   if (player.hand.length === 0) {
     room.finishedPlayers.push(playerId);
     player.finishedRank = room.finishedPlayers.length;
     if (room.players.filter(p => !p.finishedRank).length <= 1) {
         room.status = 'FINISHED';
-        // Archive final round
         if (room.currentPlayPile.length > 0) {
           room.roundHistory.push([...room.currentPlayPile]);
           room.currentPlayPile = [];
@@ -291,9 +284,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
 
   const activeRemainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
   if (activeRemainingInRound.length === 0) {
-     if (room.currentPlayPile.length > 0) {
-       room.roundHistory.push([...room.currentPlayPile]);
-     }
+     if (room.currentPlayPile.length > 0) room.roundHistory.push([...room.currentPlayPile]);
      room.currentPlayPile = [];
      room.players.forEach(p => p.hasPassed = false);
      room.currentPlayerIndex = player.hand.length === 0 
@@ -317,9 +308,7 @@ const handlePass = (roomId: string, playerId: string) => {
   let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   const lastPlayer = room.players.find(p => p.id === room.lastPlayerToPlayId);
   if (room.players[nextIdx].id === room.lastPlayerToPlayId || nextIdx === room.currentPlayerIndex) {
-    if (room.currentPlayPile.length > 0) {
-      room.roundHistory.push([...room.currentPlayPile]);
-    }
+    if (room.currentPlayPile.length > 0) room.roundHistory.push([...room.currentPlayPile]);
     room.currentPlayPile = [];
     room.players.forEach(p => p.hasPassed = false);
     if (lastPlayer?.finishedRank) nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
@@ -337,6 +326,7 @@ io.on('connection', (socket: Socket) => {
       id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
       players: [{ id: socket.id, name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
     };
+    socketToRoom[socket.id] = roomId;
     socket.join(roomId);
     broadcastState(roomId);
   });
@@ -345,7 +335,41 @@ io.on('connection', (socket: Socket) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
     room.players.push({ id: socket.id, name, avatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
+    socketToRoom[socket.id] = roomId;
     socket.join(roomId);
+    broadcastState(roomId);
+  });
+
+  socket.on('reconnect_session', ({ roomId, playerId }) => {
+    const room = rooms[roomId];
+    if (!room) {
+        socket.emit('error', 'Session Expired');
+        return;
+    }
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) {
+        socket.emit('error', 'Player not found in session');
+        return;
+    }
+
+    // Restore seat
+    if (player.reconnectionTimeout) {
+        clearTimeout(player.reconnectionTimeout);
+        player.reconnectionTimeout = undefined;
+    }
+    
+    // Update socket mapping
+    delete socketToRoom[player.socketId];
+    player.socketId = socket.id;
+    player.isOffline = false;
+    socketToRoom[socket.id] = roomId;
+    
+    socket.join(roomId);
+    
+    // Send full state to reconnected client
+    socket.emit('game_state', getGameStateData(room));
+    socket.emit('player_hand', player.hand);
+    
     broadcastState(roomId);
   });
 
@@ -390,7 +414,40 @@ io.on('connection', (socket: Socket) => {
   socket.on('play_cards', ({ roomId, cards }) => handlePlay(roomId, socket.id, cards));
   socket.on('pass_turn', ({ roomId }) => handlePass(roomId, socket.id));
 
-  socket.on('disconnect', () => {});
+  socket.on('disconnect', () => {
+    const roomId = socketToRoom[socket.id];
+    if (!roomId) return;
+    
+    const room = rooms[roomId];
+    if (!room) return;
+
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (!player) return;
+
+    if (room.status === 'PLAYING') {
+        // Flag for reconnection
+        player.isOffline = true;
+        broadcastState(roomId);
+        
+        player.reconnectionTimeout = setTimeout(() => {
+            const roomRef = rooms[roomId];
+            if (!roomRef) return;
+            roomRef.players = roomRef.players.filter(p => p.id !== player.id);
+            if (roomRef.players.filter(p => !p.isBot).length === 0) {
+                delete rooms[roomId];
+            } else {
+                broadcastState(roomId);
+                // If it was their turn, handle skip logic here if needed
+            }
+        }, RECONNECTION_GRACE_PERIOD);
+    } else {
+        // Not playing, just remove
+        room.players = room.players.filter(p => p.id !== player.id);
+        if (room.players.length === 0) delete rooms[roomId];
+        else broadcastState(roomId);
+        delete socketToRoom[socket.id];
+    }
+  });
 });
 
 const generateRoomCode = (): string => 'ABCD'.split('').map(() => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.floor(Math.random() * 36))).join('');
