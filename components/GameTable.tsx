@@ -41,22 +41,20 @@ interface ActiveEmote {
 
 const EMOTE_COOLDOWN = 2000;
 
-// Icons for the Row Toggle
 const OneRowIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="5" y="4" width="14" height="16" rx="2" />
   </svg>
 );
 
 const TwoRowIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="4" y="2" width="10" height="9" rx="1.5" />
     <rect x="10" y="13" width="10" height="9" rx="1.5" />
   </svg>
 );
 
 const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'bottom' | 'left' | 'top' | 'right' }> = ({ emote, remoteEmotes, position }) => {
-  // Define coordinate paths based on player position for a refined middle-ground feel
   const paths: Record<string, { start: string; focus: string; end: string }> = {
     bottom: {
       start: "translate(0, 45vh) scale(0.2)",
@@ -65,18 +63,18 @@ const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'b
     },
     left: {
       start: "translate(-45vw, 0) scale(0.2)",
-      focus: "translate(-25vw, -15vh) scale(1.9)", // Floats right and up from profile
+      focus: "translate(-25vw, -15vh) scale(1.9)",
       end: "translate(-20vw, -45vh) scale(1.7)"
     },
     right: {
       start: "translate(45vw, 0) scale(0.2)",
-      focus: "translate(25vw, -15vh) scale(1.9)", // Floats left and up from profile
+      focus: "translate(25vw, -15vh) scale(1.9)",
       end: "translate(20vw, -45vh) scale(1.7)"
     },
     top: {
       start: "translate(0, -45vh) scale(0.2)",
-      focus: "translate(15vw, -35vh) scale(1.9)", // Floats to the right of top profile
-      end: "translate(18vw, -65vh) scale(1.7)" // Floats up
+      focus: "translate(15vw, -35vh) scale(1.9)",
+      end: "translate(18vw, -65vh) scale(1.7)"
     }
   };
 
@@ -133,7 +131,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'top' | 'left' | 'right';
         </div>
 
         {!isFinished && (
-            <div className={`relative animate-in slide-in-from-bottom-2 duration-700 shrink-0 landscape:scale-90 transition-transform`}>
+            <div className={`relative animate-in slide-in-from-bottom-2 duration-700 shrink-0 transition-transform landscape:scale-[0.85]`}>
                 <Card faceDown coverStyle={coverStyle} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" />
                 <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ring-1 ring-yellow-400/50">
                     {player.cardCount}
@@ -170,18 +168,16 @@ export const GameTable: React.FC<GameTableProps> = ({
     return () => { socket.off(SocketEvents.RECEIVE_EMOTE, handleReceiveEmote); };
   }, []);
 
-  // Revert rows to 1 if selection is empty or hand size falls below requirement
   useEffect(() => {
-    if (handRows === 2 && (selectedCardIds.size === 0 || myHand.length < 9)) {
+    if (handRows === 2 && myHand.length < 8) {
       setHandRows(1);
     }
-  }, [selectedCardIds.size, myHand.length, handRows]);
+  }, [myHand.length, handRows]);
 
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
   const myIndex = gameState.players.findIndex(p => p.id === myId);
   const isMyTurn = gameState.currentPlayerId === myId;
 
-  // New logic for checking if any moves are possible
   const noMovesPossible = useMemo(() => {
     if (!isMyTurn) return false;
     return !canPlayAnyMove(myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame);
@@ -235,13 +231,12 @@ export const GameTable: React.FC<GameTableProps> = ({
     if (validateMove(cards, gameState.currentPlayPile, gameState.isFirstTurnOfGame).isValid) {
       onPlayCards(cards);
       setSelectedCardIds(new Set());
-      setHandRows(1); // Explicitly reset to 1 row after playing
+      setHandRows(1); // Auto-revert to 1 row after playing
     }
   };
 
   const handleClear = () => {
     setSelectedCardIds(new Set());
-    setHandRows(1); // Explicitly reset when clearing
   };
 
   const currentSelectionIsValid = useMemo(() => {
@@ -296,6 +291,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         </button>
       </div>
 
+      {/* Landscape and Global Turn Indicators */}
       <div className={`fixed z-[150] transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} 
         landscape:top-12 landscape:right-4 landscape:left-auto landscape:bottom-auto
         portrait:hidden flex flex-col items-center gap-2`}>
@@ -307,48 +303,6 @@ export const GameTable: React.FC<GameTableProps> = ({
             No Moves Possible
           </div>
         )}
-      </div>
-
-      <div className="fixed top-4 left-4 z-[150] flex flex-col items-start gap-4 transition-all duration-500">
-          {lastTurn && (
-            <div className={`bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl transition-all duration-500
-              landscape:opacity-100 portrait:hidden`}>
-              <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">
-                {gameState.players.find(p => p.id === lastTurn.playerId)?.name}'S MOVE
-              </span>
-            </div>
-          )}
-
-          {isMyTurn && hasSelection && Object.keys(combosByGroup).length > 0 && (
-            <div className="flex flex-col gap-2 max-h-[45vh] overflow-y-auto no-scrollbar animate-in slide-in-from-left-4 fade-in duration-300">
-               {Object.entries(combosByGroup).map(([type, variations]) => {
-                  if (variations.length === 0) return null;
-                  const currentIndex = variations.findIndex(v => 
-                    v.length === selectedCardIds.size && v.every(c => selectedCardIds.has(c.id))
-                  );
-                  const isCurrentOfType = currentIndex !== -1;
-                  const handleCycle = () => {
-                    const nextIdx = (currentIndex + 1) % variations.length;
-                    setSelectedCardIds(new Set(variations[nextIdx].map(c => c.id)));
-                  };
-                  return (
-                    <button 
-                      key={type}
-                      onClick={handleCycle}
-                      className={`px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all border shadow-lg whitespace-nowrap flex items-center gap-2
-                        ${isCurrentOfType 
-                          ? 'bg-yellow-500 text-black border-yellow-400 scale-105 shadow-yellow-500/30' 
-                          : 'bg-black/80 text-yellow-500 border-yellow-500/40 hover:bg-yellow-500/10'}`}
-                    >
-                      <span>{type.replace('_', ' ')}</span>
-                      <span className={`px-1.5 py-0.5 rounded-full text-[7px] ${isCurrentOfType ? 'bg-black/20 text-black' : 'bg-yellow-500/10 text-yellow-500/60'}`}>
-                        {isCurrentOfType ? currentIndex + 1 : 0} / {variations.length}
-                      </span>
-                    </button>
-                  );
-               })}
-            </div>
-          )}
       </div>
 
       {/* Opponent Slots */}
@@ -371,21 +325,16 @@ export const GameTable: React.FC<GameTableProps> = ({
       </div>
 
       {/* Play Area */}
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500 ${isMyTurn ? (handRows === 2 ? 'portrait:-translate-y-28' : 'portrait:-translate-y-20') : 'landscape:translate-y-0 portrait:-translate-y-12'}`}>
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-in-out ${isMyTurn ? (handRows === 2 ? 'portrait:-translate-y-32' : 'portrait:-translate-y-24') : 'landscape:translate-y-0 portrait:-translate-y-12'}`}>
         <div className="relative flex flex-col items-center">
           {gameState.currentPlayPile.length > 0 ? (
-            <div className="flex flex-col items-center gap-4 sm:gap-6 animate-in zoom-in duration-300 scale-90 sm:scale-125 landscape:scale-75">
+            <div className="flex flex-col items-center gap-4 sm:gap-6 animate-in zoom-in duration-300 scale-90 sm:scale-125 landscape:scale-[0.8]">
                <div className="flex -space-x-12 sm:-space-x-14">
                 {gameState.currentPlayPile[gameState.currentPlayPile.length - 1].cards.map((c, i) => (
                    <div key={c.id} style={{ transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})` }}>
                      <Card card={c} className="shadow-2xl ring-1 ring-white/10" />
                    </div>
                 ))}
-               </div>
-               <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-6 py-2 rounded-full flex items-center gap-2 shadow-2xl landscape:hidden">
-                  <span className="text-[11px] font-black text-yellow-500 uppercase tracking-widest">
-                    {gameState.players.find(p => p.id === lastTurn?.playerId)?.name}'S MOVE
-                  </span>
                </div>
             </div>
           ) : (
@@ -404,7 +353,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                 disabled={!isMyTurn || (!hasSelection && gameState.currentPlayPile.length === 0)}
                 className={`px-10 py-5 bg-transparent border-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-[0_20px_50px_rgba(0,0,0,0.6)] min-w-[140px]
                   ${hasSelection 
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-300 active:bg-zinc-700 active:text-white' 
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-300' 
                     : !hasSelection && gameState.currentPlayPile.length === 0 
                       ? 'border-white/5 text-white/5 grayscale pointer-events-none' 
                       : 'border-rose-600/60 text-rose-500 active:bg-rose-600/10 active:border-rose-500'}`}
@@ -424,7 +373,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
       </div>
 
-      {/* Hand & Mobile Controls */}
+      {/* Mobile Controls & Hand */}
       <div className="absolute bottom-0 left-0 w-full p-2 sm:p-6 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
         <div className="relative z-[100] flex flex-col items-center gap-3 mb-2 sm:mb-4 w-full landscape:hidden">
           <div className={`portrait:flex hidden transition-all duration-700 pointer-events-none mb-1 ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} flex-col items-center gap-2`}>
@@ -443,89 +392,68 @@ export const GameTable: React.FC<GameTableProps> = ({
               disabled={!hasSelection && gameState.currentPlayPile.length === 0}
               className={`flex-1 sm:flex-none px-6 sm:px-8 py-3 bg-transparent border-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl min-w-[100px] sm:min-w-[120px]
                 ${hasSelection 
-                  ? 'bg-zinc-800 border-zinc-700 text-zinc-300 active:bg-zinc-700 active:text-white' 
+                  ? 'bg-zinc-800 border-zinc-700 text-zinc-300' 
                   : !hasSelection && gameState.currentPlayPile.length === 0 
                     ? 'border-white/5 text-white/5 grayscale pointer-events-none' 
                     : 'border-rose-600/60 text-rose-500 active:bg-rose-600/10 active:border-rose-500'}`}
             >
               {hasSelection ? 'Clear' : 'Pass'}
             </button>
-            <button 
-              onClick={handlePlay}
-              disabled={!currentSelectionIsValid}
-              className={`flex-[2] sm:flex-none px-6 sm:px-12 py-4 rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] transition-all shadow-[0_20px_50px_rgba(0,0,0,0.6)] active:scale-95 min-w-[150px] sm:min-w-[180px] ${currentSelectionIsValid ? 'bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 text-white border border-emerald-400/30' : 'bg-white/5 text-white/20 border border-white/5 grayscale pointer-events-none'}`}
-            >
-              Play Cards
-            </button>
+            <div className="flex flex-row items-center gap-2 flex-[2] sm:flex-none">
+              <button 
+                onClick={handlePlay}
+                disabled={!currentSelectionIsValid}
+                className={`flex-1 px-6 sm:px-12 py-4 rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] transition-all shadow-[0_20px_50px_rgba(0,0,0,0.6)] active:scale-95 min-w-[150px] sm:min-w-[180px] ${currentSelectionIsValid ? 'bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 text-white border border-emerald-400/30' : 'bg-white/5 text-white/20 border border-white/5 grayscale pointer-events-none'}`}
+              >
+                Play Cards
+              </button>
+              {/* Row Toggle - Vertical Mobile Only */}
+              {myHand.length >= 8 && (
+                <button
+                  onClick={() => setHandRows(handRows === 1 ? 2 : 1)}
+                  className="w-11 h-11 shrink-0 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all shadow-xl active:scale-90"
+                  title={handRows === 1 ? "Switch to 2 rows" : "Switch to 1 row"}
+                >
+                  {handRows === 1 ? <TwoRowIcon /> : <OneRowIcon />}
+                </button>
+              )}
+            </div>
           </div>
         </div>
+
         <div className="relative group/hand flex items-center justify-center w-full max-w-[96vw] overflow-visible px-2 sm:px-4">
-           {/* Smooth Hand Container with stable padding/gap transitions */}
-           <div className={`
-             flex transition-all duration-500 ease-in-out origin-bottom will-change-[max-width,gap,transform]
-             landscape:py-2 landscape:scale-[0.6] landscape:sm:scale-[0.8] landscape:-space-x-14 landscape:sm:-space-x-16
-             portrait:pt-4 portrait:pb-16 portrait:scale-[0.95] portrait:sm:scale-[1.2]
-             ${handRows === 2 ? 'portrait:flex-wrap portrait:justify-center portrait:-space-x-10 portrait:max-w-[360px]' : 'portrait:flex-nowrap portrait:-space-x-[12vw] portrait:sm:-space-x-14 portrait:max-w-full'}
-           `}>
+           {/* Card animation speed: duration-800 for smoother slower movement */}
+           <div 
+             className={`
+               flex transition-all duration-800 cubic-bezier(0.19, 1, 0.22, 1) origin-bottom will-change-[max-width,gap,transform]
+               landscape:py-2 landscape:scale-[0.55] landscape:sm:scale-[0.75] landscape:-space-x-14 landscape:sm:-space-x-16
+               portrait:pt-4 portrait:pb-16 portrait:scale-[0.9] portrait:sm:scale-[1.1]
+               ${handRows === 2 ? 'portrait:flex-wrap portrait:justify-center portrait:-space-x-10 portrait:max-w-[340px]' : 'portrait:flex-nowrap portrait:-space-x-[12vw] portrait:sm:-space-x-14 portrait:max-w-full'}
+             `}
+             style={{ perspective: '1200px' }}
+           >
             {sortedHand.map((c) => (
               <Card 
                 key={c.id} 
                 card={c} 
                 selected={selectedCardIds.has(c.id)}
                 onClick={() => toggleCard(c.id)}
-                className={`transform transition-all duration-500 ease-in-out ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:z-50 sm:hover:-translate-y-12' : 'cursor-default grayscale-[0.5] scale-95 opacity-80'} ${handRows === 2 ? 'portrait:m-0.5' : ''}`}
+                className={`transform transition-all duration-800 cubic-bezier(0.19, 1, 0.22, 1) will-change-transform ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:z-50 sm:hover:-translate-y-12' : 'cursor-default grayscale-[0.5] scale-95 opacity-80'} ${handRows === 2 ? 'portrait:m-0.5' : ''}`}
               />
             ))}
            </div>
         </div>
       </div>
 
-      {/* Action Stack: Row Toggle ONLY (Bottom Right) */}
-      <div className="absolute bottom-8 right-8 flex flex-col items-end gap-4 z-[200]">
-        {/* Row Toggle Button - Conditionally rendered based on selection and hand size */}
-        {selectedCardIds.size >= 1 && myHand.length >= 9 && (
-          <button
-            onClick={() => setHandRows(handRows === 1 ? 2 : 1)}
-            className="portrait:flex landscape:hidden w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-black/40 backdrop-blur-md border border-white/10 items-center justify-center text-white/60 hover:text-white hover:bg-black/60 hover:scale-110 active:scale-95 shadow-xl transition-all animate-in zoom-in duration-300"
-            title={handRows === 1 ? "Switch to 2 rows" : "Switch to 1 row"}
-          >
-            {handRows === 1 ? <TwoRowIcon /> : <OneRowIcon />}
-          </button>
-        )}
-      </div>
-
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes emoteFly {
-          0% { 
-            transform: var(--start-pos); 
-            opacity: 0; 
-            filter: blur(15px);
-          }
-          10% {
-            opacity: 1;
-            filter: blur(0px);
-          }
-          /* Focus phase with refined middle-ground scale */
-          15% { 
-            transform: var(--focus-pos); 
-            opacity: 1; 
-            filter: blur(0px);
-          }
-          80% { 
-            transform: var(--focus-pos); 
-            opacity: 1;
-            filter: blur(0px);
-          }
-          /* Final drift exit */
-          100% { 
-            transform: var(--end-pos); 
-            opacity: 0; 
-            filter: blur(10px);
-          }
+          0% { transform: var(--start-pos); opacity: 0; filter: blur(15px); }
+          10% { opacity: 1; filter: blur(0px); }
+          15% { transform: var(--focus-pos); opacity: 1; filter: blur(0px); }
+          80% { transform: var(--focus-pos); opacity: 1; filter: blur(0px); }
+          100% { transform: var(--end-pos); opacity: 0; filter: blur(10px); }
         }
-        .animate-emote-fly {
-          animation: emoteFly 3.2s cubic-bezier(0.19, 1, 0.22, 1) forwards;
-        }
+        .animate-emote-fly { animation: emoteFly 3.2s cubic-bezier(0.19, 1, 0.22, 1) forwards; }
       `}} />
     </div>
   );
