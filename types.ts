@@ -38,7 +38,7 @@ export interface Player {
   finishedRank?: number | null;
   isBot?: boolean;
   difficulty?: AiDifficulty;
-  isOffline?: boolean; // New: track reconnection status
+  isOffline?: boolean;
 }
 
 export enum GameStatus {
@@ -64,12 +64,14 @@ export interface GameState {
   winnerId: string | null;
   finishedPlayers: string[];
   isFirstTurnOfGame?: boolean;
+  turnEndTime?: number; // Server timestamp when current turn expires
 }
 
 export enum SocketEvents {
   CREATE_ROOM = 'create_room',
   JOIN_ROOM = 'join_room',
-  RECONNECT = 'reconnect_session', // New: reconnect event
+  RECONNECT = 'reconnect_session',
+  REQUEST_SYNC = 'request_sync', // New: Request hard state refresh
   ADD_BOT = 'add_bot',
   REMOVE_BOT = 'remove_bot',
   START_GAME = 'start_game',

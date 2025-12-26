@@ -108,6 +108,7 @@ export const Store: React.FC<StoreProps> = ({
   const [activeTab, setActiveTab] = useState<'SLEEVES' | 'AVATARS' | 'BOARDS'>(initialTab as any);
   const [buying, setBuying] = useState<string | null>(null);
   const [previewThemeId, setPreviewThemeId] = useState<BackgroundTheme | null>(null);
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [density, setDensity] = useState<1 | 2 | 4>(2);
   const [hideOwned, setHideOwned] = useState(false);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
@@ -182,7 +183,7 @@ export const Store: React.FC<StoreProps> = ({
     const nameSize = density === 4 ? 'text-[7px]' : 'text-[9px] sm:text-[10px]';
 
     return (
-      <div key={id} className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl`}>
+      <div key={id} onClick={() => isAvatar ? setPreviewAvatar(item) : null} className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl ${isAvatar ? 'cursor-pointer' : ''}`}>
         <div className="absolute top-2.5 right-2.5 z-10">
           {unlocked && isEquipped && (
             <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] sm:text-[8px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>
@@ -212,7 +213,7 @@ export const Store: React.FC<StoreProps> = ({
 
         <div className="w-full mt-auto">
           <button
-            onClick={() => unlocked ? (isAvatar ? onEquipAvatar(item) : isBoard ? onEquipBoard(item.id) : onEquipSleeve(item.style)) : handlePurchaseAttempt(item, isAvatar, isBoard)}
+            onClick={(e) => { e.stopPropagation(); unlocked ? (isAvatar ? onEquipAvatar(item) : isBoard ? onEquipBoard(item.id) : onEquipSleeve(item.style)) : handlePurchaseAttempt(item, isAvatar, isBoard); }}
             disabled={isEquipped || (!unlocked && !canAfford) || buying === id}
             className={`
               w-full py-2 rounded-xl font-black uppercase ${density === 4 ? 'text-[7px]' : 'text-[8px] sm:text-[9px]'} tracking-[0.15em] transition-all 
@@ -238,6 +239,40 @@ export const Store: React.FC<StoreProps> = ({
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
       {previewThemeId && <DummyTablePreview themeId={previewThemeId} onClose={() => setPreviewThemeId(null)} />}
       
+      {/* AVATAR PREVIEW MODAL */}
+      {previewAvatar && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in zoom-in-95 duration-200" onClick={() => setPreviewAvatar(null)}>
+          <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-10 flex flex-col items-center text-center shadow-[0_0_150px_rgba(251,191,36,0.1)] relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setPreviewAvatar(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"><span className="text-xl font-black">✕</span></button>
+            <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-black/60 border border-yellow-500/20 flex items-center justify-center mb-8 overflow-hidden shadow-inner">
+               <VisualEmote trigger={previewAvatar} remoteEmotes={remoteEmotes} size="xl" />
+            </div>
+            <h3 className="text-white font-black uppercase tracking-widest text-lg mb-2">{getAvatarName(previewAvatar, remoteEmotes)}</h3>
+            <p className="text-gray-500 text-[10px] uppercase tracking-[0.4em] mb-10 italic">Elite Signature Series</p>
+            
+            <div className="w-full">
+              {isUnlockedAvatar(previewAvatar) ? (
+                <button 
+                  onClick={() => { onEquipAvatar(previewAvatar); setPreviewAvatar(null); }}
+                  className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] transition-all shadow-xl ${playerAvatar === previewAvatar ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 cursor-default' : 'bg-emerald-600 text-white hover:scale-105 active:scale-95'}`}
+                  disabled={playerAvatar === previewAvatar}
+                >
+                  {playerAvatar === previewAvatar ? 'EQUIPPED' : 'EQUIP'}
+                </button>
+              ) : (
+                <button 
+                  onClick={() => { setPreviewAvatar(null); handlePurchaseAttempt(previewAvatar, true); }}
+                  disabled={profile && profile.coins < 250 || !!buying}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black font-black uppercase tracking-[0.25em] text-[11px] shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+                >
+                  {buying === previewAvatar ? 'UNREELING...' : `UNLOCK | 💰 250`}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PURCHASE CONFIRMATION MODAL */}
       {pendingPurchase && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>

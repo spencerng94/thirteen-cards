@@ -62,23 +62,7 @@ const App: React.FC = () => {
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
 
-  const attemptReconnection = useCallback(() => {
-    const saved = localStorage.getItem(SESSION_KEY);
-    if (saved) {
-      const { roomId, playerId, timestamp } = JSON.parse(saved);
-      if (Date.now() - timestamp < 300000) {
-        setGameMode('MULTI_PLAYER');
-        setPlayerId(playerId);
-        connectSocket();
-        socket.on('connect', () => {
-          socket.emit(SocketEvents.RECONNECT, { roomId, playerId });
-        });
-      }
-    }
-  }, []);
-
   useEffect(() => {
-    attemptReconnection();
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && gameMode === 'MULTI_PLAYER') {
         if (!socket.connected) {
@@ -88,12 +72,15 @@ const App: React.FC = () => {
               const { roomId, playerId } = JSON.parse(saved);
               socket.emit(SocketEvents.RECONNECT, { roomId, playerId });
            }
+        } else {
+           // HARD SYNC: Request current table state from server
+           socket.emit(SocketEvents.REQUEST_SYNC);
         }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [gameMode, attemptReconnection]);
+  }, [gameMode]);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -187,12 +174,6 @@ const App: React.FC = () => {
 
   useEffect(() => { audioService.setEnabled(soundEnabled); }, [soundEnabled]);
 
-  useEffect(() => {
-    const state = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
-    const myId = gameMode === 'MULTI_PLAYER' ? (playerId || socket.id) : 'player-me';
-    if (state?.currentPlayerId === myId && state?.status === GameStatus.PLAYING) audioService.playTurn();
-  }, [mpGameState?.currentPlayerId, spGameState?.currentPlayerId, gameMode, playerId]);
-
   const triggerMatchEndTransition = useCallback(() => {
     setIsTransitioning(true);
     setTimeout(() => { setView('VICTORY'); setIsTransitioning(false); }, 2500);
@@ -269,7 +250,6 @@ const App: React.FC = () => {
       let finishedPlayers = [...prev.finishedPlayers];
       if (playerWhoJustPlayed.cardCount === 0) { finishedPlayers.push(pid); playerWhoJustPlayed.finishedRank = finishedPlayers.length; }
       
-      // Fixed Turbo Finish logic - calculation of ranks was skipping numbers
       if (pid === 'player-me' && playerWhoJustPlayed.cardCount === 0 && spQuickFinish) {
           const remaining = updatedPlayers.filter(p => !p.finishedRank).sort((a, b) => a.cardCount - b.cardCount);
           const currentFinishedCount = finishedPlayers.length;
