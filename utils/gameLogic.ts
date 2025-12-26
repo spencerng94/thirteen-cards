@@ -89,17 +89,19 @@ export const getComboType = (cards: Card[]): ComboType => {
 export const validateMove = (
   playedCards: Card[], 
   playPile: PlayTurn[],
-  isFirstTurnOfGame: boolean = false
+  isFirstTurnOfGame: boolean = false,
+  myHand: Card[] = []
 ): { isValid: boolean; reason: string } => {
   const pType = getComboType(playedCards);
   if (pType === 'INVALID') {
     return { isValid: false, reason: 'Invalid card combination.' };
   }
 
-  // First turn of the ENTIRE game must have 3 of Spades
+  // First turn of the ENTIRE game must have 3 of Spades IF it is in the player's hand
   if (isFirstTurnOfGame && playPile.length === 0) {
-    const has3Spades = playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
-    if (!has3Spades) {
+    const handHas3Spades = myHand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
+    const moveHas3Spades = playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
+    if (handHas3Spades && !moveHas3Spades) {
       return { isValid: false, reason: 'First move must include the 3♠.' };
     }
   }
@@ -227,10 +229,10 @@ export const canPlayAnyMove = (
   const lHigh = getHighestCard(lastTurn.cards);
   const lLen = lastTurn.cards.length;
   const sorted = sortCards(hand);
-  if (lType === 'SINGLE' || playPile.length === 0) if (sorted.some(c => validateMove([c], playPile, isFirstTurnOfGame).isValid)) return true;
-  if (lType === 'PAIR' || playPile.length === 0) if (getAllPairs(sorted).some(p => validateMove(p, playPile, isFirstTurnOfGame).isValid)) return true;
-  if (lType === 'TRIPLE' || playPile.length === 0) if (getAllTriples(sorted).some(t => validateMove(t, playPile, isFirstTurnOfGame).isValid)) return true;
-  if (lType === 'QUAD' || playPile.length === 0) if (getAllQuads(sorted).some(q => validateMove(q, playPile, isFirstTurnOfGame).isValid)) return true;
+  if (lType === 'SINGLE' || playPile.length === 0) if (sorted.some(c => validateMove([c], playPile, isFirstTurnOfGame, hand).isValid)) return true;
+  if (lType === 'PAIR' || playPile.length === 0) if (getAllPairs(sorted).some(p => validateMove(p, playPile, isFirstTurnOfGame, hand).isValid)) return true;
+  if (lType === 'TRIPLE' || playPile.length === 0) if (getAllTriples(sorted).some(t => validateMove(t, playPile, isFirstTurnOfGame, hand).isValid)) return true;
+  if (lType === 'QUAD' || playPile.length === 0) if (getAllQuads(sorted).some(q => validateMove(q, playPile, isFirstTurnOfGame, hand).isValid)) return true;
   if (lType === 'RUN') {
       const uniqueRanks = Array.from(new Set(sorted.filter(c => c.rank !== Rank.Two).map(c => c.rank))).sort((a,b) => a-b);
       if (uniqueRanks.length >= lLen) {
@@ -240,15 +242,15 @@ export const canPlayAnyMove = (
               for (let k = 0; k < lLen - 1; k++) if (runRanks[k+1] !== runRanks[k] + 1) isSeq = false;
               if (isSeq) {
                   const runCards = runRanks.map(r => sorted.find(c => c.rank === r)!);
-                  if (validateMove(runCards, playPile, isFirstTurnOfGame).isValid) return true;
+                  if (validateMove(runCards, playPile, isFirstTurnOfGame, hand).isValid) return true;
               }
           }
       }
   }
   if (lHigh.rank === Rank.Two || ['QUAD', '3_PAIRS', '4_PAIRS'].includes(lType)) {
-      if (getAllQuads(sorted).some(q => validateMove(q, playPile, isFirstTurnOfGame).isValid)) return true;
-      if (getConsecutivePairs(sorted, 3).some(p => validateMove(p, playPile, isFirstTurnOfGame).isValid)) return true;
-      if (getConsecutivePairs(sorted, 4).some(p => validateMove(p, playPile, isFirstTurnOfGame).isValid)) return true;
+      if (getAllQuads(sorted).some(q => validateMove(q, playPile, isFirstTurnOfGame, hand).isValid)) return true;
+      if (getConsecutivePairs(sorted, 3).some(p => validateMove(p, playPile, isFirstTurnOfGame, hand).isValid)) return true;
+      if (getConsecutivePairs(sorted, 4).some(p => validateMove(p, playPile, isFirstTurnOfGame, hand).isValid)) return true;
   }
   return false;
 };
@@ -269,7 +271,7 @@ export const findAllValidCombos = (
   const combos: Record<string, Card[][]> = { 'SINGLE': [], 'PAIR': [], 'TRIPLE': [], 'QUAD': [], 'RUN': [], 'BOMB': [] };
 
   const addIfValid = (candidate: Card[], type: string) => {
-    const res = validateMove(candidate, playPile, isFirstTurnOfGame);
+    const res = validateMove(candidate, playPile, isFirstTurnOfGame, hand);
     if (res.isValid && candidate.some(c => c.id === pivotCardId)) combos[type].push(candidate);
   };
 

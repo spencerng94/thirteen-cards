@@ -187,18 +187,18 @@ const BombOverlay: React.FC<{ active: boolean }> = ({ active }) => {
 
 const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'bottom' | 'top' | 'left' | 'right' }> = ({ emote, remoteEmotes, position }) => {
   const positions = {
-    bottom: { start: 'translate(-50%, 0)', focus: 'translate(-50%, -100px)', end: 'translate(-50%, -200px)' },
-    top: { start: 'translate(-50%, 0)', focus: 'translate(-50%, 100px)', end: 'translate(-50%, 200px)' },
-    left: { start: 'translate(0, -50%)', focus: 'translate(100px, -50%)', end: 'translate(200px, -50%)' },
-    right: { start: 'translate(0, -50%)', focus: 'translate(-100px, -50%)', end: 'translate(-200px, -50%)' },
+    bottom: { start: 'translate(-50%, 0)', focus: 'translate(-50%, -120px)', end: 'translate(-50%, -240px)' },
+    top: { start: 'translate(-50%, 0)', focus: 'translate(-50%, 120px)', end: 'translate(-50%, 240px)' },
+    left: { start: 'translate(0, -50%)', focus: 'translate(120px, -50%)', end: 'translate(240px, -50%)' },
+    right: { start: 'translate(0, -50%)', focus: 'translate(-120px, -50%)', end: 'translate(-240px, -50%)' },
   };
 
   const pos = positions[position];
   const screenPos = {
-    bottom: 'bottom-24 left-1/2',
-    top: 'top-24 left-1/2',
-    left: 'left-24 top-1/2',
-    right: 'right-24 top-1/2'
+    bottom: 'bottom-28 left-1/2',
+    top: 'top-28 left-1/2',
+    left: 'left-28 top-1/2',
+    right: 'right-28 top-1/2'
   };
 
   return (
@@ -210,8 +210,10 @@ const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'b
         '--end-pos': pos.end
       } as any}
     >
-      <div className="bg-black/60 backdrop-blur-xl border border-white/20 p-3 rounded-full shadow-2xl scale-125">
-        <VisualEmote trigger={emote} remoteEmotes={remoteEmotes} size="md" />
+      <div className="bg-black/60 backdrop-blur-2xl border-2 border-white/20 p-5 rounded-full shadow-2xl scale-[1.65]">
+        <div className="w-14 h-14 flex items-center justify-center">
+            <VisualEmote trigger={emote} remoteEmotes={remoteEmotes} size="lg" />
+        </div>
       </div>
     </div>
   );

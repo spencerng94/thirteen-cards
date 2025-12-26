@@ -138,6 +138,7 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
 };
 
 const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass: boolean = false): number => {
+  if (room.players.length === 0) return 0;
   for (let i = 1; i <= room.players.length; i++) {
     const idx = (startIndex + i) % room.players.length;
     const p = room.players[idx];
@@ -145,9 +146,15 @@ const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass
     if (!ignorePass && p.hasPassed) continue; // Skip passed players unless resetting round
     return idx;
   }
-  // Fallback: Find any non-finished player if the circle logic failed
   const firstActive = room.players.findIndex(p => !p.finishedRank);
   return firstActive !== -1 ? firstActive : startIndex;
+};
+
+const resetRound = (room: GameRoom) => {
+  if (room.currentPlayPile.length > 0) room.roundHistory.push([...room.currentPlayPile]);
+  room.currentPlayPile = [];
+  room.players.forEach(p => p.hasPassed = false);
+  room.lastPlayerToPlayId = null;
 };
 
 // --- Bot Utilities ---
@@ -319,7 +326,6 @@ const handleTurnTimeout = (roomId: string) => {
   if (!room || room.status !== 'PLAYING') return;
   const currentPlayer = room.players[room.currentPlayerIndex];
   if (!currentPlayer || currentPlayer.finishedRank) {
-    // Safety skip if landed on a finished player
     room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
     startTurnTimer(roomId);
     broadcastState(roomId);
@@ -356,6 +362,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   room.currentPlayPile.push({ playerId, cards, comboType: getComboType(cards) });
   room.lastPlayerToPlayId = playerId;
   room.isFirstTurnOfGame = false;
+  
   if (currentPlayer.hand.length === 0) {
     if (!room.finishedPlayers.includes(playerId)) {
       room.finishedPlayers.push(playerId);
@@ -369,10 +376,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
           loser.finishedRank = room.finishedPlayers.length;
         }
         room.status = 'FINISHED';
-        if (room.currentPlayPile.length > 0) {
-          room.roundHistory.push([...room.currentPlayPile]);
-          room.currentPlayPile = [];
-        }
+        resetRound(room);
         broadcastState(roomId); 
         return;
     }
@@ -381,11 +385,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   // PROGRESS TURN
   const activeRemainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
   if (activeRemainingInRound.length === 0) {
-     // ROUND ENDED
-     if (room.currentPlayPile.length > 0) room.roundHistory.push([...room.currentPlayPile]);
-     room.currentPlayPile = [];
-     room.players.forEach(p => p.hasPassed = false);
-     // Lead goes to next active person if I finished, otherwise stay on me
+     resetRound(room);
      let nextIdx = room.players.indexOf(currentPlayer);
      if (currentPlayer.finishedRank) {
         nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
@@ -419,13 +419,13 @@ const handlePass = (roomId: string, playerId: string) => {
   currentPlayer.hasPassed = true;
   let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   
-  // If next active person is the one who last played, the round resets
-  if (room.players[nextIdx].id === room.lastPlayerToPlayId) {
-    if (room.currentPlayPile.length > 0) room.roundHistory.push([...room.currentPlayPile]);
-    room.currentPlayPile = [];
-    room.players.forEach(p => p.hasPassed = false);
-    
-    // If the person who was supposed to lead is finished, move to next active
+  const activeInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed);
+  
+  if (activeInRound.length === 1 && activeInRound[0].id === room.lastPlayerToPlayId) {
+    resetRound(room);
+    nextIdx = room.players.indexOf(activeInRound[0]);
+  } else if (room.players[nextIdx].id === room.lastPlayerToPlayId) {
+    resetRound(room);
     if (room.players[nextIdx].finishedRank) {
         nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
     }
@@ -462,7 +462,44 @@ const performCleanup = (roomId: string, playerId: string) => {
   if (playerIndex === -1) return;
   const leavingPlayer = room.players[playerIndex];
   const wasHost = leavingPlayer.isHost;
+  
+  // ADJUST INDEXES BEFORE SPLICING
+  if (room.status === 'PLAYING') {
+    // If the King leaves, reset the round
+    if (room.lastPlayerToPlayId === playerId) {
+      resetRound(room);
+    }
+
+    // Adjust currentPlayerIndex if a player before the current one leaves
+    if (room.currentPlayerIndex === playerIndex) {
+       // Current player left, turn moves to next person in shifted array
+       if (room.turnTimer) clearTimeout(room.turnTimer);
+       // We'll let broadcast/sync handle the next step
+    } else if (room.currentPlayerIndex > playerIndex) {
+       room.currentPlayerIndex--;
+    }
+  }
+
   room.players.splice(playerIndex, 1);
+  
+  if (room.status === 'PLAYING') {
+    if (room.players.length > 0) {
+      room.currentPlayerIndex %= room.players.length;
+      
+      // If 3♠ holder left during first turn, clear flag to prevent deadlock
+      if (room.isFirstTurnOfGame && !room.players.some(p => p.hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades))) {
+        room.isFirstTurnOfGame = false;
+      }
+
+      // If we just landed on a finished player, skip them
+      if (room.players[room.currentPlayerIndex].finishedRank) {
+        room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
+      }
+      
+      startTurnTimer(roomId);
+    }
+  }
+
   const humanPlayers = room.players.filter(p => !p.isBot);
   if (humanPlayers.length === 0) {
     if (room.turnTimer) clearTimeout(room.turnTimer);
