@@ -41,20 +41,6 @@ interface ActiveEmote {
 
 const EMOTE_COOLDOWN = 2000;
 
-const OneRowIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="7" width="18" height="10" rx="2" />
-    <path d="M7 12h10" opacity="0.3" />
-  </svg>
-);
-
-const TwoRowIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="4" y="3.5" width="16" height="8" rx="1.5" />
-    <rect x="4" y="12.5" width="16" height="8" rx="1.5" />
-  </svg>
-);
-
 const SettingsIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -112,16 +98,16 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
   };
 
   return (
-    <div className={`relative flex transition-all duration-500 ${isFinished ? 'scale-100' : 'opacity-100'} 
-      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 'flex-col items-center gap-2 sm:gap-4'}`}>
+    <div className={`relative flex transition-all duration-150 ease-[0.2,0,0,1] ${isFinished ? 'scale-100' : 'opacity-100'} 
+      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 'flex-col items-center gap-1.5 sm:gap-3'}`}>
         
         <div className="relative flex flex-col items-center shrink-0">
-            <div className="relative">
+            <div className="relative w-16 h-16 sm:w-24 sm:h-24">
                 {isTurn && !isFinished && (
                     <div className={`absolute inset-[-12px] rounded-full border-2 ${timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-500/50'} animate-ping`}></div>
                 )}
                 
-                <div className={`w-20 h-20 sm:w-24 h-24 sm:h-24 rounded-full border-2 transition-all duration-500 overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-400') + ' scale-110' : 'border-white/10'} ${getGlowClass()}`}>
+                <div className={`w-full h-full aspect-square rounded-full border-2 transition-all duration-150 ease-out overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-400') + ' scale-110' : 'border-white/10'} ${getGlowClass()}`}>
                     <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="lg" />
                     {isTurn && !isFinished && timeLeft > 0 && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -144,7 +130,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
                 )}
             </div>
 
-            <div className={`bg-black/60 backdrop-blur-md px-3 py-1 sm:px-4 sm:py-1.5 rounded-full border min-w-[75px] sm:min-w-[95px] text-center shadow-lg mt-2.5 transition-colors ${player.isOffline ? 'border-amber-500/50' : 'border-white/5'} ${isFinished ? 'opacity-40 border-white/20' : ''}`}>
+            <div className={`bg-black/60 backdrop-blur-md px-3 py-0.5 sm:px-4 sm:py-1 rounded-full border min-w-[75px] sm:min-w-[95px] text-center shadow-lg mt-1.5 transition-colors ${player.isOffline ? 'border-amber-500/50' : 'border-white/5'} ${isFinished ? 'opacity-40 border-white/20' : ''}`}>
                 <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] inline-block ${player.isOffline ? 'text-amber-500' : 'text-white/90'}`}>
                   {player.name}
                 </span>
@@ -199,7 +185,6 @@ const BombOverlay: React.FC<{ active: boolean }> = ({ active }) => {
   );
 };
 
-// Added missing EmoteBubble component to fix Error in file components/GameTable.tsx on line 307
 const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'bottom' | 'top' | 'left' | 'right' }> = ({ emote, remoteEmotes, position }) => {
   const positions = {
     bottom: { start: 'translate(-50%, 0)', focus: 'translate(-50%, -100px)', end: 'translate(-50%, -200px)' },
@@ -249,7 +234,6 @@ export const GameTable: React.FC<GameTableProps> = ({
   const isMyTurn = gameState.currentPlayerId === myId;
   const isLeader = gameState.currentPlayPile.length === 0;
 
-  // Detect Bomb on Pile Update
   const lastMove = gameState.currentPlayPile.length > 0 ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] : null;
   useEffect(() => {
     if (lastMove && ['QUAD', '3_PAIRS', '4_PAIRS', 'BOMB'].includes(lastMove.comboType)) {
@@ -309,9 +293,14 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const handlePlay = () => { if (selectedCardIds.size === 0 || !isMyTurn) return; const cards = myHand.filter(c => selectedCardIds.has(c.id)); if (validateMove(cards, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame).isValid) { onPlayCards(cards); if (handRows === 2 && myHand.length - cards.length < 8) setHandRows(1); } };
 
-  const handleManualPass = () => { if (!isMyTurn || isLeader) return; setSelectedCardIds(new Set()); onPassTurn(); };
-
-  const handleClear = () => setSelectedCardIds(new Set());
+  const handleDynamicAction = () => {
+    if (!isMyTurn) return;
+    if (selectedCardIds.size === 0) {
+      if (!isLeader) onPassTurn();
+    } else {
+      setSelectedCardIds(new Set());
+    }
+  };
 
   const cycleComboType = (type: string) => {
     const list = combosByGroup[type];
@@ -323,9 +312,15 @@ export const GameTable: React.FC<GameTableProps> = ({
     audioService.playExpandHand(); 
   };
 
-  const spacing = { landscape: selectedCardIds.size > 0 ? 'landscape:-space-x-12 sm:landscape:-space-x-14' : 'landscape:-space-x-14 sm:landscape:-space-x-16', portrait: selectedCardIds.size > 0 ? 'portrait:-space-x-[8vw] sm:portrait:-space-x-10' : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14' };
+  const spacing = { 
+    landscape: selectedCardIds.size > 0 
+        ? 'landscape:-space-x-8 sm:landscape:-space-x-10 xl:landscape:-space-x-4' 
+        : 'landscape:-space-x-10 sm:landscape:-space-x-12 xl:landscape:-space-x-6', 
+    portrait: selectedCardIds.size > 0 
+        ? 'portrait:-space-x-[8vw] sm:portrait:-space-x-10' 
+        : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14' 
+  };
 
-  // Fixed syntax errors in opponent player slots (Error in file components/GameTable.tsx on lines 333, 334, 335)
   const topOpponent = opponents.find(o => o.position === 'top');
   const leftOpponent = opponents.find(o => o.position === 'left');
   const rightOpponent = opponents.find(o => o.position === 'right');
@@ -335,12 +330,6 @@ export const GameTable: React.FC<GameTableProps> = ({
       <BoardSurface themeId={backgroundTheme} />
       <BombOverlay active={showBombEffect} />
       {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
-
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-          {gameState.players.find(p => p.id === myId) && (
-              <PlayerSlot player={gameState.players.find(p => p.id === myId)!} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} />
-          )}
-      </div>
 
       {activeEmotes.map(ae => { const playerIdx = gameState.players.findIndex(p => p.id === ae.playerId); if (playerIdx === -1) return null; return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={getPlayerPosition(playerIdx) as any} />; })}
 
@@ -367,10 +356,19 @@ export const GameTable: React.FC<GameTableProps> = ({
         <button onClick={() => setShowInstructions(true)} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><span className="text-lg font-black">?</span></button>
       </div>
 
+      {/* Opponent Grid - Movement direction fixed for top player to prevent off-screen ugly hover */}
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
-        <div className="col-start-2 row-start-1 flex justify-center items-start pt-2">{topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}</div>
-        <div className="col-start-1 row-start-2 flex justify-start items-center pl-2">{leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}</div>
-        <div className="col-start-3 row-start-2 flex justify-end items-center pr-2">{rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}</div>
+        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8' : ''}`}>
+          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}
+        </div>
+        
+        <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-150 ease-[0.2,0,0,1] ${isMyTurn ? 'portrait:-translate-y-32' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16' : '')}`}>
+          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}
+        </div>
+        
+        <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''}`}>
+          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}
+        </div>
       </div>
 
       <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-in-out ${isMyTurn ? 'portrait:-translate-y-28' : 'portrait:-translate-y-12'}`}>
@@ -387,23 +385,62 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full p-2 sm:p-6 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
-        <div className={`mb-4 flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-           <div className={`px-6 py-2.5 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
+      <div className="absolute bottom-0 left-0 w-full p-2 sm:p-4 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
+        <div className={`mb-3 flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+           <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
               <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">{isLeader ? 'Leader (No Pass)' : 'Your Turn'}</span>
               {timeLeft > 0 && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${timeLeft <= 3 ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
            </div>
            {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
         </div>
 
-        <div className={`flex flex-row items-stretch justify-center gap-3 w-full max-w-sm mb-4 transition-all duration-500 h-16 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
-          <button onClick={handleManualPass} disabled={isLeader} className={`flex-1 flex items-center justify-center border-2 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 bg-black/40 ${isLeader ? 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed' : 'border-rose-600/60 text-rose-500 hover:bg-rose-950/20'}`}>Pass</button>
-          <button onClick={handleClear} disabled={selectedCardIds.size === 0} className={`flex-1 flex items-center justify-center border-2 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 ${selectedCardIds.size > 0 ? 'bg-zinc-800 border-zinc-700 text-zinc-300' : 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed'}`}>Clear</button>
-          <button onClick={handlePlay} disabled={!validationResult.isValid} className={`flex-[2] flex items-center justify-center rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all active:scale-95 ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-white' : 'bg-white/5 text-white/20 border border-white/5 grayscale'}`}>Play Cards</button>
+        <div className={`flex flex-row items-stretch justify-center gap-3 w-full max-w-sm mb-3 transition-all duration-500 h-16 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
+          <div className="relative flex-1">
+            {/* Local player profile - matched scale 1.0 to match opponents, reduced top offset to decrease dead space */}
+            <div className="absolute -top-[95px] left-1/2 -translate-x-1/2 origin-bottom pointer-events-none z-50 transition-transform duration-150">
+              {gameState.players.find(p => p.id === myId) && (
+                  <PlayerSlot player={gameState.players.find(p => p.id === myId)!} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} />
+              )}
+            </div>
+            <button 
+              onClick={handleDynamicAction} 
+              disabled={selectedCardIds.size === 0 && isLeader}
+              className={`w-full h-full flex flex-col items-center justify-center border-2 rounded-2xl shadow-xl transition-all active:scale-95 bg-black/40 ${selectedCardIds.size === 0 ? (isLeader ? 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed' : 'border-rose-600/60 text-rose-500 hover:bg-rose-950/20') : 'border-zinc-700 text-zinc-300 bg-zinc-900/60'}`}
+            >
+              <span className="text-[10px] font-black uppercase tracking-widest">{selectedCardIds.size === 0 ? 'Pass' : 'Clear'}</span>
+              <span className="text-[6px] font-bold opacity-40 uppercase tracking-[0.2em] mt-1">{selectedCardIds.size === 0 ? 'Skip Turn' : `${selectedCardIds.size} Selected`}</span>
+            </button>
+          </div>
+          
+          <button 
+            onClick={handlePlay} 
+            disabled={!validationResult.isValid} 
+            className={`flex-[2] flex flex-col items-center justify-center rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all active:scale-95 ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-white' : 'bg-white/5 text-white/20 border border-white/5 grayscale'}`}
+          >
+            <span>Play Cards</span>
+            {validationResult.isValid && <span className="text-[6.5px] opacity-70 tracking-widest mt-0.5">{validationResult.reason}</span>}
+          </button>
+
+          <button 
+            onClick={() => { setHandRows(r => r === 1 ? 2 : 1); audioService.playExpandHand(); }} 
+            className="flex-1 flex flex-col items-center justify-center border-2 border-white/10 bg-black/40 rounded-2xl text-white/40 hover:text-white transition-all active:scale-95"
+          >
+            <div className="flex flex-col gap-0.5 mb-1 items-center">
+              {handRows === 1 ? (
+                <div className="w-6 h-1.5 rounded-sm bg-current"></div>
+              ) : (
+                <>
+                  <div className="w-6 h-1.5 rounded-sm bg-current"></div>
+                  <div className="w-6 h-1.5 rounded-sm bg-current opacity-40"></div>
+                </>
+              )}
+            </div>
+            <span className="text-[7px] font-black uppercase tracking-widest">{handRows} ROW</span>
+          </button>
         </div>
 
         <div className="relative flex items-center justify-center w-full max-w-[96vw]">
-           <div className={`flex transition-all duration-800 landscape:scale-[0.55] landscape:sm:scale-[0.75] ${spacing.landscape} portrait:pt-4 portrait:pb-16 portrait:scale-[0.9] ${handRows === 2 ? 'portrait:flex-wrap portrait:justify-center portrait:-space-x-10 portrait:max-w-[340px]' : `portrait:flex-nowrap ${spacing.portrait} portrait:max-w-full`}`}>
+           <div className={`flex transition-all duration-800 landscape:scale-[0.55] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:pb-16 portrait:scale-[0.9] ${handRows === 2 ? 'portrait:flex-wrap portrait:justify-center portrait:-space-x-10 portrait:max-w-[340px]' : `portrait:flex-nowrap ${spacing.portrait} portrait:max-w-full`}`}>
             {sortedHand.map((c) => (<Card key={c.id} card={c} selected={selectedCardIds.has(c.id)} onClick={() => toggleCard(c.id)} className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows === 2 ? 'portrait:m-0.5' : ''}`} />))}
            </div>
         </div>
