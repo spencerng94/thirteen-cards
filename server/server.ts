@@ -55,6 +55,7 @@ interface GameRoom {
 }
 
 const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
+const BOT_NAMES = ['VALKYRIE', 'SABER', 'LANCE', 'PHANTOM', 'GHOST', 'REAPER'];
 const RECONNECTION_GRACE_PERIOD = 30000; 
 const TURN_DURATION_MS = 20000; // 20 Seconds per turn
 
@@ -389,6 +390,44 @@ io.on('connection', (socket: Socket) => {
     socketToRoom[socket.id] = roomId;
     socket.join(roomId);
     broadcastState(roomId);
+  });
+
+  socket.on('add_bot', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
+    const botId = `bot-${uuidv4()}`;
+    const botName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+    const botAvatar = BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)];
+    room.players.push({
+      id: botId,
+      name: botName,
+      avatar: botAvatar,
+      socketId: 'BOT',
+      hand: [],
+      isHost: false,
+      hasPassed: false,
+      finishedRank: null,
+      isBot: true,
+      difficulty: 'MEDIUM'
+    });
+    broadcastState(roomId);
+  });
+
+  socket.on('remove_bot', ({ roomId, botId }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'LOBBY') return;
+    room.players = room.players.filter(p => p.id !== botId);
+    broadcastState(roomId);
+  });
+
+  socket.on('update_bot_difficulty', ({ roomId, botId, difficulty }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    const bot = room.players.find(p => p.id === botId && p.isBot);
+    if (bot) {
+      bot.difficulty = difficulty;
+      broadcastState(roomId);
+    }
   });
 
   socket.on('get_public_rooms', () => {
