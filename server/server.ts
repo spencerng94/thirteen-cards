@@ -55,7 +55,7 @@ interface GameRoom {
 }
 
 const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
-const BOT_NAMES = ['VALKYRIE', 'SABER', 'LANCE', 'PHANTOM', 'GHOST', 'REAPER'];
+const BOT_NAMES = ['VALKYRIE', 'SABER', 'LANCE', 'PHANTOM', 'GHOST', 'REAPER', 'VOID', 'SPECTRE'];
 const RECONNECTION_GRACE_PERIOD = 30000; 
 const TURN_DURATION_MS = 20000; // 20 Seconds per turn
 
@@ -395,14 +395,17 @@ io.on('connection', (socket: Socket) => {
   socket.on('add_bot', ({ roomId }) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
-    const botId = `bot-${uuidv4()}`;
+    
+    // Safer ID generation for bots without relying on external packages in case of import issues
+    const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
     const botName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
     const botAvatar = BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)];
+    
     room.players.push({
       id: botId,
       name: botName,
       avatar: botAvatar,
-      socketId: 'BOT',
+      socketId: 'BOT_INSTANCE',
       hand: [],
       isHost: false,
       hasPassed: false,
@@ -410,6 +413,7 @@ io.on('connection', (socket: Socket) => {
       isBot: true,
       difficulty: 'MEDIUM'
     });
+    
     broadcastState(roomId);
   });
 

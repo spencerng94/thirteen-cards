@@ -185,7 +185,9 @@ export const Lobby: React.FC<LobbyProps> = ({
 
   if (gameState) {
      const emptySlots = Math.max(0, MAX_PLAYERS - gameState.players.length);
-     const isHost = gameState.players.find(p => p.id === socket.id)?.isHost;
+     // Robust isHost check: compare p.id to socket.id or check the player object's internal isHost flag
+     const me = gameState.players.find(p => p.id === socket.id || p.id === playerName);
+     const isHost = me?.isHost || gameState.players.find(p => p.id === socket.id)?.isHost;
 
      return (
        <BackgroundWrapper theme={backgroundTheme}>
@@ -220,7 +222,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                     className={`group flex items-center gap-3 px-6 py-2.5 ${isLightTheme ? 'bg-black/5 hover:bg-black/10' : 'bg-white/[0.02] hover:bg-white/[0.05]'} border ${isLightTheme ? 'border-black/5' : 'border-white/5'} hover:border-white/20 rounded-full transition-all duration-300`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${isLightTheme ? 'text-pink-400' : 'text-gray-500'} group-hover:text-yellow-500 transition-colors`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m0 0h2a2 2 0 0 1 2 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m0 0h2a2 2 0 0 1 2 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                     </svg>
                     <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isLightTheme ? 'text-black/60' : 'text-gray-400'} group-hover:text-white transition-colors`}>{copyFeedback || "Copy Link"}</span>
                   </button>
