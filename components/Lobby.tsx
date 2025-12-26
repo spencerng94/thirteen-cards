@@ -181,6 +181,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
   const updateBotDifficulty = (botId: string, difficulty: AiDifficulty) => {
     if (!gameState) return;
+    console.log(`Lobby: Requesting difficulty change for ${botId} to ${difficulty}`);
     socket.emit(SocketEvents.UPDATE_BOT_DIFFICULTY, { roomId: gameState.roomId, botId, difficulty, playerId: myId });
   };
 
@@ -211,7 +212,7 @@ export const Lobby: React.FC<LobbyProps> = ({
     }
   };
 
-  // Memoize current player to ensure UI responsiveness
+  // Determine current identity
   const me = useMemo(() => gameState?.players.find(p => p.id === myId), [gameState, myId]);
   const isHost = !!me?.isHost;
   const isIdentified = !!me;

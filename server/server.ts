@@ -153,6 +153,119 @@ const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass
   return startIndex;
 };
 
+// --- Bot Utilities ---
+
+const getAllPairs = (hand: Card[]) => {
+  const pairs: Card[][] = [];
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i].rank === sorted[i+1].rank) {
+      pairs.push([sorted[i], sorted[i+1]]);
+      i++; 
+    }
+  }
+  return pairs;
+};
+
+const getAllTriples = (hand: Card[]) => {
+  const triples: Card[][] = [];
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 2; i++) {
+    if (sorted[i].rank === sorted[i+2].rank) {
+      triples.push([sorted[i], sorted[i+1], sorted[i+2]]);
+      i += 2;
+    }
+  }
+  return triples;
+};
+
+const getAllQuads = (hand: Card[]) => {
+  const quads: Card[][] = [];
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 3; i++) {
+    if (sorted[i].rank === sorted[i+3].rank) {
+      quads.push(sorted.slice(i, i + 4));
+      i += 3;
+    }
+  }
+  return quads;
+};
+
+const getConsecutivePairs = (hand: Card[], count: number) => {
+  const pairs = getAllPairs(hand);
+  const result: Card[][] = [];
+  if (pairs.length < count) return result;
+  const uniquePairs = pairs.filter(p => p[0].rank !== Rank.Two);
+  for (let i = 0; i <= uniquePairs.length - count; i++) {
+    let valid = true;
+    const sequence: Card[] = [];
+    for (let j = 0; j < count; j++) {
+      if (j > 0 && uniquePairs[i+j][0].rank !== uniquePairs[i+j-1][0].rank + 1) {
+        valid = false;
+        break;
+      }
+      sequence.push(...uniquePairs[i+j]);
+    }
+    if (valid) result.push(sequence);
+  }
+  return result;
+};
+
+const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, difficulty: AiDifficulty): Card[] | null => {
+  const sorted = sortCards(hand);
+  
+  // LEAD TURN
+  if (playPile.length === 0) {
+    if (isFirstTurn) {
+        const threeS = sorted.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
+        return threeS ? [threeS] : [sorted[0]];
+    }
+    // Simple lead logic: play lowest Triple, then Pair, then Single
+    const triples = getAllTriples(sorted);
+    if (triples.length > 0) return triples[0];
+    const pairs = getAllPairs(sorted);
+    if (pairs.length > 0) return pairs[0];
+    return [sorted[0]];
+  }
+
+  // RESPONDING
+  const lastTurn = playPile[playPile.length - 1];
+  const lastCards = lastTurn.cards;
+  const lType = getComboType(lastCards);
+  const lHigh = getHighestCard(lastCards);
+  
+  if (lType === 'SINGLE') {
+    const match = sorted.find(c => getCardScore(c) > getCardScore(lHigh));
+    if (match) return [match];
+  } else if (lType === 'PAIR') {
+    const pairs = getAllPairs(sorted);
+    const match = pairs.find(p => getCardScore(getHighestCard(p)) > getCardScore(lHigh));
+    if (match) return match;
+  } else if (lType === 'TRIPLE') {
+    const triples = getAllTriples(sorted);
+    const match = triples.find(t => getCardScore(getHighestCard(t)) > getCardScore(lHigh));
+    if (match) return match;
+  } else if (lType === 'RUN') {
+    const targetLen = lastCards.length;
+    for (let i = 0; i <= sorted.length - targetLen; i++) {
+        const candidate = sorted.slice(i, i + targetLen);
+        if (getComboType(candidate) === 'RUN' && getCardScore(getHighestCard(candidate)) > getCardScore(lHigh)) {
+            return candidate;
+        }
+    }
+  }
+
+  // BOMB CHECK (RESPONDING TO 2s)
+  if (lHigh.rank === Rank.Two) {
+      const quads = getAllQuads(sorted);
+      if (quads.length > 0) return quads[0];
+      const p3 = getConsecutivePairs(sorted, 3);
+      if (p3.length > 0) return p3[0];
+  }
+
+  return null;
+};
+
 // --- Game Logic ---
 
 const getGameStateData = (room: GameRoom) => ({
@@ -244,7 +357,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   if (!room) return;
   
   const currentPlayer = room.players[room.currentPlayerIndex];
-  if (currentPlayer.id !== playerId || currentPlayer.finishedRank) return;
+  if (!currentPlayer || currentPlayer.id !== playerId || currentPlayer.finishedRank) return;
   
   const validation = validateMove(cards, room.currentPlayPile, room.isFirstTurnOfGame);
   if (!validation.isValid) {
@@ -304,7 +417,7 @@ const handlePass = (roomId: string, playerId: string) => {
   if (!room) return;
   
   const currentPlayer = room.players[room.currentPlayerIndex];
-  if (currentPlayer.id !== playerId) return;
+  if (!currentPlayer || currentPlayer.id !== playerId) return;
   
   if (room.currentPlayPile.length === 0) {
     if (!currentPlayer.isBot) io.to(currentPlayer.socketId).emit('error', room.isFirstTurnOfGame ? 'Must lead with 3♠.' : 'Must play a card to lead the round.');
@@ -331,37 +444,6 @@ const handlePass = (roomId: string, playerId: string) => {
   checkBotTurn(roomId);
 };
 
-const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, difficulty: AiDifficulty): Card[] | null => {
-  const sorted = sortCards(hand);
-  if (playPile.length === 0) {
-    if (isFirstTurn) {
-        const threeS = sorted.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
-        return threeS ? [threeS] : [sorted[0]];
-    }
-    return [sorted[0]];
-  }
-  const lastTurn = playPile[playPile.length - 1];
-  const lastCards = lastTurn.cards;
-  const lType = getComboType(lastCards);
-  const lHigh = getHighestCard(lastCards);
-  let standardMove: Card[] | null = null;
-  if (lType === 'SINGLE') {
-    const match = sorted.find(c => getCardScore(c) > getCardScore(lHigh));
-    if (match) standardMove = [match];
-  } else if (lType === 'PAIR') {
-    const pairs: Card[][] = [];
-    for (let i = 0; i < sorted.length - 1; i++) {
-        if (sorted[i].rank === sorted[i+1].rank) {
-            pairs.push([sorted[i], sorted[i+1]]);
-            i++;
-        }
-    }
-    const match = pairs.find(p => getCardScore(getHighestCard(p)) > getCardScore(lHigh));
-    if (match) standardMove = match;
-  }
-  return standardMove;
-};
-
 const checkBotTurn = (roomId: string) => {
   const room = rooms[roomId];
   if (!room || room.status !== 'PLAYING') return;
@@ -369,10 +451,22 @@ const checkBotTurn = (roomId: string) => {
   if (curPlayer?.isBot && !curPlayer.finishedRank) {
     setTimeout(() => {
         const roomRef = rooms[roomId];
+        // Ensure it is still the bot's turn after delay
         if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
+        
         const move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame, curPlayer.difficulty || 'MEDIUM');
-        if (move) handlePlay(roomId, curPlayer.id, move);
-        else handlePass(roomId, curPlayer.id);
+        
+        if (move) {
+          handlePlay(roomId, curPlayer.id, move);
+        } else {
+          // If leading, bot MUST play something. Default to lowest single card.
+          if (room.currentPlayPile.length === 0) {
+            const fallbackMove = [sortCards(curPlayer.hand)[0]];
+            handlePlay(roomId, curPlayer.id, fallbackMove);
+          } else {
+            handlePass(roomId, curPlayer.id);
+          }
+        }
     }, 1500);
   }
 };
@@ -411,7 +505,6 @@ const mapIdentity = (socket: Socket, roomId: string, playerId: string) => {
 };
 
 io.on('connection', (socket: Socket) => {
-  // Always send the current public room list to a newly connected client
   socket.emit('public_rooms_list', getPublicRoomsList());
 
   socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName }) => {
@@ -436,11 +529,8 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     const pid = playerId || uuidv4();
-    
-    // Prevent duplicate entries by checking if the playerId is already in the room
     const existingPlayerIndex = room.players.findIndex(p => p.id === pid);
     if (existingPlayerIndex !== -1) {
-       // Re-map socket to existing slot
        const player = room.players[existingPlayerIndex];
        player.socketId = socket.id;
        player.name = name;
@@ -450,7 +540,6 @@ io.on('connection', (socket: Socket) => {
     } else {
        room.players.push({ id: pid, name, avatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
     }
-    
     mapIdentity(socket, roomId, pid);
     socket.join(roomId);
     broadcastState(roomId);
@@ -460,11 +549,9 @@ io.on('connection', (socket: Socket) => {
   socket.on('add_bot', ({ roomId, playerId }) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
-    
     const requesterId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === requesterId);
     if (!requester || !requester.isHost) return;
-
     const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
     room.players.push({
       id: botId, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], avatar: BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)],
@@ -479,9 +566,7 @@ io.on('connection', (socket: Socket) => {
     if (room && room.status === 'LOBBY') {
       const requesterId = playerId || socketToPlayerId[socket.id];
       const requester = room.players.find(p => p.id === requesterId);
-      // Ensure only the host can change difficulty
       if (!requester || !requester.isHost) return;
-
       const bot = room.players.find(p => p.id === botId);
       if (bot) {
         bot.difficulty = difficulty;
@@ -496,7 +581,6 @@ io.on('connection', (socket: Socket) => {
     const requesterId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === requesterId);
     if (!requester || !requester.isHost) return;
-
     room.players = room.players.filter(p => p.id !== botId);
     broadcastState(roomId);
     broadcastPublicLobbies();
@@ -508,14 +592,11 @@ io.on('connection', (socket: Socket) => {
     const player = room.players.find(p => p.id === playerId);
     if (!player) { socket.emit('error', 'Player not found'); return; }
     if (player.reconnectionTimeout) { clearTimeout(player.reconnectionTimeout); player.reconnectionTimeout = undefined; }
-    
     delete socketToRoom[player.socketId];
     delete socketToPlayerId[player.socketId];
-
     player.socketId = socket.id;
     player.isOffline = false;
     mapIdentity(socket, roomId, playerId);
-    
     socket.join(roomId);
     socket.emit('game_state', getGameStateData(room));
     socket.emit('player_hand', player.hand);
@@ -528,12 +609,10 @@ io.on('connection', (socket: Socket) => {
     const requesterId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === requesterId);
     if (!requester || !requester.isHost) return;
-
     const deck: Card[] = [];
     for (let s = 0; s < 4; s++) for (let r = 3; r <= 15; r++) deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
     for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
     room.players.forEach((p, i) => { p.hand = deck.slice(i * 13, (i + 1) * 13); p.hasPassed = false; p.finishedRank = null; });
-    
     let starter = 0;
     let minScore = 999;
     let threeSpadesFound = false;
@@ -571,21 +650,24 @@ io.on('connection', (socket: Socket) => {
   socket.on('request_sync', ({ playerId }) => {
     const pId = playerId || socketToPlayerId[socket.id];
     if (!pId) return;
-    
     let room = Object.values(rooms).find(r => r.players.some(p => p.id === pId));
     if (!room) return;
-
     const player = room.players.find(p => p.id === pId);
     if (!player) return;
-
     player.socketId = socket.id;
     player.isOffline = false;
     mapIdentity(socket, room.id, pId);
     socket.join(room.id);
-
     socket.emit('game_state', getGameStateData(room));
     socket.emit('player_hand', player.hand);
     broadcastState(room.id);
+  });
+
+  socket.on('emote_sent', ({ roomId, emote }) => {
+    const playerId = socketToPlayerId[socket.id];
+    if (playerId) {
+      io.to(roomId).emit('receive_emote', { playerId, emote });
+    }
   });
 
   socket.on('disconnect', () => {
@@ -596,14 +678,12 @@ io.on('connection', (socket: Socket) => {
     if (!room) return;
     const player = room.players.find(p => p.id === playerId);
     if (!player) return;
-
     if (room.status !== 'PLAYING') {
         performCleanup(roomId, playerId);
         delete socketToRoom[socket.id];
         delete socketToPlayerId[socket.id];
         return;
     }
-
     player.isOffline = true;
     broadcastState(roomId);
     player.reconnectionTimeout = setTimeout(() => { performCleanup(roomId, playerId); }, RECONNECTION_GRACE_PERIOD);
