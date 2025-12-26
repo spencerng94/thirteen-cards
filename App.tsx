@@ -73,7 +73,6 @@ const App: React.FC = () => {
               socket.emit(SocketEvents.RECONNECT, { roomId, playerId });
            }
         } else {
-           // HARD SYNC: Request current table state from server
            socket.emit(SocketEvents.REQUEST_SYNC);
         }
       }
@@ -290,8 +289,35 @@ const App: React.FC = () => {
       { id: 'bot-3', name: botNames[2], avatar: BOT_AVATARS[2], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty }
     ];
     setSpMyHand(hands[0]); setSpOpponentHands({ 'bot-1': hands[1], 'bot-2': hands[2], 'bot-3': hands[3] }); setSpChops(0);
-    let starterId = 'player-me'; hands.forEach((hand, i) => { if (hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starterId = players[i].id; });
-    setSpGameState({ roomId: 'LOCAL', status: GameStatus.PLAYING, players, currentPlayerId: starterId, currentPlayPile: [], finishedPlayers: [], isFirstTurnOfGame: true, lastPlayerToPlayId: null, winnerId: null });
+    
+    // Determine starter and if 3S exists in play
+    let starterId = 'player-me'; 
+    let minScore = 999;
+    let threeSpadesFound = false;
+    hands.forEach((hand, i) => {
+      hand.forEach(card => {
+        const score = card.rank * 10 + card.suit;
+        if (score < minScore) {
+          minScore = score;
+          starterId = players[i].id;
+        }
+        if (card.rank === Rank.Three && card.suit === Suit.Spades) {
+          threeSpadesFound = true;
+        }
+      });
+    });
+
+    setSpGameState({ 
+      roomId: 'LOCAL', 
+      status: GameStatus.PLAYING, 
+      players, 
+      currentPlayerId: starterId, 
+      currentPlayPile: [], 
+      finishedPlayers: [], 
+      isFirstTurnOfGame: threeSpadesFound, // Dynamically set
+      lastPlayerToPlayId: null, 
+      winnerId: null 
+    });
     setGameMode('SINGLE_PLAYER'); setView('GAME_TABLE');
   };
 

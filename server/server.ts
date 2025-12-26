@@ -29,7 +29,6 @@ interface Player {
   isBot?: boolean;
   difficulty?: AiDifficulty;
   isOffline?: boolean;
-  // Fix: Use any to resolve "Cannot find namespace 'NodeJS'" error on line 32
   reconnectionTimeout?: any;
 }
 
@@ -50,9 +49,7 @@ interface GameRoom {
   finishedPlayers: string[];
   isFirstTurnOfGame: boolean;
   turnEndTime?: number;
-  // Fix: Use any to resolve "Cannot find namespace 'NodeJS'" error on line 52
   turnTimer?: any;
-  // New: Publicity fields
   isPublic: boolean;
   roomName: string;
 }
@@ -350,7 +347,6 @@ const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, 
     const match = pairs.find(p => getCardScore(getHighestCard(p)) > getCardScore(lHigh));
     if (match) standardMove = match;
   }
-  // Simplified for example; real game logic in utils
   return standardMove;
 };
 
@@ -446,9 +442,29 @@ io.on('connection', (socket: Socket) => {
     for (let s = 0; s < 4; s++) for (let r = 3; r <= 15; r++) deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
     for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
     room.players.forEach((p, i) => { p.hand = deck.slice(i * 13, (i + 1) * 13); p.hasPassed = false; p.finishedRank = null; });
+    
+    // Determine starter and 3S existence
     let starter = 0;
-    room.players.forEach((p, i) => { if (p.hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) starter = i; });
-    room.status = 'PLAYING'; room.currentPlayerIndex = starter; room.isFirstTurnOfGame = true; room.currentPlayPile = []; room.roundHistory = [];
+    let minScore = 999;
+    let threeSpadesFound = false;
+    room.players.forEach((p, i) => {
+      p.hand.forEach(card => {
+        const score = card.rank * 10 + card.suit;
+        if (score < minScore) {
+          minScore = score;
+          starter = i;
+        }
+        if (card.rank === Rank.Three && card.suit === Suit.Spades) {
+          threeSpadesFound = true;
+        }
+      });
+    });
+
+    room.status = 'PLAYING'; 
+    room.currentPlayerIndex = starter; 
+    room.isFirstTurnOfGame = threeSpadesFound; // Only force 3S rule if it was actually dealt
+    room.currentPlayPile = []; 
+    room.roundHistory = [];
     
     startTurnTimer(roomId);
     broadcastState(roomId);
