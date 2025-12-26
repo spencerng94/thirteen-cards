@@ -234,6 +234,8 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const isMyTurn = gameState.currentPlayerId === myId;
+  const me = gameState.players.find(p => p.id === myId);
+  const isFinished = !!me?.finishedRank;
   const isLeader = gameState.currentPlayPile.length === 0;
 
   const lastMove = gameState.currentPlayPile.length > 0 ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] : null;
@@ -343,7 +345,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                       <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
                   </div>
                   <div className="flex flex-col gap-2">
-                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/5 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
+                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
                   </div>
               </div>
           </div>
@@ -358,7 +360,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         <button onClick={() => setShowInstructions(true)} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><span className="text-lg font-black">?</span></button>
       </div>
 
-      {/* Opponent Grid - Movement direction fixed for top player to prevent off-screen ugly hover */}
+      {/* Opponent Grid */}
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
         <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8' : ''}`}>
           {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}
@@ -396,49 +398,53 @@ export const GameTable: React.FC<GameTableProps> = ({
            {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
         </div>
 
-        <div className={`flex flex-row items-stretch justify-center gap-3 w-full max-w-sm mb-3 transition-all duration-500 h-16 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
-          <div className="relative flex-1">
-            {/* Local player profile - matched scale 1.0 to match opponents, reduced top offset to decrease dead space */}
-            <div className="absolute -top-[95px] left-1/2 -translate-x-1/2 origin-bottom pointer-events-none z-50 transition-transform duration-150">
-              {gameState.players.find(p => p.id === myId) && (
-                  <PlayerSlot player={gameState.players.find(p => p.id === myId)!} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} />
+        <div className="relative w-full flex flex-col items-center">
+            {/* Local player profile - Positioned on the left above actions */}
+            <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-500 
+                ${isMyTurn ? '-top-[95px]' : (isFinished ? '-top-[55px]' : 'top-20 opacity-0')}`}>
+              {me && (
+                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} />
               )}
             </div>
-            <button 
-              onClick={handleDynamicAction} 
-              disabled={selectedCardIds.size === 0 && isLeader}
-              className={`w-full h-full flex flex-col items-center justify-center border-2 rounded-2xl shadow-xl transition-all active:scale-95 bg-black/40 ${selectedCardIds.size === 0 ? (isLeader ? 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed' : 'border-rose-600/60 text-rose-500 hover:bg-rose-950/20') : 'border-zinc-700 text-zinc-300 bg-zinc-900/60'}`}
-            >
-              <span className="text-[10px] font-black uppercase tracking-widest">{selectedCardIds.size === 0 ? 'Pass' : 'Clear'}</span>
-              <span className="text-[6px] font-bold opacity-40 uppercase tracking-[0.2em] mt-1">{selectedCardIds.size === 0 ? 'Skip Turn' : `${selectedCardIds.size} Selected`}</span>
-            </button>
-          </div>
-          
-          <button 
-            onClick={handlePlay} 
-            disabled={!validationResult.isValid} 
-            className={`flex-[2] flex flex-col items-center justify-center rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all active:scale-95 ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-white' : 'bg-white/5 text-white/20 border border-white/5 grayscale'}`}
-          >
-            <span>Play Cards</span>
-            {validationResult.isValid && <span className="text-[6.5px] opacity-70 tracking-widest mt-0.5">{validationResult.reason}</span>}
-          </button>
 
-          <button 
-            onClick={() => { setHandRows(r => r === 1 ? 2 : 1); audioService.playExpandHand(); }} 
-            className="flex-1 flex flex-col items-center justify-center border-2 border-white/10 bg-black/40 rounded-2xl text-white/40 hover:text-white transition-all active:scale-95"
-          >
-            <div className="flex flex-col gap-0.5 mb-1 items-center">
-              {handRows === 1 ? (
-                <div className="w-6 h-1.5 rounded-sm bg-current"></div>
-              ) : (
-                <>
-                  <div className="w-6 h-1.5 rounded-sm bg-current"></div>
-                  <div className="w-6 h-1.5 rounded-sm bg-current opacity-40"></div>
-                </>
-              )}
+            <div className={`flex flex-row items-stretch justify-center gap-3 w-full max-w-sm mb-3 transition-all duration-500 h-16 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
+              <div className="relative flex-1">
+                <button 
+                  onClick={handleDynamicAction} 
+                  disabled={selectedCardIds.size === 0 && isLeader}
+                  className={`w-full h-full flex flex-col items-center justify-center border-2 rounded-2xl shadow-xl transition-all active:scale-95 bg-black/40 ${selectedCardIds.size === 0 ? (isLeader ? 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed' : 'border-rose-600/60 text-rose-500 hover:bg-rose-950/20') : 'border-zinc-700 text-zinc-300 bg-zinc-900/60'}`}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-widest">{selectedCardIds.size === 0 ? 'Pass' : 'Clear'}</span>
+                  <span className="text-[6px] font-bold opacity-40 uppercase tracking-[0.2em] mt-1">{selectedCardIds.size === 0 ? 'Skip Turn' : `${selectedCardIds.size} Selected`}</span>
+                </button>
+              </div>
+
+              <button 
+                onClick={handlePlay} 
+                disabled={!validationResult.isValid} 
+                className={`flex-[2] flex flex-col items-center justify-center rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all active:scale-95 ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-white' : 'bg-white/5 text-white/20 border border-white/5 grayscale'}`}
+              >
+                <span>Play Cards</span>
+                {validationResult.isValid && <span className="text-[6.5px] opacity-70 tracking-widest mt-0.5">{validationResult.reason}</span>}
+              </button>
+
+              <button 
+                onClick={() => { setHandRows(r => r === 1 ? 2 : 1); audioService.playExpandHand(); }} 
+                className="flex-1 flex flex-col items-center justify-center border-2 border-white/10 bg-black/40 rounded-2xl text-white/40 hover:text-white transition-all active:scale-95"
+              >
+                <div className="flex flex-col gap-0.5 mb-1 items-center">
+                  {handRows === 1 ? (
+                    <div className="w-6 h-1.5 rounded-sm bg-current"></div>
+                  ) : (
+                    <>
+                      <div className="w-6 h-1.5 rounded-sm bg-current"></div>
+                      <div className="w-6 h-1.5 rounded-sm bg-current opacity-40"></div>
+                    </>
+                  )}
+                </div>
+                <span className="text-[7px] font-black uppercase tracking-widest">{handRows} ROW</span>
+              </button>
             </div>
-            <span className="text-[7px] font-black uppercase tracking-widest">{handRows} ROW</span>
-          </button>
         </div>
 
         <div className="relative flex items-center justify-center w-full max-w-[96vw]">

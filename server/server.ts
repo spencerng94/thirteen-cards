@@ -127,12 +127,14 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
   const lType = getComboType(lastCards);
   const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastCards);
+  
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(pType)) return { isValid: true, reason: 'Chop!' };
   if (lType === 'PAIR' && lHigh.rank === Rank.Two && ['QUAD', '4_PAIRS'].includes(pType)) return { isValid: true, reason: 'Chop!' };
   if (lType === 'QUAD' && pType === 'QUAD' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
   if (lType === '3_PAIRS' && pType === '3_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
   if (lType === '4_PAIRS' && pType === '4_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
   if (pType === '4_PAIRS' && (lType === '3_PAIRS' || lType === 'QUAD')) return { isValid: true, reason: 'Chop!' };
+  
   if (pType !== lType || playedCards.length !== lastCards.length) return { isValid: false, reason: 'Combo mismatch.' };
   return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Beat.' } : { isValid: false, reason: 'Too low.' };
 };
@@ -146,8 +148,7 @@ const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass
     if (!ignorePass && p.hasPassed) continue; 
     return idx;
   }
-  const firstActive = room.players.findIndex(p => !p.finishedRank);
-  return firstActive !== -1 ? firstActive : startIndex;
+  return startIndex; 
 };
 
 const resetRound = (room: GameRoom) => {
@@ -157,25 +158,88 @@ const resetRound = (room: GameRoom) => {
   room.lastPlayerToPlayId = null;
 };
 
-// --- Bot Logic (Simplified) ---
+// --- AI LOGIC (Full Restore) ---
 
-const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, difficulty: AiDifficulty): Card[] | null => {
+const getAllPairs = (hand: Card[]) => {
+  const pairs: Card[][] = [];
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i].rank === sorted[i+1].rank) {
+      pairs.push([sorted[i], sorted[i+1]]);
+      i++; 
+    }
+  }
+  return pairs;
+};
+
+const getAllTriples = (hand: Card[]) => {
+  const triples: Card[][] = [];
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 2; i++) {
+    if (sorted[i].rank === sorted[i+1].rank && sorted[i].rank === sorted[i+2].rank) {
+      triples.push([sorted[i], sorted[i+1], sorted[i+2]]);
+      i += 2;
+    }
+  }
+  return triples;
+};
+
+const getAllQuads = (hand: Card[]) => {
+  const quads: Card[][] = [];
+  const sorted = sortCards(hand);
+  for (let i = 0; i < sorted.length - 3; i++) {
+    if (sorted[i].rank === sorted[i+1].rank && sorted[i].rank === sorted[i+2].rank && sorted[i].rank === sorted[i+3].rank) {
+      quads.push(sorted.slice(i, i + 4));
+      i += 3;
+    }
+  }
+  return quads;
+};
+
+const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean): Card[] | null => {
   const sorted = sortCards(hand);
   if (playPile.length === 0) {
     if (isFirstTurn) {
         const threeS = sorted.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
         return threeS ? [threeS] : [sorted[0]];
     }
+    const triples = getAllTriples(sorted);
+    if (triples.length > 0) return triples[0];
+    const pairs = getAllPairs(sorted);
+    if (pairs.length > 0) return pairs[0];
     return [sorted[0]];
   }
+  
   const lastTurn = playPile[playPile.length - 1];
   const lastCards = lastTurn.cards;
   const lType = getComboType(lastCards);
   const lHigh = getHighestCard(lastCards);
+  
   if (lType === 'SINGLE') {
     const match = sorted.find(c => getCardScore(c) > getCardScore(lHigh));
     if (match) return [match];
+  } else if (lType === 'PAIR') {
+    const pairs = getAllPairs(sorted);
+    const match = pairs.find(p => getCardScore(getHighestCard(p)) > getCardScore(lHigh));
+    if (match) return match;
+  } else if (lType === 'TRIPLE') {
+    const triples = getAllTriples(sorted);
+    const match = triples.find(t => getCardScore(getHighestCard(t)) > getCardScore(lHigh));
+    if (match) return match;
+  } else if (lType === 'RUN') {
+    const targetLen = lastCards.length;
+    for (let i = 0; i <= sorted.length - targetLen; i++) {
+        const candidate = sorted.slice(i, i + targetLen);
+        if (getComboType(candidate) === 'RUN' && getCardScore(getHighestCard(candidate)) > getCardScore(lHigh)) return candidate;
+    }
   }
+  
+  // Special: Chops
+  if (lHigh.rank === Rank.Two) {
+      const quads = getAllQuads(sorted);
+      if (quads.length > 0) return quads[0];
+  }
+  
   return null;
 };
 
@@ -305,6 +369,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   const activeRemainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
   if (activeRemainingInRound.length === 0) {
      resetRound(room);
+     // Round winner starts new round. If winner finished, next active person starts.
      let nextIdx = room.players.indexOf(currentPlayer);
      if (currentPlayer.finishedRank) {
         nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
@@ -313,6 +378,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   } else {
      room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   }
+  
   startTurnTimer(roomId);
   broadcastState(roomId);
   checkBotTurn(roomId);
@@ -332,13 +398,21 @@ const handlePass = (roomId: string, playerId: string) => {
 
   if (room.turnTimer) clearTimeout(room.turnTimer);
   currentPlayer.hasPassed = true;
+  
+  // Who is still active in the round?
+  const activeInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed);
   let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   
-  const activeInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed);
-  if (activeInRound.length === 1 && activeInRound[0].id === room.lastPlayerToPlayId) {
+  if (activeInRound.length === 0) {
+      // Unlikely, but reset if everyone is out
+      resetRound(room);
+      nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
+  } else if (activeInRound.length === 1 && activeInRound[0].id === room.lastPlayerToPlayId) {
+    // Round reset: Only the king remains
     resetRound(room);
     nextIdx = room.players.indexOf(activeInRound[0]);
   } else if (room.players[nextIdx].id === room.lastPlayerToPlayId) {
+    // If we land on the king but others have passed
     resetRound(room);
     if (room.players[nextIdx].finishedRank) {
         nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
@@ -359,11 +433,16 @@ const checkBotTurn = (roomId: string) => {
     setTimeout(() => {
         const roomRef = rooms[roomId];
         if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
-        const move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame, curPlayer.difficulty || 'MEDIUM');
+        const move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame);
         if (move) handlePlay(roomId, curPlayer.id, move);
         else {
-          if (room.currentPlayPile.length === 0) handlePlay(roomId, curPlayer.id, [sortCards(curPlayer.hand)[0]]);
-          else handlePass(roomId, curPlayer.id);
+          if (room.currentPlayPile.length === 0) {
+            // Hard Fail-safe: leader must play.
+            const sortedHand = sortCards(curPlayer.hand);
+            handlePlay(roomId, curPlayer.id, [sortedHand[0]]);
+          } else {
+            handlePass(roomId, curPlayer.id);
+          }
         }
     }, 1500);
   }
