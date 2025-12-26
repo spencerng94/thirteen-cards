@@ -241,8 +241,8 @@ const App: React.FC = () => {
       if (prev.currentPlayPile.length === 0) return prev;
 
       const players = prev.players.map(p => p.id === pid ? { ...p, hasPassed: true } : p);
-      let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % 4;
-      while ((players[nextIndex].hasPassed || players[nextIndex].finishedRank)) { nextIndex = (nextIndex + 1) % 4; }
+      let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % prev.players.length;
+      while ((players[nextIndex].hasPassed || players[nextIndex].finishedRank)) { nextIndex = (nextIndex + 1) % prev.players.length; }
       
       let finalPlayPile = prev.currentPlayPile;
       let nextPlayerId = players[nextIndex].id;
@@ -250,8 +250,9 @@ const App: React.FC = () => {
       if (nextPlayerId === prev.lastPlayerToPlayId) {
         finalPlayPile = []; 
         players.forEach(p => p.hasPassed = false);
+        // Skip finished players on lead reset
         if (players[nextIndex].finishedRank) { 
-          while (players[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; } 
+          while (players[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % prev.players.length; } 
           nextPlayerId = players[nextIndex].id; 
         }
       }
@@ -306,12 +307,12 @@ const App: React.FC = () => {
           return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
       
-      let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % 4;
-      while (updatedPlayers[nextIndex].finishedRank || updatedPlayers[nextIndex].hasPassed) { nextIndex = (nextIndex + 1) % 4; }
+      let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % prev.players.length;
+      while (updatedPlayers[nextIndex].finishedRank || updatedPlayers[nextIndex].hasPassed) { nextIndex = (nextIndex + 1) % prev.players.length; }
       
       if (updatedPlayers[nextIndex].id === pid && playerWhoJustPlayed.finishedRank) {
           updatedPlayers.forEach(p => p.hasPassed = false); 
-          while (updatedPlayers[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; }
+          while (updatedPlayers[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % prev.players.length; }
           return { ...prev, players: updatedPlayers, currentPlayPile: [], currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
       }
       return { ...prev, players: updatedPlayers, currentPlayPile: newPlayPile, currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
