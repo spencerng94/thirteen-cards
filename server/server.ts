@@ -265,7 +265,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   const room = rooms[roomId];
   if (!room) return;
   const player = room.players.find(p => p.id === playerId);
-  if (!player || room.players[room.currentPlayerIndex].id !== playerId) return;
+  if (!player || room.players[room.currentPlayerIndex].id !== playerId || player.finishedRank) return;
   
   const validation = validateMove(cards, room.currentPlayPile, room.isFirstTurnOfGame);
   if (!validation.isValid) {
@@ -279,15 +279,25 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   room.isFirstTurnOfGame = false;
 
   if (player.hand.length === 0) {
-    room.finishedPlayers.push(playerId);
-    player.finishedRank = room.finishedPlayers.length;
-    if (room.players.filter(p => !p.finishedRank).length <= 1) {
+    if (!room.finishedPlayers.includes(playerId)) {
+      room.finishedPlayers.push(playerId);
+      player.finishedRank = room.finishedPlayers.length;
+    }
+    
+    const remainingPlayers = room.players.filter(p => !p.finishedRank);
+    if (remainingPlayers.length <= 1) {
+        if (remainingPlayers.length === 1) {
+          const loser = remainingPlayers[0];
+          room.finishedPlayers.push(loser.id);
+          loser.finishedRank = room.finishedPlayers.length;
+        }
         room.status = 'FINISHED';
         if (room.currentPlayPile.length > 0) {
           room.roundHistory.push([...room.currentPlayPile]);
           room.currentPlayPile = [];
         }
-        broadcastState(roomId); return;
+        broadcastState(roomId); 
+        return;
     }
   }
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player } from './types';
@@ -21,7 +22,6 @@ type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
 
 const SESSION_KEY = 'thirteen_active_session';
-// Added BOT_AVATARS constant to fix "Cannot find name 'BOT_AVATARS'" errors in initSinglePlayer
 const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
 
 const App: React.FC = () => {
@@ -62,13 +62,10 @@ const App: React.FC = () => {
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
 
-  // --- Session Restoration ---
-
   const attemptReconnection = useCallback(() => {
     const saved = localStorage.getItem(SESSION_KEY);
     if (saved) {
       const { roomId, playerId, timestamp } = JSON.parse(saved);
-      // Only reconnect if within 5 minutes of inactivity
       if (Date.now() - timestamp < 300000) {
         setGameMode('MULTI_PLAYER');
         setPlayerId(playerId);
@@ -82,7 +79,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     attemptReconnection();
-    
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && gameMode === 'MULTI_PLAYER') {
         if (!socket.connected) {
@@ -95,12 +91,9 @@ const App: React.FC = () => {
         }
       }
     };
-    
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [gameMode, attemptReconnection]);
-
-  // --- Initial Setup & Auth ---
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -125,8 +118,7 @@ const App: React.FC = () => {
         if (!playerName) setPlayerName(googleName.toUpperCase());
         await transferGuestData(session.user.id);
         loadProfile(session.user.id);
-      }
-      else if (!isGuest) {
+      } else if (!isGuest) {
         setProfile(null);
         initialSyncCompleteRef.current = false;
       }
@@ -276,15 +268,28 @@ const App: React.FC = () => {
       let playerWhoJustPlayed = updatedPlayers.find(p => p.id === pid)!;
       let finishedPlayers = [...prev.finishedPlayers];
       if (playerWhoJustPlayed.cardCount === 0) { finishedPlayers.push(pid); playerWhoJustPlayed.finishedRank = finishedPlayers.length; }
+      
+      // Fixed Turbo Finish logic - calculation of ranks was skipping numbers
       if (pid === 'player-me' && playerWhoJustPlayed.cardCount === 0 && spQuickFinish) {
           const remaining = updatedPlayers.filter(p => !p.finishedRank).sort((a, b) => a.cardCount - b.cardCount);
-          remaining.forEach((p, idx) => { const r = updatedPlayers.find(up => up.id === p.id)!; r.finishedRank = finishedPlayers.length + idx + 1; finishedPlayers.push(p.id); });
+          const currentFinishedCount = finishedPlayers.length;
+          remaining.forEach((p, idx) => { 
+            const r = updatedPlayers.find(up => up.id === p.id)!; 
+            r.finishedRank = currentFinishedCount + idx + 1; 
+            finishedPlayers.push(p.id); 
+          });
           return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
+      
       if (updatedPlayers.filter(p => !p.finishedRank).length <= 1) {
-          const loser = updatedPlayers.find(p => !p.finishedRank); if (loser) { finishedPlayers.push(loser.id); loser.finishedRank = finishedPlayers.length; }
+          const loser = updatedPlayers.find(p => !p.finishedRank); 
+          if (loser) { 
+            finishedPlayers.push(loser.id); 
+            loser.finishedRank = finishedPlayers.length; 
+          }
           return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
+      
       let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % 4;
       while (updatedPlayers[nextIndex].finishedRank || updatedPlayers[nextIndex].hasPassed) { nextIndex = (nextIndex + 1) % 4; }
       if (updatedPlayers[nextIndex].id === pid && playerWhoJustPlayed.finishedRank) {
