@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player } from './types';
 import { GameTable } from './components/GameTable';
@@ -22,6 +22,7 @@ type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
 
 const SESSION_KEY = 'thirteen_active_session';
+const PERSISTENT_ID_KEY = 'thirteen_persistent_uuid';
 const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
 
 const App: React.FC = () => {
@@ -48,7 +49,6 @@ const App: React.FC = () => {
   
   const [mpGameState, setMpGameState] = useState<GameState | null>(null);
   const [mpMyHand, setMpMyHand] = useState<Card[]>([]);
-  const [playerId, setPlayerId] = useState<string | null>(null);
   
   const [spGameState, setSpGameState] = useState<GameState | null>(null);
   const [spMyHand, setSpMyHand] = useState<Card[]>([]);
@@ -62,6 +62,16 @@ const App: React.FC = () => {
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
 
+  // Generate or retrieve a persistent UUID for this device
+  const myPersistentId = useMemo(() => {
+    let id = localStorage.getItem(PERSISTENT_ID_KEY);
+    if (!id) {
+      id = uuidv4();
+      localStorage.setItem(PERSISTENT_ID_KEY, id);
+    }
+    return id;
+  }, []);
+
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && gameMode === 'MULTI_PLAYER') {
@@ -70,7 +80,6 @@ const App: React.FC = () => {
            const saved = localStorage.getItem(SESSION_KEY);
            if (saved) {
               const { roomId, playerId: savedId } = JSON.parse(saved);
-              setPlayerId(savedId);
               socket.emit(SocketEvents.RECONNECT, { roomId, playerId: savedId });
            }
         } else {
@@ -182,14 +191,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const onGameState = (state: GameState) => {
       setMpGameState(state);
-      // Ensure local playerId is synced with actual socket ID if it's a fresh connection
       if (state.roomId !== 'LOCAL') {
-         const currentId = playerId || socket.id;
-         if (!playerId) setPlayerId(currentId);
-         
          localStorage.setItem(SESSION_KEY, JSON.stringify({ 
            roomId: state.roomId, 
-           playerId: currentId, 
+           playerId: myPersistentId, 
            timestamp: Date.now() 
          }));
       }
@@ -209,7 +214,7 @@ const App: React.FC = () => {
       socket.off(SocketEvents.GAME_STATE); socket.off(SocketEvents.PLAYER_HAND);
       socket.off(SocketEvents.ERROR);
     };
-  }, [view, triggerMatchEndTransition, playerId]);
+  }, [view, triggerMatchEndTransition, myPersistentId]);
 
   useEffect(() => {
     if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.FINISHED && view === 'GAME_TABLE' && !isTransitioning) {
@@ -295,7 +300,6 @@ const App: React.FC = () => {
     ];
     setSpMyHand(hands[0]); setSpOpponentHands({ 'bot-1': hands[1], 'bot-2': hands[2], 'bot-3': hands[3] }); setSpChops(0);
     
-    // Determine starter and if 3S exists in play
     let starterId = 'player-me'; 
     let minScore = 999;
     let threeSpadesFound = false;
@@ -319,7 +323,7 @@ const App: React.FC = () => {
       currentPlayerId: starterId, 
       currentPlayPile: [], 
       finishedPlayers: [], 
-      isFirstTurnOfGame: threeSpadesFound, // Dynamically set
+      isFirstTurnOfGame: threeSpadesFound,
       lastPlayerToPlayId: null, 
       winnerId: null 
     });
@@ -342,10 +346,21 @@ const App: React.FC = () => {
     setPlayerName(n); setPlayerAvatar(a); setCardCoverStyle(s);
     if (m === 'TUTORIAL') { setView('TUTORIAL'); return; }
     setGameMode(m as GameMode);
-    if (m === 'SINGLE_PLAYER') initSinglePlayer(n, a); else { connectSocket(); setView('LOBBY'); }
+    if (m === 'SINGLE_PLAYER') initSinglePlayer(n, a); 
+    else { 
+      connectSocket(); 
+      socket.emit(SocketEvents.CREATE_ROOM, { 
+        name: n, 
+        avatar: a, 
+        playerId: myPersistentId,
+        isPublic: true,
+        roomName: `${n.toUpperCase()}'S MATCH`
+      });
+      setView('LOBBY'); 
+    }
   };
 
-  const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); localStorage.removeItem(SESSION_KEY); setGameMode(null); setMpGameState(null); setSpGameState(null); setView('WELCOME'); setGameSettingsOpen(false); setPlayerId(null); };
+  const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); localStorage.removeItem(SESSION_KEY); setGameMode(null); setMpGameState(null); setSpGameState(null); setView('WELCOME'); setGameSettingsOpen(false); };
   const handleRefreshProfile = () => { if(session?.user?.id) loadProfile(session.user.id); else if(isGuest) setProfile(fetchGuestProfile()); };
 
   return (
@@ -365,11 +380,11 @@ const App: React.FC = () => {
           {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} />}
           {view === 'GAME_TABLE' && (
             <div className="relative w-full h-full">
-              <GameTable profile={profile} gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} myId={gameMode === 'MULTI_PLAYER' ? (playerId || socket.id) : 'player-me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c }) : handleLocalPlay('player-me', c)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId }) : handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
+              <GameTable profile={profile} gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'player-me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c, playerId: myPersistentId }) : handleLocalPlay('player-me', c)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
               {isTransitioning && <GameEndTransition />}
             </div>
           )}
-          {view === 'VICTORY' && <VictoryScreen profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} players={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!.players} myId={gameMode === 'MULTI_PLAYER' ? (playerId || socket.id) : 'player-me'} onPlayAgain={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.START_GAME, { roomId: mpGameState!.roomId }) : initSinglePlayer(playerName, playerAvatar)} onGoHome={handleExit} />}
+          {view === 'VICTORY' && <VictoryScreen profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} players={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!.players} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'player-me'} onPlayAgain={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.START_GAME, { roomId: mpGameState!.roomId }) : initSinglePlayer(playerName, playerAvatar)} onGoHome={handleExit} />}
           {view === 'TUTORIAL' && <TutorialMode onExit={handleExit} />}
         </div>
       )}
