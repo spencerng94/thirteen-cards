@@ -24,6 +24,7 @@ interface LobbyProps {
   backgroundTheme: BackgroundTheme;
   onBack?: () => void;
   onSignOut: () => void;
+  myId?: string; // Persistent UUID
 }
 
 const MAX_PLAYERS = 4;
@@ -87,7 +88,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   initialRoomCode,
   backgroundTheme,
   onBack,
-  onSignOut
+  onSignOut,
+  myId
 }) => {
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(`${playerName.toUpperCase()}'S MATCH`);
@@ -101,7 +103,9 @@ export const Lobby: React.FC<LobbyProps> = ({
   const isLightTheme = backgroundTheme === 'HIGH_ROLLER'; 
 
   useEffect(() => {
-    if (initialRoomCode) setRoomIdInput(initialRoomCode);
+    if (initialRoomCode) {
+      setRoomIdInput(initialRoomCode);
+    }
     fetchEmotes().then(setRemoteEmotes);
   }, [initialRoomCode]);
 
@@ -130,6 +134,7 @@ export const Lobby: React.FC<LobbyProps> = ({
     socket.emit(SocketEvents.CREATE_ROOM, { 
       name: playerName, 
       avatar: playerAvatar,
+      playerId: myId,
       isPublic,
       roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`
     });
@@ -138,7 +143,12 @@ export const Lobby: React.FC<LobbyProps> = ({
   const joinRoom = (code?: string) => {
     const targetCode = code || roomIdInput.trim().toUpperCase();
     if (!targetCode) return;
-    socket.emit(SocketEvents.JOIN_ROOM, { roomId: targetCode, name: playerName, avatar: playerAvatar });
+    socket.emit(SocketEvents.JOIN_ROOM, { 
+      roomId: targetCode, 
+      name: playerName, 
+      avatar: playerAvatar,
+      playerId: myId 
+    });
   };
 
   const addBot = () => {
@@ -185,9 +195,8 @@ export const Lobby: React.FC<LobbyProps> = ({
 
   if (gameState) {
      const emptySlots = Math.max(0, MAX_PLAYERS - gameState.players.length);
-     // Robust isHost check: compare p.id to socket.id or check the player object's internal isHost flag
-     const me = gameState.players.find(p => p.id === socket.id || p.id === playerName);
-     const isHost = me?.isHost || gameState.players.find(p => p.id === socket.id)?.isHost;
+     const me = gameState.players.find(p => p.id === myId);
+     const isHost = me?.isHost;
 
      return (
        <BackgroundWrapper theme={backgroundTheme}>
@@ -239,7 +248,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                     <div key={p.id} className="relative group">
                         <div className={`
                             relative flex flex-col items-center p-5 rounded-[2rem] border transition-all duration-500 h-full
-                            ${p.id === socket.id 
+                            ${p.id === myId 
                                 ? `${isLightTheme ? 'bg-pink-50 border-pink-200/50' : 'bg-white/[0.05] border-yellow-500/20'} shadow-[0_15px_30px_rgba(0,0,0,0.3)]` 
                                 : `${isLightTheme ? 'bg-black/[0.03] border-black/5' : 'bg-black/30 border-white/5'}`}
                         `}>
@@ -268,7 +277,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
                              <div className="text-center w-full">
                                 <div className={`${isLightTheme ? 'text-gray-900' : 'text-white'} font-black text-sm uppercase tracking-widest truncate px-2 mb-1`}>
-                                    {p.name} {p.id === socket.id && <span className={`${isLightTheme ? 'text-pink-600' : 'text-yellow-500/80'}`}>(Me)</span>}
+                                    {p.name} {p.id === myId && <span className={`${isLightTheme ? 'text-pink-600' : 'text-yellow-500/80'}`}>(Me)</span>}
                                 </div>
                              </div>
                              

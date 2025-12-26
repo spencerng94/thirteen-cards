@@ -72,6 +72,12 @@ const App: React.FC = () => {
     return id;
   }, []);
 
+  // Detect deep-linked room code from URL
+  const urlRoomCode = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('room');
+  }, []);
+
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && gameMode === 'MULTI_PLAYER') {
@@ -349,13 +355,7 @@ const App: React.FC = () => {
     if (m === 'SINGLE_PLAYER') initSinglePlayer(n, a); 
     else { 
       connectSocket(); 
-      socket.emit(SocketEvents.CREATE_ROOM, { 
-        name: n, 
-        avatar: a, 
-        playerId: myPersistentId,
-        isPublic: true,
-        roomName: `${n.toUpperCase()}'S MATCH`
-      });
+      // Proceed to the Lobby directory rather than auto-creating a room
       setView('LOBBY'); 
     }
   };
@@ -377,7 +377,7 @@ const App: React.FC = () => {
       {!session && !isGuest && authChecked ? <AuthScreen onPlayAsGuest={() => setIsGuest(true)} /> : (
         <div className="relative w-full h-full">
           {view === 'WELCOME' && <WelcomeScreen onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={handleRefreshProfile} onOpenHub={(tab) => setHubState({ open: true, tab })} onOpenStore={() => handleOpenStore()} playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} cardCoverStyle={cardCoverStyle} setCardCoverStyle={setCardCoverStyle} aiDifficulty={aiDifficulty} setAiDifficulty={setAiDifficulty} quickFinish={spQuickFinish} setQuickFinish={setSpQuickFinish} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} backgroundTheme={backgroundTheme} setBackgroundTheme={setBackgroundTheme} isGuest={isGuest} />}
-          {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} />}
+          {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} initialRoomCode={urlRoomCode} myId={myPersistentId} />}
           {view === 'GAME_TABLE' && (
             <div className="relative w-full h-full">
               <GameTable profile={profile} gameState={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'player-me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={c => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards: c, playerId: myPersistentId }) : handleLocalPlay('player-me', c)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : handleLocalPass('player-me')} cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut} backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
