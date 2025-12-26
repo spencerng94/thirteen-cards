@@ -213,27 +213,21 @@ const getConsecutivePairs = (hand: Card[], count: number) => {
 
 const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, difficulty: AiDifficulty): Card[] | null => {
   const sorted = sortCards(hand);
-  
-  // LEAD TURN
   if (playPile.length === 0) {
     if (isFirstTurn) {
         const threeS = sorted.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
         return threeS ? [threeS] : [sorted[0]];
     }
-    // Simple lead logic: play lowest Triple, then Pair, then Single
     const triples = getAllTriples(sorted);
     if (triples.length > 0) return triples[0];
     const pairs = getAllPairs(sorted);
     if (pairs.length > 0) return pairs[0];
     return [sorted[0]];
   }
-
-  // RESPONDING
   const lastTurn = playPile[playPile.length - 1];
   const lastCards = lastTurn.cards;
   const lType = getComboType(lastCards);
   const lHigh = getHighestCard(lastCards);
-  
   if (lType === 'SINGLE') {
     const match = sorted.find(c => getCardScore(c) > getCardScore(lHigh));
     if (match) return [match];
@@ -249,20 +243,15 @@ const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean, 
     const targetLen = lastCards.length;
     for (let i = 0; i <= sorted.length - targetLen; i++) {
         const candidate = sorted.slice(i, i + targetLen);
-        if (getComboType(candidate) === 'RUN' && getCardScore(getHighestCard(candidate)) > getCardScore(lHigh)) {
-            return candidate;
-        }
+        if (getComboType(candidate) === 'RUN' && getCardScore(getHighestCard(candidate)) > getCardScore(lHigh)) return candidate;
     }
   }
-
-  // BOMB CHECK (RESPONDING TO 2s)
   if (lHigh.rank === Rank.Two) {
       const quads = getAllQuads(sorted);
       if (quads.length > 0) return quads[0];
       const p3 = getConsecutivePairs(sorted, 3);
       if (p3.length > 0) return p3[0];
   }
-
   return null;
 };
 
@@ -323,22 +312,16 @@ const broadcastPublicLobbies = () => {
 const startTurnTimer = (roomId: string) => {
   const room = rooms[roomId];
   if (!room || room.status !== 'PLAYING') return;
-
   if (room.turnTimer) clearTimeout(room.turnTimer);
-
   room.turnEndTime = Date.now() + TURN_DURATION_MS;
-  room.turnTimer = setTimeout(() => {
-    handleTurnTimeout(roomId);
-  }, TURN_DURATION_MS);
+  room.turnTimer = setTimeout(() => { handleTurnTimeout(roomId); }, TURN_DURATION_MS);
 };
 
 const handleTurnTimeout = (roomId: string) => {
   const room = rooms[roomId];
   if (!room || room.status !== 'PLAYING') return;
-
   const currentPlayer = room.players[room.currentPlayerIndex];
   if (!currentPlayer || currentPlayer.finishedRank) return;
-
   if (room.currentPlayPile.length === 0) {
     const sortedHand = sortCards(currentPlayer.hand);
     let cardToPlay = [sortedHand[0]];
@@ -355,29 +338,26 @@ const handleTurnTimeout = (roomId: string) => {
 const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   const room = rooms[roomId];
   if (!room) return;
-  
   const currentPlayer = room.players[room.currentPlayerIndex];
-  if (!currentPlayer || currentPlayer.id !== playerId || currentPlayer.finishedRank) return;
-  
+  if (!currentPlayer || currentPlayer.id !== playerId || currentPlayer.finishedRank) {
+    if (currentPlayer && currentPlayer.socketId) io.to(currentPlayer.socketId).emit('error', 'Not your turn.');
+    return;
+  }
   const validation = validateMove(cards, room.currentPlayPile, room.isFirstTurnOfGame);
   if (!validation.isValid) {
     if (!currentPlayer.isBot) io.to(currentPlayer.socketId).emit('error', validation.reason);
     return;
   }
-
   if (room.turnTimer) clearTimeout(room.turnTimer);
-
   currentPlayer.hand = currentPlayer.hand.filter(c => !cards.some(pc => pc.id === c.id));
   room.currentPlayPile.push({ playerId, cards, comboType: getComboType(cards) });
   room.lastPlayerToPlayId = playerId;
   room.isFirstTurnOfGame = false;
-
   if (currentPlayer.hand.length === 0) {
     if (!room.finishedPlayers.includes(playerId)) {
       room.finishedPlayers.push(playerId);
       currentPlayer.finishedRank = room.finishedPlayers.length;
     }
-    
     const remainingPlayers = room.players.filter(p => !p.finishedRank);
     if (remainingPlayers.length <= 1) {
         if (remainingPlayers.length === 1) {
@@ -394,19 +374,15 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
         return;
     }
   }
-
   const activeRemainingInRound = room.players.filter(p => !p.finishedRank && !p.hasPassed && p.id !== playerId);
   if (activeRemainingInRound.length === 0) {
      if (room.currentPlayPile.length > 0) room.roundHistory.push([...room.currentPlayPile]);
      room.currentPlayPile = [];
      room.players.forEach(p => p.hasPassed = false);
-     room.currentPlayerIndex = currentPlayer.hand.length === 0 
-       ? getNextActivePlayerIndex(room, room.currentPlayerIndex, true)
-       : room.players.indexOf(currentPlayer);
+     room.currentPlayerIndex = currentPlayer.hand.length === 0 ? getNextActivePlayerIndex(room, room.currentPlayerIndex, true) : room.players.indexOf(currentPlayer);
   } else {
      room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   }
-
   startTurnTimer(roomId);
   broadcastState(roomId);
   checkBotTurn(roomId);
@@ -415,29 +391,30 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
 const handlePass = (roomId: string, playerId: string) => {
   const room = rooms[roomId];
   if (!room) return;
-  
   const currentPlayer = room.players[room.currentPlayerIndex];
-  if (!currentPlayer || currentPlayer.id !== playerId) return;
+  
+  if (!currentPlayer || currentPlayer.id !== playerId) {
+    // If the socket sent a pass but it's not their turn, inform them
+    const actualSocket = Object.entries(socketToPlayerId).find(([_, id]) => id === playerId)?.[0];
+    if (actualSocket) io.to(actualSocket).emit('error', 'Wait for your turn.');
+    return;
+  }
   
   if (room.currentPlayPile.length === 0) {
-    if (!currentPlayer.isBot) io.to(currentPlayer.socketId).emit('error', room.isFirstTurnOfGame ? 'Must lead with 3♠.' : 'Must play a card to lead the round.');
+    if (!currentPlayer.isBot) io.to(currentPlayer.socketId).emit('error', room.isFirstTurnOfGame ? 'Must lead with 3♠.' : 'Cannot pass! You must lead the round.');
     return;
   }
 
   if (room.turnTimer) clearTimeout(room.turnTimer);
-
   currentPlayer.hasPassed = true;
-
   let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   const lastPlayer = room.players.find(p => p.id === room.lastPlayerToPlayId);
-  
   if (room.players[nextIdx].id === room.lastPlayerToPlayId || nextIdx === room.currentPlayerIndex) {
     if (room.currentPlayPile.length > 0) room.roundHistory.push([...room.currentPlayPile]);
     room.currentPlayPile = [];
     room.players.forEach(p => p.hasPassed = false);
     if (lastPlayer?.finishedRank) nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
   }
-  
   room.currentPlayerIndex = nextIdx;
   startTurnTimer(roomId);
   broadcastState(roomId);
@@ -451,21 +428,12 @@ const checkBotTurn = (roomId: string) => {
   if (curPlayer?.isBot && !curPlayer.finishedRank) {
     setTimeout(() => {
         const roomRef = rooms[roomId];
-        // Ensure it is still the bot's turn after delay
         if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
-        
         const move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame, curPlayer.difficulty || 'MEDIUM');
-        
-        if (move) {
-          handlePlay(roomId, curPlayer.id, move);
-        } else {
-          // If leading, bot MUST play something. Default to lowest single card.
-          if (room.currentPlayPile.length === 0) {
-            const fallbackMove = [sortCards(curPlayer.hand)[0]];
-            handlePlay(roomId, curPlayer.id, fallbackMove);
-          } else {
-            handlePass(roomId, curPlayer.id);
-          }
+        if (move) handlePlay(roomId, curPlayer.id, move);
+        else {
+          if (room.currentPlayPile.length === 0) handlePlay(roomId, curPlayer.id, [sortCards(curPlayer.hand)[0]]);
+          else handlePass(roomId, curPlayer.id);
         }
     }, 1500);
   }
@@ -474,27 +442,19 @@ const checkBotTurn = (roomId: string) => {
 const performCleanup = (roomId: string, playerId: string) => {
   const room = rooms[roomId];
   if (!room) return;
-
   const playerIndex = room.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) return;
-
   const leavingPlayer = room.players[playerIndex];
   const wasHost = leavingPlayer.isHost;
-
   room.players.splice(playerIndex, 1);
   const humanPlayers = room.players.filter(p => !p.isBot);
-  
   if (humanPlayers.length === 0) {
     if (room.turnTimer) clearTimeout(room.turnTimer);
     delete rooms[roomId];
     broadcastPublicLobbies();
     return;
   }
-
-  if (wasHost && humanPlayers.length > 0) {
-    humanPlayers[0].isHost = true;
-  }
-
+  if (wasHost && humanPlayers.length > 0) humanPlayers[0].isHost = true;
   broadcastState(roomId);
   broadcastPublicLobbies();
 };
@@ -643,9 +603,7 @@ io.on('connection', (socket: Socket) => {
     handlePass(roomId, pId);
   });
 
-  socket.on('get_public_rooms', () => {
-    socket.emit('public_rooms_list', getPublicRoomsList());
-  });
+  socket.on('get_public_rooms', () => { socket.emit('public_rooms_list', getPublicRoomsList()); });
 
   socket.on('request_sync', ({ playerId }) => {
     const pId = playerId || socketToPlayerId[socket.id];
@@ -665,9 +623,7 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('emote_sent', ({ roomId, emote }) => {
     const playerId = socketToPlayerId[socket.id];
-    if (playerId) {
-      io.to(roomId).emit('receive_emote', { playerId, emote });
-    }
+    if (playerId) io.to(roomId).emit('receive_emote', { playerId, emote });
   });
 
   socket.on('disconnect', () => {
