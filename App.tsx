@@ -224,17 +224,6 @@ const App: React.FC = () => {
     };
   }, [view, triggerMatchEndTransition, myPersistentId]);
 
-  useEffect(() => {
-    if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.FINISHED && view === 'GAME_TABLE' && !isTransitioning) {
-        triggerMatchEndTransition();
-        const me = spGameState.players.find(p => p.id === 'player-me');
-        recordGameResult(me?.finishedRank || 4, true, aiDifficulty, !!isGuest, profile?.id, spChops, spMyHand.length).then(res => {
-            setLastMatchRewards({ xp: res.xpGained, coins: res.coinsGained, diff: aiDifficulty, bonus: res.xpBonusApplied });
-            handleRefreshProfile();
-        });
-    }
-  }, [spGameState?.status, gameMode, view, isTransitioning, aiDifficulty, isGuest, profile?.id, triggerMatchEndTransition, spChops, spMyHand.length]);
-
   const handleLocalPass = (pid: string) => {
     setSpGameState(prev => {
       if (!prev || prev.status !== GameStatus.PLAYING || prev.currentPlayerId !== pid) return prev;
@@ -250,7 +239,6 @@ const App: React.FC = () => {
       if (nextPlayerId === prev.lastPlayerToPlayId) {
         finalPlayPile = []; 
         players.forEach(p => p.hasPassed = false);
-        // Skip finished players on lead reset
         if (players[nextIndex].finishedRank) { 
           while (players[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % prev.players.length; } 
           nextPlayerId = players[nextIndex].id; 
@@ -262,31 +250,24 @@ const App: React.FC = () => {
 
   const handleLocalPlay = (pid: string, cards: Card[]) => {
     let playError: string | null = null;
-
     setSpGameState(prev => {
       if (!prev || prev.status !== GameStatus.PLAYING || prev.currentPlayerId !== pid) return prev;
-      
       const res = validateMove(cards, prev.currentPlayPile, prev.isFirstTurnOfGame);
       if (!res.isValid) {
         if (pid === 'player-me') playError = res.reason;
         return prev;
       }
-
       if (res.reason === 'Bomb!' && pid === 'player-me') setSpChops(c => c + 1);
-
       if (pid === 'player-me') setSpMyHand(prevHand => prevHand.filter(c => !cards.some(pc => pc.id === c.id)));
       else setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id)) }));
-      
       let updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: p.cardCount - cards.length } : p);
       const newPlayPile = [...prev.currentPlayPile, { playerId: pid, cards, comboType: getComboType(cards) }];
       let playerWhoJustPlayed = updatedPlayers.find(p => p.id === pid)!;
       let finishedPlayers = [...prev.finishedPlayers];
-      
       if (playerWhoJustPlayed.cardCount === 0) { 
         finishedPlayers.push(pid); 
         playerWhoJustPlayed.finishedRank = finishedPlayers.length; 
       }
-      
       if (pid === 'player-me' && playerWhoJustPlayed.cardCount === 0 && spQuickFinish) {
           const remaining = updatedPlayers.filter(p => !p.finishedRank).sort((a, b) => a.cardCount - b.cardCount);
           const currentFinishedCount = finishedPlayers.length;
@@ -297,19 +278,13 @@ const App: React.FC = () => {
           });
           return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
-      
       if (updatedPlayers.filter(p => !p.finishedRank).length <= 1) {
           const loser = updatedPlayers.find(p => !p.finishedRank); 
-          if (loser) { 
-            finishedPlayers.push(loser.id); 
-            loser.finishedRank = finishedPlayers.length; 
-          }
+          if (loser) { finishedPlayers.push(loser.id); loser.finishedRank = finishedPlayers.length; }
           return { ...prev, players: updatedPlayers, status: GameStatus.FINISHED, currentPlayPile: [], finishedPlayers };
       }
-      
       let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % prev.players.length;
       while (updatedPlayers[nextIndex].finishedRank || updatedPlayers[nextIndex].hasPassed) { nextIndex = (nextIndex + 1) % prev.players.length; }
-      
       if (updatedPlayers[nextIndex].id === pid && playerWhoJustPlayed.finishedRank) {
           updatedPlayers.forEach(p => p.hasPassed = false); 
           while (updatedPlayers[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % prev.players.length; }
@@ -317,60 +292,36 @@ const App: React.FC = () => {
       }
       return { ...prev, players: updatedPlayers, currentPlayPile: newPlayPile, currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
     });
-
-    if (playError) {
-      setError(playError);
-      setTimeout(() => setError(null), 3000);
-    }
+    if (playError) { setError(playError); setTimeout(() => setError(null), 3000); }
   };
 
   const initSinglePlayer = (name: string, avatar: string) => {
     localStorage.removeItem(SESSION_KEY);
-    const hands = dealCards(); const botNames = ['VALKYRIE', 'SABER', 'LANCE'];
-    const players: Player[] = [
+    const hands = dealCards(); const players: Player[] = [
       { id: 'player-me', name: name || AVATAR_NAMES[avatar]?.toUpperCase() || 'COMMANDER', avatar, cardCount: 13, isHost: true, finishedRank: null },
-      { id: 'bot-1', name: botNames[0], avatar: BOT_AVATARS[0], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty },
-      { id: 'bot-2', name: botNames[1], avatar: BOT_AVATARS[1], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty },
-      { id: 'bot-3', name: botNames[2], avatar: BOT_AVATARS[2], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty }
+      { id: 'bot-1', name: 'VALKYRIE', avatar: BOT_AVATARS[0], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty },
+      { id: 'bot-2', name: 'SABER', avatar: BOT_AVATARS[1], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty },
+      { id: 'bot-3', name: 'LANCE', avatar: BOT_AVATARS[2], cardCount: 13, isHost: false, finishedRank: null, isBot: true, difficulty: aiDifficulty }
     ];
     setSpMyHand(hands[0]); setSpOpponentHands({ 'bot-1': hands[1], 'bot-2': hands[2], 'bot-3': hands[3] }); setSpChops(0);
-    
-    let starterId = 'player-me'; 
-    let minScore = 999;
-    let threeSpadesFound = false;
+    let starterId = 'player-me'; let minScore = 999; let threeSpadesFound = false;
     hands.forEach((hand, i) => {
       hand.forEach(card => {
         const score = card.rank * 10 + card.suit;
-        if (score < minScore) {
-          minScore = score;
-          starterId = players[i].id;
-        }
-        if (card.rank === Rank.Three && card.suit === Suit.Spades) {
-          threeSpadesFound = true;
-        }
+        if (score < minScore) { minScore = score; starterId = players[i].id; }
+        if (card.rank === Rank.Three && card.suit === Suit.Spades) threeSpadesFound = true;
       });
     });
-
-    setSpGameState({ 
-      roomId: 'LOCAL', 
-      status: GameStatus.PLAYING, 
-      players, 
-      currentPlayerId: starterId, 
-      currentPlayPile: [], 
-      finishedPlayers: [], 
-      isFirstTurnOfGame: threeSpadesFound,
-      lastPlayerToPlayId: null, 
-      winnerId: null 
-    });
+    setSpGameState({ roomId: 'LOCAL', status: GameStatus.PLAYING, players, currentPlayerId: starterId, currentPlayPile: [], finishedPlayers: [], isFirstTurnOfGame: threeSpadesFound, lastPlayerToPlayId: null, winnerId: null });
     setGameMode('SINGLE_PLAYER'); setView('GAME_TABLE');
   };
 
   useEffect(() => {
     if (gameMode === 'SINGLE_PLAYER' && spGameState?.status === GameStatus.PLAYING && spGameState.currentPlayerId?.startsWith('bot-')) {
       if (spGameState.players.find(p => p.id === 'player-me')?.finishedRank && spQuickFinish) return;
-      const botId = spGameState.currentPlayerId; const botHand = spOpponentHands[botId];
+      const botId = spGameState.currentPlayerId;
       const timer = setTimeout(() => {
-        const move = findBestMove(botHand, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame, aiDifficulty);
+        const move = findBestMove(spOpponentHands[botId], spGameState.currentPlayPile, spGameState.isFirstTurnOfGame, aiDifficulty);
         if (move) handleLocalPlay(botId, move); else handleLocalPass(botId);
       }, 1500);
       return () => clearTimeout(timer);
@@ -382,10 +333,7 @@ const App: React.FC = () => {
     if (m === 'TUTORIAL') { setView('TUTORIAL'); return; }
     setGameMode(m as GameMode);
     if (m === 'SINGLE_PLAYER') initSinglePlayer(n, a); 
-    else { 
-      connectSocket(); 
-      setView('LOBBY'); 
-    }
+    else { connectSocket(); setView('LOBBY'); }
   };
 
   const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); localStorage.removeItem(SESSION_KEY); setGameMode(null); setMpGameState(null); setSpGameState(null); setView('WELCOME'); setGameSettingsOpen(false); };
@@ -412,7 +360,7 @@ const App: React.FC = () => {
               {isTransitioning && <GameEndTransition />}
             </div>
           )}
-          {view === 'VICTORY' && <VictoryScreen profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} players={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!.players} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'player-me'} onPlayAgain={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.START_GAME, { roomId: mpGameState!.roomId }) : initSinglePlayer(playerName, playerAvatar)} onGoHome={handleExit} />}
+          {view === 'VICTORY' && <VictoryScreen profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} players={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!.players} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'player-me'} onPlayAgain={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.START_GAME, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : initSinglePlayer(playerName, playerAvatar)} onGoHome={handleExit} />}
           {view === 'TUTORIAL' && <TutorialMode onExit={handleExit} />}
         </div>
       )}
