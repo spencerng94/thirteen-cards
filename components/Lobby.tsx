@@ -153,12 +153,12 @@ export const Lobby: React.FC<LobbyProps> = ({
 
   const addBot = () => {
     if (!gameState) return;
-    socket.emit(SocketEvents.ADD_BOT, { roomId: gameState.roomId });
+    socket.emit(SocketEvents.ADD_BOT, { roomId: gameState.roomId, playerId: myId });
   };
 
   const removeBot = (botId: string) => {
     if (!gameState) return;
-    socket.emit(SocketEvents.REMOVE_BOT, { roomId: gameState.roomId, botId });
+    socket.emit(SocketEvents.REMOVE_BOT, { roomId: gameState.roomId, botId, playerId: myId });
   };
 
   const updateBotDifficulty = (botId: string, difficulty: AiDifficulty) => {
@@ -168,7 +168,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
   const startGame = () => {
     if (!gameState) return;
-    socket.emit(SocketEvents.START_GAME, { roomId: gameState.roomId });
+    socket.emit(SocketEvents.START_GAME, { roomId: gameState.roomId, playerId: myId });
   };
 
   const copyInviteLink = () => {

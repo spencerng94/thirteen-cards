@@ -18,7 +18,7 @@ interface Card {
 type AiDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
 
 interface Player {
-  id: string; // This is now the persistent UUID from the client
+  id: string; // Persistent UUID from client
   name: string;
   avatar: string;
   socketId: string;
@@ -57,7 +57,7 @@ interface GameRoom {
 const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
 const BOT_NAMES = ['VALKYRIE', 'SABER', 'LANCE', 'PHANTOM', 'GHOST', 'REAPER', 'VOID', 'SPECTRE'];
 const RECONNECTION_GRACE_PERIOD = 30000; 
-const TURN_DURATION_MS = 60000; // 60 Seconds per turn
+const TURN_DURATION_MS = 60000; 
 
 const app = express();
 const httpServer = createServer(app);
@@ -131,6 +131,7 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
   const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastCards);
 
+  // special chop logic
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(pType)) return { isValid: true, reason: 'Chop!' };
   if (lType === 'PAIR' && lHigh.rank === Rank.Two && ['QUAD', '4_PAIRS'].includes(pType)) return { isValid: true, reason: 'Chop!' };
   if (lType === 'QUAD' && pType === 'QUAD' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
@@ -361,17 +362,44 @@ const checkBotTurn = (roomId: string) => {
   }
 };
 
+const performCleanup = (roomId: string, playerId: string) => {
+  const room = rooms[roomId];
+  if (!room) return;
+
+  const playerIndex = room.players.findIndex(p => p.id === playerId);
+  if (playerIndex === -1) return;
+
+  const leavingPlayer = room.players[playerIndex];
+  const wasHost = leavingPlayer.isHost;
+
+  room.players.splice(playerIndex, 1);
+  const humanPlayers = room.players.filter(p => !p.isBot);
+  
+  if (humanPlayers.length === 0) {
+    if (room.turnTimer) clearTimeout(room.turnTimer);
+    delete rooms[roomId];
+    return;
+  }
+
+  if (wasHost) {
+    humanPlayers[0].isHost = true;
+  }
+
+  broadcastState(roomId);
+};
+
 io.on('connection', (socket: Socket) => {
   socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName }) => {
     const roomId = generateRoomCode();
+    const pId = playerId || uuidv4();
     rooms[roomId] = {
       id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
       isPublic: isPublic === true,
       roomName: roomName || `${name.toUpperCase()}'S MATCH`,
-      players: [{ id: playerId || uuidv4(), name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
+      players: [{ id: pId, name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
     };
     socketToRoom[socket.id] = roomId;
-    socketToPlayerId[socket.id] = playerId || rooms[roomId].players[0].id;
+    socketToPlayerId[socket.id] = pId;
     socket.join(roomId);
     broadcastState(roomId);
   });
@@ -390,9 +418,14 @@ io.on('connection', (socket: Socket) => {
     broadcastState(roomId);
   });
 
-  socket.on('add_bot', ({ roomId }) => {
+  socket.on('add_bot', ({ roomId, playerId }) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
+    
+    // Verify player is in room
+    const requester = room.players.find(p => p.id === (playerId || socketToPlayerId[socket.id]));
+    if (!requester) return;
+
     const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
     room.players.push({
       id: botId, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], avatar: BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)],
@@ -401,12 +434,14 @@ io.on('connection', (socket: Socket) => {
     broadcastState(roomId);
   });
 
-  socket.on('remove_bot', ({ roomId, botId }) => {
+  socket.on('remove_bot', ({ roomId, botId, playerId }) => {
     const room = rooms[roomId];
-    if (room && room.status === 'LOBBY') {
-        room.players = room.players.filter(p => p.id !== botId);
-        broadcastState(roomId);
-    }
+    if (!room || room.status !== 'LOBBY') return;
+    const requester = room.players.find(p => p.id === (playerId || socketToPlayerId[socket.id]));
+    if (!requester || !requester.isHost) return;
+
+    room.players = room.players.filter(p => p.id !== botId);
+    broadcastState(roomId);
   });
 
   socket.on('reconnect_session', ({ roomId, playerId }) => {
@@ -416,7 +451,6 @@ io.on('connection', (socket: Socket) => {
     if (!player) { socket.emit('error', 'Player not found'); return; }
     if (player.reconnectionTimeout) { clearTimeout(player.reconnectionTimeout); player.reconnectionTimeout = undefined; }
     
-    // Clear old socket mappings
     delete socketToRoom[player.socketId];
     delete socketToPlayerId[player.socketId];
 
@@ -431,9 +465,12 @@ io.on('connection', (socket: Socket) => {
     broadcastState(roomId);
   });
 
-  socket.on('start_game', ({ roomId }) => {
+  socket.on('start_game', ({ roomId, playerId }) => {
     const room = rooms[roomId];
     if (!room || room.players.length < 2) return;
+    const requester = room.players.find(p => p.id === (playerId || socketToPlayerId[socket.id]));
+    if (!requester || !requester.isHost) return;
+
     const deck: Card[] = [];
     for (let s = 0; s < 4; s++) for (let r = 3; r <= 15; r++) deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
     for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
@@ -459,6 +496,30 @@ io.on('connection', (socket: Socket) => {
   socket.on('play_cards', ({ roomId, cards, playerId }) => handlePlay(roomId, playerId || socketToPlayerId[socket.id], cards));
   socket.on('pass_turn', ({ roomId, playerId }) => handlePass(roomId, playerId || socketToPlayerId[socket.id]));
 
+  socket.on('get_public_rooms', () => {
+    const publicList = Object.values(rooms)
+      .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length < 4)
+      .map(r => ({
+        id: r.id,
+        name: r.roomName,
+        playerCount: r.players.length,
+        hostName: r.players.find(p => p.isHost)?.name || 'Unknown',
+        hostAvatar: r.players.find(p => p.isHost)?.avatar || ':smile:'
+      }));
+    socket.emit('public_rooms_list', publicList);
+  });
+
+  socket.on('request_sync', () => {
+    const roomId = socketToRoom[socket.id];
+    if (!roomId) return;
+    const room = rooms[roomId];
+    if (!room) return;
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (!player) return;
+    socket.emit('game_state', getGameStateData(room));
+    socket.emit('player_hand', player.hand);
+  });
+
   socket.on('disconnect', () => {
     const roomId = socketToRoom[socket.id];
     const playerId = socketToPlayerId[socket.id];
@@ -468,23 +529,16 @@ io.on('connection', (socket: Socket) => {
     const player = room.players.find(p => p.id === playerId);
     if (!player) return;
 
-    if (room.status === 'PLAYING') {
-        player.isOffline = true;
-        broadcastState(roomId);
-        player.reconnectionTimeout = setTimeout(() => {
-            const roomRef = rooms[roomId];
-            if (!roomRef) return;
-            roomRef.players = roomRef.players.filter(p => p.id !== playerId);
-            if (roomRef.players.filter(p => !p.isBot).length === 0) {
-              if (roomRef.turnTimer) clearTimeout(roomRef.turnTimer);
-              delete rooms[roomId];
-            } else broadcastState(roomId);
-        }, RECONNECTION_GRACE_PERIOD);
-    } else {
-        room.players = room.players.filter(p => p.id !== playerId);
-        if (room.players.length === 0) delete rooms[roomId];
-        else broadcastState(roomId);
+    if (room.status !== 'PLAYING') {
+        performCleanup(roomId, playerId);
+        delete socketToRoom[socket.id];
+        delete socketToPlayerId[socket.id];
+        return;
     }
+
+    player.isOffline = true;
+    broadcastState(roomId);
+    player.reconnectionTimeout = setTimeout(() => { performCleanup(roomId, playerId); }, RECONNECTION_GRACE_PERIOD);
     delete socketToRoom[socket.id];
     delete socketToPlayerId[socket.id];
   });
