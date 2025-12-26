@@ -131,7 +131,6 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
   const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastCards);
 
-  // special chop logic
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two && ['QUAD', '3_PAIRS', '4_PAIRS'].includes(pType)) return { isValid: true, reason: 'Chop!' };
   if (lType === 'PAIR' && lHigh.rank === Rank.Two && ['QUAD', '4_PAIRS'].includes(pType)) return { isValid: true, reason: 'Chop!' };
   if (lType === 'QUAD' && pType === 'QUAD' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
@@ -190,6 +189,19 @@ const broadcastState = (roomId: string) => {
   room.players.forEach(p => {
     if (!p.isBot && !p.isOffline) io.to(p.socketId).emit('player_hand', p.hand);
   });
+};
+
+const broadcastPublicLobbies = () => {
+  const publicList = Object.values(rooms)
+    .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length < 4)
+    .map(r => ({
+      id: r.id,
+      name: r.roomName,
+      playerCount: r.players.length,
+      hostName: r.players.find(p => p.isHost)?.name || 'Unknown',
+      hostAvatar: r.players.find(p => p.isHost)?.avatar || ':smile:'
+    }));
+  io.emit('public_rooms_list', publicList);
 };
 
 const startTurnTimer = (roomId: string) => {
@@ -378,6 +390,7 @@ const performCleanup = (roomId: string, playerId: string) => {
   if (humanPlayers.length === 0) {
     if (room.turnTimer) clearTimeout(room.turnTimer);
     delete rooms[roomId];
+    broadcastPublicLobbies();
     return;
   }
 
@@ -386,6 +399,7 @@ const performCleanup = (roomId: string, playerId: string) => {
   }
 
   broadcastState(roomId);
+  broadcastPublicLobbies();
 };
 
 const mapIdentity = (socket: Socket, roomId: string, playerId: string) => {
@@ -406,6 +420,7 @@ io.on('connection', (socket: Socket) => {
     mapIdentity(socket, roomId, pId);
     socket.join(roomId);
     broadcastState(roomId);
+    broadcastPublicLobbies();
   });
 
   socket.on('join_room', ({ roomId, name, avatar, playerId }) => {
@@ -419,6 +434,7 @@ io.on('connection', (socket: Socket) => {
     mapIdentity(socket, roomId, pid);
     socket.join(roomId);
     broadcastState(roomId);
+    broadcastPublicLobbies();
   });
 
   socket.on('add_bot', ({ roomId, playerId }) => {
@@ -427,11 +443,7 @@ io.on('connection', (socket: Socket) => {
     
     const requesterId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === requesterId);
-    
-    if (!requester) {
-       console.log(`Add bot rejected: Requester ${requesterId} not in room ${roomId}`);
-       return;
-    }
+    if (!requester) return;
 
     const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
     room.players.push({
@@ -439,6 +451,18 @@ io.on('connection', (socket: Socket) => {
       socketId: 'BOT', hand: [], isHost: false, hasPassed: false, finishedRank: null, isBot: true, difficulty: 'MEDIUM'
     });
     broadcastState(roomId);
+    broadcastPublicLobbies();
+  });
+
+  socket.on('update_bot_difficulty', ({ roomId, botId, difficulty }) => {
+    const room = rooms[roomId];
+    if (room && room.status === 'LOBBY') {
+      const bot = room.players.find(p => p.id === botId);
+      if (bot) {
+        bot.difficulty = difficulty;
+        broadcastState(roomId);
+      }
+    }
   });
 
   socket.on('remove_bot', ({ roomId, botId, playerId }) => {
@@ -450,6 +474,7 @@ io.on('connection', (socket: Socket) => {
 
     room.players = room.players.filter(p => p.id !== botId);
     broadcastState(roomId);
+    broadcastPublicLobbies();
   });
 
   socket.on('reconnect_session', ({ roomId, playerId }) => {
@@ -499,6 +524,7 @@ io.on('connection', (socket: Socket) => {
     startTurnTimer(roomId);
     broadcastState(roomId);
     checkBotTurn(roomId);
+    broadcastPublicLobbies();
   });
 
   socket.on('play_cards', ({ roomId, cards, playerId }) => {
@@ -514,28 +540,27 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('get_public_rooms', () => {
-    const publicList = Object.values(rooms)
-      .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length < 4)
-      .map(r => ({
-        id: r.id,
-        name: r.roomName,
-        playerCount: r.players.length,
-        hostName: r.players.find(p => p.isHost)?.name || 'Unknown',
-        hostAvatar: r.players.find(p => p.isHost)?.avatar || ':smile:'
-      }));
-    socket.emit('public_rooms_list', publicList);
+    broadcastPublicLobbies();
   });
 
-  socket.on('request_sync', () => {
-    const roomId = socketToRoom[socket.id];
-    if (!roomId) return;
-    const room = rooms[roomId];
+  socket.on('request_sync', ({ playerId }) => {
+    const pId = playerId || socketToPlayerId[socket.id];
+    if (!pId) return;
+    
+    let room = Object.values(rooms).find(r => r.players.some(p => p.id === pId));
     if (!room) return;
-    const pId = socketToPlayerId[socket.id];
+
     const player = room.players.find(p => p.id === pId);
     if (!player) return;
+
+    player.socketId = socket.id;
+    player.isOffline = false;
+    mapIdentity(socket, room.id, pId);
+    socket.join(room.id);
+
     socket.emit('game_state', getGameStateData(room));
     socket.emit('player_hand', player.hand);
+    broadcastState(room.id);
   });
 
   socket.on('disconnect', () => {

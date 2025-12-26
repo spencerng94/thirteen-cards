@@ -66,7 +66,6 @@ const App: React.FC = () => {
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
     if (!id) {
-      // Robust UUID fallback
       try {
         id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : uuidv4();
       } catch (e) {
@@ -77,7 +76,6 @@ const App: React.FC = () => {
     return id;
   }, []);
 
-  // Detect deep-linked room code from URL
   const urlRoomCode = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('room');
@@ -94,7 +92,7 @@ const App: React.FC = () => {
               socket.emit(SocketEvents.RECONNECT, { roomId, playerId: savedId || myPersistentId });
            }
         } else {
-           socket.emit(SocketEvents.REQUEST_SYNC);
+           socket.emit(SocketEvents.REQUEST_SYNC, { playerId: myPersistentId });
         }
       }
     };
@@ -360,7 +358,6 @@ const App: React.FC = () => {
     if (m === 'SINGLE_PLAYER') initSinglePlayer(n, a); 
     else { 
       connectSocket(); 
-      // Proceed to the Lobby directory rather than auto-creating a room
       setView('LOBBY'); 
     }
   };
