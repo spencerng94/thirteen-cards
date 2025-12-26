@@ -236,9 +236,9 @@ export const GameTable: React.FC<GameTableProps> = ({
   const isMyTurn = gameState.currentPlayerId === myId;
   const me = gameState.players.find(p => p.id === myId);
   const isFinished = !!me?.finishedRank;
-  const isLeader = gameState.currentPlayPile.length === 0;
+  const isLeader = !gameState.currentPlayPile || gameState.currentPlayPile.length === 0;
 
-  const lastMove = gameState.currentPlayPile.length > 0 ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] : null;
+  const lastMove = gameState.currentPlayPile && gameState.currentPlayPile.length > 0 ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] : null;
   useEffect(() => {
     if (lastMove && ['QUAD', '3_PAIRS', '4_PAIRS', 'BOMB'].includes(lastMove.comboType)) {
       setShowBombEffect(true);
@@ -256,7 +256,13 @@ export const GameTable: React.FC<GameTableProps> = ({
   }, [profile]);
 
   useEffect(() => { if (!isMyTurn) setSelectedCardIds(new Set()); }, [isMyTurn]);
-  useEffect(() => { setSelectedCardIds(prev => { const next = new Set<string>(); prev.forEach(id => { if (myHand.some(c => c.id === id)) next.add(id); }); return next; }); }, [myHand]);
+  useEffect(() => { 
+    setSelectedCardIds(prev => { 
+      const next = new Set<string>(); 
+      prev.forEach(id => { if (myHand.some(c => c.id === id)) next.add(id); }); 
+      return next; 
+    }); 
+  }, [myHand]);
   useEffect(() => { fetchEmotes().then(setRemoteEmotes); }, []);
 
   useEffect(() => {
@@ -281,11 +287,22 @@ export const GameTable: React.FC<GameTableProps> = ({
     return () => clearInterval(interval);
   }, [isMyTurn, gameState.turnEndTime]);
 
-  const noMovesPossible = useMemo(() => { if (!isMyTurn) return false; return !canPlayAnyMove(myHand, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame); }, [isMyTurn, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
+  const noMovesPossible = useMemo(() => { 
+    if (!isMyTurn) return false; 
+    return !canPlayAnyMove(myHand, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame); 
+  }, [isMyTurn, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
-  const validationResult = useMemo(() => { if (selectedCardIds.size === 0) return { isValid: false, reason: '' }; const cards = myHand.filter(c => selectedCardIds.has(c.id)); return validateMove(cards, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame); }, [selectedCardIds, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
+  const validationResult = useMemo(() => { 
+    if (selectedCardIds.size === 0) return { isValid: false, reason: '' }; 
+    const cards = myHand.filter(c => selectedCardIds.has(c.id)); 
+    return validateMove(cards, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame, myHand); 
+  }, [selectedCardIds, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
-  const combosByGroup = useMemo<Record<string, CardType[][]>>(() => { if (!isMyTurn || selectedCardIds.size === 0) return {}; const pivotId = Array.from(selectedCardIds).pop() as string; return findAllValidCombos(myHand, pivotId, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame); }, [selectedCardIds, myHand, gameState.currentPlayPile, isMyTurn, gameState.isFirstTurnOfGame]);
+  const combosByGroup = useMemo<Record<string, CardType[][]>>(() => { 
+    if (!isMyTurn || selectedCardIds.size === 0) return {}; 
+    const pivotId = Array.from(selectedCardIds).pop() as string; 
+    return findAllValidCombos(myHand, pivotId, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame); 
+  }, [selectedCardIds, myHand, gameState.currentPlayPile, isMyTurn, gameState.isFirstTurnOfGame]);
 
   const sendEmote = (triggerCode: string) => { if (Date.now() - lastEmoteSentAt.current < EMOTE_COOLDOWN) return; lastEmoteSentAt.current = Date.now(); socket.emit(SocketEvents.EMOTE_SENT, { roomId: gameState.roomId, emote: triggerCode }); setShowEmotePicker(false); const id = Math.random().toString(); setActiveEmotes(prev => [...prev, { id, playerId: myId, emote: triggerCode }]); audioService.playEmote(); setTimeout(() => setActiveEmotes(prev => prev.filter(e => e.id !== id)), 3000); };
 
@@ -295,7 +312,15 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const toggleCard = (id: string) => { if (!isMyTurn) return; const next = new Set(selectedCardIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedCardIds(next); };
 
-  const handlePlay = () => { if (selectedCardIds.size === 0 || !isMyTurn) return; const cards = myHand.filter(c => selectedCardIds.has(c.id)); if (validateMove(cards, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame).isValid) { onPlayCards(cards); if (handRows === 2 && myHand.length - cards.length < 8) setHandRows(1); } };
+  const handlePlay = () => { 
+    if (selectedCardIds.size === 0 || !isMyTurn) return; 
+    const cards = myHand.filter(c => selectedCardIds.has(c.id)); 
+    const res = validateMove(cards, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame, myHand);
+    if (res.isValid) { 
+      onPlayCards(cards); 
+      if (handRows === 2 && myHand.length - cards.length < 8) setHandRows(1); 
+    } 
+  };
 
   const handleDynamicAction = () => {
     if (!isMyTurn) return;
@@ -345,7 +370,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                       <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
                   </div>
                   <div className="flex flex-col gap-2">
-                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
+                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/5 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
                   </div>
               </div>
           </div>

@@ -7,7 +7,7 @@ type ComboType = 'SINGLE' | 'PAIR' | 'TRIPLE' | 'QUAD' | 'RUN' | '3_PAIRS' | '4_
 
 // --- Helpers ---
 export const getCardScore = (card: Card): number => {
-  return card.rank * 10 + card.suit;
+  return (card.rank || 0) * 10 + (card.suit || 0);
 };
 
 export const sortCards = (cards: Card[]): Card[] => {
@@ -92,26 +92,35 @@ export const validateMove = (
   isFirstTurnOfGame: boolean = false,
   myHand: Card[] = []
 ): { isValid: boolean; reason: string } => {
+  if (!playedCards || playedCards.length === 0) {
+    return { isValid: false, reason: '' };
+  }
+
   const pType = getComboType(playedCards);
   if (pType === 'INVALID') {
     return { isValid: false, reason: 'Invalid card combination.' };
   }
 
-  // First turn of the ENTIRE game must have 3 of Spades IF it is in the player's hand
-  if (isFirstTurnOfGame && playPile.length === 0) {
+  // First move of the entire game logic
+  if (isFirstTurnOfGame && (!playPile || playPile.length === 0)) {
     const handHas3Spades = myHand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
     const moveHas3Spades = playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
     if (handHas3Spades && !moveHas3Spades) {
-      return { isValid: false, reason: 'First move must include the 3♠.' };
+      return { isValid: false, reason: 'Must include 3♠.' };
     }
   }
 
-  if (playPile.length === 0) {
-    return { isValid: true, reason: 'Valid lead.' };
+  // Leading a fresh round
+  if (!playPile || playPile.length === 0) {
+    return { isValid: true, reason: 'Leading move.' };
   }
 
   const lastTurn = playPile[playPile.length - 1];
   const lastPlayedCards = lastTurn.cards;
+  if (!lastPlayedCards || lastPlayedCards.length === 0) {
+    return { isValid: true, reason: 'Leading move.' };
+  }
+
   const lType = getComboType(lastPlayedCards) as ComboType;
   const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastPlayedCards);
@@ -136,7 +145,7 @@ export const validateMove = (
 
   // --- STANDARD PLAY LOGIC ---
   if (pType === lType && playedCards.length === lastPlayedCards.length) {
-    return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Valid Move.' } : { isValid: false, reason: 'Too low.' };
+    return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Beats last.' } : { isValid: false, reason: 'Card is too low.' };
   }
 
   return { isValid: false, reason: `Must play ${lType.replace('_', ' ')}.` };
@@ -223,7 +232,7 @@ export const canPlayAnyMove = (
   playPile: PlayTurn[],
   isFirstTurnOfGame: boolean = false
 ): boolean => {
-  if (playPile.length === 0) return hand.length > 0;
+  if (!playPile || playPile.length === 0) return hand.length > 0;
   const lastTurn = playPile[playPile.length - 1];
   const lType = getComboType(lastTurn.cards);
   const lHigh = getHighestCard(lastTurn.cards);
