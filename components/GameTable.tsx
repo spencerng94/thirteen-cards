@@ -133,7 +133,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'top' | 'left' | 'right';
                 {isTurn && !isFinished && (
                     <div className={`absolute inset-[-12px] rounded-full border-2 ${timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-500/50'} animate-ping`}></div>
                 )}
-                <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full border-2 transition-all duration-500 overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-400') + ' scale-110' : 'border-white/10'}`}>
+                <div className={`w-20 h-20 sm:w-24 h-24 sm:h-24 rounded-full border-2 transition-all duration-500 overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-400') + ' scale-110' : 'border-white/10'}`}>
                     <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="lg" />
                     {isTurn && !isFinished && timeLeft > 0 && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -189,7 +189,30 @@ export const GameTable: React.FC<GameTableProps> = ({
   const lastEmoteSentAt = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
 
-  const unlockedAvatars = useMemo(() => profile?.unlocked_avatars || DEFAULT_AVATARS, [profile]);
+  const isMyTurn = gameState.currentPlayerId === myId;
+
+  // Fix: Defined 'unlockedAvatars' which was previously missing, causing a runtime error in the emote picker.
+  const unlockedAvatars = useMemo(() => {
+    const unlocked = profile?.unlocked_avatars || [];
+    return Array.from(new Set([...DEFAULT_AVATARS, ...unlocked]));
+  }, [profile]);
+
+  // AUTO-CLEAR SELECTION: Only clear when turn passes or cards are removed
+  useEffect(() => {
+    if (!isMyTurn) {
+      setSelectedCardIds(new Set());
+    }
+  }, [isMyTurn]);
+
+  useEffect(() => {
+    setSelectedCardIds(prev => {
+      const next = new Set<string>();
+      prev.forEach(id => {
+        if (myHand.some(c => c.id === id)) next.add(id);
+      });
+      return next;
+    });
+  }, [myHand]);
 
   useEffect(() => { fetchEmotes().then(setRemoteEmotes); }, []);
 
@@ -212,7 +235,6 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
   const myIndex = gameState.players.findIndex(p => p.id === myId);
-  const isMyTurn = gameState.currentPlayerId === myId;
 
   // Local Turn Timer Countdown
   useEffect(() => {
@@ -285,12 +307,11 @@ export const GameTable: React.FC<GameTableProps> = ({
   const handlePlay = () => {
     if (selectedCardIds.size === 0 || !isMyTurn) return;
     const cards = myHand.filter(c => selectedCardIds.has(c.id));
+    // NO OPTIMISTIC CLEARING: Wait for state sync to clear selection
     if (validateMove(cards, gameState.currentPlayPile, !!gameState.isFirstTurnOfGame).isValid) {
       onPlayCards(cards);
-      setSelectedCardIds(new Set());
-      if (handRows === 2) {
+      if (handRows === 2 && myHand.length - cards.length < 8) {
         setHandRows(1);
-        audioService.playCollapseHand();
       }
     }
   };
@@ -428,7 +449,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
         <div className="col-start-1 row-start-2 flex justify-start items-center pl-2">
           {opponents.find(o => o.position === 'left') && (
-            <PlayerSlot player={opponents.find(o => o.position === 'left')!.player} position="left" isTurn={gameState.currentPlayerId === opponents.find(o => o.position === 'left')!.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />
+            <PlayerSlot player={opponents.find(o => o.position === 'left')!.player} position="left" isTurn={gameState.currentPlayerId === opponents.find(o => o.position === 'left')!.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.targetEndTime || gameState.turnEndTime} />
           )}
         </div>
         <div className="col-start-3 row-start-2 flex justify-end items-center pr-2">
@@ -468,7 +489,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       {/* Hand & Controls */}
       <div className="absolute bottom-0 left-0 w-full p-2 sm:p-6 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
         
-        {/* Your Turn Indicator - Now Emerald and better formatting */}
+        {/* Your Turn Indicator */}
         <div className={`mb-4 flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
            <div className={`px-6 py-2.5 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
               <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Your Turn</span>
@@ -503,7 +524,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             Play Cards
           </button>
 
-          {/* Row Toggle Button - Standardized Icon */}
+          {/* Row Toggle Button */}
           {myHand.length >= 8 && (
             <button 
               onClick={handleToggleRows}

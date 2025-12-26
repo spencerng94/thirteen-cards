@@ -62,7 +62,6 @@ const App: React.FC = () => {
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
 
-  // Generate or retrieve a persistent UUID for this device
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
     if (!id) {
@@ -237,36 +236,55 @@ const App: React.FC = () => {
   }, [spGameState?.status, gameMode, view, isTransitioning, aiDifficulty, isGuest, profile?.id, triggerMatchEndTransition, spChops, spMyHand.length]);
 
   const handleLocalPass = (pid: string) => {
-    if (!spGameState || spGameState.status !== GameStatus.PLAYING || spGameState.currentPlayerId !== pid) return;
     setSpGameState(prev => {
-      if (!prev) return null;
+      if (!prev || prev.status !== GameStatus.PLAYING || prev.currentPlayerId !== pid) return prev;
+      if (prev.currentPlayPile.length === 0) return prev;
+
       const players = prev.players.map(p => p.id === pid ? { ...p, hasPassed: true } : p);
       let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % 4;
       while ((players[nextIndex].hasPassed || players[nextIndex].finishedRank)) { nextIndex = (nextIndex + 1) % 4; }
+      
       let finalPlayPile = prev.currentPlayPile;
       let nextPlayerId = players[nextIndex].id;
+      
       if (nextPlayerId === prev.lastPlayerToPlayId) {
-        finalPlayPile = []; players.forEach(p => p.hasPassed = false);
-        if (players[nextIndex].finishedRank) { while (players[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; } nextPlayerId = players[nextIndex].id; }
+        finalPlayPile = []; 
+        players.forEach(p => p.hasPassed = false);
+        if (players[nextIndex].finishedRank) { 
+          while (players[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; } 
+          nextPlayerId = players[nextIndex].id; 
+        }
       }
       return { ...prev, players, currentPlayerId: nextPlayerId, currentPlayPile: finalPlayPile };
     });
   };
 
   const handleLocalPlay = (pid: string, cards: Card[]) => {
-    if (!spGameState || spGameState.status !== GameStatus.PLAYING || spGameState.currentPlayerId !== pid) return;
-    const res = validateMove(cards, spGameState.currentPlayPile, spGameState.isFirstTurnOfGame);
-    if (!res.isValid && pid === 'player-me') { setError(res.reason); setTimeout(() => setError(null), 3000); return; }
-    if (res.reason === 'Bomb!' && pid === 'player-me') setSpChops(prev => prev + 1);
+    let playError: string | null = null;
+
     setSpGameState(prev => {
-      if (!prev) return null;
+      if (!prev || prev.status !== GameStatus.PLAYING || prev.currentPlayerId !== pid) return prev;
+      
+      const res = validateMove(cards, prev.currentPlayPile, prev.isFirstTurnOfGame);
+      if (!res.isValid) {
+        if (pid === 'player-me') playError = res.reason;
+        return prev;
+      }
+
+      if (res.reason === 'Bomb!' && pid === 'player-me') setSpChops(c => c + 1);
+
       if (pid === 'player-me') setSpMyHand(prevHand => prevHand.filter(c => !cards.some(pc => pc.id === c.id)));
       else setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(pc => pc.id === c.id)) }));
+      
       let updatedPlayers = prev.players.map(p => p.id === pid ? { ...p, cardCount: p.cardCount - cards.length } : p);
       const newPlayPile = [...prev.currentPlayPile, { playerId: pid, cards, comboType: getComboType(cards) }];
       let playerWhoJustPlayed = updatedPlayers.find(p => p.id === pid)!;
       let finishedPlayers = [...prev.finishedPlayers];
-      if (playerWhoJustPlayed.cardCount === 0) { finishedPlayers.push(pid); playerWhoJustPlayed.finishedRank = finishedPlayers.length; }
+      
+      if (playerWhoJustPlayed.cardCount === 0) { 
+        finishedPlayers.push(pid); 
+        playerWhoJustPlayed.finishedRank = finishedPlayers.length; 
+      }
       
       if (pid === 'player-me' && playerWhoJustPlayed.cardCount === 0 && spQuickFinish) {
           const remaining = updatedPlayers.filter(p => !p.finishedRank).sort((a, b) => a.cardCount - b.cardCount);
@@ -290,12 +308,19 @@ const App: React.FC = () => {
       
       let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % 4;
       while (updatedPlayers[nextIndex].finishedRank || updatedPlayers[nextIndex].hasPassed) { nextIndex = (nextIndex + 1) % 4; }
+      
       if (updatedPlayers[nextIndex].id === pid && playerWhoJustPlayed.finishedRank) {
-          updatedPlayers.forEach(p => p.hasPassed = false); while (updatedPlayers[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; }
+          updatedPlayers.forEach(p => p.hasPassed = false); 
+          while (updatedPlayers[nextIndex].finishedRank) { nextIndex = (nextIndex + 1) % 4; }
           return { ...prev, players: updatedPlayers, currentPlayPile: [], currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
       }
       return { ...prev, players: updatedPlayers, currentPlayPile: newPlayPile, currentPlayerId: updatedPlayers[nextIndex].id, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, finishedPlayers };
     });
+
+    if (playError) {
+      setError(playError);
+      setTimeout(() => setError(null), 3000);
+    }
   };
 
   const initSinglePlayer = (name: string, avatar: string) => {
@@ -349,7 +374,7 @@ const App: React.FC = () => {
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [spGameState?.currentPlayerId, spGameState?.currentPlayPile, spGameState?.status, gameMode, spQuickFinish]);
+  }, [spGameState?.currentPlayerId, spGameState?.currentPlayPile, spGameState?.status, gameMode, spQuickFinish, aiDifficulty, spOpponentHands]);
 
   const handleStart = (n: string, m: GameMode | 'TUTORIAL', s: CardCoverStyle, a: string) => {
     setPlayerName(n); setPlayerAvatar(a); setCardCoverStyle(s);
@@ -388,6 +413,11 @@ const App: React.FC = () => {
           )}
           {view === 'VICTORY' && <VictoryScreen profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} players={(gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState)!.players} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'player-me'} onPlayAgain={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.START_GAME, { roomId: mpGameState!.roomId }) : initSinglePlayer(playerName, playerAvatar)} onGoHome={handleExit} />}
           {view === 'TUTORIAL' && <TutorialMode onExit={handleExit} />}
+        </div>
+      )}
+      {error && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[1000] px-8 py-4 bg-rose-600 text-white font-black uppercase tracking-[0.3em] text-xs rounded-full shadow-[0_0_50px_rgba(225,29,72,0.4)] animate-in slide-in-from-top-4 duration-300">
+          {error}
         </div>
       )}
     </div>
