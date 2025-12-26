@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket } from '../services/socket';
 import { SignOutButton } from './SignOutButton';
@@ -117,6 +117,7 @@ export const Lobby: React.FC<LobbyProps> = ({
     };
     socket.on(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     
+    // Always request current rooms on mount if not in a game
     if (!gameState) {
       refreshRooms();
     }
@@ -144,7 +145,7 @@ export const Lobby: React.FC<LobbyProps> = ({
   };
 
   const forceResync = () => {
-    socket.emit(SocketEvents.REQUEST_SYNC);
+    socket.emit(SocketEvents.REQUEST_SYNC, { playerId: myId });
   };
 
   const createRoom = () => {
@@ -180,7 +181,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
   const updateBotDifficulty = (botId: string, difficulty: AiDifficulty) => {
     if (!gameState) return;
-    socket.emit(SocketEvents.UPDATE_BOT_DIFFICULTY, { roomId: gameState.roomId, botId, difficulty });
+    socket.emit(SocketEvents.UPDATE_BOT_DIFFICULTY, { roomId: gameState.roomId, botId, difficulty, playerId: myId });
   };
 
   const startGame = () => {
@@ -210,10 +211,13 @@ export const Lobby: React.FC<LobbyProps> = ({
     }
   };
 
+  // Memoize current player to ensure UI responsiveness
+  const me = useMemo(() => gameState?.players.find(p => p.id === myId), [gameState, myId]);
+  const isHost = !!me?.isHost;
+  const isIdentified = !!me;
+
   if (gameState) {
      const emptySlots = Math.max(0, MAX_PLAYERS - gameState.players.length);
-     const me = gameState.players.find(p => p.id === myId);
-     const isHost = me?.isHost;
 
      return (
        <BackgroundWrapper theme={backgroundTheme}>
@@ -248,7 +252,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                     className={`group flex items-center gap-3 px-6 py-2.5 ${isLightTheme ? 'bg-black/5 hover:bg-black/10' : 'bg-white/[0.02] hover:bg-white/[0.05]'} border ${isLightTheme ? 'border-black/5' : 'border-white/5'} hover:border-white/20 rounded-full transition-all duration-300`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${isLightTheme ? 'text-pink-400' : 'text-gray-500'} group-hover:text-yellow-500 transition-colors`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m0 0h2a2 2 0 0 1 2 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0-2-2M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0-2-2M8 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m0 0h2a2 2 0 0 1 2 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                     </svg>
                     <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isLightTheme ? 'text-black/60' : 'text-gray-400'} group-hover:text-white transition-colors`}>{copyFeedback || "Copy Link"}</span>
                   </button>
@@ -347,7 +351,23 @@ export const Lobby: React.FC<LobbyProps> = ({
             </div>
             
             <div className="flex flex-col gap-4 mt-2">
-                {isHost ? (
+                {!isIdentified ? (
+                   <div className="space-y-4">
+                      <div className={`flex items-center justify-center gap-4 py-5 ${isLightTheme ? 'bg-black/5' : 'bg-white/[0.03]'} rounded-[1.5rem] border ${isLightTheme ? 'border-black/5' : 'border-white/5'}`}>
+                          <div className="relative w-5 h-5">
+                              <div className={`absolute inset-0 border-2 ${isLightTheme ? 'border-black/10' : 'border-white/10'} rounded-full`}></div>
+                              <div className={`absolute inset-0 border-t-2 ${isLightTheme ? 'border-pink-600' : 'border-yellow-500'} rounded-full animate-spin`}></div>
+                          </div>
+                          <span className={`${isLightTheme ? 'text-gray-900/60' : 'text-gray-400'} text-[11px] font-black uppercase tracking-[0.2em]`}>Claiming Station...</span>
+                      </div>
+                      <button 
+                          onClick={forceResync}
+                          className="w-full py-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-500 text-[9px] font-black uppercase tracking-[0.4em] hover:bg-yellow-500/20 transition-all animate-pulse"
+                        >
+                          Manual Identity Claim
+                      </button>
+                   </div>
+                ) : isHost ? (
                     <button
                         onClick={startGame}
                         disabled={gameState.players.length < 2}
@@ -360,23 +380,9 @@ export const Lobby: React.FC<LobbyProps> = ({
                         </span>
                     </button>
                 ) : (
-                    <div className="space-y-4">
-                      <div className={`flex items-center justify-center gap-4 py-5 ${isLightTheme ? 'bg-black/5' : 'bg-white/[0.03]'} rounded-[1.5rem] border ${isLightTheme ? 'border-black/5' : 'border-white/5'}`}>
-                          <div className="relative w-5 h-5">
-                              <div className={`absolute inset-0 border-2 ${isLightTheme ? 'border-black/10' : 'border-white/10'} rounded-full`}></div>
-                              <div className={`absolute inset-0 border-t-2 ${isLightTheme ? 'border-pink-600' : 'border-yellow-500'} rounded-full animate-spin`}></div>
-                          </div>
-                          <span className={`${isLightTheme ? 'text-gray-900/60' : 'text-gray-400'} text-[11px] font-black uppercase tracking-[0.2em]`}>Synchronizing...</span>
-                      </div>
-                      
-                      {syncTimer >= 5 && (
-                        <button 
-                          onClick={forceResync}
-                          className="w-full py-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-500 text-[9px] font-black uppercase tracking-[0.4em] hover:bg-yellow-500/20 transition-all animate-pulse"
-                        >
-                          Force Re-Sync Identity
-                        </button>
-                      )}
+                    <div className={`flex items-center justify-center gap-4 py-5 ${isLightTheme ? 'bg-black/5' : 'bg-white/[0.03]'} rounded-[1.5rem] border ${isLightTheme ? 'border-black/5' : 'border-white/5'}`}>
+                        <div className="relative w-4 h-4 rounded-full border-2 border-emerald-500/50 animate-pulse"></div>
+                        <span className={`${isLightTheme ? 'text-gray-900/60' : 'text-gray-400'} text-[11px] font-black uppercase tracking-[0.2em]`}>Waiting for Commander...</span>
                     </div>
                 )}
                 

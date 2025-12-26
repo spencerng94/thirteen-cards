@@ -191,8 +191,8 @@ const broadcastState = (roomId: string) => {
   });
 };
 
-const broadcastPublicLobbies = () => {
-  const publicList = Object.values(rooms)
+const getPublicRoomsList = () => {
+  return Object.values(rooms)
     .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length < 4)
     .map(r => ({
       id: r.id,
@@ -201,7 +201,10 @@ const broadcastPublicLobbies = () => {
       hostName: r.players.find(p => p.isHost)?.name || 'Unknown',
       hostAvatar: r.players.find(p => p.isHost)?.avatar || ':smile:'
     }));
-  io.emit('public_rooms_list', publicList);
+};
+
+const broadcastPublicLobbies = () => {
+  io.emit('public_rooms_list', getPublicRoomsList());
 };
 
 const startTurnTimer = (roomId: string) => {
@@ -394,7 +397,7 @@ const performCleanup = (roomId: string, playerId: string) => {
     return;
   }
 
-  if (wasHost) {
+  if (wasHost && humanPlayers.length > 0) {
     humanPlayers[0].isHost = true;
   }
 
@@ -408,6 +411,9 @@ const mapIdentity = (socket: Socket, roomId: string, playerId: string) => {
 };
 
 io.on('connection', (socket: Socket) => {
+  // Always send the current public room list to a newly connected client
+  socket.emit('public_rooms_list', getPublicRoomsList());
+
   socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName }) => {
     const roomId = generateRoomCode();
     const pId = playerId || uuidv4();
@@ -430,7 +436,21 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     const pid = playerId || uuidv4();
-    room.players.push({ id: pid, name, avatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
+    
+    // Prevent duplicate entries by checking if the playerId is already in the room
+    const existingPlayerIndex = room.players.findIndex(p => p.id === pid);
+    if (existingPlayerIndex !== -1) {
+       // Re-map socket to existing slot
+       const player = room.players[existingPlayerIndex];
+       player.socketId = socket.id;
+       player.name = name;
+       player.avatar = avatar;
+       player.isOffline = false;
+       if (player.reconnectionTimeout) { clearTimeout(player.reconnectionTimeout); player.reconnectionTimeout = undefined; }
+    } else {
+       room.players.push({ id: pid, name, avatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
+    }
+    
     mapIdentity(socket, roomId, pid);
     socket.join(roomId);
     broadcastState(roomId);
@@ -443,7 +463,7 @@ io.on('connection', (socket: Socket) => {
     
     const requesterId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === requesterId);
-    if (!requester) return;
+    if (!requester || !requester.isHost) return;
 
     const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
     room.players.push({
@@ -454,9 +474,14 @@ io.on('connection', (socket: Socket) => {
     broadcastPublicLobbies();
   });
 
-  socket.on('update_bot_difficulty', ({ roomId, botId, difficulty }) => {
+  socket.on('update_bot_difficulty', ({ roomId, botId, difficulty, playerId }) => {
     const room = rooms[roomId];
     if (room && room.status === 'LOBBY') {
+      const requesterId = playerId || socketToPlayerId[socket.id];
+      const requester = room.players.find(p => p.id === requesterId);
+      // Ensure only the host can change difficulty
+      if (!requester || !requester.isHost) return;
+
       const bot = room.players.find(p => p.id === botId);
       if (bot) {
         bot.difficulty = difficulty;
@@ -540,7 +565,7 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('get_public_rooms', () => {
-    broadcastPublicLobbies();
+    socket.emit('public_rooms_list', getPublicRoomsList());
   });
 
   socket.on('request_sync', ({ playerId }) => {
