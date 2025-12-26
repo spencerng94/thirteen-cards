@@ -69,8 +69,9 @@ const App: React.FC = () => {
            connectSocket();
            const saved = localStorage.getItem(SESSION_KEY);
            if (saved) {
-              const { roomId, playerId } = JSON.parse(saved);
-              socket.emit(SocketEvents.RECONNECT, { roomId, playerId });
+              const { roomId, playerId: savedId } = JSON.parse(saved);
+              setPlayerId(savedId);
+              socket.emit(SocketEvents.RECONNECT, { roomId, playerId: savedId });
            }
         } else {
            socket.emit(SocketEvents.REQUEST_SYNC);
@@ -181,10 +182,14 @@ const App: React.FC = () => {
   useEffect(() => {
     const onGameState = (state: GameState) => {
       setMpGameState(state);
+      // Ensure local playerId is synced with actual socket ID if it's a fresh connection
       if (state.roomId !== 'LOCAL') {
+         const currentId = playerId || socket.id;
+         if (!playerId) setPlayerId(currentId);
+         
          localStorage.setItem(SESSION_KEY, JSON.stringify({ 
            roomId: state.roomId, 
-           playerId: playerId || socket.id, 
+           playerId: currentId, 
            timestamp: Date.now() 
          }));
       }
@@ -340,7 +345,7 @@ const App: React.FC = () => {
     if (m === 'SINGLE_PLAYER') initSinglePlayer(n, a); else { connectSocket(); setView('LOBBY'); }
   };
 
-  const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); localStorage.removeItem(SESSION_KEY); setGameMode(null); setMpGameState(null); setSpGameState(null); setView('WELCOME'); setGameSettingsOpen(false); };
+  const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); localStorage.removeItem(SESSION_KEY); setGameMode(null); setMpGameState(null); setSpGameState(null); setView('WELCOME'); setGameSettingsOpen(false); setPlayerId(null); };
   const handleRefreshProfile = () => { if(session?.user?.id) loadProfile(session.user.id); else if(isGuest) setProfile(fetchGuestProfile()); };
 
   return (

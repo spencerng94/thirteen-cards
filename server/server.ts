@@ -287,26 +287,32 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
 const handlePass = (roomId: string, playerId: string) => {
   const room = rooms[roomId];
   if (!room) return;
-  if (room.players[room.currentPlayerIndex].id !== playerId) return;
   
-  if (room.isFirstTurnOfGame) {
-    const player = room.players.find(p => p.id === playerId);
-    if (player) io.to(player.socketId).emit('error', 'Must play 3♠ on first turn.');
+  const currentPlayer = room.players[room.currentPlayerIndex];
+  if (currentPlayer.id !== playerId) return;
+  
+  // Simplified block: you can only pass if there are cards to respond to.
+  // If the pile is empty, you are the leader and MUST play.
+  if (room.currentPlayPile.length === 0) {
+    io.to(currentPlayer.socketId).emit('error', room.isFirstTurnOfGame ? 'Must lead with 3♠.' : 'Must play a card to lead the round.');
     return;
   }
 
   // Clear existing timer
   if (room.turnTimer) clearTimeout(room.turnTimer);
 
-  const player = room.players.find(p => p.id === playerId);
-  if (player) player.hasPassed = true;
+  currentPlayer.hasPassed = true;
 
   let nextIdx = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   const lastPlayer = room.players.find(p => p.id === room.lastPlayerToPlayId);
+  
+  // Check if round is over (everyone else passed)
   if (room.players[nextIdx].id === room.lastPlayerToPlayId || nextIdx === room.currentPlayerIndex) {
     if (room.currentPlayPile.length > 0) room.roundHistory.push([...room.currentPlayPile]);
     room.currentPlayPile = [];
     room.players.forEach(p => p.hasPassed = false);
+    
+    // If the last person to play has finished, the turn passes to the next active player
     if (lastPlayer?.finishedRank) nextIdx = getNextActivePlayerIndex(room, nextIdx, true);
   }
   
