@@ -66,7 +66,12 @@ const App: React.FC = () => {
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
     if (!id) {
-      id = uuidv4();
+      // Robust UUID fallback
+      try {
+        id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : uuidv4();
+      } catch (e) {
+        id = 'p-' + Math.random().toString(36).substr(2, 9) + Date.now();
+      }
       localStorage.setItem(PERSISTENT_ID_KEY, id);
     }
     return id;
@@ -86,7 +91,7 @@ const App: React.FC = () => {
            const saved = localStorage.getItem(SESSION_KEY);
            if (saved) {
               const { roomId, playerId: savedId } = JSON.parse(saved);
-              socket.emit(SocketEvents.RECONNECT, { roomId, playerId: savedId });
+              socket.emit(SocketEvents.RECONNECT, { roomId, playerId: savedId || myPersistentId });
            }
         } else {
            socket.emit(SocketEvents.REQUEST_SYNC);
@@ -95,7 +100,7 @@ const App: React.FC = () => {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [gameMode]);
+  }, [gameMode, myPersistentId]);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {

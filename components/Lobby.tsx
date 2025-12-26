@@ -99,6 +99,7 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
   const [activeTab, setActiveTab] = useState<'DIRECTORY' | 'ENTRY'>('DIRECTORY');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [syncTimer, setSyncTimer] = useState(0);
 
   const isLightTheme = backgroundTheme === 'HIGH_ROLLER'; 
 
@@ -125,9 +126,25 @@ export const Lobby: React.FC<LobbyProps> = ({
     };
   }, [gameState]);
 
+  useEffect(() => {
+    let interval: any;
+    if (gameState && !gameState.players.find(p => p.id === myId)) {
+      interval = setInterval(() => {
+        setSyncTimer(prev => prev + 1);
+      }, 1000);
+    } else {
+      setSyncTimer(0);
+    }
+    return () => clearInterval(interval);
+  }, [gameState, myId]);
+
   const refreshRooms = () => {
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+  };
+
+  const forceResync = () => {
+    socket.emit(SocketEvents.REQUEST_SYNC);
   };
 
   const createRoom = () => {
@@ -343,12 +360,23 @@ export const Lobby: React.FC<LobbyProps> = ({
                         </span>
                     </button>
                 ) : (
-                    <div className={`flex items-center justify-center gap-4 py-5 ${isLightTheme ? 'bg-black/5' : 'bg-white/[0.03]'} rounded-[1.5rem] border ${isLightTheme ? 'border-black/5' : 'border-white/5'}`}>
-                        <div className="relative w-5 h-5">
-                            <div className={`absolute inset-0 border-2 ${isLightTheme ? 'border-black/10' : 'border-white/10'} rounded-full`}></div>
-                            <div className={`absolute inset-0 border-t-2 ${isLightTheme ? 'border-pink-600' : 'border-yellow-500'} rounded-full animate-spin`}></div>
-                        </div>
-                        <span className={`${isLightTheme ? 'text-gray-900/60' : 'text-gray-400'} text-[11px] font-black uppercase tracking-[0.2em]`}>Synchronizing...</span>
+                    <div className="space-y-4">
+                      <div className={`flex items-center justify-center gap-4 py-5 ${isLightTheme ? 'bg-black/5' : 'bg-white/[0.03]'} rounded-[1.5rem] border ${isLightTheme ? 'border-black/5' : 'border-white/5'}`}>
+                          <div className="relative w-5 h-5">
+                              <div className={`absolute inset-0 border-2 ${isLightTheme ? 'border-black/10' : 'border-white/10'} rounded-full`}></div>
+                              <div className={`absolute inset-0 border-t-2 ${isLightTheme ? 'border-pink-600' : 'border-yellow-500'} rounded-full animate-spin`}></div>
+                          </div>
+                          <span className={`${isLightTheme ? 'text-gray-900/60' : 'text-gray-400'} text-[11px] font-black uppercase tracking-[0.2em]`}>Synchronizing...</span>
+                      </div>
+                      
+                      {syncTimer >= 5 && (
+                        <button 
+                          onClick={forceResync}
+                          className="w-full py-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-500 text-[9px] font-black uppercase tracking-[0.4em] hover:bg-yellow-500/20 transition-all animate-pulse"
+                        >
+                          Force Re-Sync Identity
+                        </button>
+                      )}
                     </div>
                 )}
                 

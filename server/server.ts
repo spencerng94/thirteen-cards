@@ -119,7 +119,7 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
   
   if (isFirstTurn && playPile.length === 0) {
     if (!playedCards.some(c => c.rank === Rank.Three && c.suit === Suit.Spades)) {
-      return { isValid: false, reason: 'First play must have 3♠.' };
+      return { isValid: false, reason: 'Must start with 3♠.' };
     }
   }
   
@@ -139,8 +139,8 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
   if (lType === '4_PAIRS' && pType === '4_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
   if (pType === '4_PAIRS' && (lType === '3_PAIRS' || lType === 'QUAD')) return { isValid: true, reason: 'Chop!' };
 
-  if (pType !== lType || playedCards.length !== lastCards.length) return { isValid: false, reason: 'Must match combo type.' };
-  return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Beat.' } : { isValid: false, reason: 'Cards too low.' };
+  if (pType !== lType || playedCards.length !== lastCards.length) return { isValid: false, reason: 'Combo mismatch.' };
+  return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Beat.' } : { isValid: false, reason: 'Too low.' };
 };
 
 const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass: boolean = false): number => {
@@ -388,6 +388,11 @@ const performCleanup = (roomId: string, playerId: string) => {
   broadcastState(roomId);
 };
 
+const mapIdentity = (socket: Socket, roomId: string, playerId: string) => {
+  socketToRoom[socket.id] = roomId;
+  socketToPlayerId[socket.id] = playerId;
+};
+
 io.on('connection', (socket: Socket) => {
   socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName }) => {
     const roomId = generateRoomCode();
@@ -398,8 +403,7 @@ io.on('connection', (socket: Socket) => {
       roomName: roomName || `${name.toUpperCase()}'S MATCH`,
       players: [{ id: pId, name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
     };
-    socketToRoom[socket.id] = roomId;
-    socketToPlayerId[socket.id] = pId;
+    mapIdentity(socket, roomId, pId);
     socket.join(roomId);
     broadcastState(roomId);
   });
@@ -412,8 +416,7 @@ io.on('connection', (socket: Socket) => {
     }
     const pid = playerId || uuidv4();
     room.players.push({ id: pid, name, avatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
-    socketToRoom[socket.id] = roomId;
-    socketToPlayerId[socket.id] = pid;
+    mapIdentity(socket, roomId, pid);
     socket.join(roomId);
     broadcastState(roomId);
   });
@@ -422,9 +425,13 @@ io.on('connection', (socket: Socket) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
     
-    // Verify player is in room
-    const requester = room.players.find(p => p.id === (playerId || socketToPlayerId[socket.id]));
-    if (!requester) return;
+    const requesterId = playerId || socketToPlayerId[socket.id];
+    const requester = room.players.find(p => p.id === requesterId);
+    
+    if (!requester) {
+       console.log(`Add bot rejected: Requester ${requesterId} not in room ${roomId}`);
+       return;
+    }
 
     const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
     room.players.push({
@@ -437,7 +444,8 @@ io.on('connection', (socket: Socket) => {
   socket.on('remove_bot', ({ roomId, botId, playerId }) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'LOBBY') return;
-    const requester = room.players.find(p => p.id === (playerId || socketToPlayerId[socket.id]));
+    const requesterId = playerId || socketToPlayerId[socket.id];
+    const requester = room.players.find(p => p.id === requesterId);
     if (!requester || !requester.isHost) return;
 
     room.players = room.players.filter(p => p.id !== botId);
@@ -456,8 +464,7 @@ io.on('connection', (socket: Socket) => {
 
     player.socketId = socket.id;
     player.isOffline = false;
-    socketToRoom[socket.id] = roomId;
-    socketToPlayerId[socket.id] = playerId;
+    mapIdentity(socket, roomId, playerId);
     
     socket.join(roomId);
     socket.emit('game_state', getGameStateData(room));
@@ -468,7 +475,8 @@ io.on('connection', (socket: Socket) => {
   socket.on('start_game', ({ roomId, playerId }) => {
     const room = rooms[roomId];
     if (!room || room.players.length < 2) return;
-    const requester = room.players.find(p => p.id === (playerId || socketToPlayerId[socket.id]));
+    const requesterId = playerId || socketToPlayerId[socket.id];
+    const requester = room.players.find(p => p.id === requesterId);
     if (!requester || !requester.isHost) return;
 
     const deck: Card[] = [];
@@ -493,8 +501,17 @@ io.on('connection', (socket: Socket) => {
     checkBotTurn(roomId);
   });
 
-  socket.on('play_cards', ({ roomId, cards, playerId }) => handlePlay(roomId, playerId || socketToPlayerId[socket.id], cards));
-  socket.on('pass_turn', ({ roomId, playerId }) => handlePass(roomId, playerId || socketToPlayerId[socket.id]));
+  socket.on('play_cards', ({ roomId, cards, playerId }) => {
+    const pId = playerId || socketToPlayerId[socket.id];
+    if (pId) mapIdentity(socket, roomId, pId);
+    handlePlay(roomId, pId, cards);
+  });
+
+  socket.on('pass_turn', ({ roomId, playerId }) => {
+    const pId = playerId || socketToPlayerId[socket.id];
+    if (pId) mapIdentity(socket, roomId, pId);
+    handlePass(roomId, pId);
+  });
 
   socket.on('get_public_rooms', () => {
     const publicList = Object.values(rooms)
@@ -514,7 +531,8 @@ io.on('connection', (socket: Socket) => {
     if (!roomId) return;
     const room = rooms[roomId];
     if (!room) return;
-    const player = room.players.find(p => p.socketId === socket.id);
+    const pId = socketToPlayerId[socket.id];
+    const player = room.players.find(p => p.id === pId);
     if (!player) return;
     socket.emit('game_state', getGameStateData(room));
     socket.emit('player_hand', player.hand);
