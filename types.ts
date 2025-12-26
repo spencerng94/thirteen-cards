@@ -65,6 +65,9 @@ export interface GameState {
   finishedPlayers: string[];
   isFirstTurnOfGame?: boolean;
   turnEndTime?: number; // Server timestamp when current turn expires
+  // New Room Attributes
+  isPublic?: boolean;
+  roomName?: string;
 }
 
 export enum SocketEvents {
@@ -82,6 +85,8 @@ export enum SocketEvents {
   UPDATE_BOT_DIFFICULTY = 'update_bot_difficulty',
   EMOTE_SENT = 'emote_sent',
   RECEIVE_EMOTE = 'receive_emote',
+  GET_PUBLIC_ROOMS = 'get_public_rooms',
+  PUBLIC_ROOMS_LIST = 'public_rooms_list',
   ERROR = 'error'
 }
 

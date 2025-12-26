@@ -52,6 +52,9 @@ interface GameRoom {
   turnEndTime?: number;
   // Fix: Use any to resolve "Cannot find namespace 'NodeJS'" error on line 52
   turnTimer?: any;
+  // New: Publicity fields
+  isPublic: boolean;
+  roomName: string;
 }
 
 const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
@@ -156,6 +159,8 @@ const getNextActivePlayerIndex = (room: GameRoom, startIndex: number, ignorePass
 const getGameStateData = (room: GameRoom) => ({
   roomId: room.id,
   status: room.status,
+  isPublic: room.isPublic,
+  roomName: room.roomName,
   players: room.players.map(p => ({
     id: p.id,
     name: p.name,
@@ -365,10 +370,12 @@ const checkBotTurn = (roomId: string) => {
 };
 
 io.on('connection', (socket: Socket) => {
-  socket.on('create_room', ({ name, avatar }) => {
+  socket.on('create_room', ({ name, avatar, isPublic, roomName }) => {
     const roomId = generateRoomCode();
     rooms[roomId] = {
       id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
+      isPublic: isPublic === true,
+      roomName: roomName || `${name.toUpperCase()}'S MATCH`,
       players: [{ id: socket.id, name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
     };
     socketToRoom[socket.id] = roomId;
@@ -378,11 +385,27 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('join_room', ({ roomId, name, avatar }) => {
     const room = rooms[roomId];
-    if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
+    if (!room || room.status !== 'LOBBY' || room.players.length >= 4) {
+      socket.emit('error', !room ? 'Room not found.' : room.status !== 'LOBBY' ? 'Match in progress.' : 'Lobby is full.');
+      return;
+    }
     room.players.push({ id: socket.id, name, avatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
     socketToRoom[socket.id] = roomId;
     socket.join(roomId);
     broadcastState(roomId);
+  });
+
+  socket.on('get_public_rooms', () => {
+    const publicList = Object.values(rooms)
+      .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length < 4)
+      .map(r => ({
+        id: r.id,
+        name: r.roomName,
+        playerCount: r.players.length,
+        hostName: r.players.find(p => p.isHost)?.name || 'Unknown',
+        hostAvatar: r.players.find(p => p.isHost)?.avatar || ':smile:'
+      }));
+    socket.emit('public_rooms_list', publicList);
   });
 
   socket.on('request_sync', () => {
