@@ -297,18 +297,20 @@ const App: React.FC = () => {
           
           const stillPlaying = players.filter(p => !p.finishedRank);
 
-          if (spQuickFinish) {
+          // Fix: Only Turbo Finish if the PLAYER finishes. 
+          // If a bot finishes, keep playing.
+          if (spQuickFinish && pid === 'me') {
              const remainingSorted = [...stillPlaying].sort((a, b) => a.cardCount - b.cardCount);
+             const baseRank = finishedPlayers.length;
              remainingSorted.forEach((p, idx) => {
                 const pObj = players.find(pl => pl.id === p.id)!;
-                pObj.finishedRank = finishedPlayers.length + idx + 1;
-                finishedPlayers.push(p.id);
+                // Fix: use baseRank to prevent shifting ranks (avoiding 6th place bug)
+                pObj.finishedRank = baseRank + idx + 1;
              });
              finalStatus = GameStatus.FINISHED;
           } else if (stillPlaying.length <= 1) {
               if (stillPlaying.length === 1) {
                   stillPlaying[0].finishedRank = finishedPlayers.length + 1;
-                  finishedPlayers.push(stillPlaying[0].id);
               }
               finalStatus = GameStatus.FINISHED;
           }
