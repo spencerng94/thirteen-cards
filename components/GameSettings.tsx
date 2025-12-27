@@ -80,12 +80,15 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-10 scrollbar-thin scrollbar-thumb-white/10">
+        <div className="flex-1 overflow-y-auto p-8 space-y-10 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           
           {/* Toggles */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex items-center justify-between bg-white/[0.02] p-4 rounded-2xl border border-white/5 group hover:border-white/10 transition-colors">
-              <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Haptic Audio</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Haptic Audio</span>
+                <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Enable immersive arena sound effects</span>
+              </div>
               <button 
                 onClick={() => setSoundEnabled(!soundEnabled)}
                 className={`w-12 h-6 rounded-full relative transition-all duration-500 ${soundEnabled ? 'bg-emerald-600 shadow-[0_0_100px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
@@ -95,7 +98,10 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
             </div>
             
             <div className="flex items-center justify-between bg-white/[0.02] p-4 rounded-2xl border border-white/5 group hover:border-white/10 transition-colors">
-              <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Sleeve Face Effects</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Sleeve Face Effects</span>
+                <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Visual flair and glows on active card faces</span>
+              </div>
               <button 
                 onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)}
                 className={`w-12 h-6 rounded-full relative transition-all duration-500 ${sleeveEffectsEnabled ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
@@ -105,7 +111,10 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
             </div>
 
             <div className="flex items-center justify-between bg-white/[0.02] p-4 rounded-2xl border border-white/5 group hover:border-white/10 transition-colors">
-              <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Play Animations</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Play Animations</span>
+                <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Organic card motion when tossed to arena</span>
+              </div>
               <button 
                 onClick={() => setPlayAnimationsEnabled(!playAnimationsEnabled)}
                 className={`w-12 h-6 rounded-full relative transition-all duration-500 ${playAnimationsEnabled ? 'bg-emerald-600 shadow-[0_0_100px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
@@ -116,7 +125,10 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
 
             {isSinglePlayer && spQuickFinish !== undefined && setSpQuickFinish && (
               <div className="flex items-center justify-between bg-white/[0.02] p-4 rounded-2xl border border-white/5 group hover:border-white/10 transition-colors">
-                <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Turbo Finish</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Turbo Finish</span>
+                  <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">End AI matches instantly upon your victory</span>
+                </div>
                 <button 
                   onClick={() => setSpQuickFinish(!spQuickFinish)}
                   className={`w-12 h-6 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}

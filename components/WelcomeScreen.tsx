@@ -347,25 +347,37 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <SectionLabel>System Config</SectionLabel>
       <div className="space-y-4">
         <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
-           <span className="text-[10px] font-black text-white uppercase tracking-widest">Haptic Audio</span>
+           <div className="flex flex-col gap-0.5">
+             <span className="text-[10px] font-black text-white uppercase tracking-widest">Haptic Audio</span>
+             <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Enable immersive arena sound effects</span>
+           </div>
            <button onClick={() => setSoundEnabled(!soundEnabled)} className={`w-12 h-6 rounded-full relative ${soundEnabled ? 'bg-emerald-600' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
            </button>
         </div>
         <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
-           <span className="text-[10px] font-black text-white uppercase tracking-widest">Sleeve Face Effects</span>
+           <div className="flex flex-col gap-0.5">
+             <span className="text-[10px] font-black text-white uppercase tracking-widest">Sleeve Face Effects</span>
+             <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Visual flair and glows on active card faces</span>
+           </div>
            <button onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)} className={`w-12 h-6 rounded-full relative ${sleeveEffectsEnabled ? 'bg-yellow-500' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
            </button>
         </div>
         <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
-           <span className="text-[10px] font-black text-white uppercase tracking-widest">Card Play Animations</span>
+           <div className="flex flex-col gap-0.5">
+             <span className="text-[10px] font-black text-white uppercase tracking-widest">Card Play Animations</span>
+             <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Organic card motion when tossed to arena</span>
+           </div>
            <button onClick={() => setPlayAnimationsEnabled(!playAnimationsEnabled)} className={`w-12 h-6 rounded-full relative ${playAnimationsEnabled ? 'bg-emerald-600' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${playAnimationsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
            </button>
         </div>
         <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
-           <span className="text-[10px] font-black text-white uppercase tracking-widest">Single Player Turbo</span>
+           <div className="flex flex-col gap-0.5">
+             <span className="text-[10px] font-black text-white uppercase tracking-widest">Single Player Turbo</span>
+             <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">End AI matches instantly upon your victory</span>
+           </div>
            <button onClick={() => setQuickFinish(!quickFinish)} className={`w-12 h-6 rounded-full relative ${quickFinish ? 'bg-yellow-500' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${quickFinish ? 'translate-x-7' : 'translate-x-1'}`} />
            </button>
