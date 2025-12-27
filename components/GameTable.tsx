@@ -179,6 +179,9 @@ const BombOverlay: React.FC<{ active: boolean }> = ({ active }) => {
           40% { transform: scale(1.5); opacity: 1; }
           100% { transform: scale(3); opacity: 0; }
         }
+        .animate-bomb-flash { animation: bombFlash 3s ease-out forwards; }
+        .animate-bomb-text { animation: bombText 3s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
+        .animate-bomb-explosion { animation: bombExplosion 3s ease-out forwards; }
       `}} />
     </div>
   );
@@ -245,14 +248,22 @@ export const GameTable: React.FC<GameTableProps> = ({
   }, [isMyTurn]);
 
   const lastMove = gameState.currentPlayPile && gameState.currentPlayPile.length > 0 ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] : null;
+  
   useEffect(() => {
     if (lastMove && ['QUAD', '3_PAIRS', '4_PAIRS', 'BOMB'].includes(lastMove.comboType)) {
       setShowBombEffect(true);
       setIsShaking(true);
       audioService.playBomb();
+      // Use a reference to ensure the hide effect only happens if we don't clear it
       const t1 = setTimeout(() => setShowBombEffect(false), 3000);
       const t2 = setTimeout(() => setIsShaking(false), 500);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      return () => { 
+        clearTimeout(t1); 
+        clearTimeout(t2); 
+      };
+    } else {
+      // If the last move is NOT a bomb, make sure the effect is hidden
+      setShowBombEffect(false);
     }
   }, [lastMove?.cards.length, lastMove?.playerId, lastMove?.comboType]);
 
@@ -373,6 +384,9 @@ export const GameTable: React.FC<GameTableProps> = ({
   const leftOpponent = opponents.find(o => o.position === 'left');
   const rightOpponent = opponents.find(o => o.position === 'right');
 
+  // Specific check for the 3 of Spades message
+  const iHave3Spades = useMemo(() => myHand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades), [myHand]);
+
   return (
     <div className={`fixed inset-0 w-full h-full bg-[#030303] overflow-hidden select-none ${isShaking ? 'animate-shake' : ''}`}>
       <BoardSurface themeId={backgroundTheme} />
@@ -436,7 +450,9 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="absolute bottom-0 left-0 w-full p-2 sm:p-4 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
         <div className={`mb-3 flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
            <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">{isLeader ? '3♠ YOUR TURN' : 'Your Turn'}</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">
+                {isLeader && gameState.isFirstTurnOfGame && iHave3Spades ? '3♠ YOUR TURN' : (isLeader ? 'YOUR LEAD' : 'Your Turn')}
+              </span>
               {timeLeft > 0 && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${timeLeft <= 3 ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
            </div>
            {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
@@ -500,7 +516,16 @@ export const GameTable: React.FC<GameTableProps> = ({
            </div>
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `@keyframes emoteFly { 0% { transform: var(--start-pos); opacity: 0; filter: blur(15px); } 10% { opacity: 1; filter: blur(0px); } 15% { transform: var(--focus-pos); opacity: 1; filter: blur(0px); } 80% { transform: var(--focus-pos); opacity: 1; filter: blur(0px); } 100% { transform: var(--end-pos); opacity: 0; filter: blur(10px); } } .animate-emote-fly { animation: emoteFly 3.2s cubic-bezier(0.19, 1, 0.22, 1) forwards; } @keyframes fadeInLabel { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } @keyframes shake { 0%, 100% { transform: translate(0,0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-10px, -10px); } 20%, 40%, 60%, 80% { transform: translate(10px, 10px); } } .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }` }} />
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes emoteFly { 0% { transform: var(--start-pos); opacity: 0; filter: blur(15px); } 10% { opacity: 1; filter: blur(0px); } 15% { transform: var(--focus-pos); opacity: 1; filter: blur(0px); } 80% { transform: var(--focus-pos); opacity: 1; filter: blur(0px); } 100% { transform: var(--end-pos); opacity: 0; filter: blur(10px); } } 
+        .animate-emote-fly { animation: emoteFly 3.2s cubic-bezier(0.19, 1, 0.22, 1) forwards; } 
+        @keyframes fadeInLabel { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
+        @keyframes shake { 0%, 100% { transform: translate(0,0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-10px, -10px); } 20%, 40%, 60%, 80% { transform: translate(10px, 10px); } } 
+        .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        .animate-bomb-flash { animation: bombFlash 3s ease-out forwards; }
+        .animate-bomb-text { animation: bombText 3s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
+        .animate-bomb-explosion { animation: bombExplosion 3s ease-out forwards; }
+      ` }} />
     </div>
   );
 };

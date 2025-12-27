@@ -13,7 +13,7 @@ import { GameSettings } from './components/GameSettings';
 import { Store } from './components/Store';
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
-import { audioService } from './services/audio';
+import { audioService } from '../services/audio';
 import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -187,6 +187,15 @@ const App: React.FC = () => {
   };
 
   const handleOpenStore = (tab?: 'SLEEVES' | 'AVATARS' | 'BOARDS') => { if (tab) setStoreTab(tab); setStoreOpen(true); };
+
+  const handleRefreshProfile = () => {
+    if (session?.user) {
+      loadProfile(session.user.id);
+    } else if (isGuest) {
+      const data = fetchGuestProfile();
+      setProfile(data);
+    }
+  };
 
   useEffect(() => { audioService.setEnabled(soundEnabled); }, [soundEnabled]);
 
@@ -485,7 +494,7 @@ const App: React.FC = () => {
           cardCoverStyle={cardCoverStyle} setCardCoverStyle={setCardCoverStyle} aiDifficulty={aiDifficulty} setAiDifficulty={setAiDifficulty}
           quickFinish={spQuickFinish} setQuickFinish={setSpQuickFinish} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled}
           backgroundTheme={backgroundTheme} setBackgroundTheme={setBackgroundTheme}
-          onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={() => session?.user && loadProfile(session.user.id)}
+          onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={handleRefreshProfile}
           onOpenHub={(tab) => setHubState({ open: true, tab })} onOpenStore={() => setStoreOpen(true)} isGuest={isGuest}
         />
       )}
@@ -519,7 +528,7 @@ const App: React.FC = () => {
       {hubState.open && (
         <UserHub 
           onClose={() => setHubState({ ...hubState, open: false })} profile={profile} playerName={playerName} setPlayerName={setPlayerName}
-          playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} onSignOut={handleSignOut} onRefreshProfile={() => session?.user && loadProfile(session.user.id)} isGuest={isGuest} remoteEmotes={[]}
+          playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} onSignOut={handleSignOut} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} remoteEmotes={[]}
         />
       )}
 
@@ -533,7 +542,7 @@ const App: React.FC = () => {
 
       {storeOpen && (
         <Store 
-          onClose={() => setStoreOpen(false)} profile={profile} onRefreshProfile={() => session?.user && loadProfile(session.user.id)}
+          onClose={() => setStoreOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile}
           onEquipSleeve={setCardCoverStyle} currentSleeve={cardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar}
           currentTheme={backgroundTheme} onEquipBoard={setBackgroundTheme} isGuest={isGuest} initialTab={storeTab}
         />
