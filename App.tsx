@@ -197,6 +197,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const onGameState = (state: GameState) => {
+      // CRITICAL: Prevent snap-back if user is already trying to go home
+      if (view === 'WELCOME' && !gameMode) return;
+      
       setMpGameState(state);
       if (state.roomId !== 'LOCAL') {
          localStorage.setItem(SESSION_KEY, JSON.stringify({ 
@@ -221,7 +224,7 @@ const App: React.FC = () => {
       socket.off(SocketEvents.GAME_STATE); socket.off(SocketEvents.PLAYER_HAND);
       socket.off(SocketEvents.ERROR);
     };
-  }, [view, triggerMatchEndTransition, myPersistentId]);
+  }, [view, gameMode, triggerMatchEndTransition, myPersistentId]);
 
   const handleLocalPass = (pid: string) => {
     setSpGameState(prev => {
@@ -424,16 +427,41 @@ const App: React.FC = () => {
   };
 
   const handleExit = () => {
-    if (gameMode === 'MULTI_PLAYER') disconnectSocket();
-    setGameMode(null); setMpGameState(null); setSpGameState(null); setSpOpponentHands({}); setSpMyHand([]); setView('WELCOME');
+    // 1. Unbind listeners IMMEDIATELY to prevent onGameState re-navigating before closure
+    socket.off(SocketEvents.GAME_STATE);
+    socket.off(SocketEvents.PLAYER_HAND);
+    
+    if (gameMode === 'MULTI_PLAYER') {
+      disconnectSocket();
+    }
+    
+    // 2. Wipe states
+    setGameMode(null); 
+    setMpGameState(null); 
+    setSpGameState(null); 
+    setSpOpponentHands({}); 
+    setSpMyHand([]); 
     localStorage.removeItem(SESSION_KEY);
     
-    // Safely update history state to clear query params without triggering SecurityError in sandboxes
-    try {
-      window.history.replaceState({}, '', window.location.pathname);
-    } catch (e) {
-      // Catch potential SecurityErrors in strict sandboxed environments
-    }
+    // 3. Reset all overlay/modal states to ensure immediate visual return to Home
+    setGameSettingsOpen(false);
+    setHubState({ open: false, tab: 'PROFILE' });
+    setStoreOpen(false);
+    setError(null);
+
+    // 4. Navigate home
+    setView('WELCOME');
+    
+    // 5. Safe non-blocking history update
+    setTimeout(() => {
+      try {
+        if (window.location.search) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      } catch (e) {
+        // Silently fail if blocked by sandbox
+      }
+    }, 10);
   };
 
   const currentGameState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
