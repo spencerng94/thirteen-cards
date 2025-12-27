@@ -412,7 +412,19 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
         <div className="relative">
           <button onClick={() => setShowEmotePicker(!showEmotePicker)} className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all shadow-xl hover:scale-110 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg></button>
-          {showEmotePicker && ( <div className="absolute top-full right-0 mt-3 p-3 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl z-[300] grid grid-cols-3 gap-2 min-w-[160px] animate-in fade-in zoom-in-95 duration-200"> {unlockedAvatars.map(emoji => ( <button key={emoji} onClick={() => sendEmote(emoji)} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/15 transition-all flex items-center justify-center p-1"><VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="sm" /></button> ))} </div> )}
+          {showEmotePicker && ( 
+            <div className="absolute top-full right-0 mt-3 p-4 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl z-[300] grid grid-cols-3 gap-3 min-w-[200px] sm:min-w-[240px] animate-in fade-in zoom-in-95 duration-200"> 
+              {unlockedAvatars.map(emoji => ( 
+                <button 
+                  key={emoji} 
+                  onClick={() => sendEmote(emoji)} 
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 hover:bg-white/15 transition-all flex items-center justify-center p-2 group/emote-btn overflow-hidden"
+                >
+                  <VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="md" className="group-hover/emote-btn:scale-110 transition-transform duration-300" />
+                </button> 
+              ))} 
+            </div> 
+          )}
         </div>
         <button onClick={onOpenSettings} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><SettingsIcon /></button>
         <button onClick={() => setShowInstructions(true)} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><span className="text-lg font-black">?</span></button>
