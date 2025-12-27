@@ -189,32 +189,32 @@ const BombOverlay: React.FC<{ active: boolean }> = ({ active }) => {
 };
 
 const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'bottom' | 'top' | 'left' | 'right' }> = ({ emote, remoteEmotes, position }) => {
-  const positions = {
-    bottom: { start: 'translate(-50%, 0)', focus: 'translate(-50%, -120px)', end: 'translate(-50%, -240px)' },
-    top: { start: 'translate(-50%, 0)', focus: 'translate(-50%, 120px)', end: 'translate(-50%, 240px)' },
-    left: { start: 'translate(0, -50%)', focus: 'translate(120px, -50%)', end: 'translate(240px, -50%)' },
-    right: { start: 'translate(0, -50%)', focus: '-translate(-120px, -50%)', end: '-translate(-240px, -50%)' },
+  // Logic to determine translation towards screen center area based on station
+  const translations = {
+    bottom: { tx: '0', ty: '-28vh' },
+    top: { tx: '0', ty: '28vh' },
+    left: { tx: '28vw', ty: '0' },
+    right: { tx: '-28vw', ty: '0' },
   };
 
-  const pos = positions[position];
+  const trans = translations[position];
   const screenPos = {
-    bottom: 'bottom-28 left-1/2',
-    top: 'top-28 left-1/2',
-    left: 'left-28 top-1/2',
-    right: 'right-28 top-1/2'
+    bottom: 'bottom-32 left-1/2 -translate-x-1/2',
+    top: 'top-32 left-1/2 -translate-x-1/2',
+    left: 'left-32 top-1/2 -translate-y-1/2',
+    right: 'right-32 top-1/2 -translate-y-1/2'
   };
 
   return (
     <div 
-      className={`fixed z-[400] ${screenPos[position]} animate-emote-fly pointer-events-none`}
+      className={`fixed z-[400] ${screenPos[position]} animate-rewarding-emote pointer-events-none`}
       style={{ 
-        '--start-pos': pos.start,
-        '--focus-pos': pos.focus,
-        '--end-pos': pos.end
+        '--tx': trans.tx,
+        '--ty': trans.ty
       } as any}
     >
-      <div className="bg-black/60 backdrop-blur-2xl border-2 border-white/20 p-5 rounded-full shadow-2xl scale-[1.65]">
-        <div className="w-14 h-14 flex items-center justify-center">
+      <div className="bg-black/50 backdrop-blur-3xl border-2 border-white/20 p-2 rounded-full shadow-[0_0_60px_rgba(255,255,255,0.1)] flex items-center justify-center scale-[1.3] ring-1 ring-white/10">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
             <VisualEmote trigger={emote} remoteEmotes={remoteEmotes} size="lg" />
         </div>
       </div>
@@ -549,8 +549,14 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes emoteFly { 0% { transform: var(--start-pos); opacity: 0; filter: blur(15px); } 10% { opacity: 1; filter: blur(0px); } 15% { transform: var(--focus-pos); opacity: 1; filter: blur(0px); } 80% { transform: var(--focus-pos); opacity: 1; filter: blur(0px); } 100% { transform: var(--end-pos); opacity: 0; filter: blur(10px); } } 
-        .animate-emote-fly { animation: emoteFly 3.2s cubic-bezier(0.19, 1, 0.22, 1) forwards; } 
+        @keyframes rewardingEmote { 
+          0% { transform: translate(0, 0) scale(0.5); opacity: 0; filter: blur(10px); } 
+          20% { transform: translate(var(--tx), var(--ty)) scale(2.2); opacity: 1; filter: blur(0px); } 
+          35% { transform: translate(var(--tx), var(--ty)) scale(2.3); opacity: 1; } 
+          75% { transform: translate(var(--tx), calc(var(--ty) - 30px)) scale(2.2); opacity: 1; filter: blur(0px); } 
+          100% { transform: translate(var(--tx), calc(var(--ty) - 150px)) scale(2); opacity: 0; filter: blur(20px); } 
+        } 
+        .animate-rewarding-emote { animation: rewardingEmote 3.8s cubic-bezier(0.19, 1, 0.22, 1) forwards; } 
         @keyframes fadeInLabel { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
         @keyframes shake { 0%, 100% { transform: translate(0,0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-10px, -10px); } 20%, 40%, 60%, 80% { transform: translate(10px, 10px); } } 
         .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
