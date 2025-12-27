@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus, SocketEvents, UserProfile, Emote } from '../types';
 import { Card, CardCoverStyle } from './Card';
@@ -449,7 +450,17 @@ export const GameTable: React.FC<GameTableProps> = ({
         <div className="relative flex flex-col items-center">
           {lastMove ? (
             <div className="flex flex-col items-center gap-6 animate-in zoom-in duration-300 scale-90 sm:scale-125 landscape:scale-[0.8]">
-               <div className="flex -space-x-12">{lastMove.cards.map((c, i) => (<div key={c.id} style={{ transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})` }}><Card card={c} className="shadow-2xl ring-1 ring-white/10" /></div>))}</div>
+               <div className="flex -space-x-12">
+                {lastMove.cards.map((c, i) => (
+                  <div key={c.id} style={{ transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})` }}>
+                    <Card 
+                      card={c} 
+                      coverStyle={lastMove.playerId === myId ? cardCoverStyle : 'BLUE'} 
+                      className="shadow-2xl ring-1 ring-white/10" 
+                    />
+                  </div>
+                ))}
+               </div>
                <div className="mt-4 flex flex-col items-center opacity-0 animate-[fadeInLabel_0.5s_0.3s_forwards] pointer-events-none z-[100]">
                   <span className="text-[12px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] whitespace-nowrap">{gameState.players.find(p => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE</span>
                   <div className="h-[2px] w-20 bg-yellow-500/40 mt-1 rounded-full shadow-[0_0_12px_rgba(234,179,8,0.5)]"></div>
@@ -524,7 +535,16 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         <div className="relative flex items-center justify-center w-full max-w-[96vw]">
            <div className={`flex transition-all duration-800 landscape:scale-[0.55] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap ${spacing.portrait} portrait:pb-16 max-w-full`}`}>
-            {sortedHand.map((c) => (<Card key={c.id} card={c} selected={selectedCardIds.has(c.id)} onClick={() => toggleCard(c.id)} className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''}`} />))}
+            {sortedHand.map((c) => (
+              <Card 
+                key={c.id} 
+                card={c} 
+                coverStyle={cardCoverStyle}
+                selected={selectedCardIds.has(c.id)} 
+                onClick={() => toggleCard(c.id)} 
+                className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''}`} 
+              />
+            ))}
            </div>
         </div>
       </div>

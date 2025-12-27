@@ -36,8 +36,99 @@ const getSuitSymbol = (suit: Suit): string => {
   }
 };
 
-const getSuitColor = (suit: Suit): string => {
-  return (suit === Suit.Hearts || suit === Suit.Diamonds) ? 'text-rose-600' : 'text-slate-900';
+/**
+ * Logic to determine the face visual style based on the sleeve (coverStyle)
+ */
+const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit) => {
+  const isRedSuit = suit === Suit.Hearts || suit === Suit.Diamonds;
+  
+  // Default (Off-white face)
+  let bg = 'bg-[#fafafa]';
+  let border = 'border-gray-200/80';
+  let textColor = isRedSuit ? 'text-rose-600' : 'text-slate-900';
+  let symbolColor = isRedSuit ? 'text-rose-600' : 'text-slate-900';
+  let innerGlow = '';
+
+  switch (style) {
+    case 'AETHER_VOID':
+      bg = 'bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#050505]';
+      border = 'border-yellow-500/40';
+      // Hearts/Diamonds -> Gold, Spades/Clubs -> White
+      textColor = isRedSuit ? 'text-yellow-500' : 'text-slate-50';
+      symbolColor = isRedSuit ? 'text-yellow-500' : 'text-slate-50';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(250,204,21,0.2)]';
+      break;
+    case 'GOLDEN_IMPERIAL':
+      // Dominant Gold Style
+      bg = 'bg-gradient-to-br from-[#fff9c4] via-[#fbc02d] to-[#f9a825]';
+      border = 'border-[#8b6508]/40';
+      // High contrast colors for gold background
+      // Hearts/Diamonds -> Imperial Crimson, Spades/Clubs -> Obsidian Black
+      textColor = isRedSuit ? 'text-[#800000]' : 'text-[#0a0a0a]';
+      symbolColor = isRedSuit ? 'text-[#800000]' : 'text-[#0a0a0a]';
+      innerGlow = 'shadow-[inset_0_0_15px_rgba(255,255,255,0.5)]';
+      break;
+    case 'VOID_ONYX':
+      bg = 'bg-[#050505]';
+      border = 'border-indigo-500/30';
+      // Hearts/Diamonds -> Indigo, Spades/Clubs -> Lavender/White
+      textColor = isRedSuit ? 'text-indigo-500' : 'text-slate-200';
+      symbolColor = isRedSuit ? 'text-indigo-400' : 'text-slate-100';
+      innerGlow = 'shadow-[inset_0_0_15px_rgba(99,102,241,0.3)]';
+      break;
+    case 'NEON_CYBER':
+      bg = 'bg-[#020205]';
+      border = 'border-cyan-500/40';
+      textColor = isRedSuit ? 'text-pink-500' : 'text-cyan-400';
+      symbolColor = isRedSuit ? 'text-pink-400' : 'text-cyan-300';
+      innerGlow = 'shadow-[inset_0_0_10px_rgba(6,182,212,0.2)]';
+      break;
+    case 'PIXEL_CITY_LIGHTS':
+      bg = 'bg-[#0a0a1a]';
+      border = 'border-blue-400/30';
+      // Hearts/Diamonds -> Yellow, Spades/Clubs -> Cyan
+      textColor = isRedSuit ? 'text-yellow-400' : 'text-cyan-400';
+      symbolColor = isRedSuit ? 'text-yellow-400' : 'text-cyan-400';
+      break;
+    case 'CHERRY_BLOSSOM_NOIR':
+      bg = 'bg-[#0a0508]';
+      border = 'border-pink-500/30';
+      // Hearts/Diamonds -> Vibrant Pink, Spades/Clubs -> Soft Pink/White
+      textColor = isRedSuit ? 'text-pink-500' : 'text-slate-100';
+      symbolColor = isRedSuit ? 'text-pink-400' : 'text-slate-50';
+      innerGlow = 'shadow-[inset_0_0_15px_rgba(236,72,153,0.2)]';
+      break;
+    case 'AMETHYST_ROYAL':
+      bg = 'bg-gradient-to-br from-[#1e1b4b] to-[#0f172a]';
+      border = 'border-purple-400/30';
+      // Hearts/Diamonds -> Purple, Spades/Clubs -> White
+      textColor = isRedSuit ? 'text-purple-400' : 'text-white';
+      symbolColor = isRedSuit ? 'text-purple-400' : 'text-white';
+      break;
+    case 'DRAGON_SCALE':
+      bg = 'bg-[#1a0a05]';
+      border = 'border-orange-500/40';
+      // Hearts/Diamonds -> Red-Orange, Spades/Clubs -> Amber
+      textColor = isRedSuit ? 'text-orange-600' : 'text-amber-500';
+      symbolColor = isRedSuit ? 'text-orange-500' : 'text-amber-400';
+      break;
+    case 'ROYAL_JADE':
+      bg = 'bg-[#062419]';
+      border = 'border-emerald-500/30';
+      // Hearts/Diamonds -> Gold/Yellow, Spades/Clubs -> Emerald
+      textColor = isRedSuit ? 'text-yellow-500' : 'text-emerald-400';
+      symbolColor = isRedSuit ? 'text-yellow-600' : 'text-emerald-500';
+      break;
+    case 'CRYSTAL_EMERALD':
+      bg = 'bg-gradient-to-br from-emerald-950 via-[#064e3b] to-emerald-900';
+      border = 'border-green-300/20';
+      // Hearts/Diamonds -> Bright Green, Spades/Clubs -> White
+      textColor = isRedSuit ? 'text-green-400' : 'text-white';
+      symbolColor = isRedSuit ? 'text-green-400' : 'text-white';
+      break;
+  }
+
+  return { bg, border, textColor, symbolColor, innerGlow };
 };
 
 export const Card: React.FC<CardProps> = ({ 
@@ -212,9 +303,7 @@ export const Card: React.FC<CardProps> = ({
             metallicReflect = "bg-gradient-to-tr from-transparent via-white/40 to-transparent";
             patternContent = (
                 <div className="absolute inset-0 overflow-hidden">
-                    {/* The Light vs Dark Split */}
                     <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/60"></div>
-                    {/* Celestial Glow Shards */}
                     {Array.from({ length: 12 }).map((_, i) => (
                         <div 
                             key={i}
@@ -229,7 +318,6 @@ export const Card: React.FC<CardProps> = ({
                             }}
                         />
                     ))}
-                    {/* Central Ethereal Seal */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-30">
                         <div className="w-12 h-12 rounded-full border-2 border-white/40 animate-[spin_10s_linear_infinite]"></div>
                         <div className="absolute w-8 h-8 rounded-full border border-yellow-400/40 animate-[spin_6s_linear_infinite_reverse]"></div>
@@ -268,46 +356,48 @@ export const Card: React.FC<CardProps> = ({
 
   const rankLabel = getRankLabel(card.rank);
   const suitSymbol = getSuitSymbol(card.suit);
-  const colorClass = getSuitColor(card.suit);
   const isHighValue = card.rank === Rank.Two;
+
+  const { bg, border, textColor, symbolColor, innerGlow } = getFaceTheming(coverStyle, card.suit);
 
   return (
     <div
       onClick={onClick}
       className={`
-        relative bg-[#fafafa] border border-gray-200/80 rounded-xl select-none cursor-pointer transform-gpu
+        relative ${bg} border ${border} rounded-xl select-none cursor-pointer transform-gpu
         ${small ? 'w-10 h-14 text-xs' : 'w-20 h-28 sm:w-24 sm:h-36 text-base'}
         ${selected 
           ? '-translate-y-16 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-40 scale-[1.05]' 
           : 'shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:-translate-y-6 hover:rotate-2 hover:shadow-[0_25px_50px_rgba(0,0,0,0.45)] hover:z-30'}
+        ${innerGlow}
         ${className}
         transition-all duration-200 ease-out
         group
       `}
     >
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/90 via-transparent to-black/10 pointer-events-none"></div>
-      <div className={`absolute top-1.5 left-1.5 font-black flex flex-col items-center leading-none ${colorClass} ${small ? 'text-[10px]' : 'text-xl'}`}>
+      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/10 via-transparent to-black/20 pointer-events-none"></div>
+      <div className={`absolute top-1.5 left-1.5 font-black flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : 'text-xl'}`}>
         <div className="tracking-tighter drop-shadow-sm">{rankLabel}</div>
         <div className={`${small ? 'text-[8px]' : 'text-[0.7em]'} mt-0.5`}>{suitSymbol}</div>
       </div>
-      <div className={`absolute bottom-1.5 right-1.5 font-black rotate-180 flex flex-col items-center leading-none ${colorClass} ${small ? 'text-[10px]' : 'text-xl'}`}>
+      <div className={`absolute bottom-1.5 right-1.5 font-black rotate-180 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : 'text-xl'}`}>
         <div className="tracking-tighter drop-shadow-sm">{rankLabel}</div>
         <div className={`${small ? 'text-[8px]' : 'text-[0.7em]'} mt-0.5`}>{suitSymbol}</div>
       </div>
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${colorClass}`}>
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${symbolColor}`}>
         <div className={`
           ${small ? 'text-xl' : 'text-5xl'} 
-          ${isHighValue ? 'drop-shadow-[0_0_15px_rgba(0,0,0,0.25)] scale-110' : 'opacity-90'} 
+          ${isHighValue ? 'drop-shadow-[0_0_15px_rgba(255,255,255,0.1)] scale-110' : 'opacity-90'} 
           transition-transform duration-300 group-hover:scale-125
         `}>
           {suitSymbol}
         </div>
       </div>
-      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 rounded-xl pointer-events-none transition-opacity duration-300"></div>
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 rounded-xl pointer-events-none transition-opacity duration-300"></div>
       {selected && (
         <div className="absolute inset-[-10px] rounded-[1.5rem] bg-yellow-400/20 blur-xl animate-pulse pointer-events-none z-[-1]"></div>
       )}
-      <div className="absolute inset-0 opacity-[0.05] pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] rounded-xl"></div>
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] rounded-xl"></div>
     </div>
   );
 };
