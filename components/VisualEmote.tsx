@@ -45,9 +45,9 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
     );
   }
 
-  // Determine the URL with cache busting
+  // Determine the URL with cache busting (v=3)
   const url = emoteData?.file_path 
-    ? `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${emoteData.file_path}?v=2` 
+    ? `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${emoteData.file_path}?v=3` 
     : getEmoteUrl(trigger);
 
   if (!url) {

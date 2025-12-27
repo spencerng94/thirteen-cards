@@ -3,7 +3,7 @@ import { Card, Rank, Suit, PlayTurn, AiDifficulty, GameStatus } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 // --- Types ---
-type ComboType = 'SINGLE' | 'PAIR' | 'TRIPLE' | 'QUAD' | 'RUN' | '3_PAIRS' | '4_PAIRS' | 'INVALID';
+type ComboType = 'SINGLE' | 'PAIR' | 'TRIPLE' | 'QUAD' | 'RUN' | 'BOMB' | '4_PAIRS' | 'INVALID';
 
 // --- Helpers ---
 export const getCardScore = (card: Card): number => {
@@ -54,7 +54,7 @@ export const getComboType = (cards: Card[]): ComboType => {
   }
   if (isRun && len >= 3) return 'RUN';
 
-  // Check for 3 consecutive pairs
+  // Check for 3 consecutive pairs (BOMB)
   if (len === 6) {
     const isPairs = 
       sorted[0].rank === sorted[1].rank &&
@@ -64,7 +64,7 @@ export const getComboType = (cards: Card[]): ComboType => {
     if (isPairs) {
       if (sorted[2].rank === sorted[0].rank + 1 && sorted[4].rank === sorted[2].rank + 1) {
         if (sorted[5].rank !== Rank.Two) {
-            return '3_PAIRS';
+            return 'BOMB';
         }
       }
     }
@@ -136,7 +136,7 @@ export const validateMove = (
 
   // --- SPECIAL CHOPPING LOGIC (BOMBS BEATING 2s) ---
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two) {
-    if (pType === 'QUAD' || pType === '3_PAIRS' || pType === '4_PAIRS') return { isValid: true, reason: 'Chop!' };
+    if (pType === 'QUAD' || pType === 'BOMB' || pType === '4_PAIRS') return { isValid: true, reason: 'Chop!' };
   }
   if (lType === 'PAIR' && lHigh.rank === Rank.Two) {
     if (pType === 'QUAD' || pType === '4_PAIRS') return { isValid: true, reason: 'Chop!' };
@@ -144,20 +144,20 @@ export const validateMove = (
   if (lType === 'QUAD' && pType === 'QUAD') {
      return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Higher Quad' } : { isValid: false, reason: 'Higher Quad needed.' };
   }
-  if (lType === '3_PAIRS' && pType === '3_PAIRS') {
-     return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Higher Pairs' } : { isValid: false, reason: 'Higher pairs needed.' };
+  if (lType === 'BOMB' && pType === 'BOMB') {
+     return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Higher Bomb' } : { isValid: false, reason: 'Higher bomb needed.' };
   }
   if (lType === '4_PAIRS' && pType === '4_PAIRS') {
      return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Higher Pairs' } : { isValid: false, reason: 'Higher pairs needed.' };
   }
-  if (pType === '4_PAIRS' && (lType === '3_PAIRS' || lType === 'QUAD')) return { isValid: true, reason: 'Mega Bomb!' };
+  if (pType === '4_PAIRS' && (lType === 'BOMB' || lType === 'QUAD')) return { isValid: true, reason: 'Mega Bomb!' };
 
   // --- STANDARD PLAY LOGIC ---
   if (pType === lType && playedCards.length === lastPlayedCards.length) {
     return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Beats last.' } : { isValid: false, reason: 'Card is too low.' };
   }
 
-  return { isValid: false, reason: `Must play ${lType.replace('_', ' ')}.` };
+  return { isValid: false, reason: `Must play ${lType === 'BOMB' ? 'BOMB' : lType.replace('_', ' ')}.` };
 };
 
 export const generateDeck = (): Card[] => {
@@ -262,7 +262,7 @@ export const getConsecutivePairs = (hand: Card[], count: number): Card[][] => {
 
 /**
  * findAllValidCombos: Robustly identifies all valid Vietnamese 13 combos containing a specific card.
- * Uses rank-based maps to avoidcontiguous slice issues when duplicates are present.
+ * Uses rank-based maps to avoid contiguous slice issues when duplicates are present.
  */
 export const findAllValidCombos = (
   hand: Card[],
@@ -276,7 +276,7 @@ export const findAllValidCombos = (
     TRIPLE: [],
     QUAD: [],
     RUN: [],
-    '3_PAIRS': [],
+    BOMB: [],
     '4_PAIRS': []
   };
 
@@ -285,8 +285,9 @@ export const findAllValidCombos = (
 
   const cardsByRank: Record<number, Card[]> = {};
   hand.forEach(c => {
-    if (!cardsByRank[c.rank]) cardsByRank[c.rank] = [];
-    cardsByRank[c.rank].push(c);
+    const r = Number(c.rank);
+    if (!cardsByRank[r]) cardsByRank[r] = [];
+    cardsByRank[r].push(c);
   });
 
   // Singles
@@ -295,7 +296,7 @@ export const findAllValidCombos = (
   }
 
   // Pairs, Triples, Quads containing the pivot card
-  const sameRankCards = cardsByRank[pivotCard.rank];
+  const sameRankCards = cardsByRank[pivotCard.rank] || [];
   
   // Pairs
   if (sameRankCards.length >= 2) {
@@ -341,7 +342,7 @@ export const findAllValidCombos = (
         
         if (startRank >= Rank.Three && endRank <= Rank.Ace) {
           let possible = true;
-          const combinationSeeds: Card[][] = [[]];
+          let combinationSeeds: Card[][] = [[]];
           
           for (let r = startRank; r <= endRank; r++) {
             if (!cardsByRank[r]) {
@@ -354,7 +355,7 @@ export const findAllValidCombos = (
                 nextBatch.push([...combo, card]);
               }
             }
-            combinationSeeds.splice(0, combinationSeeds.length, ...nextBatch);
+            combinationSeeds = nextBatch;
           }
           
           if (possible) {
@@ -373,7 +374,7 @@ export const findAllValidCombos = (
 
   // Bombs (Consecutive Pairs)
   [3, 4].forEach(pairCount => {
-    const typeKey = pairCount === 3 ? '3_PAIRS' : '4_PAIRS';
+    const typeKey = pairCount === 3 ? 'BOMB' : '4_PAIRS';
     getConsecutivePairs(hand, pairCount).forEach(bomb => {
       if (bomb.some(c => c.id === pivotId)) {
         if (validateMove(bomb, playPile, isFirstTurnOfGame, hand).isValid) {
@@ -454,8 +455,8 @@ export const findBestMove = (
     if (quads.length > 0) return quads[0];
     const fourPairs = getConsecutivePairs(sortedHand, 4);
     if (fourPairs.length > 0) return fourPairs[0];
-    const threePairs = getConsecutivePairs(sortedHand, 3);
-    if (threePairs.length > 0) return threePairs[0];
+    const bombs = getConsecutivePairs(sortedHand, 3);
+    if (bombs.length > 0) return bombs[0];
   }
 
   return null;

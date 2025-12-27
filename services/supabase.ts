@@ -39,7 +39,7 @@ export const EMOTE_FILE_MAP: Record<string, string> = {
 export const getEmoteUrl = (trigger: string): string => {
   const fileName = EMOTE_FILE_MAP[trigger];
   if (!fileName) return '';
-  return `${supabaseUrl}/storage/v1/object/public/emotes/${fileName}?v=2`;
+  return `${supabaseUrl}/storage/v1/object/public/emotes/${fileName}?v=3`;
 };
 
 export const DEFAULT_AVATARS = [':smile:', ':blush:', ':cool:', ':annoyed:'];

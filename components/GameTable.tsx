@@ -251,7 +251,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   const lastMove = gameState.currentPlayPile && gameState.currentPlayPile.length > 0 ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] : null;
   
   useEffect(() => {
-    if (lastMove && ['QUAD', '3_PAIRS', '4_PAIRS', 'BOMB'].includes(lastMove.comboType)) {
+    if (lastMove && ['QUAD', 'BOMB', '4_PAIRS'].includes(lastMove.comboType)) {
       setShowBombEffect(true);
       setIsShaking(true);
       audioService.playBomb();
@@ -404,7 +404,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                       <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
                   </div>
                   <div className="flex flex-col gap-2">
-                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-300 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
+                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-300 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type === '4_PAIRS' ? '4 Pairs' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
                   </div>
               </div>
           </div>

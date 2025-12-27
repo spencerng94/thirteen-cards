@@ -281,7 +281,8 @@ const App: React.FC = () => {
 
       let currentChops = spChops;
       const lastTurn = prev.currentPlayPile[prev.currentPlayPile.length - 1];
-      if (lastTurn && (getComboType(cards) === 'QUAD' || getComboType(cards) === '3_PAIRS' || getComboType(cards) === '4_PAIRS') && lastTurn.cards[0].rank === Rank.Two) {
+      // Fix: replace '3_PAIRS' with 'BOMB' to correctly match the ComboType union
+      if (lastTurn && (getComboType(cards) === 'QUAD' || getComboType(cards) === 'BOMB' || getComboType(cards) === '4_PAIRS') && lastTurn.cards[0].rank === Rank.Two) {
         currentChops++; setSpChops(currentChops);
       }
 
