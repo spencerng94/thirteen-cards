@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player } from './types';
@@ -12,7 +11,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { UserHub, HubTab } from './components/UserHub';
 import { GameSettings } from './components/GameSettings';
 import { Store } from './components/Store';
-import { dealCards, validateMove, findBestMove, getComboType } from './utils/gameLogic';
+import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
 import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings } from './services/supabase';
@@ -292,8 +291,20 @@ const App: React.FC = () => {
       if (activeMover.cardCount === 0) {
           finishedPlayers.push(pid);
           activeMover.finishedRank = finishedPlayers.length;
+          
           const stillPlaying = players.filter(p => !p.finishedRank);
-          if (stillPlaying.length <= 1) {
+
+          // TURBO FINISH: Conclude the game immediately if enabled and Rank 1 is decided
+          if (spQuickFinish) {
+             // Assign ranks to everyone else based on card counts
+             const remainingSorted = [...stillPlaying].sort((a, b) => a.cardCount - b.cardCount);
+             remainingSorted.forEach((p, idx) => {
+                const pObj = players.find(pl => pl.id === p.id)!;
+                pObj.finishedRank = finishedPlayers.length + idx + 1;
+                finishedPlayers.push(p.id);
+             });
+             finalStatus = GameStatus.FINISHED;
+          } else if (stillPlaying.length <= 1) {
               if (stillPlaying.length === 1) {
                   stillPlaying[0].finishedRank = finishedPlayers.length + 1;
                   finishedPlayers.push(stillPlaying[0].id);
@@ -303,8 +314,9 @@ const App: React.FC = () => {
       }
 
       if (finalStatus === GameStatus.FINISHED) {
+          const myRank = players.find(p => p.id === 'me')?.finishedRank || 4;
           setTimeout(async () => {
-             const result = await recordGameResult(activeMover.finishedRank || 1, true, aiDifficulty, isGuest, session?.user?.id, currentChops, spMyHand.length);
+             const result = await recordGameResult(myRank, true, aiDifficulty, isGuest, session?.user?.id, currentChops, spMyHand.length);
              setLastMatchRewards({ xp: result.xpGained, coins: result.coinsGained, diff: aiDifficulty, bonus: result.xpBonusApplied });
              triggerMatchEndTransition();
           }, 1000);
@@ -348,14 +360,29 @@ const App: React.FC = () => {
     const curPlayer = spGameState.players.find(p => p.id === spGameState.currentPlayerId);
     if (curPlayer?.isBot && !curPlayer.finishedRank) {
         const timer = setTimeout(() => {
-            if (!spGameState || spGameState.status !== GameStatus.PLAYING) return;
-            const move = findBestMove(spOpponentHands[curPlayer.id], spGameState.currentPlayPile, !!spGameState.isFirstTurnOfGame, aiDifficulty);
-            if (move) handleLocalPlay(curPlayer.id, move);
-            else handleLocalPass(curPlayer.id);
+            // Re-fetch hands from latest state inside the timeout to avoid stale closures
+            setSpGameState(current => {
+                if (!current || current.status !== GameStatus.PLAYING || current.currentPlayerId !== curPlayer.id) return current;
+                const hand = spOpponentHands[curPlayer.id];
+                let move = findBestMove(hand, current.currentPlayPile, !!current.isFirstTurnOfGame, aiDifficulty);
+                
+                // FAILSAFE: If the AI lead is stuck, force play the lowest card
+                if (!move && current.currentPlayPile.length === 0) {
+                    const sorted = sortCards(hand);
+                    move = [sorted[0]];
+                }
+
+                if (move) {
+                    setTimeout(() => handleLocalPlay(curPlayer.id, move!), 0);
+                } else {
+                    setTimeout(() => handleLocalPass(curPlayer.id), 0);
+                }
+                return current;
+            });
         }, 1200);
         return () => clearTimeout(timer);
     }
-  }, [spGameState?.currentPlayerId, spGameState?.status, gameMode, aiDifficulty]);
+  }, [spGameState?.currentPlayerId, spGameState?.status, gameMode, aiDifficulty, spOpponentHands]);
 
   const handleStart = (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean, difficulty?: AiDifficulty) => {
     setPlayerName(name.toUpperCase());

@@ -98,7 +98,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
 
   return (
     <div className={`relative flex transition-all duration-150 ease-[0.2,0,0,1] ${isFinished ? 'scale-100' : 'opacity-100'} 
-      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 'flex-col items-center gap-4 sm:gap-6'}`}>
+      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 'flex-col items-center gap-6 sm:gap-8'}`}>
         
         <div className="relative flex flex-col items-center shrink-0">
             <div className="relative w-16 h-16 sm:w-24 sm:h-24">
@@ -250,7 +250,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       setShowBombEffect(true);
       setIsShaking(true);
       audioService.playBomb();
-      const t1 = setTimeout(() => setShowBombEffect(false), 2000);
+      const t1 = setTimeout(() => setShowBombEffect(false), 3000);
       const t2 = setTimeout(() => setIsShaking(false), 500);
       return () => { clearTimeout(t1); clearTimeout(t2); };
     }
@@ -340,9 +340,18 @@ export const GameTable: React.FC<GameTableProps> = ({
   const cycleComboType = (type: string) => {
     const list = combosByGroup[type];
     if (!list || list.length === 0) return;
-    let targetIndex = list.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id)));
-    if (targetIndex !== -1) targetIndex = (targetIndex + 1) % list.length;
-    else { targetIndex = 0; let maxLen = 0; list.forEach((c, idx) => { if (c.length > maxLen) { maxLen = c.length; targetIndex = idx; } }); }
+    let targetIndex = list.findIndex(combo => 
+      combo.length === selectedCardIds.size && 
+      combo.every(c => selectedCardIds.has(c.id))
+    );
+    
+    if (targetIndex !== -1) {
+      targetIndex = (targetIndex + 1) % list.length;
+    } else {
+      // Always start with the first item in the list (usually the shortest length)
+      targetIndex = 0;
+    }
+    
     setSelectedCardIds(new Set(list[targetIndex].map(c => c.id)));
     audioService.playExpandHand(); 
   };
@@ -380,7 +389,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                       <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
                   </div>
                   <div className="flex flex-col gap-2">
-                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
+                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-300 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
                   </div>
               </div>
           </div>
@@ -427,7 +436,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="absolute bottom-0 left-0 w-full p-2 sm:p-4 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
         <div className={`mb-3 flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
            <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">{isLeader ? '3♠ | YOUR TURN' : 'Your Turn'}</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">{isLeader ? '3♠ YOUR TURN' : 'Your Turn'}</span>
               {timeLeft > 0 && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${timeLeft <= 3 ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
            </div>
            {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
