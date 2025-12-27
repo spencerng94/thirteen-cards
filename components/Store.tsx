@@ -179,7 +179,7 @@ export const Store: React.FC<StoreProps> = ({
     else isEquipped = currentSleeve === item.style;
 
     const cardPadding = density === 4 ? 'p-2 sm:p-3' : density === 2 ? 'p-4 sm:p-6' : 'p-8 sm:p-10';
-    const visualSize = density === 4 ? 'scale-[0.8]' : density === 2 ? 'scale-100' : 'scale-110';
+    const visualSize = density === 4 ? 'scale-100' : density === 2 ? 'scale-100' : 'scale-110';
     const nameSize = density === 4 ? 'text-[7px]' : 'text-[9px] sm:text-[10px]';
 
     return (
@@ -203,7 +203,7 @@ export const Store: React.FC<StoreProps> = ({
               <BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker={true} />
             </div>
           ) : (
-           <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-12 !h-17 sm:!w-14 sm:!h-20' : '!w-24 !h-34'} shadow-2xl group-hover:scale-110 transition-transform`} />
+           <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-16 !h-24' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />
           )}
         </div>
 
