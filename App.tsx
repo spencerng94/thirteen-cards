@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player } from './types';
@@ -37,7 +38,7 @@ const App: React.FC = () => {
   const [storeTab, setStoreTab] = useState<'SLEEVES' | 'AVATARS' | 'BOARDS'>('SLEEVES');
   
   const [playerName, setPlayerName] = useState('');
-  const [playerAvatar, setPlayerAvatar] = useState('😎');
+  const [playerAvatar, setPlayerAvatar] = useState(':cool:');
   const [gameMode, setGameMode] = useState<GameMode>(null);
   const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('RED');
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('EMERALD');
@@ -182,7 +183,7 @@ const App: React.FC = () => {
     isLoggingOutRef.current = true;
     initialSyncCompleteRef.current = false;
     if (session) await supabase.auth.signOut();
-    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar('😎'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); handleExit();
+    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar(':cool:'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); handleExit();
     setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 
