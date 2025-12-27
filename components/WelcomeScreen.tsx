@@ -7,7 +7,7 @@ import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
 // Import corrected: SleeveArenaPreview moved to Store.tsx
-import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
+import { PREMIUM_BOARDS, BoardPreview, BoardSurface, HubTab } from './UserHub';
 import { SleeveArenaPreview, SUPER_PRESTIGE_SLEEVE_IDS } from './Store';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
@@ -19,7 +19,7 @@ interface WelcomeScreenProps {
   onSignOut: () => void;
   profile: UserProfile | null;
   onRefreshProfile: () => void;
-  onOpenHub: (tab: WelcomeTab) => void;
+  onOpenHub: (tab: HubTab) => void;
   onOpenStore: () => void;
   playerName: string;
   setPlayerName: (name: string) => void;
@@ -362,7 +362,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
              <span className="text-[10px] font-black text-white uppercase tracking-widest">Sleeve Face Effects</span>
              <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Visual flair and glows on active card faces</span>
            </div>
-           <button onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)} className={`w-12 h-6 rounded-full relative sleeveEffectsEnabled ? 'bg-yellow-500' : 'bg-white/10'}`}>
+           {/* Fix: Corrected missing template literal syntax for sleeve effects button color */}
+           <button onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)} className={`w-12 h-6 rounded-full relative ${sleeveEffectsEnabled ? 'bg-yellow-500' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
            </button>
         </div>

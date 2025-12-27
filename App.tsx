@@ -179,7 +179,9 @@ const App: React.FC = () => {
     if (backgroundTheme !== profile.active_board) { updates.active_board = backgroundTheme; updates.equipped_board = backgroundTheme; }
     if (soundEnabled !== profile.sfx_enabled) updates.sfx_enabled = soundEnabled;
     if (spQuickFinish !== profile.turbo_enabled) updates.turbo_enabled = spQuickFinish;
+    // Fixed: Corrected variable names to use the camelCase versions defined in the state
     if (sleeveEffectsEnabled !== profile.sleeve_effects_enabled) updates.sleeve_effects_enabled = sleeveEffectsEnabled;
+    // Fixed: Corrected variable names to use the camelCase versions defined in the state
     if (playAnimationsEnabled !== profile.play_animations_enabled) updates.play_animations_enabled = playAnimationsEnabled;
     
     if (Object.keys(updates).length > 0) {
@@ -413,7 +415,8 @@ const App: React.FC = () => {
     setGameMode(mode);
     if (mode === 'MULTI_PLAYER') {
       connectSocket();
-      socket.emit(SocketEvents.CREATE_ROOM, { name, avatar, playerId: myPersistentId, isPublic: true });
+      // Instead of creating a room immediately, we now take the user to the lobby browser.
+      setView('LOBBY');
     } else {
       const hands = dealCards();
       const pNames = ['SABER', 'LANCE', 'PHANTOM'];
@@ -494,7 +497,8 @@ const App: React.FC = () => {
           sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled}
           playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled}
           onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={handleRefreshProfile}
-          onOpenHub={(tab) => setHubState({ open: true, tab })} onOpenStore={() => setStoreOpen(true)} isGuest={isGuest}
+          // Fix: In App.tsx, setHubState's tab is HubTab, so onOpenHub should correctly receive its tab as HubTab.
+          onOpenHub={(tab) => setHubState({ open: true, tab: tab as HubTab })} onOpenStore={() => setStoreOpen(true)} isGuest={isGuest}
         />
       )}
 

@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { calculateLevel, getXpForLevel, DEFAULT_AVATARS, PREMIUM_AVATARS, buyItem, getAvatarName } from '../services/supabase';
-import { SignOutButton } from './SignOutButton';
 import { CardCoverStyle, Card } from './Card';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
@@ -27,6 +26,7 @@ export interface ThemeConfig {
   crystalTokyo?: boolean;
   lasVegas?: boolean;
   shiba?: boolean;
+  justAGirl?: boolean;
   spotlight?: string;
   tier: 'BASIC' | 'PREMIUM';
   isCityLightsPixel?: boolean;
@@ -40,6 +40,7 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'CYBERPUNK_NEON', name: 'Onyx Space', tier: 'PREMIUM', price: 2500, base: 'bg-[#010103]', colors: 'from-indigo-950/20 via-black to-black', technoGrid: false, cityLights: false, spotlight: 'rgba(255, 255, 255, 0.03)' },
   { id: 'OBSIDIAN_MADNESS', name: 'Obsidian Madness', tier: 'PREMIUM', price: 3500, base: 'bg-[#000000]', colors: 'from-red-950/40 via-black to-black', obsidianMadness: true, spotlight: 'rgba(220, 38, 38, 0.05)' },
   { id: 'SHIBA', name: 'Shiba Sanctuary', tier: 'PREMIUM', price: 4000, base: 'bg-[#fff7ed]', colors: 'from-orange-200/50 via-white to-orange-100/30', shiba: true, spotlight: 'rgba(251, 191, 36, 0.2)' },
+  { id: 'JUST_A_GIRL', name: "I'm Just a Girl", tier: 'PREMIUM', price: 4500, base: 'bg-[#fff1f2]', colors: 'from-pink-300/40 via-white to-pink-100/20', justAGirl: true, spotlight: 'rgba(244, 114, 182, 0.15)' },
   { id: 'LAS_VEGAS', name: 'Las Vegas Strip', tier: 'PREMIUM', price: 5000, base: 'bg-[#050505]', colors: 'from-yellow-500/10 via-red-500/5 to-black', lasVegas: true, spotlight: 'rgba(251, 191, 36, 0.15)' },
   { id: 'LOTUS_FOREST', name: 'Lotus Deal', tier: 'PREMIUM', price: 4000, base: 'bg-[#011a0f]', colors: 'from-emerald-500/20 via-emerald-900/10 to-black', lotusForest: true, spotlight: 'rgba(182, 227, 143, 0.3)' },
   { id: 'CHRISTMAS_YULETIDE', name: 'Midnight Yuletide', tier: 'PREMIUM', price: 4500, base: 'bg-[#010b13]', colors: 'from-blue-900/30 via-[#010b13] to-black', yuletide: true, spotlight: 'rgba(191, 219, 254, 0.2)' },
@@ -49,6 +50,95 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'HIGH_ROLLER', name: 'Sanctum Oblivion', tier: 'PREMIUM', price: 15000, base: 'bg-[#ffffff]', colors: 'from-white via-slate-100 to-indigo-950/20', highRoller: true, spotlight: 'rgba(255, 255, 255, 0.4)' }
 ];
 
+const HeartIcon = ({ color }: { color: string }) => (
+  <svg viewBox="0 0 24 24" fill={color} className="w-full h-full drop-shadow-sm">
+    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+  </svg>
+);
+
+const BowIcon = ({ color }: { color: string }) => (
+  <svg viewBox="0 0 24 24" fill={color} className="w-full h-full drop-shadow-sm">
+    <path d="M12 10.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5zM21 8c-1.1 0-2.07.45-2.76 1.17-.69-.72-1.66-1.17-2.76-1.17-2.21 0-4 1.79-4 4s1.79 4 4 4c1.1 0 2.07-.45 2.76-1.17.69.72 1.66 1.17 2.76 1.17 2.21 0 4-1.79 4-4s-1.79-4-4-4zm-12.5 0c-1.1 0-2.07.45-2.76 1.17-.69-.72-1.66-1.17-2.76-1.17-2.21 0-4 1.79-4 4s1.79 4 4 4c1.1 0 2.07-.45 2.76-1.17.69.72 1.66 1.17 2.76 1.17 2.21 0 4-1.79 4-4s-1.79-4-4-4z" />
+  </svg>
+);
+
+const SparkleIcon = ({ color }: { color: string }) => (
+  <svg viewBox="0 0 24 24" fill={color} className="w-full h-full drop-shadow-sm">
+    <path d="M12 2l2.4 7.2L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z" />
+  </svg>
+);
+
+const JustAGirlEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
+  const elements = useMemo(() => Array.from({ length: isMini ? 12 : 30 }).map((_, i) => ({
+    id: `girl-item-svg-${i}`,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    delay: Math.random() * -20,
+    duration: 15 + Math.random() * 15,
+    type: i % 3,
+    scale: 0.5 + Math.random() * 0.6,
+    color: i % 2 === 0 ? '#f472b6' : '#fbcfe8',
+    rotation: Math.random() * 360
+  })), [isMini]);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#fff1f2]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_rgba(244,114,182,0.15)_100%)]"></div>
+      
+      {elements.map(e => (
+        <div 
+          key={e.id}
+          className="absolute opacity-30 animate-[girl-float_linear_infinite] will-change-transform"
+          style={{ 
+            left: `${e.x}%`, 
+            top: `${e.y}%`, 
+            animationDuration: `${e.duration}s`, 
+            animationDelay: `${e.delay}s`,
+            width: `${24 * e.scale}px`,
+            height: `${24 * e.scale}px`,
+            transform: `rotate(${e.rotation}deg)`
+          }}
+        >
+          {e.type === 0 ? <HeartIcon color={e.color} /> : e.type === 1 ? <BowIcon color={e.color} /> : <SparkleIcon color={e.color} />}
+        </div>
+      ))}
+
+      {/* Decorative Bubbles */}
+      {!isMini && Array.from({ length: 15 }).map((_, i) => (
+        <div 
+          key={`bubble-${i}`}
+          className="absolute rounded-full bg-white/40 border border-white/60 animate-[girl-bubble_linear_infinite]"
+          style={{
+            left: `${Math.random() * 100}%`,
+            bottom: '-20px',
+            width: `${5 + Math.random() * 10}px`,
+            height: `${5 + Math.random() * 10}px`,
+            animationDuration: `${10 + Math.random() * 10}s`,
+            animationDelay: `${Math.random() * -20}s`
+          }}
+        />
+      ))}
+
+      <div className="absolute inset-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/pinstriped-suit.png')]"></div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes girl-float {
+          0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0; }
+          20% { opacity: 0.4; }
+          80% { opacity: 0.4; }
+          100% { transform: translate(60px, -200px) rotate(360deg) scale(0.8); opacity: 0; }
+        }
+        @keyframes girl-bubble {
+          0% { transform: translateY(0); opacity: 0; }
+          10% { opacity: 0.5; }
+          90% { opacity: 0.5; }
+          100% { transform: translateY(-110vh) translateX(30px); opacity: 0; }
+        }
+      `}} />
+    </div>
+  );
+};
+
 const ShibaEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
   const elements = useMemo(() => Array.from({ length: isMini ? 6 : 15 }).map((_, i) => ({
     id: `shiba-item-${i}`,
@@ -56,7 +146,7 @@ const ShibaEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
     y: Math.random() * 100,
     delay: Math.random() * -20,
     duration: 10 + Math.random() * 15,
-    type: i % 2 === 0 ? '🐾' : '🦴',
+    type: i % 2 === 0 ? '🐾' : i % 2 === 1 ? '🦴' : '🐕',
     scale: 0.5 + Math.random() * 0.5,
   })), [isMini]);
 
@@ -871,12 +961,13 @@ export const BoardSurface: React.FC<{ themeId: string; isMini?: boolean; classNa
       {theme.texture && <FeltTextureLayer />}
       {theme.id === 'CYBERPUNK_NEON' && <SpaceEngine isMini={isMini} />}
       {theme.zenPond && <ZenPondEngine isMini={isMini} />}
-      {theme.lotusForest && <LotusForestEngine isMini={isMini} />}
+      {theme.id === 'LOTUS_FOREST' && <LotusForestEngine isMini={isMini} />}
       {theme.id === 'GOLDEN_EMPEROR' && <GoldenEmperorEngine isMini={isMini} />}
       {theme.yuletide && <YuletideEngine isMini={isMini} />}
       {theme.obsidianMadness && <MadnessEngine isMini={isMini} />}
       {theme.lasVegas && <LasVegasEngine isMini={isMini} />}
       {theme.shiba && <ShibaEngine isMini={isMini} />}
+      {theme.justAGirl && <JustAGirlEngine isMini={isMini} />}
       {theme.id === 'HIGH_ROLLER' && <CastleOblivionEngine isMini={isMini} />}
       
       <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen transition-all duration-1000 z-1`}></div>
@@ -939,7 +1030,7 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
       
       {/* Avatar Preview Modal */}
       {previewAvatar && (
@@ -1134,7 +1225,6 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
           )}
 
           <div className="pt-8 border-t border-white/5">
-            <SignOutButton onSignOut={onSignOut} className="!py-4 w-full" />
           </div>
         </div>
       </div>
@@ -1167,4 +1257,4 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     </div>
 );
 
-export type HubTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
+export type HubTab = 'PROFILE' | 'CUSTOMIZE' | 'STATS';

@@ -39,6 +39,45 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   </div>
 );
 
+const getThemeStyles = (themeId: BackgroundTheme, active: boolean) => {
+    if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
+    
+    switch (themeId) {
+      case 'CLASSIC_GREEN':
+        return "bg-[#064e3b] text-emerald-300 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]";
+      case 'EMERALD':
+        return "bg-emerald-600/90 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-400/30";
+      case 'CYBER_BLUE':
+        return "bg-blue-600/90 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] border-blue-400/30";
+      case 'CRIMSON_VOID':
+        return "bg-rose-900/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
+      case 'CYBERPUNK_NEON':
+        return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
+      case 'OBSIDIAN_MADNESS':
+        return "bg-black text-red-600 border-red-950 shadow-[0_0_20px_rgba(153,27,27,0.6)] font-black italic";
+      case 'SHIBA':
+        return "bg-orange-100 text-orange-600 border-orange-300 shadow-[0_0_20px_rgba(251,191,36,0.4)] font-black italic";
+      case 'JUST_A_GIRL':
+        return "bg-pink-100 text-pink-600 border-pink-300 shadow-[0_0_20px_rgba(244,114,182,0.4)] font-black italic";
+      case 'LAS_VEGAS':
+        return "bg-black text-yellow-500 border-yellow-500 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic uppercase tracking-widest";
+      case 'LOTUS_FOREST':
+        return "bg-pink-600/90 text-white shadow-[0_0_15px_rgba(219,39,119,0.4)] border-pink-400/30";
+      case 'CHRISTMAS_YULETIDE':
+        return "bg-blue-800/90 text-white shadow-[0_0_15px_rgba(30,58,138,0.4)] border-blue-400/30";
+      case 'GOLDEN_EMPEROR':
+        return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
+      case 'ZEN_POND':
+        return "bg-[#082f49] text-cyan-400 border-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.4)] font-black italic";
+      case 'HIGH_ROLLER':
+        return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
+      case 'GOLD_FLUX':
+        return "bg-[#fffbeb] text-yellow-600 border-yellow-400 shadow-[0_0_25px_rgba(251,191,36,0.4)] font-black italic";
+      default:
+        return "bg-white/10 text-white shadow-lg";
+    }
+};
+
 export const GameSettings: React.FC<GameSettingsProps> = ({ 
   onClose, 
   onExitGame,
