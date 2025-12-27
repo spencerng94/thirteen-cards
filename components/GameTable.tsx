@@ -322,6 +322,10 @@ export const GameTable: React.FC<GameTableProps> = ({
     return findAllValidCombos(myHand, pivotId, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame); 
   }, [selectedCardIds, myHand, gameState.currentPlayPile, isMyTurn, gameState.isFirstTurnOfGame]);
 
+  const hasValidCombos = useMemo(() => {
+    return Object.values(combosByGroup).some(list => list.length > 0);
+  }, [combosByGroup]);
+
   const sendEmote = (triggerCode: string) => { if (Date.now() - lastEmoteSentAt.current < EMOTE_COOLDOWN) return; lastEmoteSentAt.current = Date.now(); socket.emit(SocketEvents.EMOTE_SENT, { roomId: gameState.roomId, emote: triggerCode }); setShowEmotePicker(false); const id = Math.random().toString(); setActiveEmotes(prev => [...prev, { id, playerId: myId, emote: triggerCode }]); audioService.playEmote(); setTimeout(() => setActiveEmotes(prev => prev.filter(e => e.id !== id)), 3000); };
 
   const getPlayerPosition = (index: number) => { const relativeIndex = (index - myIndex + gameState.players.length) % gameState.players.length; switch(relativeIndex) { case 0: return 'bottom'; case 1: return 'left'; case 2: return 'top'; case 3: return 'right'; default: return 'bottom'; } };
@@ -411,7 +415,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {activeEmotes.map(ae => { const playerIdx = gameState.players.findIndex(p => p.id === ae.playerId); if (playerIdx === -1) return null; return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={getPlayerPosition(playerIdx) as any} />; })}
 
-      {isMyTurn && selectedCardIds.size > 0 && (
+      {isMyTurn && selectedCardIds.size > 0 && hasValidCombos && (
           <div className="fixed top-4 left-4 z-[200] flex flex-col gap-2 animate-in slide-in-from-left-4 duration-500 max-w-[160px]">
               <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-[1.5rem] shadow-2xl">
                   <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5">
@@ -419,7 +423,28 @@ export const GameTable: React.FC<GameTableProps> = ({
                       <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
                   </div>
                   <div className="flex flex-col gap-2">
-                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-300 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type === '4_PAIRS' ? '4 Pairs' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
+                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { 
+                        if (lists.length === 0) return null; 
+                        const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); 
+                        const isTypeSelected = currentIndex !== -1; 
+                        const typeLabel = type === 'RUN' ? 'STRAIGHT' : type === '4_PAIRS' ? '4 PAIRS' : type;
+                        const displayIndex = isTypeSelected ? currentIndex + 1 : 1;
+                        
+                        return ( 
+                          <button 
+                            key={type} 
+                            onClick={() => cycleComboType(type)} 
+                            className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-300 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                          > 
+                            <div className="flex justify-between items-center w-full z-10 gap-2"> 
+                              <span className="truncate">{typeLabel}</span> 
+                              <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> 
+                                {displayIndex}/{lists.length}
+                              </span> 
+                            </div> 
+                          </button> 
+                        ); 
+                      })}
                   </div>
               </div>
           </div>
