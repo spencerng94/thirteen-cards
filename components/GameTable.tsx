@@ -140,7 +140,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
 
         {!isFinished && position !== 'bottom' && (
             <div className={`relative animate-in slide-in-from-bottom-2 duration-700 shrink-0 transition-transform landscape:scale-[0.85]`}>
-                <Card faceDown coverStyle={coverStyle} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" disableEffects={!sleeveEffectsEnabled} />
+                <Card faceDown coverStyle={coverStyle} activeTurn={isTurn} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" disableEffects={!sleeveEffectsEnabled} />
                 <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ring-1 ring-yellow-400/50">
                     {player.cardCount}
                 </div>
@@ -508,6 +508,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                       coverStyle={lastMove.playerId === myId ? cardCoverStyle : 'BLUE'} 
                       className="shadow-2xl ring-1 ring-white/10" 
                       disableEffects={!sleeveEffectsEnabled}
+                      activeTurn={gameState.currentPlayerId === lastMove.playerId}
                     />
                   </div>
                 ))}
@@ -593,6 +594,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                 selected={selectedCardIds.has(c.id)} 
                 onClick={() => toggleCard(c.id)} 
                 disableEffects={!sleeveEffectsEnabled}
+                activeTurn={isMyTurn}
                 className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''}`} 
               />
             ))}

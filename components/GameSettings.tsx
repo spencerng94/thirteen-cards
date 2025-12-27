@@ -58,7 +58,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   playAnimationsEnabled,
   setPlayAnimationsEnabled
 }) => {
-  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'DIVINE_ROYAL'];
+  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'WITS_END', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS'];
 
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300" onClick={onClose}>
@@ -201,7 +201,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                     className={`relative flex flex-col items-center gap-1 cursor-pointer transition-all ${active ? 'scale-110' : 'opacity-40 grayscale-[0.5] hover:opacity-100 hover:grayscale-0'}`}
                   >
                     <div className="relative group/card-badge">
-                      <Card faceDown coverStyle={style} small className={`!w-12 !h-18 rounded-lg shadow-xl ${active ? 'ring-2 ring-yellow-500' : 'border-white/5'}`} disableEffects={!sleeveEffectsEnabled} />
+                      <Card faceDown activeTurn={true} coverStyle={style} small className={`!w-12 !h-18 rounded-lg shadow-xl ${active ? 'ring-2 ring-yellow-500' : 'border-white/5'}`} disableEffects={!sleeveEffectsEnabled} />
                       {isPrestige && !isSuperPrestige && (
                         <div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-badge:scale-110 transition-transform">
                           <span className="text-yellow-500 text-[8px] font-black">♠</span>

@@ -56,7 +56,9 @@ const SLEEVES = [
   { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, style: 'AMETHYST_ROYAL' as CardCoverStyle },
   { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, style: 'CHERRY_BLOSSOM_NOIR' as CardCoverStyle },
   { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, style: 'AETHER_VOID' as CardCoverStyle },
+  { id: 'WITS_END', name: "Wit's End", price: 20000, style: 'WITS_END' as CardCoverStyle },
   { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 25000, style: 'DIVINE_ROYAL' as CardCoverStyle },
+  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 25000, style: 'EMPERORS_HUBRIS' as CardCoverStyle },
 ];
 
 const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -294,7 +296,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
                 
                 <div className="relative group/card-wrap">
-                  <Card faceDown coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />
+                  <Card faceDown activeTurn={true} coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />
                   {isPrestige && !isSuperPrestige && (
                     <div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform">
                       <span className="text-yellow-500 text-[8px] font-black">♠</span>
@@ -360,7 +362,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
              <span className="text-[10px] font-black text-white uppercase tracking-widest">Sleeve Face Effects</span>
              <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Visual flair and glows on active card faces</span>
            </div>
-           <button onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)} className={`w-12 h-6 rounded-full relative ${sleeveEffectsEnabled ? 'bg-yellow-500' : 'bg-white/10'}`}>
+           <button onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)} className={`w-12 h-6 rounded-full relative sleeveEffectsEnabled ? 'bg-yellow-500' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
            </button>
         </div>
@@ -457,7 +459,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                             <VisualEmote trigger={awardItem.id} remoteEmotes={remoteEmotes} size="xl" />
                           </div>
                       ) : awardItem.type === 'SLEEVE' ? (
-                          <Card faceDown coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" disableEffects={!sleeveEffectsEnabled} />
+                          <Card faceDown activeTurn={true} coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" disableEffects={!sleeveEffectsEnabled} />
                       ) : (
                           <div className="w-64 aspect-[16/10] rounded-3xl overflow-hidden ring-2 ring-yellow-500/50 shadow-2xl">
                              <BoardPreview themeId={awardItem.id} active={false} />

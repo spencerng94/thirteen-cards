@@ -44,7 +44,9 @@ export const SLEEVES: StoreItem[] = [
   { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, type: 'SLEEVE', style: 'AMETHYST_ROYAL', description: 'Velvet silk with silver filigree.' },
   { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, type: 'SLEEVE', style: 'CHERRY_BLOSSOM_NOIR', description: 'Obsidian wood with glowing blossoms.' },
   { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, type: 'SLEEVE', style: 'AETHER_VOID', description: 'Legendary clash of celestial light and eternal darkness.' },
+  { id: 'WITS_END', name: "Wit's End", price: 20000, type: 'SLEEVE', style: 'WITS_END', description: 'A dark ethereal void that pulses with violet energy. For those at the edge of madness.' },
   { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 25000, type: 'SLEEVE', style: 'DIVINE_ROYAL', description: 'Super prestige ivory parchment with animated celestial aura.' },
+  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 25000, type: 'SLEEVE', style: 'EMPERORS_HUBRIS', description: 'Pure liquid gold with a 3D embossed dragon that breathes smoke on your turn. The ultimate flex.' },
 ];
 
 export const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -54,7 +56,7 @@ export const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
 ];
 
 export const SUPER_PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
-  'DIVINE_ROYAL'
+  'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'WITS_END'
 ];
 
 /**
@@ -142,6 +144,7 @@ export const SleeveArenaPreview: React.FC<{
                           coverStyle={sleeveStyle} 
                           className="!w-16 !h-24 sm:!w-24 sm:!h-36 md:!w-32 md:!h-48 ring-1 ring-white/10 opacity-60" 
                           disableEffects={!sleeveEffectsEnabled} 
+                          activeTurn={true}
                         />
                       </div>
                     );
@@ -186,6 +189,7 @@ export const SleeveArenaPreview: React.FC<{
                           coverStyle={sleeveStyle} 
                           className="!w-20 !h-28 sm:!w-28 sm:!h-40 md:!w-40 md:!h-60 ring-2 ring-white/5" 
                           disableEffects={!sleeveEffectsEnabled} 
+                          activeTurn={true}
                         />
                       </div>
                     );
@@ -205,7 +209,7 @@ const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => voi
   const theme = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={onClose}>
-      <BoardSurface themeId={themeId} />
+      <BoardSurface themeId={themeId} isMini />
 
       <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Top Bar Navigation */}
@@ -363,7 +367,7 @@ export const Store: React.FC<StoreProps> = ({
             </div>
           ) : (
            <div className="relative group/card">
-              <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-16 !h-24' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />
+              <Card faceDown coverStyle={item.style} activeTurn={true} className={`${density === 4 ? '!w-16 !h-24' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />
               {isPrestigeSleeve && !isSuperPrestigeSleeve && (
                 <div className="absolute -top-1.5 -left-1.5 bg-black/80 rounded-full w-5 h-5 flex items-center justify-center border border-yellow-500/40 shadow-[0_0_10px_rgba(234,179,8,0.4)] z-20 group-hover/card:scale-110 transition-transform">
                   <span className="text-yellow-500 text-[10px] font-black drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]">♠</span>
@@ -452,7 +456,7 @@ export const Store: React.FC<StoreProps> = ({
       {/* PURCHASE CONFIRMATION MODAL */}
       {pendingPurchase && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-              <div className="bg-[#0a0a0a] border border-yellow-500/20 w-full max-w-xs rounded-[2rem] p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)]">
+              <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[2rem] p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)]">
                   <div className="text-4xl mb-4">💳</div>
                   <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Confirm Purchase?</h3>
                   <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-6">
@@ -497,7 +501,7 @@ export const Store: React.FC<StoreProps> = ({
                       ) : awardItem.type === 'SLEEVE' ? (
                           <div className="relative">
                             <div className="absolute inset-0 bg-white/10 blur-3xl rounded-full scale-150"></div>
-                            <Card faceDown coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" />
+                            <Card faceDown coverStyle={awardItem.style} activeTurn={true} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" />
                           </div>
                       ) : (
                           <div className="w-64 aspect-[16/10] rounded-3xl overflow-hidden ring-2 ring-yellow-500/50 shadow-2xl">
