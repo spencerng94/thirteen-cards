@@ -2,12 +2,28 @@
 import { createClient } from '@supabase/supabase-js';
 import { UserProfile, AiDifficulty, Emote } from '../types';
 
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (process.env as any).REACT_APP_SUPABASE_URL || "https://spaxxexmyiczdrbikdjp.supabase.co";
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (process.env as any).REACT_APP_SUPABASE_ANON_KEY;
+// Safely access environment variables to prevent runtime ReferenceErrors
+const getEnv = (key: string): string | undefined => {
+  try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+      return (import.meta as any).env[key];
+    }
+  } catch (e) {}
+
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[key];
+    }
+  } catch (e) {}
+  
+  return undefined;
+};
+
+const supabaseUrl = getEnv('VITE_SUPABASE_URL') || "https://spaxxexmyiczdrbikdjp.supabase.co";
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 
 const GUEST_STORAGE_KEY = 'thirteen_stats';
 
-// Mapping triggers to Supabase Storage filenames
 export const EMOTE_FILE_MAP: Record<string, string> = {
   ':smile:': 'shiba_card.png',
   ':blush:': 'blushing_card.png',
@@ -20,18 +36,13 @@ export const EMOTE_FILE_MAP: Record<string, string> = {
   ':girly:': 'girly_card.png',
 };
 
-// Helper to get public URL for emotes with cache busting
 export const getEmoteUrl = (trigger: string): string => {
   const fileName = EMOTE_FILE_MAP[trigger];
   if (!fileName) return '';
-  // Appending ?v=2 to force browser reload for the new transparent versions
   return `${supabaseUrl}/storage/v1/object/public/emotes/${fileName}?v=2`;
 };
 
-// Default starter emotes using triggers that map to our bucket assets
 export const DEFAULT_AVATARS = [':smile:', ':blush:', ':cool:', ':annoyed:'];
-
-// Premium avatars using triggers mapped to bucket assets
 export const PREMIUM_AVATARS = [':heart_eyes:', ':money_mouth_face:', ':robot:', ':devil:', ':girly:'];
 
 export const AVATAR_NAMES: Record<string, string> = {
@@ -51,35 +62,42 @@ export const getAvatarName = (trigger: string, remoteEmotes?: Emote[]) => {
   return remoteEmotes?.find(e => e.trigger_code === trigger)?.name || 'Elite Signature';
 };
 
+const createMockSupabase = () => {
+  const mockPromise = Promise.resolve({ data: null, error: null });
+  const mockChain = {
+    select: () => mockChain,
+    eq: () => mockChain,
+    maybeSingle: () => mockPromise,
+    order: () => mockChain,
+    limit: () => mockChain,
+    update: () => mockChain,
+    upsert: () => mockPromise,
+    insert: () => mockChain,
+    delete: () => mockChain,
+    then: (onFullfilled: any) => mockPromise.then(onFullfilled),
+    catch: (onRejected: any) => mockPromise.catch(onRejected),
+  };
+
+  return {
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null }),
+      signInWithOAuth: async () => ({ data: {}, error: null }),
+      signInWithPassword: async () => ({ data: {}, error: null }),
+      signUp: async () => ({ data: {}, error: null }),
+      signOut: async () => ({ error: null }),
+    },
+    from: () => mockChain,
+  } as any;
+};
+
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
-  : new Proxy({} as any, {
-      get: (target, prop) => {
-        if (prop === 'auth') {
-          return {
-            getSession: async () => ({ data: { session: null }, error: null }),
-            getUser: async () => ({ data: { user: null }, error: null }),
-            onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null }),
-            signInWithOAuth: async () => ({ data: {}, error: null }),
-            signInWithPassword: async () => ({ data: {}, error: null }),
-            signUp: async () => ({ data: {}, error: null }),
-            signOut: async () => ({ error: null }),
-          };
-        }
-        return () => ({
-          select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
-          update: () => ({ eq: async () => ({ error: null }) }),
-          upsert: async () => ({ error: null }),
-          from: () => ({
-            select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
-            update: () => ({ eq: async () => ({ error: null }) }),
-          })
-        });
-      }
-    });
+  : createMockSupabase();
 
 export const fetchEmotes = async (): Promise<Emote[]> => {
-  if (!supabaseUrl || !supabaseAnonKey) return [];
+  if (!supabaseAnonKey) return [];
   try {
     const { data, error } = await supabase.from('emotes').select('*');
     if (error) return [];
@@ -116,14 +134,14 @@ export const fetchGuestProfile = (): UserProfile => {
 };
 
 export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:'): Promise<UserProfile | null> => {
-  if (!supabaseUrl || !supabaseAnonKey) return fetchGuestProfile();
+  if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (!error && data) return data as UserProfile;
   return null;
 };
 
 export const updateProfileAvatar = async (userId: string, avatar: string) => {
-  if (!supabaseUrl || userId === 'guest') {
+  if (!supabaseAnonKey || userId === 'guest') {
     const local = fetchGuestProfile();
     localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, avatar_url: avatar }));
     return;
@@ -132,7 +150,7 @@ export const updateProfileAvatar = async (userId: string, avatar: string) => {
 };
 
 export const updateProfileSettings = async (userId: string, updates: Partial<UserProfile>) => {
-  if (!supabaseUrl || userId === 'guest') {
+  if (!supabaseAnonKey || userId === 'guest') {
     const local = fetchGuestProfile();
     localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, ...updates }));
     return;
@@ -149,7 +167,7 @@ export const buyItem = async (userId: string, price: number, itemName: string, t
   if (type === 'AVATAR') updates.unlocked_avatars = [...profile.unlocked_avatars, itemName];
   if (type === 'BOARD') updates.unlocked_boards = [...profile.unlocked_boards, itemName];
 
-  if (isGuest) {
+  if (isGuest || !supabaseAnonKey) {
     localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...profile, ...updates }));
     return true;
   }

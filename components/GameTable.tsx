@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus, SocketEvents, UserProfile, Emote } from '../types';
 import { Card, CardCoverStyle } from './Card';
@@ -91,7 +90,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
     if (!isFinished) return '';
     switch(player.finishedRank) {
       case 1: return 'shadow-[0_0_40px_rgba(234,179,8,0.4)] border-yellow-400 ring-2 ring-yellow-400/20';
-      case 2: return 'shadow-[0_0_30px_rgba(209,213,219,0.3)] border-gray-300 ring-2 ring-gray-300/10';
+      case 2: return 'shadow-[0_0_30px_rgba(209,213,219,0.3)] border-gray-300 ring-2 ring-yellow-400/10';
       case 3: return 'shadow-[0_0_20px_rgba(249,115,22,0.2)] border-orange-500 ring-2 ring-orange-500/10';
       default: return 'shadow-[0_0_15px_rgba(153,27,27,0.2)] border-red-900 opacity-50 grayscale';
     }
@@ -99,7 +98,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
 
   return (
     <div className={`relative flex transition-all duration-150 ease-[0.2,0,0,1] ${isFinished ? 'scale-100' : 'opacity-100'} 
-      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 'flex-col items-center gap-1.5 sm:gap-3'}`}>
+      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 'flex-col items-center gap-4 sm:gap-6'}`}>
         
         <div className="relative flex flex-col items-center shrink-0">
             <div className="relative w-16 h-16 sm:w-24 sm:h-24">
@@ -120,7 +119,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
 
                 {player.hasPassed && !isFinished && (
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] rounded-full flex items-center justify-center z-10">
-                        <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest text-center leading-none">Passed</span>
+                        <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest text-center leading-none shadow-lg">Passed</span>
                     </div>
                 )}
                 {player.isOffline && !isFinished && (
@@ -190,7 +189,7 @@ const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'b
     bottom: { start: 'translate(-50%, 0)', focus: 'translate(-50%, -120px)', end: 'translate(-50%, -240px)' },
     top: { start: 'translate(-50%, 0)', focus: 'translate(-50%, 120px)', end: 'translate(-50%, 240px)' },
     left: { start: 'translate(0, -50%)', focus: 'translate(120px, -50%)', end: 'translate(240px, -50%)' },
-    right: { start: 'translate(0, -50%)', focus: 'translate(-120px, -50%)', end: 'translate(-240px, -50%)' },
+    right: { start: 'translate(0, -50%)', focus: '-translate(-120px, -50%)', end: '-translate(-240px, -50%)' },
   };
 
   const pos = positions[position];
@@ -237,6 +236,13 @@ export const GameTable: React.FC<GameTableProps> = ({
   const me = gameState.players.find(p => p.id === myId);
   const isFinished = !!me?.finishedRank;
   const isLeader = !gameState.currentPlayPile || gameState.currentPlayPile.length === 0;
+
+  // Auto-reset hand layout when turn ends
+  useEffect(() => {
+    if (!isMyTurn) {
+      setHandRows(1);
+    }
+  }, [isMyTurn]);
 
   const lastMove = gameState.currentPlayPile && gameState.currentPlayPile.length > 0 ? gameState.currentPlayPile[gameState.currentPlayPile.length - 1] : null;
   useEffect(() => {
@@ -318,7 +324,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     const res = validateMove(cards, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame, myHand);
     if (res.isValid) { 
       onPlayCards(cards); 
-      if (handRows === 2 && myHand.length - cards.length < 8) setHandRows(1); 
+      // State reset handled by isMyTurn effect
     } 
   };
 
@@ -342,12 +348,16 @@ export const GameTable: React.FC<GameTableProps> = ({
   };
 
   const spacing = { 
-    landscape: selectedCardIds.size > 0 
-        ? 'landscape:-space-x-8 sm:landscape:-space-x-10 xl:landscape:-space-x-4' 
-        : 'landscape:-space-x-10 sm:landscape:-space-x-12 xl:landscape:-space-x-6', 
-    portrait: selectedCardIds.size > 0 
-        ? 'portrait:-space-x-[8vw] sm:portrait:-space-x-10' 
-        : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14' 
+    landscape: handRows >= 2 
+        ? '-space-x-4 sm:-space-x-8 lg:-space-x-10 xl:-space-x-4' 
+        : (selectedCardIds.size > 0 
+            ? 'landscape:-space-x-8 sm:landscape:-space-x-10 xl:landscape:-space-x-4' 
+            : 'landscape:-space-x-10 sm:landscape:-space-x-12 xl:landscape:-space-x-6'), 
+    portrait: handRows >= 2 
+        ? '-space-x-6 sm:-space-x-10' 
+        : (selectedCardIds.size > 0 
+            ? 'portrait:-space-x-[8vw] sm:portrait:-space-x-10' 
+            : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14')
   };
 
   const topOpponent = opponents.find(o => o.position === 'top');
@@ -370,7 +380,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                       <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
                   </div>
                   <div className="flex flex-col gap-2">
-                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/5 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
+                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { if (lists.length === 0) return null; const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); const isTypeSelected = currentIndex !== -1; return ( <button key={type} onClick={() => cycleComboType(type)} className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}> <div className="flex justify-between items-center w-full z-10 gap-3"> <span className="truncate">{type === 'RUN' ? 'Straight' : type}</span> <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> {isTypeSelected ? `${currentIndex + 1}/${lists.length}` : `${lists.length}`} </span> </div> </button> ); })}
                   </div>
               </div>
           </div>
@@ -417,7 +427,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="absolute bottom-0 left-0 w-full p-2 sm:p-4 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
         <div className={`mb-3 flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
            <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">{isLeader ? 'Leader (No Pass)' : 'Your Turn'}</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">{isLeader ? '3♠ | YOUR TURN' : 'Your Turn'}</span>
               {timeLeft > 0 && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${timeLeft <= 3 ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
            </div>
            {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
@@ -454,27 +464,30 @@ export const GameTable: React.FC<GameTableProps> = ({
               </button>
 
               <button 
-                onClick={() => { setHandRows(r => r === 1 ? 2 : 1); audioService.playExpandHand(); }} 
+                onClick={() => { setHandRows(r => (r === 1 ? 2 : 1)); audioService.playExpandHand(); }} 
                 className="flex-1 flex flex-col items-center justify-center border-2 border-white/10 bg-black/40 rounded-2xl text-white/40 hover:text-white transition-all active:scale-95"
               >
-                <div className="flex flex-col gap-0.5 mb-1 items-center">
+                <div className="mb-1 text-current">
                   {handRows === 1 ? (
-                    <div className="w-6 h-1.5 rounded-sm bg-current"></div>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 9V2m0 0l-3 3m3-3l3 3" />
+                      <path d="M12 15v7m0 0l-3-3m3 3l3-3" />
+                    </svg>
                   ) : (
-                    <>
-                      <div className="w-6 h-1.5 rounded-sm bg-current"></div>
-                      <div className="w-6 h-1.5 rounded-sm bg-current opacity-40"></div>
-                    </>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2v7m0 0l-3-3m3 3l3-3" />
+                      <path d="M12 22v-7m0 0l-3 3m3-3l3 3" />
+                    </svg>
                   )}
                 </div>
-                <span className="text-[7px] font-black uppercase tracking-widest">{handRows} ROW</span>
+                <span className="text-[7px] font-black uppercase tracking-widest">{handRows === 1 ? '1 ROW' : 'MULTI ROW'}</span>
               </button>
             </div>
         </div>
 
         <div className="relative flex items-center justify-center w-full max-w-[96vw]">
-           <div className={`flex transition-all duration-800 landscape:scale-[0.55] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:pb-16 portrait:scale-[0.9] ${handRows === 2 ? 'portrait:flex-wrap portrait:justify-center portrait:-space-x-10 portrait:max-w-[340px]' : `portrait:flex-nowrap ${spacing.portrait} portrait:max-w-full`}`}>
-            {sortedHand.map((c) => (<Card key={c.id} card={c} selected={selectedCardIds.has(c.id)} onClick={() => toggleCard(c.id)} className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows === 2 ? 'portrait:m-0.5' : ''}`} />))}
+           <div className={`flex transition-all duration-800 landscape:scale-[0.55] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap ${spacing.portrait} portrait:pb-16 max-w-full`}`}>
+            {sortedHand.map((c) => (<Card key={c.id} card={c} selected={selectedCardIds.has(c.id)} onClick={() => toggleCard(c.id)} className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''}`} />))}
            </div>
         </div>
       </div>

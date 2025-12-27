@@ -18,8 +18,6 @@ const EMOJI_FALLBACK: Record<string, string> = {
 
 /**
  * VisualEmote handles rendering PNG assets from Supabase Storage.
- * Redesigned with object-cover and 1.5x scale to eliminate dead space.
- * Sizing presets lg/xl now fill parent containers to ensure perfect centering.
  */
 export const VisualEmote: React.FC<VisualEmoteProps> = ({ 
   trigger, 
@@ -29,15 +27,14 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
 }) => {
   const emoteData = remoteEmotes.find(e => e.trigger_code === trigger);
   
-  const sizeClasses = {
-    sm: 'w-6 h-6 text-xl',
-    md: 'w-10 h-10 text-3xl',
-    lg: 'w-full h-full text-5xl',
-    xl: 'w-full h-full text-7xl'
+  const sizeConfig = {
+    sm: { dims: 'w-6 h-6', text: 'text-xl' },
+    md: { dims: 'w-10 h-10', text: 'text-3xl' },
+    lg: { dims: 'w-full h-full', text: 'text-5xl' },
+    xl: { dims: 'w-full h-full', text: 'text-7xl' }
   };
 
-  const currentSize = sizeClasses[size];
-  const [dimClass, textClass] = currentSize.split(' ');
+  const { dims: dimClass, text: textClass } = sizeConfig[size];
 
   // If it's not a trigger code, render as centered emoji text (legacy/bot fallback)
   if (!trigger.startsWith(':') || !trigger.endsWith(':')) {
@@ -73,8 +70,9 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
         }}
         onError={(e) => {
           // Fallback to centered emoji if storage fetch fails
-          (e.target as HTMLImageElement).style.display = 'none';
-          const parent = (e.target as HTMLImageElement).parentElement;
+          const target = e.target as HTMLImageElement;
+          target.style.display = 'none';
+          const parent = target.parentElement;
           if (parent) {
             const span = document.createElement('span');
             span.className = `${textClass} leading-none select-none flex items-center justify-center h-full w-full`;
