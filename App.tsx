@@ -285,7 +285,6 @@ const App: React.FC = () => {
       else setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(rc => rc.id === c.id)) }));
 
       const activeMover = players.find(p => p.id === pid)!;
-      // Fixed: Explicitly type finalStatus to GameStatus to resolve assignment errors on lines 306, 312, 316
       let finalStatus: GameStatus = prev.status;
       let finishedPlayers = [...prev.finishedPlayers];
 
@@ -295,28 +294,23 @@ const App: React.FC = () => {
           
           const stillPlaying = players.filter(p => !p.finishedRank);
 
-          // TURBO FINISH: Conclude the game immediately if enabled and Rank 1 is decided
           if (spQuickFinish) {
-             // Assign ranks to everyone else based on card counts
              const remainingSorted = [...stillPlaying].sort((a, b) => a.cardCount - b.cardCount);
              remainingSorted.forEach((p, idx) => {
                 const pObj = players.find(pl => pl.id === p.id)!;
                 pObj.finishedRank = finishedPlayers.length + idx + 1;
                 finishedPlayers.push(p.id);
              });
-             // Fixed line 306: finalStatus is now type GameStatus
              finalStatus = GameStatus.FINISHED;
           } else if (stillPlaying.length <= 1) {
               if (stillPlaying.length === 1) {
                   stillPlaying[0].finishedRank = finishedPlayers.length + 1;
                   finishedPlayers.push(stillPlaying[0].id);
               }
-              // Fixed line 312: finalStatus is now type GameStatus
               finalStatus = GameStatus.FINISHED;
           }
       }
 
-      // Fixed line 316: Comparison is now valid between two GameStatus values
       if (finalStatus === GameStatus.FINISHED) {
           const myRank = players.find(p => p.id === 'me')?.finishedRank || 4;
           setTimeout(async () => {
@@ -364,13 +358,11 @@ const App: React.FC = () => {
     const curPlayer = spGameState.players.find(p => p.id === spGameState.currentPlayerId);
     if (curPlayer?.isBot && !curPlayer.finishedRank) {
         const timer = setTimeout(() => {
-            // Re-fetch hands from latest state inside the timeout to avoid stale closures
             setSpGameState(current => {
                 if (!current || current.status !== GameStatus.PLAYING || current.currentPlayerId !== curPlayer.id) return current;
                 const hand = spOpponentHands[curPlayer.id];
                 let move = findBestMove(hand, current.currentPlayPile, !!current.isFirstTurnOfGame, aiDifficulty);
                 
-                // FAILSAFE: If the AI lead is stuck, force play the lowest card
                 if (!move && current.currentPlayPile.length === 0) {
                     const sorted = sortCards(hand);
                     move = [sorted[0]];
@@ -435,7 +427,13 @@ const App: React.FC = () => {
     if (gameMode === 'MULTI_PLAYER') disconnectSocket();
     setGameMode(null); setMpGameState(null); setSpGameState(null); setSpOpponentHands({}); setSpMyHand([]); setView('WELCOME');
     localStorage.removeItem(SESSION_KEY);
-    window.history.replaceState({}, '', '/');
+    
+    // Safely update history state to clear query params without triggering SecurityError in sandboxes
+    try {
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch (e) {
+      // Catch potential SecurityErrors in strict sandboxed environments
+    }
   };
 
   const currentGameState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
