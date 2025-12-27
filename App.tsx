@@ -285,7 +285,8 @@ const App: React.FC = () => {
       else setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(rc => rc.id === c.id)) }));
 
       const activeMover = players.find(p => p.id === pid)!;
-      let finalStatus = prev.status;
+      // Fixed: Explicitly type finalStatus to GameStatus to resolve assignment errors on lines 306, 312, 316
+      let finalStatus: GameStatus = prev.status;
       let finishedPlayers = [...prev.finishedPlayers];
 
       if (activeMover.cardCount === 0) {
@@ -303,16 +304,19 @@ const App: React.FC = () => {
                 pObj.finishedRank = finishedPlayers.length + idx + 1;
                 finishedPlayers.push(p.id);
              });
+             // Fixed line 306: finalStatus is now type GameStatus
              finalStatus = GameStatus.FINISHED;
           } else if (stillPlaying.length <= 1) {
               if (stillPlaying.length === 1) {
                   stillPlaying[0].finishedRank = finishedPlayers.length + 1;
                   finishedPlayers.push(stillPlaying[0].id);
               }
+              // Fixed line 312: finalStatus is now type GameStatus
               finalStatus = GameStatus.FINISHED;
           }
       }
 
+      // Fixed line 316: Comparison is now valid between two GameStatus values
       if (finalStatus === GameStatus.FINISHED) {
           const myRank = players.find(p => p.id === 'me')?.finishedRank || 4;
           setTimeout(async () => {

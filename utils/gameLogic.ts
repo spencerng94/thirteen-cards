@@ -1,5 +1,4 @@
-
-import { Card, Rank, Suit, PlayTurn, AiDifficulty } from '../types';
+import { Card, Rank, Suit, PlayTurn, AiDifficulty, GameStatus } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 // --- Types ---
@@ -7,6 +6,7 @@ type ComboType = 'SINGLE' | 'PAIR' | 'TRIPLE' | 'QUAD' | 'RUN' | '3_PAIRS' | '4_
 
 // --- Helpers ---
 export const getCardScore = (card: Card): number => {
+  if (!card) return 0;
   return (card.rank || 0) * 10 + (card.suit || 0);
 };
 
@@ -14,16 +14,17 @@ export const sortCards = (cards: Card[]): Card[] => {
   return [...cards].sort((a, b) => getCardScore(a) - getCardScore(b));
 };
 
-export const getHighestCard = (cards: Card[]): Card => {
+export const getHighestCard = (cards: Card[]): Card | null => {
+  if (!cards || cards.length === 0) return null;
   const sorted = sortCards(cards);
   return sorted[sorted.length - 1];
 };
 
 export const getComboType = (cards: Card[]): ComboType => {
+  if (!cards || cards.length === 0) return 'INVALID';
   const sorted = sortCards(cards);
   const len = sorted.length;
   
-  if (len === 0) return 'INVALID';
   if (len === 1) return 'SINGLE';
 
   const isSameRank = sorted.every(c => c.rank === sorted[0].rank);
@@ -101,6 +102,9 @@ export const validateMove = (
     return { isValid: false, reason: 'Invalid card combination.' };
   }
 
+  const pHigh = getHighestCard(playedCards);
+  if (!pHigh) return { isValid: false, reason: 'Invalid cards.' };
+
   // First move of the entire game logic
   if (isFirstTurnOfGame && (!playPile || playPile.length === 0)) {
     const handHas3Spades = myHand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
@@ -122,8 +126,8 @@ export const validateMove = (
   }
 
   const lType = getComboType(lastPlayedCards) as ComboType;
-  const pHigh = getHighestCard(playedCards);
   const lHigh = getHighestCard(lastPlayedCards);
+  if (!lHigh) return { isValid: true, reason: 'Leading move.' };
 
   // --- SPECIAL CHOPPING LOGIC (BOMBS BEATING 2s) ---
   if (lType === 'SINGLE' && lHigh.rank === Rank.Two) {
@@ -187,7 +191,7 @@ const getAllTriples = (hand: Card[]) => {
   const triples: Card[][] = [];
   const sorted = sortCards(hand);
   for (let i = 0; i < sorted.length - 2; i++) {
-    if (sorted[i].rank === sorted[i+2].rank) {
+    if (sorted[i].rank === sorted[i+1].rank && sorted[i].rank === sorted[i+2].rank) {
       triples.push([sorted[i], sorted[i+1], sorted[i+2]]);
       i += 2;
     }
@@ -207,185 +211,177 @@ const getAllQuads = (hand: Card[]) => {
   return quads;
 };
 
-const getConsecutivePairs = (hand: Card[], count: number) => {
+// Added exported utility to help find consecutive pairs for bombs
+export const getConsecutivePairs = (hand: Card[], count: number): Card[][] => {
   const pairs = getAllPairs(hand);
   const result: Card[][] = [];
   if (pairs.length < count) return result;
-  const uniquePairs = pairs.filter(p => p[0].rank !== Rank.Two);
+  
+  // Sort pairs by rank and remove 2s
+  const uniquePairs = pairs.filter(p => p[0].rank !== Rank.Two).sort((a, b) => a[0].rank - b[0].rank);
+  
   for (let i = 0; i <= uniquePairs.length - count; i++) {
     let valid = true;
-    const sequence: Card[] = [];
-    for (let j = 0; j < count; j++) {
-      if (j > 0 && uniquePairs[i+j][0].rank !== uniquePairs[i+j-1][0].rank + 1) {
+    const sequence: Card[] = [...uniquePairs[i]];
+    for (let j = 1; j < count; j++) {
+      if (uniquePairs[i + j][0].rank !== uniquePairs[i + j - 1][0].rank + 1) {
         valid = false;
         break;
       }
-      sequence.push(...uniquePairs[i+j]);
+      sequence.push(...uniquePairs[i + j]);
     }
-    if (valid) result.push(sequence);
+    if (valid) {
+      result.push(sequence);
+    }
   }
   return result;
 };
 
-export const canPlayAnyMove = (
-  hand: Card[], 
-  playPile: PlayTurn[],
-  isFirstTurnOfGame: boolean = false
-): boolean => {
-  if (!playPile || playPile.length === 0) return hand.length > 0;
-  const lastTurn = playPile[playPile.length - 1];
-  const lType = getComboType(lastTurn.cards);
-  const lHigh = getHighestCard(lastTurn.cards);
-  const lLen = lastTurn.cards.length;
-  const sorted = sortCards(hand);
-  if (lType === 'SINGLE' || playPile.length === 0) if (sorted.some(c => validateMove([c], playPile, isFirstTurnOfGame, hand).isValid)) return true;
-  if (lType === 'PAIR' || playPile.length === 0) if (getAllPairs(sorted).some(p => validateMove(p, playPile, isFirstTurnOfGame, hand).isValid)) return true;
-  if (lType === 'TRIPLE' || playPile.length === 0) if (getAllTriples(sorted).some(t => validateMove(t, playPile, isFirstTurnOfGame, hand).isValid)) return true;
-  if (lType === 'QUAD' || playPile.length === 0) if (getAllQuads(sorted).some(q => validateMove(q, playPile, isFirstTurnOfGame, hand).isValid)) return true;
-  if (lType === 'RUN') {
-      const uniqueRanks = Array.from(new Set(sorted.filter(c => c.rank !== Rank.Two).map(c => c.rank))).sort((a,b) => a-b);
-      if (uniqueRanks.length >= lLen) {
-          for (let i = 0; i <= uniqueRanks.length - lLen; i++) {
-              const runRanks = uniqueRanks.slice(i, i + lLen);
-              let isSeq = true;
-              for (let k = 0; k < lLen - 1; k++) if (runRanks[k+1] !== runRanks[k] + 1) isSeq = false;
-              if (isSeq) {
-                  const runCards = runRanks.map(r => sorted.find(c => c.rank === r)!);
-                  if (validateMove(runCards, playPile, isFirstTurnOfGame, hand).isValid) return true;
-              }
-          }
-      }
-  }
-  if (lHigh.rank === Rank.Two || ['QUAD', '3_PAIRS', '4_PAIRS'].includes(lType)) {
-      if (getAllQuads(sorted).some(q => validateMove(q, playPile, isFirstTurnOfGame, hand).isValid)) return true;
-      if (getConsecutivePairs(sorted, 3).some(p => validateMove(p, playPile, isFirstTurnOfGame, hand).isValid)) return true;
-      if (getConsecutivePairs(sorted, 4).some(p => validateMove(p, playPile, isFirstTurnOfGame, hand).isValid)) return true;
-  }
-  return false;
-};
-
+// Added missing exported member 'findAllValidCombos' for GameTable.tsx
 export const findAllValidCombos = (
   hand: Card[],
-  pivotCardId: string,
+  pivotId: string,
   playPile: PlayTurn[],
-  isFirstTurnOfGame: boolean = false
+  isFirstTurnOfGame: boolean
 ): Record<string, Card[][]> => {
-  const sortedHand = sortCards(hand);
-  const pivotCard = hand.find(c => c.id === pivotCardId);
-  const handHasThreeSpades = hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades);
-  const threeSpades = hand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
-  
-  if (!pivotCard) return {};
-
-  const combos: Record<string, Card[][]> = { 'SINGLE': [], 'PAIR': [], 'TRIPLE': [], 'QUAD': [], 'RUN': [], 'BOMB': [] };
-
-  const addIfValid = (candidate: Card[], type: string) => {
-    const res = validateMove(candidate, playPile, isFirstTurnOfGame, hand);
-    if (res.isValid && candidate.some(c => c.id === pivotCardId)) combos[type].push(candidate);
+  const result: Record<string, Card[][]> = {
+    SINGLE: [],
+    PAIR: [],
+    TRIPLE: [],
+    QUAD: [],
+    RUN: [],
+    '3_PAIRS': [],
+    '4_PAIRS': []
   };
 
-  addIfValid([pivotCard], 'SINGLE');
+  const pivotCard = hand.find(c => c.id === pivotId);
+  if (!pivotCard) return result;
 
-  const sameRank = sortedHand.filter(c => c.rank === pivotCard.rank);
-  if (sameRank.length >= 2) for (const c of sameRank) if (c.id !== pivotCardId) addIfValid([pivotCard, c], 'PAIR');
-  if (sameRank.length >= 3) {
-    const others = sameRank.filter(c => c.id !== pivotCardId);
-    for (let i = 0; i < others.length - 1; i++) for (let j = i + 1; j < others.length; j++) addIfValid([pivotCard, others[i], others[j]], 'TRIPLE');
+  const sortedHand = sortCards(hand);
+
+  // Singles
+  if (validateMove([pivotCard], playPile, isFirstTurnOfGame, hand).isValid) {
+    result.SINGLE.push([pivotCard]);
   }
-  if (sameRank.length === 4) addIfValid(sameRank, 'QUAD');
 
-  if (pivotCard.rank !== Rank.Two) {
-    const ranksMap: Record<number, Card[]> = {};
-    sortedHand.forEach(c => {
-      if (c.rank !== Rank.Two) {
-        if (!ranksMap[c.rank]) ranksMap[c.rank] = [];
-        ranksMap[c.rank].push(c);
-      }
-    });
+  // Pairs
+  getAllPairs(hand).forEach(p => {
+    if (p.some(c => c.id === pivotId) && validateMove(p, playPile, isFirstTurnOfGame, hand).isValid) {
+      result.PAIR.push(p);
+    }
+  });
 
-    const lastTurn = playPile[playPile.length - 1];
-    const targetLen = lastTurn?.cards.length || 0;
-    const isLead = playPile.length === 0;
+  // Triples
+  getAllTriples(hand).forEach(t => {
+    if (t.some(c => c.id === pivotId) && validateMove(t, playPile, isFirstTurnOfGame, hand).isValid) {
+      result.TRIPLE.push(t);
+    }
+  });
 
-    for (let len = Math.max(3, targetLen); len <= 13; len++) {
-      if (!isLead && len !== targetLen) continue;
-      // startRank range ensures pivotCard is included in the sequence
-      for (let startRank = pivotCard.rank - len + 1; startRank <= pivotCard.rank; startRank++) {
-        const endRank = startRank + len - 1;
-        if (startRank < 3 || endRank > Rank.Ace) continue;
-        let sequencePossible = true;
-        for (let r = startRank; r <= endRank; r++) if (!ranksMap[r]) { sequencePossible = false; break; }
-        
-        if (sequencePossible) {
-          const runCandidate: Card[] = [];
-          for (let r = startRank; r <= endRank; r++) {
-            if (r === pivotCard.rank) runCandidate.push(pivotCard);
-            else if (r === 3 && isFirstTurnOfGame && isLead && handHasThreeSpades) runCandidate.push(threeSpades!);
-            else runCandidate.push(ranksMap[r][0]);
-          }
-          addIfValid(runCandidate, 'RUN');
+  // Quads
+  getAllQuads(hand).forEach(q => {
+    if (q.some(c => c.id === pivotId) && validateMove(q, playPile, isFirstTurnOfGame, hand).isValid) {
+      result.QUAD.push(q);
+    }
+  });
+
+  // Runs
+  for (let len = 3; len <= sortedHand.length; len++) {
+    for (let i = 0; i <= sortedHand.length - len; i++) {
+      const candidate = sortedHand.slice(i, i + len);
+      if (candidate.some(c => c.id === pivotId)) {
+        if (getComboType(candidate) === 'RUN' && validateMove(candidate, playPile, isFirstTurnOfGame, hand).isValid) {
+          result.RUN.push(candidate);
         }
       }
     }
   }
 
-  getConsecutivePairs(sortedHand, 3).forEach(p => addIfValid(p, 'BOMB'));
-  getConsecutivePairs(sortedHand, 4).forEach(p => addIfValid(p, 'BOMB'));
-  getAllQuads(sortedHand).forEach(q => addIfValid(q, 'BOMB'));
+  // Bombs
+  getConsecutivePairs(hand, 3).forEach(p => {
+    if (p.some(c => c.id === pivotId) && validateMove(p, playPile, isFirstTurnOfGame, hand).isValid) {
+      result['3_PAIRS'].push(p);
+    }
+  });
 
-  return combos;
+  getConsecutivePairs(hand, 4).forEach(p => {
+    if (p.some(c => c.id === pivotId) && validateMove(p, playPile, isFirstTurnOfGame, hand).isValid) {
+      result['4_PAIRS'].push(p);
+    }
+  });
+
+  return result;
 };
 
-// --- AI LOGIC ---
+// Added missing exported member 'canPlayAnyMove' for GameTable.tsx
+export const canPlayAnyMove = (hand: Card[], playPile: PlayTurn[], isFirstTurnOfGame: boolean): boolean => {
+  if (playPile.length === 0) return hand.length > 0;
+  
+  for (const card of hand) {
+    const combos = findAllValidCombos(hand, card.id, playPile, isFirstTurnOfGame);
+    for (const type in combos) {
+      if (combos[type].length > 0) return true;
+    }
+  }
+  return false;
+};
 
+// Added missing exported member 'findBestMove' for App.tsx AI logic
 export const findBestMove = (
-  hand: Card[], 
+  hand: Card[],
   playPile: PlayTurn[],
-  isFirstTurnOfGame: boolean = false,
+  isFirstTurnOfGame: boolean,
   difficulty: AiDifficulty = 'MEDIUM'
 ): Card[] | null => {
   const sortedHand = sortCards(hand);
+  
   if (playPile.length === 0) {
     if (isFirstTurnOfGame) {
-        const threeSpades = sortedHand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
-        if (!threeSpades) return [sortedHand[0]];
-        const combos = findAllValidCombos(hand, threeSpades.id, [], true);
-        if (combos.RUN.length > 0) return combos.RUN[combos.RUN.length - 1];
-        if (combos.PAIR.length > 0) return combos.PAIR[0];
-        return [threeSpades];
+      const threeS = hand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
+      if (threeS) return [threeS];
     }
-    const triples = getAllTriples(sortedHand); if (triples.length > 0) return triples[0];
-    const pairs = getAllPairs(sortedHand); if (pairs.length > 0) return pairs[0];
+    const triples = getAllTriples(sortedHand);
+    if (triples.length > 0) return triples[0];
+    const pairs = getAllPairs(sortedHand);
+    if (pairs.length > 0) return pairs[0];
     return [sortedHand[0]];
   }
+
   const lastTurn = playPile[playPile.length - 1];
-  const lastPlayedCards = lastTurn.cards;
-  const lType = getComboType(lastPlayedCards) as ComboType;
-  const lHigh = getHighestCard(lastPlayedCards);
-  let standardMove: Card[] | null = null;
-  if (lType === 'SINGLE') { const match = sortedHand.find(c => getCardScore(c) > getCardScore(lHigh)); if (match) standardMove = [match]; }
-  else if (lType === 'PAIR') { const pairs = getAllPairs(sortedHand); const match = pairs.find(p => getCardScore(getHighestCard(p)) > getCardScore(lHigh)); if (match) standardMove = match; }
-  else if (lType === 'TRIPLE') { const triples = getAllTriples(sortedHand); const match = triples.find(t => getCardScore(getHighestCard(t)) > getCardScore(lHigh)); if (match) standardMove = match; }
-  else if (lType === 'QUAD') { const quads = getAllQuads(sortedHand); const match = quads.find(q => getCardScore(getHighestCard(q)) > getCardScore(lHigh)); if (match) standardMove = match; }
-  else if (lType === 'RUN') {
-      const targetLen = lastPlayedCards.length;
-      const uniqueRanks = Array.from(new Set(sortedHand.filter(c => c.rank !== Rank.Two).map(c => c.rank))).sort((a,b) => a-b);
-      for (let i = 0; i <= uniqueRanks.length - targetLen; i++) {
-        const ranks = uniqueRanks.slice(i, i + targetLen);
-        if (ranks.length < targetLen) continue;
-        let consecutive = true; for (let k = 0; k < ranks.length - 1; k++) if (ranks[k+1] !== ranks[k] + 1) consecutive = false;
-        if (!consecutive) continue;
-        const candidate = ranks.map(r => sortedHand.find(c => c.rank === r)!);
-        if (getCardScore(getHighestCard(candidate)) > getCardScore(lHigh)) { standardMove = candidate; break; }
+  const lastCards = lastTurn.cards;
+  const lType = getComboType(lastCards);
+  const lHigh = getHighestCard(lastCards);
+  if (!lHigh) return null;
+
+  if (lType === 'SINGLE') {
+    const match = sortedHand.find(c => getCardScore(c) > getCardScore(lHigh));
+    if (match) return [match];
+  } else if (lType === 'PAIR') {
+    const pairs = getAllPairs(sortedHand);
+    const match = pairs.find(p => getCardScore(getHighestCard(p)!) > getCardScore(lHigh));
+    if (match) return match;
+  } else if (lType === 'TRIPLE') {
+    const triples = getAllTriples(sortedHand);
+    const match = triples.find(t => getCardScore(getHighestCard(t)!) > getCardScore(lHigh));
+    if (match) return match;
+  } else if (lType === 'RUN') {
+    const targetLen = lastCards.length;
+    for (let i = 0; i <= sortedHand.length - targetLen; i++) {
+      const candidate = sortedHand.slice(i, i + targetLen);
+      if (getComboType(candidate) === 'RUN' && getCardScore(getHighestCard(candidate)!) > getCardScore(lHigh)) {
+        return candidate;
       }
+    }
   }
-  let bombMove: Card[] | null = null;
-  const targetIsTwo = lHigh.rank === Rank.Two;
-  if (targetIsTwo || ['QUAD', '3_PAIRS', '4_PAIRS'].includes(lType)) {
-    const quads = getAllQuads(sortedHand); const p3 = getConsecutivePairs(sortedHand, 3); const p4 = getConsecutivePairs(sortedHand, 4);
-    if (lType === 'SINGLE' && targetIsTwo) { if (p3.length > 0) bombMove = p3[0]; else if (quads.length > 0) bombMove = quads[0]; else if (p4.length > 0) bombMove = p4[0]; }
-    else if (lType === 'PAIR' && targetIsTwo) { if (quads.length > 0) bombMove = quads[0]; else if (p4.length > 0) bombMove = p4[0]; }
-    else if (['QUAD', '3_PAIRS', '4_PAIRS'].includes(lType)) { if (p4.length > 0) bombMove = p4[0]; }
+
+  if (lHigh.rank === Rank.Two) {
+    const quads = getAllQuads(sortedHand);
+    if (quads.length > 0) return quads[0];
+    const fourPairs = getConsecutivePairs(sortedHand, 4);
+    if (fourPairs.length > 0) return fourPairs[0];
+    const threePairs = getConsecutivePairs(sortedHand, 3);
+    if (threePairs.length > 0) return threePairs[0];
   }
-  return bombMove || standardMove;
+
+  return null;
 };
