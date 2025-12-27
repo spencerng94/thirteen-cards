@@ -203,7 +203,7 @@ export const Store: React.FC<StoreProps> = ({
               <BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker={true} />
             </div>
           ) : (
-           <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-12 !h-18 sm:!w-14 sm:!h-20' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />
+           <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-12 !h-17 sm:!w-14 sm:!h-20' : '!w-24 !h-34'} shadow-2xl group-hover:scale-110 transition-transform`} />
           )}
         </div>
 
@@ -233,7 +233,11 @@ export const Store: React.FC<StoreProps> = ({
     );
   };
 
-  const gridClass = activeTab === 'AVATARS' && density === 4 ? 'grid-cols-3' : density === 1 ? 'grid-cols-1' : density === 2 ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6';
+  const gridClass = density === 4 
+    ? 'grid-cols-3' 
+    : density === 1 
+      ? 'grid-cols-1' 
+      : 'grid-cols-2 lg:grid-cols-4';
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
@@ -363,7 +367,7 @@ export const Store: React.FC<StoreProps> = ({
 
         <div className="px-4 sm:px-8 pb-1 flex flex-col items-center justify-center mt-12 sm:mt-8">
           <div className="flex flex-col items-center text-center">
-            <h2 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif leading-none">XIII SHOP</h2>
+            <h2 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif leading-none px-2">XIII SHOP</h2>
             <p className="text-[8px] sm:text-[9px] font-black tracking-[0.6em] sm:tracking-[0.8em] text-gray-600 mt-1 sm:mt-2 uppercase">UP YOUR GAME</p>
           </div>
 
