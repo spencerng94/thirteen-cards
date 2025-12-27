@@ -6,7 +6,9 @@ import { AiDifficulty, UserProfile, BackgroundTheme, Emote } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
+// Import corrected: SleeveArenaPreview moved to Store.tsx
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
+import { SleeveArenaPreview, SUPER_PRESTIGE_SLEEVE_IDS } from './Store';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 
@@ -34,6 +36,10 @@ interface WelcomeScreenProps {
   backgroundTheme: BackgroundTheme;
   setBackgroundTheme: (t: BackgroundTheme) => void;
   isGuest?: boolean;
+  sleeveEffectsEnabled: boolean;
+  setSleeveEffectsEnabled: (v: boolean) => void;
+  playAnimationsEnabled: boolean;
+  setPlayAnimationsEnabled: (v: boolean) => void;
 }
 
 const SLEEVES = [
@@ -50,6 +56,13 @@ const SLEEVES = [
   { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, style: 'AMETHYST_ROYAL' as CardCoverStyle },
   { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, style: 'CHERRY_BLOSSOM_NOIR' as CardCoverStyle },
   { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, style: 'AETHER_VOID' as CardCoverStyle },
+  { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 25000, style: 'DIVINE_ROYAL' as CardCoverStyle },
+];
+
+const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
+  'ROYAL_JADE', 'CRYSTAL_EMERALD', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 
+  'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 
+  'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID'
 ];
 
 const TAB_DESCRIPTIONS: Record<WelcomeTab, string> = {
@@ -136,12 +149,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   playerName, setPlayerName, playerAvatar, setPlayerAvatar,
   cardCoverStyle, setCardCoverStyle, aiDifficulty, setAiDifficulty,
   quickFinish, setQuickFinish, soundEnabled, setSoundEnabled,
-  backgroundTheme, setBackgroundTheme, isGuest
+  backgroundTheme, setBackgroundTheme, isGuest,
+  sleeveEffectsEnabled, setSleeveEffectsEnabled,
+  playAnimationsEnabled, setPlayAnimationsEnabled
 }) => {
   const [activeTab, setActiveTab] = useState<WelcomeTab>('PROFILE');
   const [hideUnowned, setHideUnowned] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
+  const [previewSleeveStyle, setPreviewSleeveStyle] = useState<CardCoverStyle | null>(null);
 
   const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
@@ -270,11 +286,28 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             const unlocked = isSleeveUnlocked(s.id);
             const active = cardCoverStyle === s.style;
             const isLegendary = s.id === 'AETHER_VOID';
+            const isPrestige = PRESTIGE_SLEEVE_IDS.includes(s.style);
+            const isSuperPrestige = SUPER_PRESTIGE_SLEEVE_IDS.includes(s.style);
+
             return (
-              <div key={s.id} onClick={() => unlocked ? setCardCoverStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'} ${isLegendary ? 'ring-1 ring-yellow-500/20' : ''}`}>
+              <div key={s.id} onClick={() => unlocked ? setPreviewSleeveStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'} ${isLegendary ? 'ring-1 ring-yellow-500/20' : ''}`}>
                 <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
-                <Card faceDown coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} />
-                <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center ${active ? 'text-emerald-400' : unlocked ? (isLegendary ? 'text-yellow-400' : 'text-white/60') : 'text-white/20'}`}>{s.name}</span>
+                
+                <div className="relative group/card-wrap">
+                  <Card faceDown coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />
+                  {isPrestige && !isSuperPrestige && (
+                    <div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform">
+                      <span className="text-yellow-500 text-[8px] font-black">♠</span>
+                    </div>
+                  )}
+                  {isSuperPrestige && (
+                    <div className="absolute -top-1.5 -left-1.5 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-5 h-5 flex items-center justify-center border border-white shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform animate-pulse">
+                      <span className="text-white text-[10px] font-black">♥</span>
+                    </div>
+                  )}
+                </div>
+
+                <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center ${active ? 'text-emerald-400' : unlocked ? (isSuperPrestige ? 'text-yellow-300' : isLegendary ? 'text-yellow-400' : 'text-white/60') : 'text-white/20'}`}>{s.name}</span>
               </div>
             );
           })}
@@ -320,6 +353,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
            </button>
         </div>
         <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
+           <span className="text-[10px] font-black text-white uppercase tracking-widest">Sleeve Face Effects</span>
+           <button onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)} className={`w-12 h-6 rounded-full relative ${sleeveEffectsEnabled ? 'bg-yellow-500' : 'bg-white/10'}`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+           </button>
+        </div>
+        <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
+           <span className="text-[10px] font-black text-white uppercase tracking-widest">Card Play Animations</span>
+           <button onClick={() => setPlayAnimationsEnabled(!playAnimationsEnabled)} className={`w-12 h-6 rounded-full relative ${playAnimationsEnabled ? 'bg-emerald-600' : 'bg-white/10'}`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${playAnimationsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+           </button>
+        </div>
+        <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
            <span className="text-[10px] font-black text-white uppercase tracking-widest">Single Player Turbo</span>
            <button onClick={() => setQuickFinish(!quickFinish)} className={`w-12 h-6 rounded-full relative ${quickFinish ? 'bg-yellow-500' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${quickFinish ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -349,6 +394,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center p-4">
       <BoardSurface themeId={backgroundTheme} />
       
+      {previewSleeveStyle && (
+        <SleeveArenaPreview 
+            sleeveStyle={previewSleeveStyle} 
+            themeId={backgroundTheme} 
+            sleeveEffectsEnabled={sleeveEffectsEnabled} 
+            onClose={() => setPreviewSleeveStyle(null)} 
+        />
+      )}
+
       {pendingPurchase && (
           <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
               <div className="bg-[#0a0a0a] border border-yellow-500/20 w-full max-w-xs rounded-[2rem] p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)]">
@@ -391,7 +445,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                             <VisualEmote trigger={awardItem.id} remoteEmotes={remoteEmotes} size="xl" />
                           </div>
                       ) : awardItem.type === 'SLEEVE' ? (
-                          <Card faceDown coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" />
+                          <Card faceDown coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" disableEffects={!sleeveEffectsEnabled} />
                       ) : (
                           <div className="w-64 aspect-[16/10] rounded-3xl overflow-hidden ring-2 ring-yellow-500/50 shadow-2xl">
                              <BoardPreview themeId={awardItem.id} active={false} />

@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
-export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR' | 'AETHER_VOID';
+export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR' | 'AETHER_VOID' | 'DIVINE_ROYAL';
 
 interface CardProps {
   card?: CardType;
@@ -12,6 +12,7 @@ interface CardProps {
   small?: boolean;
   faceDown?: boolean;
   coverStyle?: CardCoverStyle;
+  disableEffects?: boolean;
 }
 
 const getRankLabel = (rank: Rank): string => {
@@ -39,7 +40,7 @@ const getSuitSymbol = (suit: Suit): string => {
 /**
  * Logic to determine the face visual style based on the sleeve (coverStyle)
  */
-const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit) => {
+const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit, disableEffects: boolean = false) => {
   const isRedSuit = suit === Suit.Hearts || suit === Suit.Diamonds;
   
   // Default (Off-white face)
@@ -48,87 +49,94 @@ const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit) => {
   let textColor = isRedSuit ? 'text-rose-600' : 'text-slate-900';
   let symbolColor = isRedSuit ? 'text-rose-600' : 'text-slate-900';
   let innerGlow = '';
+  let fontClass = 'font-black';
+
+  if (disableEffects) {
+    return { bg, border, textColor, symbolColor, innerGlow, fontClass };
+  }
 
   switch (style) {
+    case 'DIVINE_ROYAL':
+      bg = 'bg-gradient-to-br from-[#fffdf5] via-[#fef9e7] to-[#f7f1d5]';
+      border = 'border-yellow-600/40';
+      textColor = isRedSuit ? 'text-rose-700' : 'text-indigo-950';
+      symbolColor = isRedSuit ? 'text-rose-600' : 'text-indigo-900';
+      innerGlow = 'shadow-[inset_0_0_15px_rgba(234,179,8,0.25)]';
+      fontClass = 'font-serif font-black italic';
+      break;
     case 'AETHER_VOID':
       bg = 'bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#050505]';
       border = 'border-yellow-500/40';
-      // Hearts/Diamonds -> Gold, Spades/Clubs -> White
       textColor = isRedSuit ? 'text-yellow-500' : 'text-slate-50';
       symbolColor = isRedSuit ? 'text-yellow-500' : 'text-slate-50';
       innerGlow = 'shadow-[inset_0_0_20px_rgba(250,204,21,0.2)]';
       break;
     case 'GOLDEN_IMPERIAL':
-      // Dominant Gold Style
       bg = 'bg-gradient-to-br from-[#fff9c4] via-[#fbc02d] to-[#f9a825]';
       border = 'border-[#8b6508]/40';
-      // High contrast colors for gold background
-      // Hearts/Diamonds -> Imperial Crimson, Spades/Clubs -> Obsidian Black
       textColor = isRedSuit ? 'text-[#800000]' : 'text-[#0a0a0a]';
       symbolColor = isRedSuit ? 'text-[#800000]' : 'text-[#0a0a0a]';
       innerGlow = 'shadow-[inset_0_0_15px_rgba(255,255,255,0.5)]';
       break;
     case 'VOID_ONYX':
-      bg = 'bg-[#050505]';
-      border = 'border-indigo-500/30';
-      // Hearts/Diamonds -> Indigo, Spades/Clubs -> Lavender/White
-      textColor = isRedSuit ? 'text-indigo-500' : 'text-slate-200';
-      symbolColor = isRedSuit ? 'text-indigo-400' : 'text-slate-100';
-      innerGlow = 'shadow-[inset_0_0_15px_rgba(99,102,241,0.3)]';
+      bg = 'bg-gradient-to-br from-[#020210] via-[#050520] to-[#010108]';
+      border = 'border-indigo-500/50';
+      textColor = isRedSuit ? 'text-indigo-400' : 'text-slate-200';
+      symbolColor = isRedSuit ? 'text-indigo-300' : 'text-indigo-100';
+      innerGlow = 'shadow-[inset_0_0_25px_rgba(99,102,241,0.4)]';
       break;
     case 'NEON_CYBER':
       bg = 'bg-[#020205]';
-      border = 'border-cyan-500/40';
+      border = 'border-cyan-500/60 shadow-[0_0_15px_rgba(34,211,238,0.2)]';
       textColor = isRedSuit ? 'text-pink-500' : 'text-cyan-400';
       symbolColor = isRedSuit ? 'text-pink-400' : 'text-cyan-300';
-      innerGlow = 'shadow-[inset_0_0_10px_rgba(6,182,212,0.2)]';
+      innerGlow = 'shadow-[inset_0_0_15px_rgba(217,70,239,0.15)]';
       break;
     case 'PIXEL_CITY_LIGHTS':
-      bg = 'bg-[#0a0a1a]';
-      border = 'border-blue-400/30';
-      // Hearts/Diamonds -> Yellow, Spades/Clubs -> Cyan
-      textColor = isRedSuit ? 'text-yellow-400' : 'text-cyan-400';
-      symbolColor = isRedSuit ? 'text-yellow-400' : 'text-cyan-400';
+      bg = 'bg-gradient-to-br from-[#0a0a1a] to-[#02020a]';
+      border = 'border-blue-400/40 shadow-[0_0_10px_rgba(96,165,250,0.1)]';
+      textColor = isRedSuit ? 'text-yellow-400' : 'text-blue-300';
+      symbolColor = isRedSuit ? 'text-yellow-400' : 'text-blue-400';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(30,58,138,0.5)]';
       break;
     case 'CHERRY_BLOSSOM_NOIR':
-      bg = 'bg-[#0a0508]';
-      border = 'border-pink-500/30';
-      // Hearts/Diamonds -> Vibrant Pink, Spades/Clubs -> Soft Pink/White
+      bg = 'bg-gradient-to-br from-[#0a0508] via-[#150a10] to-[#050204]';
+      border = 'border-pink-500/40';
       textColor = isRedSuit ? 'text-pink-500' : 'text-slate-100';
       symbolColor = isRedSuit ? 'text-pink-400' : 'text-slate-50';
-      innerGlow = 'shadow-[inset_0_0_15px_rgba(236,72,153,0.2)]';
+      innerGlow = 'shadow-[inset_0_0_30px_rgba(236,72,153,0.25)]';
       break;
     case 'AMETHYST_ROYAL':
-      bg = 'bg-gradient-to-br from-[#1e1b4b] to-[#0f172a]';
-      border = 'border-purple-400/30';
-      // Hearts/Diamonds -> Purple, Spades/Clubs -> White
-      textColor = isRedSuit ? 'text-purple-400' : 'text-white';
-      symbolColor = isRedSuit ? 'text-purple-400' : 'text-white';
+      bg = 'bg-gradient-to-br from-[#1e1b4b] via-[#0f172a] to-[#020617]';
+      border = 'border-purple-300/40';
+      textColor = isRedSuit ? 'text-purple-400' : 'text-slate-200';
+      symbolColor = isRedSuit ? 'text-purple-300' : 'text-white';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(168,85,247,0.3)]';
       break;
     case 'DRAGON_SCALE':
-      bg = 'bg-[#1a0a05]';
-      border = 'border-orange-500/40';
-      // Hearts/Diamonds -> Red-Orange, Spades/Clubs -> Amber
+      bg = 'bg-gradient-to-br from-[#2a0a05] via-[#1a0a05] to-[#0a0502]';
+      border = 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.2)]';
       textColor = isRedSuit ? 'text-orange-600' : 'text-amber-500';
       symbolColor = isRedSuit ? 'text-orange-500' : 'text-amber-400';
+      innerGlow = 'shadow-[inset_0_0_35px_rgba(154,52,18,0.5)]';
       break;
     case 'ROYAL_JADE':
-      bg = 'bg-[#062419]';
-      border = 'border-emerald-500/30';
-      // Hearts/Diamonds -> Gold/Yellow, Spades/Clubs -> Emerald
-      textColor = isRedSuit ? 'text-yellow-500' : 'text-emerald-400';
-      symbolColor = isRedSuit ? 'text-yellow-600' : 'text-emerald-500';
+      bg = 'bg-gradient-to-br from-[#064e3b] via-[#022c22] to-[#011a13]';
+      border = 'border-yellow-500/40';
+      textColor = isRedSuit ? 'text-yellow-500' : 'text-emerald-50';
+      symbolColor = isRedSuit ? 'text-yellow-500' : 'text-emerald-50';
+      innerGlow = 'shadow-[inset_0_0_25px_rgba(16,185,129,0.5)]';
       break;
     case 'CRYSTAL_EMERALD':
-      bg = 'bg-gradient-to-br from-emerald-950 via-[#064e3b] to-emerald-900';
-      border = 'border-green-300/20';
-      // Hearts/Diamonds -> Bright Green, Spades/Clubs -> White
-      textColor = isRedSuit ? 'text-green-400' : 'text-white';
-      symbolColor = isRedSuit ? 'text-green-400' : 'text-white';
+      bg = 'bg-gradient-to-br from-[#064e3b] via-[#047857] to-[#065f46]';
+      border = 'border-green-200/40 shadow-[0_0_10px_rgba(110,231,183,0.2)]';
+      textColor = isRedSuit ? 'text-green-300' : 'text-white';
+      symbolColor = isRedSuit ? 'text-green-200' : 'text-white';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(255,255,255,0.1)]';
       break;
   }
 
-  return { bg, border, textColor, symbolColor, innerGlow };
+  return { bg, border, textColor, symbolColor, innerGlow, fontClass };
 };
 
 export const Card: React.FC<CardProps> = ({ 
@@ -138,7 +146,8 @@ export const Card: React.FC<CardProps> = ({
   className = '', 
   small = false, 
   faceDown = false,
-  coverStyle = 'BLUE' 
+  coverStyle = 'BLUE',
+  disableEffects = false
 }) => {
   
   if (faceDown) {
@@ -146,8 +155,36 @@ export const Card: React.FC<CardProps> = ({
     let borderClass = 'border-white/20';
     let patternContent = null;
     let metallicReflect = "bg-gradient-to-tr from-white/0 via-white/10 to-white/0";
+    let specialAnimation = "";
 
     switch (coverStyle) {
+        case 'DIVINE_ROYAL':
+            bgClass = 'bg-gradient-to-br from-[#fffef5] via-[#f9f1d4] to-[#f3e5b3]';
+            borderClass = 'border-yellow-400 shadow-[0_0_30px_rgba(234,179,8,0.5),inset_0_0_10px_rgba(255,255,255,0.5)]';
+            // Removed bar-like metallic sweep for Divine Royal
+            metallicReflect = "bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,transparent_70%)]";
+            specialAnimation = "animate-divine-aura";
+            patternContent = (
+                <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] opacity-20"></div>
+                    <div className="absolute inset-0 flex items-center justify-center opacity-40">
+                        <div className="w-16 h-16 border-2 border-yellow-600/30 rounded-full animate-[spin_20s_linear_infinite]"></div>
+                        <div className="absolute w-12 h-12 border border-yellow-600/20 rounded-full animate-[spin_15s_linear_infinite_reverse]"></div>
+                    </div>
+                    {Array.from({ length: 8 }).map((_, i) => (
+                        <div 
+                            key={i}
+                            className="absolute w-1 h-1 bg-yellow-500 rounded-full blur-[0.5px] animate-pulse"
+                            style={{
+                                top: `${Math.random() * 100}%`,
+                                left: `${Math.random() * 100}%`,
+                                animationDelay: `${Math.random() * 2}s`
+                            }}
+                        />
+                    ))}
+                </div>
+            );
+            break;
         case 'RED':
             bgClass = 'bg-gradient-to-br from-red-600 via-red-800 to-red-950';
             borderClass = 'border-red-400/40';
@@ -339,15 +376,26 @@ export const Card: React.FC<CardProps> = ({
             ${small ? 'w-10 h-14' : 'w-20 h-28 sm:w-24 sm:h-36'}
             flex items-center justify-center overflow-hidden transition-all duration-200 transform-gpu
             hover:scale-110 hover:-translate-y-2 hover:rotate-1 group
+            ${specialAnimation}
             ${className}
             `}
         >
             <div className="absolute inset-1 border border-white/10 rounded-lg pointer-events-none"></div>
             <div className="w-[88%] h-[88%] border border-white/5 rounded-lg flex items-center justify-center overflow-hidden relative">
                 {patternContent}
-                <div className={`absolute inset-0 ${metallicReflect} -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out`}></div>
+                <div className={`absolute inset-0 ${metallicReflect} ${coverStyle === 'DIVINE_ROYAL' ? '' : '-translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out'}`}></div>
                 <div className="w-8 h-12 bg-white/5 rounded-full blur-xl transform rotate-45 group-hover:bg-white/10 transition-colors"></div>
             </div>
+            {coverStyle === 'DIVINE_ROYAL' && (
+                <style dangerouslySetInnerHTML={{ __html: `
+                    @keyframes divineAura {
+                        0% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
+                        50% { transform: translateY(-5px); filter: drop-shadow(0 25px 40px rgba(234,179,8,0.5)); }
+                        100% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
+                    }
+                    .animate-divine-aura { animation: divineAura 4s ease-in-out infinite; }
+                `}} />
+            )}
         </div>
     );
   }
@@ -358,7 +406,7 @@ export const Card: React.FC<CardProps> = ({
   const suitSymbol = getSuitSymbol(card.suit);
   const isHighValue = card.rank === Rank.Two;
 
-  const { bg, border, textColor, symbolColor, innerGlow } = getFaceTheming(coverStyle, card.suit);
+  const { bg, border, textColor, symbolColor, innerGlow, fontClass } = getFaceTheming(coverStyle, card.suit, disableEffects);
 
   return (
     <div
@@ -370,17 +418,18 @@ export const Card: React.FC<CardProps> = ({
           ? '-translate-y-16 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-40 scale-[1.05]' 
           : 'shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:-translate-y-6 hover:rotate-2 hover:shadow-[0_25px_50px_rgba(0,0,0,0.45)] hover:z-30'}
         ${innerGlow}
+        ${coverStyle === 'DIVINE_ROYAL' && !disableEffects ? 'animate-divine-aura' : ''}
         ${className}
         transition-all duration-200 ease-out
         group
       `}
     >
       <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/10 via-transparent to-black/20 pointer-events-none"></div>
-      <div className={`absolute top-1.5 left-1.5 font-black flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : 'text-xl'}`}>
+      <div className={`absolute top-1.5 left-1.5 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : 'text-xl'} ${fontClass}`}>
         <div className="tracking-tighter drop-shadow-sm">{rankLabel}</div>
         <div className={`${small ? 'text-[8px]' : 'text-[0.7em]'} mt-0.5`}>{suitSymbol}</div>
       </div>
-      <div className={`absolute bottom-1.5 right-1.5 font-black rotate-180 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : 'text-xl'}`}>
+      <div className={`absolute bottom-1.5 right-1.5 rotate-180 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : 'text-xl'} ${fontClass}`}>
         <div className="tracking-tighter drop-shadow-sm">{rankLabel}</div>
         <div className={`${small ? 'text-[8px]' : 'text-[0.7em]'} mt-0.5`}>{suitSymbol}</div>
       </div>
@@ -398,6 +447,18 @@ export const Card: React.FC<CardProps> = ({
         <div className="absolute inset-[-10px] rounded-[1.5rem] bg-yellow-400/20 blur-xl animate-pulse pointer-events-none z-[-1]"></div>
       )}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] rounded-xl"></div>
+      
+      {/* Glint removed for DIVINE_ROYAL to satisfy user request for removing "vertical line bars" */}
+
+      {coverStyle === 'DIVINE_ROYAL' && (
+        <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes divineAura {
+                0% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
+                50% { transform: translateY(-5px); filter: drop-shadow(0 25px 40px rgba(234,179,8,0.5)); }
+                100% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
+            }
+        `}} />
+      )}
     </div>
   );
 };

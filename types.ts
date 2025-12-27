@@ -28,7 +28,7 @@ export interface Emote {
 }
 
 export interface Player {
-  id: string;
+  id: string; 
   name: string;
   avatar: string;
   cardCount: number;
@@ -112,6 +112,8 @@ export interface UserProfile {
   active_sleeve?: string;
   sfx_enabled?: boolean;
   turbo_enabled?: boolean;
+  sleeve_effects_enabled?: boolean;
+  play_animations_enabled?: boolean;
   undo_count: number;
   finish_dist: number[];
   total_chops: number;

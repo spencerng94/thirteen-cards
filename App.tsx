@@ -14,7 +14,7 @@ import { GameSettings } from './components/GameSettings';
 import { Store } from './components/Store';
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
-import { audioService } from '../services/audio';
+import { audioService } from './services/audio';
 import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -43,6 +43,8 @@ const App: React.FC = () => {
   const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('RED');
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('EMERALD');
   const [spQuickFinish, setSpQuickFinish] = useState(true);
+  const [sleeveEffectsEnabled, setSleeveEffectsEnabled] = useState(true);
+  const [playAnimationsEnabled, setPlayAnimationsEnabled] = useState(true);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('MEDIUM');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -82,6 +84,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleVisibility = () => {
+      if (view === 'WELCOME' && !gameMode) return;
       if (document.visibilityState === 'visible' && gameMode === 'MULTI_PLAYER') {
         if (!socket.connected) {
            connectSocket();
@@ -97,7 +100,7 @@ const App: React.FC = () => {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [gameMode, myPersistentId]);
+  }, [gameMode, myPersistentId, view]);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -141,6 +144,8 @@ const App: React.FC = () => {
       if (data.active_board || data.equipped_board) setBackgroundTheme((data.active_board || data.equipped_board) as BackgroundTheme);
       if (data.sfx_enabled !== undefined) setSoundEnabled(data.sfx_enabled);
       if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
+      if (data.sleeve_effects_enabled !== undefined) setSleeveEffectsEnabled(data.sleeve_effects_enabled);
+      if (data.play_animations_enabled !== undefined) setPlayAnimationsEnabled(data.play_animations_enabled);
       setProfile(data);
     }
     setTimeout(() => { 
@@ -159,6 +164,8 @@ const App: React.FC = () => {
       if (data.active_board) setBackgroundTheme(data.active_board as BackgroundTheme);
       if (data.sfx_enabled !== undefined) setSoundEnabled(data.sfx_enabled);
       if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
+      if (data.sleeve_effects_enabled !== undefined) setSleeveEffectsEnabled(data.sleeve_effects_enabled);
+      if (data.play_animations_enabled !== undefined) setPlayAnimationsEnabled(data.play_animations_enabled);
       initialSyncCompleteRef.current = true;
     }
   }, [isGuest, session]);
@@ -172,18 +179,21 @@ const App: React.FC = () => {
     if (backgroundTheme !== profile.active_board) { updates.active_board = backgroundTheme; updates.equipped_board = backgroundTheme; }
     if (soundEnabled !== profile.sfx_enabled) updates.sfx_enabled = soundEnabled;
     if (spQuickFinish !== profile.turbo_enabled) updates.turbo_enabled = spQuickFinish;
+    if (sleeveEffectsEnabled !== profile.sleeve_effects_enabled) updates.sleeve_effects_enabled = sleeveEffectsEnabled;
+    if (playAnimationsEnabled !== profile.play_animations_enabled) updates.play_animations_enabled = playAnimationsEnabled;
+    
     if (Object.keys(updates).length > 0) {
       updateProfileSettings(userId, updates);
       setProfile(prev => prev ? { ...prev, ...updates } : null);
     }
-  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, session, authChecked, profile, isGuest]);
+  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, session, authChecked, profile, isGuest]);
 
   const handleSignOut = async () => {
     localStorage.removeItem(SESSION_KEY);
     isLoggingOutRef.current = true;
     initialSyncCompleteRef.current = false;
     if (session) await supabase.auth.signOut();
-    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar(':cool:'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); handleExit();
+    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar(':cool:'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setSleeveEffectsEnabled(true); setPlayAnimationsEnabled(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); handleExit();
     setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 
@@ -207,7 +217,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const onGameState = (state: GameState) => {
-      // CRITICAL: Prevent snap-back if user is already trying to go home
       if (view === 'WELCOME' && !gameMode) return;
       
       setMpGameState(state);
@@ -282,7 +291,6 @@ const App: React.FC = () => {
 
       let currentChops = spChops;
       const lastTurn = prev.currentPlayPile[prev.currentPlayPile.length - 1];
-      // Fix: replace '3_PAIRS' with 'BOMB' to correctly match the ComboType union
       if (lastTurn && (getComboType(cards) === 'QUAD' || getComboType(cards) === 'BOMB' || getComboType(cards) === '4_PAIRS') && lastTurn.cards[0].rank === Rank.Two) {
         currentChops++; setSpChops(currentChops);
       }
@@ -308,14 +316,11 @@ const App: React.FC = () => {
           
           const stillPlaying = players.filter(p => !p.finishedRank);
 
-          // Fix: Only Turbo Finish if the PLAYER finishes. 
-          // If a bot finishes, keep playing.
           if (spQuickFinish && pid === 'me') {
              const remainingSorted = [...stillPlaying].sort((a, b) => a.cardCount - b.cardCount);
              const baseRank = finishedPlayers.length;
              remainingSorted.forEach((p, idx) => {
                 const pObj = players.find(pl => pl.id === p.id)!;
-                // Fix: use baseRank to prevent shifting ranks (avoiding 6th place bug)
                 pObj.finishedRank = baseRank + idx + 1;
              });
              finalStatus = GameStatus.FINISHED;
@@ -440,15 +445,10 @@ const App: React.FC = () => {
   };
 
   const handleExit = () => {
-    // 1. Unbind listeners IMMEDIATELY to prevent onGameState re-navigating before closure
     socket.off(SocketEvents.GAME_STATE);
     socket.off(SocketEvents.PLAYER_HAND);
+    if (gameMode === 'MULTI_PLAYER') disconnectSocket();
     
-    if (gameMode === 'MULTI_PLAYER') {
-      disconnectSocket();
-    }
-    
-    // 2. Wipe states
     setGameMode(null); 
     setMpGameState(null); 
     setSpGameState(null); 
@@ -456,24 +456,19 @@ const App: React.FC = () => {
     setSpMyHand([]); 
     localStorage.removeItem(SESSION_KEY);
     
-    // 3. Reset all overlay/modal states to ensure immediate visual return to Home
     setGameSettingsOpen(false);
     setHubState({ open: false, tab: 'PROFILE' });
     setStoreOpen(false);
     setError(null);
 
-    // 4. Navigate home
     setView('WELCOME');
     
-    // 5. Safe non-blocking history update
     setTimeout(() => {
       try {
         if (window.location.search) {
           window.history.replaceState({}, '', window.location.pathname);
         }
-      } catch (e) {
-        // Silently fail if blocked by sandbox
-      }
+      } catch (e) {}
     }, 10);
   };
 
@@ -496,6 +491,8 @@ const App: React.FC = () => {
           cardCoverStyle={cardCoverStyle} setCardCoverStyle={setCardCoverStyle} aiDifficulty={aiDifficulty} setAiDifficulty={setAiDifficulty}
           quickFinish={spQuickFinish} setQuickFinish={setSpQuickFinish} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled}
           backgroundTheme={backgroundTheme} setBackgroundTheme={setBackgroundTheme}
+          sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled}
+          playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled}
           onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={handleRefreshProfile}
           onOpenHub={(tab) => setHubState({ open: true, tab })} onOpenStore={() => setStoreOpen(true)} isGuest={isGuest}
         />
@@ -512,8 +509,11 @@ const App: React.FC = () => {
           onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: currentGameState.roomId, playerId: myPersistentId }) : handleLocalPass('me')}
           cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut}
           backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'}
-          spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} aiDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty}
-          soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} onOpenSettings={() => setGameSettingsOpen(true)} profile={profile}
+          spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} 
+          currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty}
+          soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} 
+          playAnimationsEnabled={playAnimationsEnabled}
+          onOpenSettings={() => setGameSettingsOpen(true)} profile={profile}
         />
       )}
 
@@ -539,6 +539,8 @@ const App: React.FC = () => {
           onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle}
           currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish}
           setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled}
+          sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled}
+          playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled}
         />
       )}
 

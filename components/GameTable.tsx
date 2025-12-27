@@ -25,10 +25,11 @@ interface GameTableProps {
   isSinglePlayer?: boolean;
   spQuickFinish?: boolean;
   setSpQuickFinish?: (val: boolean) => void;
-  aiDifficulty?: AiDifficulty;
+  currentDifficulty?: AiDifficulty;
   onChangeDifficulty?: (d: AiDifficulty) => void;
   soundEnabled: boolean;
   setSoundEnabled: (val: boolean) => void;
+  playAnimationsEnabled?: boolean;
   onOpenSettings: () => void;
   profile?: UserProfile | null;
 }
@@ -69,7 +70,7 @@ const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
   );
 };
 
-const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime }) => {
+const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; sleeveEffectsEnabled?: boolean }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, sleeveEffectsEnabled }) => {
   const isFinished = !!player.finishedRank;
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -139,7 +140,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
 
         {!isFinished && position !== 'bottom' && (
             <div className={`relative animate-in slide-in-from-bottom-2 duration-700 shrink-0 transition-transform landscape:scale-[0.85]`}>
-                <Card faceDown coverStyle={coverStyle} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" />
+                <Card faceDown coverStyle={coverStyle} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" disableEffects={!sleeveEffectsEnabled} />
                 <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ring-1 ring-yellow-400/50">
                     {player.cardCount}
                 </div>
@@ -223,7 +224,7 @@ const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'b
 };
 
 export const GameTable: React.FC<GameTableProps> = ({ 
-  gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile
+  gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showEmotePicker, setShowEmotePicker] = useState(false);
@@ -240,6 +241,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   const me = gameState.players.find(p => p.id === myId);
   const isFinished = !!me?.finishedRank;
   const isLeader = !gameState.currentPlayPile || gameState.currentPlayPile.length === 0;
+  const sleeveEffectsEnabled = profile?.sleeve_effects_enabled !== false;
 
   // Auto-reset hand layout when turn ends
   useEffect(() => {
@@ -255,7 +257,6 @@ export const GameTable: React.FC<GameTableProps> = ({
       setShowBombEffect(true);
       setIsShaking(true);
       audioService.playBomb();
-      // Use a reference to ensure the hide effect only happens if we don't clear it
       const t1 = setTimeout(() => setShowBombEffect(false), 3000);
       const t2 = setTimeout(() => setIsShaking(false), 500);
       return () => { 
@@ -263,7 +264,6 @@ export const GameTable: React.FC<GameTableProps> = ({
         clearTimeout(t2); 
       };
     } else {
-      // If the last move is NOT a bomb, make sure the effect is hidden
       setShowBombEffect(false);
     }
   }, [lastMove?.cards.length, lastMove?.playerId, lastMove?.comboType]);
@@ -336,7 +336,6 @@ export const GameTable: React.FC<GameTableProps> = ({
     const res = validateMove(cards, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame, myHand);
     if (res.isValid) { 
       onPlayCards(cards); 
-      // State reset handled by isMyTurn effect
     } 
   };
 
@@ -360,7 +359,6 @@ export const GameTable: React.FC<GameTableProps> = ({
     if (targetIndex !== -1) {
       targetIndex = (targetIndex + 1) % list.length;
     } else {
-      // Always start with the first item in the list (usually the shortest length)
       targetIndex = 0;
     }
     
@@ -385,8 +383,25 @@ export const GameTable: React.FC<GameTableProps> = ({
   const leftOpponent = opponents.find(o => o.position === 'left');
   const rightOpponent = opponents.find(o => o.position === 'right');
 
-  // Specific check for the 3 of Spades message
   const iHave3Spades = useMemo(() => myHand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades), [myHand]);
+
+  // Determine the station that played the last move
+  const lastMovePlayerPosition = useMemo(() => {
+    if (!lastMove) return null;
+    const idx = gameState.players.findIndex(p => p.id === lastMove.playerId);
+    return getPlayerPosition(idx);
+  }, [lastMove, gameState.players, myIndex]);
+
+  const arrivalAnimationClass = useMemo(() => {
+    if (!lastMovePlayerPosition || !playAnimationsEnabled) return '';
+    switch(lastMovePlayerPosition) {
+        case 'bottom': return 'animate-play-from-bottom';
+        case 'top': return 'animate-play-from-top';
+        case 'left': return 'animate-play-from-left';
+        case 'right': return 'animate-play-from-right';
+        default: return '';
+    }
+  }, [lastMovePlayerPosition, playAnimationsEnabled]);
 
   return (
     <div className={`fixed inset-0 w-full h-full bg-[#030303] overflow-hidden select-none ${isShaking ? 'animate-shake' : ''}`}>
@@ -434,29 +449,40 @@ export const GameTable: React.FC<GameTableProps> = ({
       {/* Opponent Grid */}
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
         <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8' : ''}`}>
-          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}
+          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
         </div>
         
         <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-150 ease-[0.2,0,0,1] ${isMyTurn ? 'portrait:-translate-y-32' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16' : '')}`}>
-          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}
+          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
         </div>
         
         <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''}`}>
-          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} />)}
+          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
         </div>
       </div>
 
       <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-in-out ${isMyTurn ? 'portrait:-translate-y-28' : 'portrait:-translate-y-12'}`}>
         <div className="relative flex flex-col items-center">
           {lastMove ? (
-            <div className="flex flex-col items-center gap-6 animate-in zoom-in duration-300 scale-90 sm:scale-125 landscape:scale-[0.8]">
+            <div 
+              key={lastMove.playerId + lastMove.cards.map(c => c.id).join('')}
+              className={`flex flex-col items-center gap-6 scale-90 sm:scale-125 landscape:scale-[0.8] ${arrivalAnimationClass}`}
+            >
                <div className="flex -space-x-12">
                 {lastMove.cards.map((c, i) => (
-                  <div key={c.id} style={{ transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})` }}>
+                  <div 
+                    key={c.id} 
+                    style={{ 
+                        transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})`,
+                        animationDelay: playAnimationsEnabled ? `${i * 0.05}s` : '0s'
+                    } as any}
+                    className={playAnimationsEnabled ? "animate-play-bounce" : ""}
+                  >
                     <Card 
                       card={c} 
                       coverStyle={lastMove.playerId === myId ? cardCoverStyle : 'BLUE'} 
                       className="shadow-2xl ring-1 ring-white/10" 
+                      disableEffects={!sleeveEffectsEnabled}
                     />
                   </div>
                 ))}
@@ -482,11 +508,10 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
 
         <div className="relative w-full flex flex-col items-center">
-            {/* Local player profile - Positioned on the left above actions */}
             <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-500 
                 ${isMyTurn ? '-top-[95px]' : (isFinished ? '-top-[55px]' : 'top-20 opacity-0')}`}>
               {me && (
-                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} />
+                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} sleeveEffectsEnabled={sleeveEffectsEnabled} />
               )}
             </div>
 
@@ -542,6 +567,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                 coverStyle={cardCoverStyle}
                 selected={selectedCardIds.has(c.id)} 
                 onClick={() => toggleCard(c.id)} 
+                disableEffects={!sleeveEffectsEnabled}
                 className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''}`} 
               />
             ))}
@@ -560,9 +586,36 @@ export const GameTable: React.FC<GameTableProps> = ({
         @keyframes fadeInLabel { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
         @keyframes shake { 0%, 100% { transform: translate(0,0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-10px, -10px); } 20%, 40%, 60%, 80% { transform: translate(10px, 10px); } } 
         .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
-        .animate-bomb-flash { animation: bombFlash 3s ease-out forwards; }
-        .animate-bomb-text { animation: bombText 3s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
-        .animate-bomb-explosion { animation: bombExplosion 3s ease-out forwards; }
+        
+        /* New Organic Play Animations */
+        @keyframes playFromBottom {
+          0% { transform: translateY(50vh) rotate(15deg) scale(0.5); opacity: 0; filter: blur(15px); }
+          100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
+        }
+        @keyframes playFromTop {
+          0% { transform: translateY(-50vh) rotate(-15deg) scale(0.5); opacity: 0; filter: blur(15px); }
+          100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
+        }
+        @keyframes playFromLeft {
+          0% { transform: translateX(-50vw) rotate(-90deg) scale(0.5); opacity: 0; filter: blur(15px); }
+          100% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
+        }
+        @keyframes playFromRight {
+          0% { transform: translateX(50vw) rotate(90deg) scale(0.5); opacity: 0; filter: blur(15px); }
+          100% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
+        }
+        @keyframes playBounce {
+          0% { transform: scale(0.8); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+
+        .animate-play-from-bottom { animation: playFromBottom 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .animate-play-from-top { animation: playFromTop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .animate-play-from-left { animation: playFromLeft 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .animate-play-from-right { animation: playFromRight 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .animate-play-bounce { animation: playBounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
       ` }} />
     </div>
   );

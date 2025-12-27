@@ -123,6 +123,8 @@ export const fetchGuestProfile = (): UserProfile => {
     unlocked_avatars: [...DEFAULT_AVATARS],
     unlocked_boards: ['EMERALD'],
     avatar_url: ':cool:',
+    sleeve_effects_enabled: true,
+    play_animations_enabled: true,
     undo_count: 0,
     finish_dist: [0,0,0,0],
     total_chops: 0,

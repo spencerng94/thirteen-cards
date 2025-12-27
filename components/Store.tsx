@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardCoverStyle } from './Card';
-import { UserProfile, BackgroundTheme, Emote } from '../types';
+import { UserProfile, BackgroundTheme, Emote, Rank, Suit, Card as CardType } from '../types';
 import { buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
@@ -30,7 +30,7 @@ interface StoreItem {
   description: string;
 }
 
-const SLEEVES: StoreItem[] = [
+export const SLEEVES: StoreItem[] = [
   { id: 'BLUE', name: 'Imperial Blue', price: 0, type: 'SLEEVE', style: 'BLUE', description: 'Standard navy finish.' },
   { id: 'RED', name: 'Dynasty Red', price: 0, type: 'SLEEVE', style: 'RED', description: 'Lustrous red finish.' },
   { id: 'PATTERN', name: 'Golden Lattice', price: 250, type: 'SLEEVE', style: 'PATTERN', description: 'Traditional geometric.' },
@@ -44,7 +44,162 @@ const SLEEVES: StoreItem[] = [
   { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, type: 'SLEEVE', style: 'AMETHYST_ROYAL', description: 'Velvet silk with silver filigree.' },
   { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, type: 'SLEEVE', style: 'CHERRY_BLOSSOM_NOIR', description: 'Obsidian wood with glowing blossoms.' },
   { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, type: 'SLEEVE', style: 'AETHER_VOID', description: 'Legendary clash of celestial light and eternal darkness.' },
+  { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 25000, type: 'SLEEVE', style: 'DIVINE_ROYAL', description: 'Super prestige ivory parchment with animated celestial aura.' },
 ];
+
+export const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
+  'ROYAL_JADE', 'CRYSTAL_EMERALD', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 
+  'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 
+  'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID'
+];
+
+export const SUPER_PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
+  'DIVINE_ROYAL'
+];
+
+/**
+ * Static hand for previewing: 3 to 2, alternating suits
+ */
+const PREVIEW_HAND: CardType[] = [
+  { rank: Rank.Three, suit: Suit.Spades, id: 'p1' },
+  { rank: Rank.Four, suit: Suit.Clubs, id: 'p2' },
+  { rank: Rank.Five, suit: Suit.Diamonds, id: 'p3' },
+  { rank: Rank.Six, suit: Suit.Hearts, id: 'p4' },
+  { rank: Rank.Seven, suit: Suit.Spades, id: 'p5' },
+  { rank: Rank.Eight, suit: Suit.Clubs, id: 'p6' },
+  { rank: Rank.Nine, suit: Suit.Diamonds, id: 'p7' },
+  { rank: Rank.Ten, suit: Suit.Hearts, id: 'p8' },
+  { rank: Rank.Jack, suit: Suit.Spades, id: 'p9' },
+  { rank: Rank.Queen, suit: Suit.Clubs, id: 'p10' },
+  { rank: Rank.King, suit: Suit.Diamonds, id: 'p11' },
+  { rank: Rank.Ace, suit: Suit.Hearts, id: 'p12' },
+  { rank: Rank.Two, suit: Suit.Spades, id: 'p13' },
+];
+
+export const SleeveArenaPreview: React.FC<{ 
+  sleeveStyle: CardCoverStyle; 
+  themeId: BackgroundTheme; 
+  onClose: () => void;
+  sleeveEffectsEnabled?: boolean;
+}> = ({ sleeveStyle, themeId, onClose, sleeveEffectsEnabled = true }) => {
+  const isPrestige = PRESTIGE_SLEEVE_IDS.includes(sleeveStyle);
+  const isSuperPrestige = SUPER_PRESTIGE_SLEEVE_IDS.includes(sleeveStyle);
+  
+  return (
+    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={onClose}>
+      <BoardSurface themeId={themeId} />
+
+      <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header Navigation */}
+        <div className="p-4 sm:p-8 flex justify-between items-start">
+            <div className="flex flex-col">
+              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-[0.2em] drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] font-serif uppercase italic leading-none">ARENA PREVIEW</h1>
+              <div className="flex items-center gap-3 mt-2">
+                <span className={`w-2 h-2 rounded-full ${isSuperPrestige ? 'bg-yellow-400' : isPrestige ? 'bg-yellow-500' : 'bg-emerald-500'} animate-pulse`}></span>
+                <p className={`text-[8px] sm:text-[10px] font-black ${isSuperPrestige ? 'text-yellow-400' : isPrestige ? 'text-yellow-500' : 'text-emerald-500'} uppercase tracking-[0.6em] drop-shadow-md whitespace-nowrap`}>
+                    {sleeveStyle.replace('_', ' ')} {isSuperPrestige ? 'Celestial Divine' : 'Tactile Visual'}
+                </p>
+              </div>
+            </div>
+            
+            <button 
+              onClick={onClose} 
+              className="group flex items-center gap-2 sm:gap-4 px-4 py-2 sm:px-6 sm:py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10 transition-all duration-300 shadow-[0_15px_30px_rgba(0,0,0,0.6)] active:scale-95"
+            >
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em]">Exit</span>
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition-colors">
+                <span className="text-[10px] sm:text-xs font-black group-hover:rotate-90 transition-transform">✕</span>
+              </div>
+            </button>
+        </div>
+
+        {/* Tactical Battlefield Render */}
+        <div className="flex-1 relative flex flex-col items-center justify-between py-24 sm:py-32">
+            
+            {/* Mirrored Opponent Hand (Face Down) - Scaled for Mobile */}
+            <div className="relative w-full flex justify-center perspective-[2000px]">
+                {PREVIEW_HAND.map((card, i) => {
+                    const total = PREVIEW_HAND.length;
+                    const mid = (total - 1) / 2;
+                    const offset = i - mid;
+                    const rotation = offset * 2.5; 
+                    const translateY = Math.abs(offset) * 3; 
+
+                    return (
+                      <div 
+                        key={`opp-${card.id}`}
+                        className="absolute transition-all duration-700 ease-out animate-in slide-in-from-top-12 fade-in"
+                        style={{ 
+                          // Using a smaller step for mobile to prevent off-screen bleed
+                          transform: `translateX(calc(var(--step) * ${offset})) translateY(${translateY}px) rotate(${-rotation}deg)`,
+                          zIndex: i,
+                          animationDelay: `${i * 30}ms`,
+                          '--step': 'clamp(14px, 4.5vw, 42px)'
+                        } as any}
+                      >
+                        <Card 
+                          faceDown 
+                          coverStyle={sleeveStyle} 
+                          className="!w-16 !h-24 sm:!w-24 sm:!h-36 md:!w-32 md:!h-48 ring-1 ring-white/10 opacity-60" 
+                          disableEffects={!sleeveEffectsEnabled} 
+                        />
+                      </div>
+                    );
+                })}
+            </div>
+
+            {/* Static Message Area */}
+            <div className="z-[100] flex flex-col items-center text-center px-6">
+                <div className="h-[1px] w-24 sm:w-48 bg-gradient-to-r from-transparent via-white/20 to-transparent mb-4"></div>
+                {!sleeveEffectsEnabled && (isPrestige || isSuperPrestige) && (
+                    <div className="bg-rose-600/20 backdrop-blur-md border border-rose-500/40 px-6 py-2 rounded-full animate-pulse">
+                        <p className="text-[7px] sm:text-[9px] font-black text-rose-500 uppercase tracking-[0.2em]">
+                            Visual FX Disabled in Settings
+                        </p>
+                    </div>
+                )}
+                <div className="h-[1px] w-24 sm:w-48 bg-gradient-to-r from-transparent via-white/20 to-transparent mt-4"></div>
+            </div>
+
+            {/* Player Hand (Face Up) - High Precision Alignment */}
+            <div className="relative w-full flex justify-center perspective-[2000px]">
+                {PREVIEW_HAND.map((card, i) => {
+                    const total = PREVIEW_HAND.length;
+                    const mid = (total - 1) / 2;
+                    const offset = i - mid;
+                    const rotation = offset * 3; 
+                    const translateY = -Math.abs(offset) * 4; 
+
+                    return (
+                      <div 
+                        key={`player-${card.id}`}
+                        className="absolute transition-all duration-700 ease-out animate-in slide-in-from-bottom-12 fade-in shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+                        style={{ 
+                          transform: `translateX(calc(var(--step) * ${offset})) translateY(${translateY}px) rotate(${rotation}deg)`,
+                          zIndex: i,
+                          animationDelay: `${(total - i) * 30}ms`,
+                          '--step': 'clamp(18px, 5.5vw, 55px)'
+                        } as any}
+                      >
+                        <Card 
+                          card={card} 
+                          coverStyle={sleeveStyle} 
+                          className="!w-20 !h-28 sm:!w-28 sm:!h-40 md:!w-40 md:!h-60 ring-2 ring-white/5" 
+                          disableEffects={!sleeveEffectsEnabled} 
+                        />
+                      </div>
+                    );
+                })}
+            </div>
+        </div>
+
+        <div className="p-6 sm:p-12 flex flex-col items-center gap-2 bg-gradient-to-t from-black/60 to-transparent">
+            <p className="text-[7px] sm:text-[9px] font-black text-white/30 uppercase tracking-[1em] text-center">Tactical Interface Fully Rendered</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => void }> = ({ themeId, onClose }) => {
   const theme = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
@@ -108,6 +263,7 @@ export const Store: React.FC<StoreProps> = ({
   const [activeTab, setActiveTab] = useState<'SLEEVES' | 'AVATARS' | 'BOARDS'>(initialTab as any);
   const [buying, setBuying] = useState<string | null>(null);
   const [previewThemeId, setPreviewThemeId] = useState<BackgroundTheme | null>(null);
+  const [previewSleeveStyle, setPreviewSleeveStyle] = useState<CardCoverStyle | null>(null);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [density, setDensity] = useState<1 | 2 | 4>(2);
   const [hideOwned, setHideOwned] = useState(false);
@@ -182,8 +338,11 @@ export const Store: React.FC<StoreProps> = ({
     const visualSize = density === 4 ? 'scale-100' : density === 2 ? 'scale-100' : 'scale-110';
     const nameSize = density === 4 ? 'text-[7px]' : 'text-[9px] sm:text-[10px]';
 
+    const isPrestigeSleeve = !isAvatar && !isBoard && PRESTIGE_SLEEVE_IDS.includes(item.style);
+    const isSuperPrestigeSleeve = !isAvatar && !isBoard && SUPER_PRESTIGE_SLEEVE_IDS.includes(item.style);
+
     return (
-      <div key={id} onClick={() => isAvatar ? setPreviewAvatar(item) : null} className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl ${isAvatar ? 'cursor-pointer' : ''}`}>
+      <div key={id} onClick={() => isAvatar ? setPreviewAvatar(item) : isBoard ? setPreviewThemeId(item.id) : setPreviewSleeveStyle(item.style)} className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl cursor-pointer`}>
         <div className="absolute top-2.5 right-2.5 z-10">
           {unlocked && isEquipped && (
             <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] sm:text-[8px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>
@@ -199,11 +358,23 @@ export const Store: React.FC<StoreProps> = ({
                <VisualEmote trigger={item} remoteEmotes={remoteEmotes} size="lg" />
             </div>
           ) : isBoard ? (
-            <div className="w-full cursor-pointer" onClick={() => setPreviewThemeId(item.id)}>
+            <div className="w-full">
               <BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker={true} />
             </div>
           ) : (
-           <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-16 !h-24' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />
+           <div className="relative group/card">
+              <Card faceDown coverStyle={item.style} className={`${density === 4 ? '!w-16 !h-24' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />
+              {isPrestigeSleeve && !isSuperPrestigeSleeve && (
+                <div className="absolute -top-1.5 -left-1.5 bg-black/80 rounded-full w-5 h-5 flex items-center justify-center border border-yellow-500/40 shadow-[0_0_10px_rgba(234,179,8,0.4)] z-20 group-hover/card:scale-110 transition-transform">
+                  <span className="text-yellow-500 text-[10px] font-black drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]">♠</span>
+                </div>
+              )}
+              {isSuperPrestigeSleeve && (
+                <div className="absolute -top-2 -left-2 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-[0_0_15px_rgba(234,179,8,0.8)] z-20 group-hover/card:scale-110 transition-transform animate-pulse">
+                  <span className="text-white text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">♥</span>
+                </div>
+              )}
+           </div>
           )}
         </div>
 
@@ -242,6 +413,7 @@ export const Store: React.FC<StoreProps> = ({
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
       {previewThemeId && <DummyTablePreview themeId={previewThemeId} onClose={() => setPreviewThemeId(null)} />}
+      {previewSleeveStyle && <SleeveArenaPreview sleeveStyle={previewSleeveStyle} themeId={currentTheme} sleeveEffectsEnabled={profile?.sleeve_effects_enabled !== false} onClose={() => setPreviewSleeveStyle(null)} />}
       
       {/* AVATAR PREVIEW MODAL */}
       {previewAvatar && (
