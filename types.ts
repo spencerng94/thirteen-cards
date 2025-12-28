@@ -64,9 +64,8 @@ export interface GameState {
   winnerId: string | null;
   finishedPlayers: string[];
   isFirstTurnOfGame?: boolean;
-  turnEndTime?: number; // Server timestamp when current turn expires
-  turnDuration?: number; // Seconds (0, 30, 60, 90)
-  // New Room Attributes
+  turnEndTime?: number; 
+  turnDuration?: number; 
   isPublic?: boolean;
   roomName?: string;
 }
@@ -75,7 +74,7 @@ export enum SocketEvents {
   CREATE_ROOM = 'create_room',
   JOIN_ROOM = 'join_room',
   RECONNECT = 'reconnect_session',
-  REQUEST_SYNC = 'request_sync', // New: Request hard state refresh
+  REQUEST_SYNC = 'request_sync',
   ADD_BOT = 'add_bot',
   REMOVE_BOT = 'remove_bot',
   START_GAME = 'start_game',
@@ -115,13 +114,21 @@ export interface UserProfile {
   turbo_enabled?: boolean;
   sleeve_effects_enabled?: boolean;
   play_animations_enabled?: boolean;
-  turn_timer_setting: number; // 0, 30, 60, 90
+  turn_timer_setting: number; 
   undo_count: number;
   finish_dist: number[];
   total_chops: number;
   total_cards_left_sum: number;
   current_streak: number;
   longest_streak: number;
+  created_at?: string;
+  last_daily_claim?: string;
+  event_stats?: {
+    daily_games_played: number;
+    daily_wins: number;
+    new_player_login_days: number;
+    claimed_events: string[]; // List of IDs
+  };
 }
 
 export type HubTab = 'PROFILE' | 'CUSTOMIZE' | 'STATS' | 'LEVEL_REWARDS';

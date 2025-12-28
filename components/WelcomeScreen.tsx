@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -5,11 +6,11 @@ import { AiDifficulty, UserProfile, BackgroundTheme, Emote, Rank, Suit, HubTab }
 import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
-// Import corrected: SleeveArenaPreview moved to Store.tsx
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { SleeveArenaPreview, SUPER_PRESTIGE_SLEEVE_IDS, SLEEVES as ALL_STORE_SLEEVES, SOVEREIGN_IDS } from './Store';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
+import { EventsModal } from './EventsModal';
 
 export type WelcomeTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
 
@@ -160,6 +161,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [previewSleeveStyle, setPreviewSleeveStyle] = useState<CardCoverStyle | null>(null);
   const [previewThemeId, setPreviewThemeId] = useState<BackgroundTheme | null>(null);
   const [density, setDensity] = useState<1 | 2 | 4>(2);
+  const [eventsOpen, setEventsOpen] = useState(false);
 
   const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
@@ -586,15 +588,37 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
       )}
 
-      <div className="fixed top-8 left-8 z-[100] animate-in slide-in-from-left-2 fade-in duration-700 flex flex-col items-center gap-1.5">
-        <button 
-          onClick={onOpenStore}
-          className="group relative w-12 h-12 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center shadow-2xl transition-all duration-500 hover:scale-110 active:scale-95"
-        >
-          <div className="absolute inset-0 bg-yellow-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <span className="text-xl group-hover:rotate-12 transition-transform duration-300">🏪</span>
-        </button>
-        <span className="text-[9px] font-black uppercase text-yellow-500/70 tracking-[0.2em] drop-shadow-sm">SHOP</span>
+      {eventsOpen && (
+        <EventsModal 
+          onClose={() => setEventsOpen(false)} 
+          profile={profile} 
+          onRefreshProfile={onRefreshProfile}
+          isGuest={isGuest}
+        />
+      )}
+
+      <div className="fixed top-8 left-8 z-[100] animate-in slide-in-from-left-2 fade-in duration-700 flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-1.5">
+          <button 
+            onClick={onOpenStore}
+            className="group relative w-12 h-12 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center shadow-2xl transition-all duration-500 hover:scale-110 active:scale-95"
+          >
+            <div className="absolute inset-0 bg-yellow-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <span className="text-xl group-hover:rotate-12 transition-transform duration-300">🏪</span>
+          </button>
+          <span className="text-[9px] font-black uppercase text-yellow-500/70 tracking-[0.2em] drop-shadow-sm">SHOP</span>
+        </div>
+
+        <div className="flex flex-col items-center gap-1.5">
+          <button 
+            onClick={() => setEventsOpen(true)}
+            className="group relative w-12 h-12 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center shadow-2xl transition-all duration-500 hover:scale-110 active:scale-95"
+          >
+            <div className="absolute inset-0 bg-emerald-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <span className="text-xl group-hover:scale-110 transition-transform duration-300">📅</span>
+          </button>
+          <span className="text-[9px] font-black uppercase text-emerald-500/70 tracking-[0.2em] drop-shadow-sm">EVENTS</span>
+        </div>
       </div>
 
       <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-right-2 fade-in duration-700 pointer-events-none">
