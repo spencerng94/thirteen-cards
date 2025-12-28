@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
-/* Added sovereign styles to fix type errors in Store.tsx */
-export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR' | 'AETHER_VOID' | 'DIVINE_ROYAL' | 'EMPERORS_HUBRIS' | 'WITS_END' | 'SOVEREIGN_SPADE' | 'SOVEREIGN_CLUB' | 'SOVEREIGN_DIAMOND' | 'SOVEREIGN_HEART';
+/* Added ROYAL_CROSS to CardCoverStyle */
+export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR' | 'AETHER_VOID' | 'DIVINE_ROYAL' | 'EMPERORS_HUBRIS' | 'WITS_END' | 'SOVEREIGN_SPADE' | 'SOVEREIGN_CLUB' | 'SOVEREIGN_DIAMOND' | 'SOVEREIGN_HEART' | 'ROYAL_CROSS';
 
 interface CardProps {
   card?: CardType;
@@ -64,7 +65,14 @@ const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit, disableEf
   }
 
   switch (style) {
-    /* Sovereign face themes */
+    case 'ROYAL_CROSS':
+      bg = 'bg-gradient-to-br from-[#000000] via-[#111111] to-[#050505]';
+      border = 'border-white/40 shadow-[inset_0_0_20px_rgba(255,255,255,0.2)]';
+      textColor = isRedSuit ? 'text-rose-100' : 'text-white';
+      symbolColor = isRedSuit ? 'text-rose-500' : 'text-slate-100';
+      innerGlow = 'shadow-[inset_0_0_30px_rgba(255,255,255,0.1)]';
+      fontClass = 'font-serif font-black italic';
+      break;
     case 'SOVEREIGN_SPADE':
       bg = 'bg-[#020617]';
       border = 'border-indigo-500/40';
@@ -233,6 +241,32 @@ export const Card: React.FC<CardProps> = ({
     );
 
     switch (coverStyle) {
+        case 'ROYAL_CROSS':
+            bgClass = 'bg-gradient-to-br from-[#000000] via-[#111111] to-[#000000]';
+            borderClass = 'border-white shadow-[0_0_40px_rgba(255,255,255,0.5),inset_0_0_10px_rgba(255,255,255,0.3)]';
+            metallicReflect = "bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.3)_0%,transparent_70%)]";
+            specialAnimation = "animate-royal-glow";
+            patternContent = (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="relative group/royal">
+                  <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)] fill-white opacity-100">
+                    {/* Crown + Cross Motif */}
+                    <path d="M50 20 L55 35 L70 35 L60 45 L65 60 L50 50 L35 60 L40 45 L30 35 L45 35 Z" opacity="0.8" />
+                    <path d="M48 10 H52 V80 H48 Z" />
+                    <path d="M20 42 H80 V46 H20 Z" />
+                    <circle cx="50" cy="45" r="12" fill="none" stroke="white" strokeWidth="2" />
+                  </svg>
+                  {!disableEffects && (
+                    <div className="absolute inset-[-30px]">
+                      <div className="absolute top-1/2 left-1/2 w-6 h-6 bg-white rounded-full blur-2xl animate-pulse"></div>
+                      <div className="absolute top-1/2 left-1/2 w-48 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent -translate-x-1/2 rotate-90"></div>
+                      <div className="absolute top-1/2 left-1/2 w-48 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent -translate-x-1/2"></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+            break;
         case 'SOVEREIGN_SPADE':
             bgClass = 'bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-black';
             borderClass = 'border-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.4)]';
@@ -533,7 +567,7 @@ export const Card: React.FC<CardProps> = ({
             <div className="absolute inset-1 border border-white/10 rounded-lg pointer-events-none"></div>
             <div className="w-[88%] h-[88%] border border-white/5 rounded-lg flex items-center justify-center overflow-hidden relative">
                 {patternContent}
-                <div className={`absolute inset-0 ${metallicReflect} ${coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END' ? '' : '-translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out'}`}></div>
+                <div className={`absolute inset-0 ${metallicReflect} ${coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END' || coverStyle === 'ROYAL_CROSS' ? '' : '-translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out'}`}></div>
                 <div className="w-8 h-12 bg-white/5 rounded-full blur-xl transform rotate-45 group-hover:bg-white/10 transition-colors"></div>
             </div>
             <style dangerouslySetInnerHTML={{ __html: `
@@ -541,6 +575,11 @@ export const Card: React.FC<CardProps> = ({
                     0% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
                     50% { transform: translateY(-5px); filter: drop-shadow(0 25px 40px rgba(234,179,8,0.5)); }
                     100% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
+                }
+                @keyframes royalGlow {
+                    0% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(255,255,255,0.4)); }
+                    50% { transform: scale(1.03); filter: drop-shadow(0 0 30px rgba(255,255,255,0.7)); }
+                    100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(255,255,255,0.4)); }
                 }
                 @keyframes etherealPulse {
                     0% { transform: translateY(0) scale(1); filter: drop-shadow(0 5px 15px rgba(168,85,247,0.4)); }
@@ -562,6 +601,7 @@ export const Card: React.FC<CardProps> = ({
                   100% { transform: translateX(150%) skewX(-15deg); }
                 }
                 .animate-divine-aura { animation: divineAura 4s ease-in-out infinite; }
+                .animate-royal-glow { animation: royalGlow 5s ease-in-out infinite; }
                 .animate-ethereal-pulse { animation: etherealPulse 5s ease-in-out infinite; }
                 .animate-smoke-puff { animation: smokePuff 1.5s ease-out infinite; }
                 .animate-ethereal-float { 
@@ -593,7 +633,7 @@ export const Card: React.FC<CardProps> = ({
           ? '-translate-y-16 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-40 scale-[1.05]' 
           : 'shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:-translate-y-6 hover:rotate-2 hover:shadow-[0_25px_50px_rgba(0,0,0,0.45)] hover:z-30'}
         ${innerGlow}
-        ${((coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END')) && !disableEffects ? (coverStyle === 'WITS_END' ? 'animate-ethereal-pulse' : 'animate-divine-aura') : ''}
+        ${((coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END' || coverStyle === 'ROYAL_CROSS')) && !disableEffects ? (coverStyle === 'WITS_END' ? 'animate-ethereal-pulse' : coverStyle === 'ROYAL_CROSS' ? 'animate-royal-glow' : 'animate-divine-aura') : ''}
         ${className}
         transition-all duration-200 ease-out
         group

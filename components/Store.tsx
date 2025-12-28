@@ -59,12 +59,13 @@ export const SLEEVES: StoreItem[] = [
   { id: 'SOVEREIGN_DIAMOND', name: 'Sovereign Diamond', price: -1, tier: 'LEGENDARY', type: 'SLEEVE', style: 'SOVEREIGN_DIAMOND', description: 'Legendary diamond signature. Claim at Level 30.' },
 
   // MYTHIC (Hearts Theme)
+  { id: 'ROYAL_CROSS', name: 'Royal Cross', price: 45000, tier: 'MYTHIC', type: 'SLEEVE', style: 'ROYAL_CROSS', description: 'Monochrome excellence. Sacred geometry of the true king.' },
   { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 50000, tier: 'MYTHIC', type: 'SLEEVE', style: 'EMPERORS_HUBRIS', description: 'Liquid gold with an embossed dragon.' },
   { id: 'GOLDEN_IMPERIAL', name: 'Sun King', price: 75000, tier: 'MYTHIC', type: 'SLEEVE', style: 'GOLDEN_IMPERIAL', description: '24-karat polished gold leafing.' },
   { id: 'SOVEREIGN_HEART', name: 'Sovereign Heart', price: -1, tier: 'MYTHIC', type: 'SLEEVE', style: 'SOVEREIGN_HEART', description: 'Legendary heart signature. Claim at Level 40.' },
 ];
 
-export const SUPER_PRESTIGE_SLEEVE_IDS = ['SOVEREIGN_HEART', 'AETHER_VOID', 'WITS_END', 'EMPERORS_HUBRIS', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR'];
+export const SUPER_PRESTIGE_SLEEVE_IDS = ['ROYAL_CROSS', 'SOVEREIGN_HEART', 'AETHER_VOID', 'WITS_END', 'EMPERORS_HUBRIS', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR'];
 
 export const TIER_COLORS: Record<string, string> = {
   COMMON: 'text-white border-white/20 bg-white/5',
@@ -86,7 +87,7 @@ const TIER_INFO_DATA = [
   { id: 'RARE', name: 'Rare', colors: 'Blue', vibe: 'Slight metallic sheen, clean lines.', perception: "I'm not a noob anymore.", suit: 'Spades ♠', items: ['Royal Amethyst', 'Void Walker', 'Neon Circuit', 'Sovereign Spade'] },
   { id: 'EPIC', name: 'Epic', colors: 'Purple', vibe: 'Glowing edges, subtle patterns.', perception: 'This looks high-quality.', suit: 'Clubs ♣', items: ['Sakura Noir', 'Dragon Skin', 'Crystal Gem', 'Pixel Lights', 'Sovereign Club'] },
   { id: 'LEGENDARY', name: 'Legendary', colors: 'Orange / Gold', vibe: 'Animated effects, gold foil, 3D depth.', perception: 'This looks like limited edition.', suit: 'Diamonds ♦', items: ['Aether Noir', "Wit's End", 'Imperial Jade', 'Divine Royal', 'Sovereign Diamond'] },
-  { id: 'MYTHIC', name: 'Mythic', colors: 'Red / Prismatic', vibe: 'Particle effects, changing colors, unique frames.', perception: 'I am the King of this game.', suit: 'Hearts ♥', items: ["Emperor's Hubris", 'Sun King', 'Sovereign Heart'] },
+  { id: 'MYTHIC', name: 'Mythic', colors: 'Red / Prismatic', vibe: 'Particle effects, changing colors, unique frames.', perception: 'I am the King of this game.', suit: 'Hearts ♥', items: ['Royal Cross', "Emperor's Hubris", 'Sun King', 'Sovereign Heart'] },
 ];
 
 const PREVIEW_HAND: CardType[] = [
@@ -376,14 +377,25 @@ export const Store: React.FC<StoreProps> = ({
         }} 
         className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl cursor-pointer`}
       >
-        <div className="absolute top-2.5 left-2.5 z-10 flex flex-col items-start gap-2">
-          {unlocked && isEquipped && (
-            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] sm:text-[8px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>
-          )}
-          {!isAvatar && !isBoard && tier !== 'COMMON' && (
+        {/* Tier/Suit Icon Overlay (Top-Left) */}
+        {!isAvatar && !isBoard && tier !== 'COMMON' && (
+          <div className="absolute top-2.5 left-2.5 z-20">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black border shadow-[0_0_10px_rgba(0,0,0,0.5)] ${TIER_COLORS[tier]}`}>
               {TIER_SUIT_MAP[tier]}
             </div>
+          </div>
+        )}
+
+        {/* Equipped Status Overlay (Top-Right) */}
+        <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-end gap-2">
+          {unlocked && isEquipped && (
+            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] sm:text-[8px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>
+          )}
+          {!unlocked && !isEventReward && !isAvatar && (
+            <div className="px-1.5 py-0.5 bg-black/60 text-yellow-500 text-[7px] font-black rounded-full border border-white/10">💰 {price}</div>
+          )}
+          {!unlocked && isEventReward && (
+            <div className="px-1.5 py-0.5 bg-black/60 text-yellow-500 text-[7px] font-black rounded-full border border-white/10 tracking-widest">EVENT</div>
           )}
         </div>
 

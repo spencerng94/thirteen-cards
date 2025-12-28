@@ -1,7 +1,8 @@
+
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { GameTable } from './GameTable';
-import { GameStatus, Rank, Suit } from '../types';
+import { GameStatus, Rank, Suit, GameState } from '../types';
 
 const mockHand = [
   { id: '1', rank: Rank.Three, suit: Suit.Spades },
@@ -9,7 +10,8 @@ const mockHand = [
   { id: '3', rank: Rank.Five, suit: Suit.Hearts },
 ];
 
-const mockGameState = {
+// Added missing lastPlayerToPlayId and winnerId properties to match the GameState interface
+const mockGameState: GameState = {
   roomId: 'TEST',
   status: GameStatus.PLAYING,
   players: [
@@ -18,6 +20,8 @@ const mockGameState = {
   ],
   currentPlayerId: 'me',
   currentPlayPile: [],
+  lastPlayerToPlayId: null,
+  winnerId: null,
   finishedPlayers: [],
   isFirstTurnOfGame: true,
   turnEndTime: Date.now() + 60000,
