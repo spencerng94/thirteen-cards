@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket } from '../services/socket';
@@ -43,7 +42,6 @@ const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: Background
 
 const GlassPanel: React.FC<{ children: React.ReactNode; className?: string; isLight?: boolean }> = ({ children, className = '', isLight = false }) => (
   <div className={`relative ${isLight ? 'bg-white/60' : 'bg-black/40'} backdrop-blur-3xl border ${isLight ? 'border-pink-200/50' : 'border-white/10'} shadow-[0_0_80px_rgba(0,0,0,${isLight ? '0.2' : '0.8'})] rounded-[2.5rem] overflow-hidden ${className}`}>
-      {/* Cleaned up ring-1 and ring-inset usage to avoid duplicate attribute parsing errors */}
       <div className={`absolute inset-0 rounded-[2.5rem] ring-1 ring-inset ${isLight ? 'ring-white/80' : 'ring-white/5'} pointer-events-none`}></div>
       {children}
   </div>
@@ -115,7 +113,6 @@ export const Lobby: React.FC<LobbyProps> = ({
     };
     socket.on(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     
-    // Always request current rooms on mount if not in a game
     if (!gameState) {
       refreshRooms();
     }
@@ -187,11 +184,9 @@ export const Lobby: React.FC<LobbyProps> = ({
     socket.emit(SocketEvents.START_GAME, { roomId: gameState.roomId, playerId: myId });
   };
 
-  /* FIXED: Completed Lobby component with missing return and JSX structure to resolve line 83 error */
   return (
     <BackgroundWrapper theme={backgroundTheme}>
       <div className="relative z-20 w-full max-w-4xl flex flex-col items-center">
-        {/* Header and Error */}
         {error && (
           <div className="mb-6 px-6 py-3 bg-red-600/80 backdrop-blur-xl border border-red-400 text-white rounded-2xl font-black uppercase tracking-widest animate-bounce">
             {error}
@@ -199,7 +194,6 @@ export const Lobby: React.FC<LobbyProps> = ({
         )}
 
         {!gameState ? (
-          /* NO GAME STATE: ROOM BROWSER / CREATOR */
           <div className="w-full space-y-6">
             <div className="flex flex-col items-center mb-8">
               <h1 className="text-4xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-white/80 to-white/40 uppercase italic tracking-tighter drop-shadow-2xl">
@@ -209,7 +203,6 @@ export const Lobby: React.FC<LobbyProps> = ({
             </div>
 
             <GlassPanel className="w-full flex flex-col min-h-[500px]">
-              {/* Tab Header */}
               <div className="flex border-b border-white/5 bg-white/[0.02]">
                 <button 
                   onClick={() => setActiveTab('PUBLIC')}
@@ -225,7 +218,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                 </button>
               </div>
 
-              {/* Tab Content */}
               <div className="flex-1 p-6 sm:p-10">
                 {activeTab === 'PUBLIC' ? (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -255,7 +247,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                           <div className="w-16 h-16 border-2 border-dashed border-white/20 rounded-full flex items-center justify-center mb-4">
                             <span className="text-2xl italic">?</span>
                           </div>
-                          <p className="text-[10px] font-black uppercase tracking-[0.5em]">No Active Sectors Found</p>
+                          <p className="text-[10px] font-black uppercase tracking-[0.5em]">NO PUBLIC LOBBIES FOUND</p>
                         </div>
                       ) : (
                         publicRooms.map(room => (
@@ -324,7 +316,6 @@ export const Lobby: React.FC<LobbyProps> = ({
             <ReturnHomeButton onClick={onBack!} className="w-full" />
           </div>
         ) : (
-          /* INSIDE LOBBY */
           <div className="w-full space-y-6">
             <div className="flex flex-col items-center mb-4">
               <h1 className="text-4xl sm:text-5xl font-black text-white uppercase italic tracking-tighter drop-shadow-2xl">
@@ -337,7 +328,6 @@ export const Lobby: React.FC<LobbyProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Room Info */}
               <GlassPanel className="md:col-span-1 p-8 flex flex-col items-center justify-center text-center space-y-6">
                 <div className="space-y-1">
                   <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.5em]">Sector Access</span>
@@ -376,7 +366,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                 </div>
               </GlassPanel>
 
-              {/* Player List */}
               <GlassPanel className="md:col-span-2 p-8">
                 <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 italic">Combatant Roster</span>
@@ -461,7 +450,6 @@ export const Lobby: React.FC<LobbyProps> = ({
               </GlassPanel>
             </div>
             
-            {/* Sync Warning if user is not in the list but gameState is present */}
             {gameState && !gameState.players.find(p => p.id === myId) && syncTimer > 2 && (
               <div className="w-full p-4 bg-amber-600/20 border border-amber-500/40 rounded-2xl flex items-center justify-between animate-in slide-in-from-top-2">
                  <div className="flex items-center gap-3">
