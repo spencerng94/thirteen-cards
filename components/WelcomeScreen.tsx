@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -378,7 +377,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </div>
         <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
            <div className="flex flex-col gap-0.5">
-             <span className="text-[10px] font-black text-white uppercase tracking-widest">Single Player Turbo</span>
+             <span className="text-[10px] font-black text-white uppercase tracking-widest">Turbo Finish</span>
              <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">End AI matches instantly upon your victory</span>
            </div>
            <button onClick={() => setQuickFinish(!quickFinish)} className={`w-12 h-6 rounded-full relative ${quickFinish ? 'bg-yellow-500' : 'bg-white/10'}`}>

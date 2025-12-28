@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus, SocketEvents, UserProfile, Emote } from '../types';
 import { Card, CardCoverStyle } from './Card';
@@ -44,7 +43,7 @@ const EMOTE_COOLDOWN = 2000;
 
 const SettingsIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
     <circle cx="12" cy="12" r="3.5" fill="currentColor" fillOpacity="0.2" />
   </svg>
 );
@@ -70,7 +69,7 @@ const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
   );
 };
 
-const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; sleeveEffectsEnabled?: boolean }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, sleeveEffectsEnabled }) => {
+const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; sleeveEffectsEnabled?: boolean; className?: string }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, sleeveEffectsEnabled, className = '' }) => {
   const isFinished = !!player.finishedRank;
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -100,12 +99,15 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
 
   return (
     <div className={`relative flex transition-all duration-150 ease-[0.2,0,0,1] ${isFinished ? 'scale-100' : 'opacity-100'} 
-      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 'flex-col items-center gap-6 sm:gap-8'}`}>
+      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 
+        (position === 'left' ? 'flex-col landscape:flex-row items-center gap-6 sm:gap-8 landscape:gap-4' :
+         position === 'right' ? 'flex-col landscape:flex-row-reverse items-center gap-6 sm:gap-8 landscape:gap-4' :
+         'flex-col items-center gap-6 sm:gap-8')} ${className}`}>
         
         <div className="relative flex flex-col items-center shrink-0">
-            <div className="relative w-16 h-16 sm:w-24 sm:h-24">
+            <div className="relative w-16 h-16 sm:w-24 sm:h-24 landscape:w-24 landscape:h-24">
                 {isTurn && !isFinished && (
-                    <div className={`absolute inset-[-12px] rounded-full border-2 ${timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-500/50'} animate-ping`}></div>
+                    <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-500/50'} animate-ping`}></div>
                 )}
                 
                 <div className={`w-full h-full aspect-square rounded-full border-2 transition-all duration-150 ease-out overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-400') + ' scale-110' : 'border-white/10'} ${getGlowClass()}`}>
@@ -131,15 +133,15 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
                 )}
             </div>
 
-            <div className={`bg-black/60 backdrop-blur-md px-3 py-0.5 sm:px-4 sm:py-1 rounded-full border min-w-[75px] sm:min-w-[95px] text-center shadow-lg mt-1.5 transition-colors ${player.isOffline ? 'border-amber-500/50' : 'border-white/5'} ${isFinished ? 'opacity-40 border-white/20' : ''}`}>
-                <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] inline-block ${player.isOffline ? 'text-amber-500' : 'text-white/90'}`}>
+            <div className={`bg-black/60 backdrop-blur-md px-3 py-0.5 sm:px-4 sm:py-1 rounded-full border min-w-[75px] sm:min-w-[95px] landscape:w-24 landscape:min-w-0 landscape:px-0 text-center shadow-lg mt-1.5 transition-colors ${player.isOffline ? 'border-amber-500/50' : 'border-white/5'} ${isFinished ? 'opacity-40 border-white/20' : ''}`}>
+                <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] landscape:max-w-[88px] inline-block ${player.isOffline ? 'text-amber-500' : 'text-white/90'}`}>
                   {player.name}
                 </span>
             </div>
         </div>
 
         {!isFinished && position !== 'bottom' && (
-            <div className={`relative animate-in slide-in-from-bottom-2 duration-700 shrink-0 transition-transform landscape:scale-[0.85]`}>
+            <div className={`relative animate-in slide-in-from-bottom-2 duration-700 shrink-0 transition-transform landscape:scale-[0.7]`}>
                 <Card faceDown coverStyle={coverStyle} activeTurn={isTurn} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" disableEffects={!sleeveEffectsEnabled} />
                 <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ring-1 ring-yellow-400/50">
                     {player.cardCount}
@@ -190,7 +192,6 @@ const BombOverlay: React.FC<{ active: boolean }> = ({ active }) => {
 };
 
 const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'bottom' | 'top' | 'left' | 'right' }> = ({ emote, remoteEmotes, position }) => {
-  // Logic to determine translation towards screen center area based on station
   const translations = {
     bottom: { tx: '0', ty: '-28vh' },
     top: { tx: '0', ty: '28vh' },
@@ -243,7 +244,6 @@ export const GameTable: React.FC<GameTableProps> = ({
   const isLeader = !gameState.currentPlayPile || gameState.currentPlayPile.length === 0;
   const sleeveEffectsEnabled = profile?.sleeve_effects_enabled !== false;
 
-  // Auto-reset hand layout when turn ends
   useEffect(() => {
     if (!isMyTurn) {
       setHandRows(1);
@@ -389,7 +389,6 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const iHave3Spades = useMemo(() => myHand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades), [myHand]);
 
-  // Determine the station that played the last move
   const lastMovePlayerPosition = useMemo(() => {
     if (!lastMove) return null;
     const idx = gameState.players.findIndex(p => p.id === lastMove.playerId);
@@ -406,6 +405,62 @@ export const GameTable: React.FC<GameTableProps> = ({
         default: return '';
     }
   }, [lastMovePlayerPosition, playAnimationsEnabled]);
+
+  const turnIndicatorUI = (
+    <div className={`flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">
+            {isLeader && gameState.isFirstTurnOfGame && iHave3Spades ? '3♠ YOUR TURN' : (isLeader ? 'YOUR LEAD' : 'Your Turn')}
+            </span>
+            {timeLeft > 0 && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${timeLeft <= 3 ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
+        </div>
+        {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
+    </div>
+  );
+
+  const passButtonUI = (
+    <button 
+      onClick={handleDynamicAction} 
+      disabled={selectedCardIds.size === 0 && isLeader}
+      className={`w-full h-full flex flex-col items-center justify-center border-2 rounded-2xl shadow-xl transition-all active:scale-95 bg-black/40 ${selectedCardIds.size === 0 ? (isLeader ? 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed' : 'border-rose-600/60 text-rose-500 hover:bg-rose-950/20') : 'border-zinc-700 text-zinc-300 bg-zinc-900/60'}`}
+    >
+      <span className="text-[10px] font-black uppercase tracking-widest">{selectedCardIds.size === 0 ? 'Pass' : 'Clear'}</span>
+      <span className="text-[6px] font-bold opacity-40 uppercase tracking-[0.2em] mt-1">{selectedCardIds.size === 0 ? 'Skip Turn' : `${selectedCardIds.size} Selected`}</span>
+    </button>
+  );
+
+  const playButtonUI = (
+    <button 
+      onClick={handlePlay} 
+      disabled={!validationResult.isValid} 
+      className={`w-full h-full flex flex-col items-center justify-center rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all active:scale-95 ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-white' : 'bg-white/5 text-white/20 border border-white/5 grayscale'}`}
+    >
+      <span>Play Cards</span>
+      {validationResult.isValid && <span className="text-[6.5px] opacity-70 tracking-widest mt-0.5">{validationResult.reason}</span>}
+    </button>
+  );
+
+  const expandButtonUI = (
+    <button 
+      onClick={() => { setHandRows(r => (r === 1 ? 2 : 1)); audioService.playExpandHand(); }} 
+      className="w-full h-full flex flex-col items-center justify-center border-2 border-white/10 bg-black/40 rounded-2xl text-white/40 hover:text-white transition-all active:scale-95"
+    >
+      <div className="mb-1 text-current">
+        {handRows === 1 ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 9V2m0 0l-3 3m3-3l3 3" />
+            <path d="M12 15v7m0 0l-3-3m3 3l3-3" />
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2v7m0 0l-3-3m3 3l3-3" />
+            <path d="M12 22v-7m0 0l-3 3m3-3l3 3" />
+          </svg>
+        )}
+      </div>
+      <span className="text-[7px] font-black uppercase tracking-widest">{handRows === 1 ? '1 ROW' : 'MULTI ROW'}</span>
+    </button>
+  );
 
   return (
     <div className={`fixed inset-0 w-full h-full bg-[#030303] overflow-hidden select-none ${isShaking ? 'animate-shake' : ''}`}>
@@ -450,48 +505,90 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
       )}
 
-      <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
-        <div className="relative">
-          <button onClick={() => setShowEmotePicker(!showEmotePicker)} className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all shadow-xl hover:scale-110 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg></button>
-          {showEmotePicker && ( 
-            <div className="absolute top-full right-0 mt-3 p-4 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl z-[300] grid grid-cols-3 gap-3 min-w-[200px] sm:min-w-[240px] animate-in fade-in zoom-in-95 duration-200"> 
-              {unlockedAvatars.map(emoji => ( 
-                <button 
-                  key={emoji} 
-                  onClick={() => sendEmote(emoji)} 
-                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 hover:bg-white/15 transition-all flex items-center justify-center p-2 group/emote-btn overflow-hidden"
-                >
-                  <VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="md" className="group-hover/emote-btn:scale-110 transition-transform duration-300" />
-                </button> 
-              ))} 
-            </div> 
+      {/* Control Nodes (Landscape Only) */}
+      <div className="fixed bottom-4 left-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
+          {isMyTurn && passButtonUI}
+      </div>
+
+      {/* Local Player Profile (Landscape Only - Pinned flush above PASS button) */}
+      <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-500 w-24 flex justify-center">
+          <div className={`${isMyTurn ? 'opacity-100 translate-y-0' : (isFinished ? 'opacity-60 scale-90 translate-y-4' : 'opacity-0 translate-y-20')}`}>
+            {me && (
+                <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
+            )}
+          </div>
+      </div>
+
+      {/* Left Opponent (Landscape Only - Stacked parallel above Local Player Profile) */}
+      <div className="fixed bottom-[180px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-500 w-24 flex justify-center">
+          {leftOpponent && (
+              <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
           )}
+      </div>
+
+      <div className="fixed bottom-4 right-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
+          {isMyTurn && playButtonUI}
+      </div>
+
+      <div className="fixed bottom-24 right-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
+          {isMyTurn && expandButtonUI}
+      </div>
+
+      {/* Right Opponent (Landscape Only - Pinned parallel above Row Expander) */}
+      <div className="fixed bottom-[180px] right-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-500 w-24 flex justify-center">
+          {rightOpponent && (
+              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
+          )}
+      </div>
+
+      <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
+        <div className="flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
+            <div className="relative">
+            <button onClick={() => setShowEmotePicker(!showEmotePicker)} className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all shadow-xl hover:scale-110 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg></button>
+            {showEmotePicker && ( 
+                <div className="absolute top-full right-0 mt-3 p-4 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl z-[300] grid grid-cols-3 gap-3 min-w-[200px] sm:min-w-[240px] animate-in fade-in zoom-in-95 duration-200"> 
+                {unlockedAvatars.map(emoji => ( 
+                    <button 
+                    key={emoji} 
+                    onClick={() => sendEmote(emoji)} 
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 hover:bg-white/15 transition-all flex items-center justify-center p-2 group/emote-btn overflow-hidden"
+                    >
+                    <VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="md" className="group-hover/emote-btn:scale-110 transition-transform duration-300" />
+                    </button> 
+                ))} 
+                </div> 
+            )}
+            </div>
+            <button onClick={onOpenSettings} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><SettingsIcon /></button>
+            <button onClick={() => setShowInstructions(true)} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><span className="text-lg font-black">?</span></button>
         </div>
-        <button onClick={onOpenSettings} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><SettingsIcon /></button>
-        <button onClick={() => setShowInstructions(true)} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><span className="text-lg font-black">?</span></button>
+
+        <div className="hidden landscape:block absolute top-14 right-0 min-w-max transition-all duration-700">
+            {turnIndicatorUI}
+        </div>
       </div>
 
       {/* Opponent Grid */}
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
-        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8' : ''}`}>
-          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
+        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''}`}>
+          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />)}
         </div>
         
-        <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-150 ease-[0.2,0,0,1] ${isMyTurn ? 'portrait:-translate-y-32' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16' : '')}`}>
+        <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-150 ease-[0.2,0,0,1] ${isMyTurn ? '-translate-y-32 z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16 z-[60]' : '')} landscape:hidden`}>
           {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
         </div>
         
-        <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''}`}>
+        <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} landscape:hidden`}>
           {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
         </div>
       </div>
 
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-in-out ${isMyTurn ? 'portrait:-translate-y-28' : 'portrait:-translate-y-12'}`}>
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-in-out ${isMyTurn ? 'portrait:-translate-y-28 landscape:translate-y-2' : 'portrait:-translate-y-12 landscape:translate-y-2'}`}>
         <div className="relative flex flex-col items-center">
           {lastMove ? (
             <div 
               key={lastMove.playerId + lastMove.cards.map(c => c.id).join('')}
-              className={`flex flex-col items-center gap-6 scale-90 sm:scale-125 landscape:scale-[0.8] ${arrivalAnimationClass}`}
+              className={`flex flex-col items-center gap-6 scale-90 sm:scale-125 landscape:scale-[0.65] ${arrivalAnimationClass}`}
             >
                <div className="flex -space-x-12">
                 {lastMove.cards.map((c, i) => (
@@ -513,7 +610,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                   </div>
                 ))}
                </div>
-               <div className="mt-4 flex flex-col items-center opacity-0 animate-[fadeInLabel_0.5s_0.3s_forwards] pointer-events-none z-[100]">
+               <div className="mt-4 landscape:mt-0 flex flex-col items-center opacity-0 animate-[fadeInLabel_0.5s_0.3s_forwards] pointer-events-none z-[100]">
                   <span className="text-[12px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] whitespace-nowrap">{gameState.players.find(p => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE</span>
                   <div className="h-[2px] w-20 bg-yellow-500/40 mt-1 rounded-full shadow-[0_0_12px_rgba(234,179,8,0.5)]"></div>
                </div>
@@ -523,18 +620,12 @@ export const GameTable: React.FC<GameTableProps> = ({
       </div>
 
       <div className="absolute bottom-0 left-0 w-full p-2 sm:p-4 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
-        <div className={`mb-3 flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-           <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">
-                {isLeader && gameState.isFirstTurnOfGame && iHave3Spades ? '3♠ YOUR TURN' : (isLeader ? 'YOUR LEAD' : 'Your Turn')}
-              </span>
-              {timeLeft > 0 && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${timeLeft <= 3 ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
-           </div>
-           {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
+        <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden">
+            {turnIndicatorUI}
         </div>
 
         <div className="relative w-full flex flex-col items-center">
-            <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-500 
+            <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-500 landscape:hidden
                 ${isMyTurn ? '-top-[95px]' : (isFinished ? '-top-[55px]' : 'top-20 opacity-0')}`}>
               {me && (
                   <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} sleeveEffectsEnabled={sleeveEffectsEnabled} />
@@ -542,50 +633,22 @@ export const GameTable: React.FC<GameTableProps> = ({
             </div>
 
             <div className={`flex flex-row items-stretch justify-center gap-3 w-full max-w-sm mb-3 transition-all duration-500 h-16 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
-              <div className="relative flex-1">
-                <button 
-                  onClick={handleDynamicAction} 
-                  disabled={selectedCardIds.size === 0 && isLeader}
-                  className={`w-full h-full flex flex-col items-center justify-center border-2 rounded-2xl shadow-xl transition-all active:scale-95 bg-black/40 ${selectedCardIds.size === 0 ? (isLeader ? 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed' : 'border-rose-600/60 text-rose-500 hover:bg-rose-950/20') : 'border-zinc-700 text-zinc-300 bg-zinc-900/60'}`}
-                >
-                  <span className="text-[10px] font-black uppercase tracking-widest">{selectedCardIds.size === 0 ? 'Pass' : 'Clear'}</span>
-                  <span className="text-[6px] font-bold opacity-40 uppercase tracking-[0.2em] mt-1">{selectedCardIds.size === 0 ? 'Skip Turn' : `${selectedCardIds.size} Selected`}</span>
-                </button>
+              <div className="relative flex-1 landscape:hidden">
+                {passButtonUI}
               </div>
 
-              <button 
-                onClick={handlePlay} 
-                disabled={!validationResult.isValid} 
-                className={`flex-[2] flex flex-col items-center justify-center rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all active:scale-95 ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-white' : 'bg-white/5 text-white/20 border border-white/5 grayscale'}`}
-              >
-                <span>Play Cards</span>
-                {validationResult.isValid && <span className="text-[6.5px] opacity-70 tracking-widest mt-0.5">{validationResult.reason}</span>}
-              </button>
+              <div className="flex-[2] landscape:hidden">
+                {playButtonUI}
+              </div>
 
-              <button 
-                onClick={() => { setHandRows(r => (r === 1 ? 2 : 1)); audioService.playExpandHand(); }} 
-                className="flex-1 flex flex-col items-center justify-center border-2 border-white/10 bg-black/40 rounded-2xl text-white/40 hover:text-white transition-all active:scale-95"
-              >
-                <div className="mb-1 text-current">
-                  {handRows === 1 ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 9V2m0 0l-3 3m3-3l3 3" />
-                      <path d="M12 15v7m0 0l-3-3m3 3l3-3" />
-                    </svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 2v7m0 0l-3-3m3 3l3-3" />
-                      <path d="M12 22v-7m0 0l-3 3m3-3l3 3" />
-                    </svg>
-                  )}
-                </div>
-                <span className="text-[7px] font-black uppercase tracking-widest">{handRows === 1 ? '1 ROW' : 'MULTI ROW'}</span>
-              </button>
+              <div className="flex-1 landscape:hidden">
+                {expandButtonUI}
+              </div>
             </div>
         </div>
 
-        <div className="relative flex items-center justify-center w-full max-w-[96vw]">
-           <div className={`flex transition-all duration-800 landscape:scale-[0.55] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap ${spacing.portrait} portrait:pb-16 max-w-full`}`}>
+        <div className="relative flex items-center justify-center w-full max-w-[96vw] landscape:px-32 sm:landscape:px-12 xl:landscape:px-0">
+           <div className={`flex transition-all duration-800 landscape:scale-[0.46] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap ${spacing.portrait} portrait:pb-16 max-w-full`}`}>
             {sortedHand.map((c) => (
               <Card 
                 key={c.id} 
@@ -614,7 +677,6 @@ export const GameTable: React.FC<GameTableProps> = ({
         @keyframes shake { 0%, 100% { transform: translate(0,0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-10px, -10px); } 20%, 40%, 60%, 80% { transform: translate(10px, 10px); } } 
         .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
         
-        /* New Organic Play Animations */
         @keyframes playFromBottom {
           0% { transform: translateY(50vh) rotate(15deg) scale(0.5); opacity: 0; filter: blur(15px); }
           100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
@@ -642,7 +704,6 @@ export const GameTable: React.FC<GameTableProps> = ({
         .animate-play-from-left { animation: playFromLeft 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
         .animate-play-from-right { animation: playFromRight 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
         .animate-play-bounce { animation: playBounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-
       ` }} />
     </div>
   );

@@ -258,7 +258,13 @@ export const Lobby: React.FC<LobbyProps> = ({
                               </div>
                               <div className="flex flex-col">
                                 <span className="text-xs font-black text-white uppercase tracking-widest">{room.name}</span>
-                                <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-0.5">HOST: {room.hostName}</span>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">HOST:</span>
+                                  <div className="w-4 h-4 rounded-full overflow-hidden bg-black/40 border border-white/10 shadow-sm shrink-0">
+                                    <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" className="scale-[1.8]" />
+                                  </div>
+                                  <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest truncate max-w-[120px]">{room.hostName}</span>
+                                </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-6">
