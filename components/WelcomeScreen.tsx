@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
 import { AiDifficulty, UserProfile, BackgroundTheme, Emote, Rank, Suit } from '../types';
@@ -478,11 +478,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
            <BoardSurface themeId={previewThemeId} isMini />
            <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
               <div className="p-8 flex justify-between items-start">
-                  <div className="flex flex-col">
-                    <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic">ARENA PREVIEW</h1>
-                    <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2">Surface Profile Loaded</p>
+                  <div className="flex flex-col flex-1 min-w-0 mr-4">
+                    <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic truncate">ARENA PREVIEW</h1>
+                    <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2 truncate">Surface Profile Loaded</p>
                   </div>
-                  <button onClick={() => setPreviewThemeId(null)} className="px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">Exit ✕</button>
+                  <button onClick={() => setPreviewThemeId(null)} className="shrink-0 group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">
+                    <span className="group-hover:-translate-x-1 transition-transform">RETURN ←</span>
+                  </button>
               </div>
            </div>
         </div>
@@ -490,13 +492,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
       {pendingPurchase && (
           <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-              {/* Viewport Gold Display - Moved to top left of screen */}
+              {/* Viewport Gold Display - Moved to top left of screen, and made smaller */}
               <div className="fixed top-8 left-8 z-[300] animate-in slide-in-from-left-4 fade-in duration-500 pointer-events-none">
-                  <div className="bg-black/60 backdrop-blur-3xl border border-yellow-500/30 rounded-2xl px-6 py-3 flex items-center gap-3 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                      <span className="text-2xl drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">💰</span>
+                  <div className="bg-black/60 backdrop-blur-3xl border border-yellow-500/30 rounded-xl px-3 py-1.5 flex items-center gap-2 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                      <span className="text-lg drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">💰</span>
                       <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-yellow-500/60 uppercase tracking-widest leading-none">Your Gold</span>
-                          <span className="text-xl font-black text-white font-mono tracking-tighter">
+                          <span className="text-[8px] font-black text-yellow-500/60 uppercase tracking-widest leading-none">Your Gold</span>
+                          <span className="text-sm font-black text-white font-mono tracking-tighter leading-none mt-0.5">
                               {profile?.coins.toLocaleString()}
                           </span>
                       </div>
@@ -523,7 +525,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                       )}
                   </div>
 
-                  <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2 mt-6 font-serif italic">Secure Asset?</h3>
+                  <h3 className="text-white font-black uppercase tracking-tight text-2xl mb-2 mt-6 font-serif italic whitespace-nowrap">Secure Asset?</h3>
                   <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-8 px-4 leading-relaxed">
                     Unlock <span className="text-white font-bold">{pendingPurchase.name}</span> for <span className="text-yellow-500 font-bold">{pendingPurchase.price} GOLD</span>
                   </p>
