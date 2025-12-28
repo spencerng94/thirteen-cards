@@ -555,7 +555,6 @@ const App: React.FC = () => {
           soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled}
           sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled}
           playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled}
-          turnTimerSetting={turnTimerSetting} setTurnTimerSetting={setTurnTimerSetting}
           unlockedSleeves={profile?.unlocked_sleeves || []}
         />
       )}

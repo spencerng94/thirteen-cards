@@ -126,6 +126,9 @@ export interface UserProfile {
   event_stats?: {
     daily_games_played: number;
     daily_wins: number;
+    weekly_games_played?: number;
+    weekly_wins?: number;
+    weekly_bombs_played?: number;
     new_player_login_days: number;
     claimed_events: string[]; // List of IDs
   };

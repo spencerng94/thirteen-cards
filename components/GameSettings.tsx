@@ -22,8 +22,6 @@ interface GameSettingsProps {
   setSleeveEffectsEnabled: (val: boolean) => void;
   playAnimationsEnabled: boolean;
   setPlayAnimationsEnabled: (val: boolean) => void;
-  turnTimerSetting: number;
-  setTurnTimerSetting: (val: number) => void;
   unlockedSleeves?: string[];
 }
 
@@ -59,8 +57,6 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   setSleeveEffectsEnabled,
   playAnimationsEnabled,
   setPlayAnimationsEnabled,
-  turnTimerSetting,
-  setTurnTimerSetting,
   unlockedSleeves = []
 }) => {
   const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'WITS_END', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'SOVEREIGN_SPADE', 'SOVEREIGN_CLUB', 'SOVEREIGN_DIAMOND', 'SOVEREIGN_HEART'];
@@ -75,7 +71,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
         {/* Header */}
         <div className="px-8 py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex justify-between items-center relative">
           <div className="flex flex-col">
-            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/90 to-white/40 uppercase italic tracking-widest font-serif leading-none">GAME SETTINGS</h2>
+            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-widest font-serif leading-none">GAME SETTINGS</h2>
             <div className="flex items-center gap-2 mt-1.5">
                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
                <p className="text-[7px] font-black uppercase tracking-[0.4em] text-gray-500">Battlefield Configuration</p>
@@ -109,7 +105,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
               </div>
               <button 
                 onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)}
-                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${sleeveEffectsEnabled ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
+                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${sleeveEffectsEnabled ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
@@ -136,29 +132,12 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                 </div>
                 <button 
                   onClick={() => setSpQuickFinish(!spQuickFinish)}
-                  className={`w-12 h-6 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
+                  className={`w-12 h-6 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
                 >
                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${spQuickFinish ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
             )}
-          </div>
-
-          {/* Turn Timer Setting */}
-          <div className="space-y-4">
-            <SectionHeader>Multiplayer Turn Duration</SectionHeader>
-            <div className="grid grid-cols-4 gap-2 p-1 bg-black/40 rounded-2xl border border-white/5">
-                {[0, 30, 60, 90].map(val => (
-                    <button 
-                        key={val} 
-                        onClick={() => setTurnTimerSetting(val)}
-                        className={`py-3 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${turnTimerSetting === val ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/30 hover:text-white/60'}`}
-                    >
-                        {val === 0 ? 'OFF' : `${val}s`}
-                    </button>
-                ))}
-            </div>
-            <p className="text-[7px] text-white/20 uppercase tracking-widest text-center italic">Only applies to Multiplayer lobbies you host. Single Player turns remain untimed.</p>
           </div>
 
           {/* AI Difficulty */}
