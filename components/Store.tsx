@@ -28,222 +28,173 @@ interface StoreItem {
   type: 'SLEEVE' | 'AVATAR' | 'BOARD';
   style?: CardCoverStyle;
   description: string;
+  tier: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY' | 'MYTHIC';
 }
 
 export const SLEEVES: StoreItem[] = [
-  { id: 'BLUE', name: 'Imperial Blue', price: 0, type: 'SLEEVE', style: 'BLUE', description: 'Standard navy finish.' },
-  { id: 'RED', name: 'Dynasty Red', price: 0, type: 'SLEEVE', style: 'RED', description: 'Lustrous red finish.' },
-  { id: 'PATTERN', name: 'Golden Lattice', price: 250, type: 'SLEEVE', style: 'PATTERN', description: 'Traditional geometric.' },
-  { id: 'ROYAL_JADE', name: 'Imperial Jade', price: 500, type: 'SLEEVE', style: 'ROYAL_JADE', description: 'Polished emerald marble.' },
-  { id: 'CRYSTAL_EMERALD', name: 'Crystal Gem', price: 1500, type: 'SLEEVE', style: 'CRYSTAL_EMERALD', description: 'Prismatic diffraction.' },
-  { id: 'GOLDEN_IMPERIAL', name: 'Sun King', price: 1000, type: 'SLEEVE', style: 'GOLDEN_IMPERIAL', description: '24-karat polished gold.' },
-  { id: 'VOID_ONYX', name: 'Void Walker', price: 2000, type: 'SLEEVE', style: 'VOID_ONYX', description: 'Matte black violet neon.' },
-  { id: 'DRAGON_SCALE', name: 'Dragon Skin', price: 2500, type: 'SLEEVE', style: 'DRAGON_SCALE', description: 'Ancient high-heat plating.' },
-  { id: 'NEON_CYBER', name: 'Neon Circuit', price: 3500, type: 'SLEEVE', style: 'NEON_CYBER', description: 'Active energetic circuitry.' },
-  { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 3500, type: 'SLEEVE', style: 'PIXEL_CITY_LIGHTS', description: 'Nocturnal pixel glow.' },
-  { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, type: 'SLEEVE', style: 'AMETHYST_ROYAL', description: 'Velvet silk with silver filigree.' },
-  { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, type: 'SLEEVE', style: 'CHERRY_BLOSSOM_NOIR', description: 'Obsidian wood with glowing blossoms.' },
-  { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, type: 'SLEEVE', style: 'AETHER_VOID', description: 'Legendary clash of celestial light and eternal darkness.' },
-  { id: 'WITS_END', name: "Wit's End", price: 20000, type: 'SLEEVE', style: 'WITS_END', description: 'A dark ethereal void that pulses with violet energy. For those at the edge of madness.' },
-  { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 25000, type: 'SLEEVE', style: 'DIVINE_ROYAL', description: 'Super prestige ivory parchment with animated celestial aura.' },
-  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 25000, type: 'SLEEVE', style: 'EMPERORS_HUBRIS', description: 'Pure liquid gold with a 3D embossed dragon that breathes smoke on your turn. The ultimate flex.' },
-];
-
-export const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
-  'ROYAL_JADE', 'CRYSTAL_EMERALD', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 
-  'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 
-  'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID'
-];
-
-export const SUPER_PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
-  'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'WITS_END'
-];
-
-/**
- * Static hand for previewing: 3 to 2, alternating suits
- */
-const PREVIEW_HAND: CardType[] = [
-  { rank: Rank.Three, suit: Suit.Spades, id: 'p1' },
-  { rank: Rank.Four, suit: Suit.Clubs, id: 'p2' },
-  { rank: Rank.Five, suit: Suit.Diamonds, id: 'p3' },
-  { rank: Rank.Six, suit: Suit.Hearts, id: 'p4' },
-  { rank: Rank.Seven, suit: Suit.Spades, id: 'p5' },
-  { rank: Rank.Eight, suit: Suit.Clubs, id: 'p6' },
-  { rank: Rank.Nine, suit: Suit.Diamonds, id: 'p7' },
-  { rank: Rank.Ten, suit: Suit.Hearts, id: 'p8' },
-  { rank: Rank.Jack, suit: Suit.Spades, id: 'p9' },
-  { rank: Rank.Queen, suit: Suit.Clubs, id: 'p10' },
-  { rank: Rank.King, suit: Suit.Diamonds, id: 'p11' },
-  { rank: Rank.Ace, suit: Suit.Hearts, id: 'p12' },
-  { rank: Rank.Two, suit: Suit.Spades, id: 'p13' },
-];
-
-export const SleeveArenaPreview: React.FC<{ 
-  sleeveStyle: CardCoverStyle; 
-  themeId: BackgroundTheme; 
-  onClose: () => void;
-  sleeveEffectsEnabled?: boolean;
-}> = ({ sleeveStyle, themeId, onClose, sleeveEffectsEnabled = true }) => {
-  const isPrestige = PRESTIGE_SLEEVE_IDS.includes(sleeveStyle);
-  const isSuperPrestige = SUPER_PRESTIGE_SLEEVE_IDS.includes(sleeveStyle);
+  // COMMON
+  { id: 'BLUE', name: 'Imperial Blue', price: 0, tier: 'COMMON', type: 'SLEEVE', style: 'BLUE', description: 'Standard navy finish.' },
+  { id: 'RED', name: 'Dynasty Red', price: 0, tier: 'COMMON', type: 'SLEEVE', style: 'RED', description: 'Lustrous red finish.' },
   
+  // RARE (Spades Theme)
+  { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 1500, tier: 'RARE', type: 'SLEEVE', style: 'AMETHYST_ROYAL', description: 'Velvet silk with silver filigree.' },
+  { id: 'VOID_ONYX', name: 'Void Walker', price: 2000, tier: 'RARE', type: 'SLEEVE', style: 'VOID_ONYX', description: 'Matte black with indigo traces.' },
+  { id: 'NEON_CYBER', name: 'Neon Circuit', price: 2500, tier: 'RARE', type: 'SLEEVE', style: 'NEON_CYBER', description: 'Active energetic circuitry.' },
+  { id: 'SOVEREIGN_SPADE', name: 'Sovereign Spade', price: 3000, tier: 'RARE', type: 'SLEEVE', style: 'SOVEREIGN_SPADE', description: 'The original rare spade signature.' },
+
+  // EPIC (Clubs Theme)
+  { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 4500, tier: 'EPIC', type: 'SLEEVE', style: 'CHERRY_BLOSSOM_NOIR', description: 'Obsidian wood with glowing blossoms.' },
+  { id: 'DRAGON_SCALE', name: 'Dragon Skin', price: 5000, tier: 'EPIC', type: 'SLEEVE', style: 'DRAGON_SCALE', description: 'Ancient high-heat forged plating.' },
+  { id: 'CRYSTAL_EMERALD', name: 'Crystal Gem', price: 5500, tier: 'EPIC', type: 'SLEEVE', style: 'CRYSTAL_EMERALD', description: 'Prismatic diffraction surfacing.' },
+  { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel Lights', price: 6000, tier: 'EPIC', type: 'SLEEVE', style: 'PIXEL_CITY_LIGHTS', description: 'Nocturnal pixel glow.' },
+  { id: 'SOVEREIGN_CLUB', name: 'Sovereign Club', price: 7500, tier: 'EPIC', type: 'SLEEVE', style: 'SOVEREIGN_CLUB', description: 'The original epic club signature.' },
+
+  // LEGENDARY (Diamonds Theme)
+  { id: 'AETHER_VOID', name: 'Aether Noir', price: 12000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'AETHER_VOID', description: 'Clash of celestial light and darkness.' },
+  { id: 'WITS_END', name: "Wit's End", price: 15000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'WITS_END', description: 'Ethereal void pulsing with energy.' },
+  { id: 'ROYAL_JADE', name: 'Imperial Jade', price: 18000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'ROYAL_JADE', description: 'Polished emerald with gold trim.' },
+  { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 20000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'DIVINE_ROYAL', description: 'Ivory parchment with animated aura.' },
+  { id: 'SOVEREIGN_DIAMOND', name: 'Sovereign Diamond', price: 25000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'SOVEREIGN_DIAMOND', description: 'The original legendary diamond signature.' },
+
+  // MYTHIC (Hearts Theme)
+  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 50000, tier: 'MYTHIC', type: 'SLEEVE', style: 'EMPERORS_HUBRIS', description: 'Liquid gold with an embossed dragon.' },
+  { id: 'GOLDEN_IMPERIAL', name: 'Sun King', price: 75000, tier: 'MYTHIC', type: 'SLEEVE', style: 'GOLDEN_IMPERIAL', description: '24-karat polished gold leafing.' },
+  { id: 'SOVEREIGN_HEART', name: 'Sovereign Heart', price: 100000, tier: 'MYTHIC', type: 'SLEEVE', style: 'SOVEREIGN_HEART', description: 'The ultimate Mythic heart signature.' },
+];
+
+export const SUPER_PRESTIGE_SLEEVE_IDS = ['SOVEREIGN_HEART', 'AETHER_VOID', 'WITS_END', 'EMPERORS_HUBRIS', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR'];
+
+export const TIER_COLORS: Record<string, string> = {
+  COMMON: 'text-white border-white/20 bg-white/5',
+  RARE: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
+  EPIC: 'text-purple-400 border-purple-500/30 bg-purple-500/10',
+  LEGENDARY: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10',
+  MYTHIC: 'text-rose-400 border-rose-500/30 bg-rose-500/10',
+};
+
+const TIER_SUIT_MAP: Record<string, string> = {
+  RARE: '♠',
+  EPIC: '♣',
+  LEGENDARY: '♦',
+  MYTHIC: '♥'
+};
+
+const TIER_INFO_DATA: { id: string, name: string, vibe: string, suit?: string, items: CardCoverStyle[] }[] = [
+  { id: 'COMMON', name: 'Common', vibe: 'Simple, flat colors, matte finish.', items: ['BLUE', 'RED'] },
+  { id: 'RARE', name: 'Rare', vibe: 'Slight metallic sheen, clean lines.', suit: 'Spades ♠', items: ['AMETHYST_ROYAL', 'VOID_ONYX', 'NEON_CYBER', 'SOVEREIGN_SPADE'] },
+  { id: 'EPIC', name: 'Epic', vibe: 'Glowing edges, subtle patterns.', suit: 'Clubs ♣', items: ['CHERRY_BLOSSOM_NOIR', 'DRAGON_SCALE', 'CRYSTAL_EMERALD', 'PIXEL_CITY_LIGHTS', 'SOVEREIGN_CLUB'] },
+  { id: 'LEGENDARY', name: 'Legendary', vibe: 'Animated effects, gold foil, 3D depth.', suit: 'Diamonds ♦', items: ['AETHER_VOID', 'WITS_END', 'ROYAL_JADE', 'DIVINE_ROYAL', 'SOVEREIGN_DIAMOND'] },
+  { id: 'MYTHIC', name: 'Mythic', vibe: 'Particle effects, changing colors, unique frames.', suit: 'Hearts ♥', items: ['EMPERORS_HUBRIS', 'GOLDEN_IMPERIAL', 'SOVEREIGN_HEART'] },
+];
+
+const TierSystemModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
+  <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/95 backdrop-blur-3xl p-4 animate-in fade-in duration-300" onClick={onClose}>
+    <div className="bg-[#080808] border border-white/10 w-full max-w-3xl max-h-[85vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+        <div className="flex flex-col">
+          <h2 className="text-2xl font-black text-white uppercase italic tracking-widest font-serif leading-none">SLEEVE TIERING</h2>
+          <p className="text-[8px] font-black uppercase tracking-[0.4em] text-gray-500 mt-2">Asset Rarity Documentation</p>
+        </div>
+        <button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all active:scale-90"><span className="text-xl">✕</span></button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+        {TIER_INFO_DATA.map(tier => (
+          <div key={tier.id} className={`p-6 rounded-[2rem] border ${TIER_COLORS[tier.id]} space-y-4 relative overflow-hidden group`}>
+            <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
+               <span className="text-7xl font-black uppercase italic">{tier.name}</span>
+            </div>
+            
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                 <div className={`w-3 h-3 rounded-full animate-pulse shadow-[0_0_10px_currentColor]`} style={{ color: tier.id === 'COMMON' ? '#fff' : tier.id === 'RARE' ? '#60a5fa' : tier.id === 'EPIC' ? '#c084fc' : tier.id === 'LEGENDARY' ? '#fbbf24' : '#fb7185' }}></div>
+                 <h3 className="text-lg font-black uppercase tracking-widest">{tier.name}</h3>
+              </div>
+              {tier.suit && <span className="text-sm font-black opacity-60 italic">{tier.suit} Set</span>}
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[7px] font-black text-white/30 uppercase tracking-widest">Visual Vibe</span>
+              <p className="text-[10px] text-white/80 leading-relaxed uppercase">{tier.vibe}</p>
+            </div>
+
+            <div className="pt-2 border-t border-white/5">
+              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest block mb-4">Signature Assets</span>
+              <div className="grid grid-cols-5 gap-3">
+                {tier.items.map(style => (
+                  <div key={style} className="flex flex-col items-center gap-1 group/sleeve">
+                    <Card faceDown coverStyle={style} small className="!w-12 !h-18 shadow-xl transition-transform group-hover/sleeve:scale-105 activeTurn={true} />
+                    <span className="text-[6px] font-black text-white/20 uppercase tracking-tighter truncate w-full text-center group-hover/sleeve:text-white/40 transition-colors">
+                      {style.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+export const SleeveArenaPreview: React.FC<{
+  sleeveStyle: CardCoverStyle;
+  themeId: BackgroundTheme;
+  sleeveEffectsEnabled: boolean;
+  onClose: () => void;
+}> = ({ sleeveStyle, themeId, sleeveEffectsEnabled, onClose }) => {
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={onClose}>
-      <BoardSurface themeId={themeId} />
-
+      <BoardSurface themeId={themeId} isMini />
       <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Header Navigation */}
-        <div className="p-4 sm:p-8 flex justify-between items-start">
-            <div className="flex flex-col">
-              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-[0.2em] drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] font-serif uppercase italic leading-none">ARENA PREVIEW</h1>
-              <div className="flex items-center gap-3 mt-2">
-                <span className={`w-2 h-2 rounded-full ${isSuperPrestige ? 'bg-yellow-400' : isPrestige ? 'bg-yellow-500' : 'bg-emerald-500'} animate-pulse`}></span>
-                <p className={`text-[8px] sm:text-[10px] font-black ${isSuperPrestige ? 'text-yellow-400' : isPrestige ? 'text-yellow-500' : 'text-emerald-500'} uppercase tracking-[0.6em] drop-shadow-md whitespace-nowrap`}>
-                    {sleeveStyle.replace('_', ' ')} {isSuperPrestige ? 'Celestial Divine' : 'Tactile Visual'}
-                </p>
-              </div>
-            </div>
-            
-            <button 
-              onClick={onClose} 
-              className="group flex items-center gap-2 sm:gap-4 px-4 py-2 sm:px-6 sm:py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10 transition-all duration-300 shadow-[0_15px_30px_rgba(0,0,0,0.6)] active:scale-95"
-            >
-              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em]">Exit</span>
-              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition-colors">
-                <span className="text-[10px] sm:text-xs font-black group-hover:rotate-90 transition-transform">✕</span>
-              </div>
-            </button>
+        <div className="p-8 flex justify-between items-start">
+          <div className="flex flex-col">
+            <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic">ARENA DEPLOYMENT</h1>
+            <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2">Active Sleeve Signature Loaded</p>
+          </div>
+          <button onClick={onClose} className="group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">
+            <span className="group-hover:-translate-x-1 transition-transform">RETURN ←</span>
+          </button>
         </div>
-
-        {/* Tactical Battlefield Render */}
-        <div className="flex-1 relative flex flex-col items-center justify-between py-24 sm:py-32">
-            
-            {/* Mirrored Opponent Hand (Face Down) - Scaled for Mobile */}
-            <div className="relative w-full flex justify-center perspective-[2000px]">
-                {PREVIEW_HAND.map((card, i) => {
-                    const total = PREVIEW_HAND.length;
-                    const mid = (total - 1) / 2;
-                    const offset = i - mid;
-                    const rotation = offset * 2.5; 
-                    const translateY = Math.abs(offset) * 3; 
-
-                    return (
-                      <div 
-                        key={`opp-${card.id}`}
-                        className="absolute transition-all duration-700 ease-out animate-in slide-in-from-top-12 fade-in"
-                        style={{ 
-                          // Using a smaller step for mobile to prevent off-screen bleed
-                          transform: `translateX(calc(var(--step) * ${offset})) translateY(${translateY}px) rotate(${-rotation}deg)`,
-                          zIndex: i,
-                          animationDelay: `${i * 30}ms`,
-                          '--step': 'clamp(14px, 4.5vw, 42px)'
-                        } as any}
-                      >
-                        <Card 
-                          faceDown 
-                          coverStyle={sleeveStyle} 
-                          className="!w-16 !h-24 sm:!w-24 sm:!h-36 md:!w-32 md:!h-48 ring-1 ring-white/10 opacity-60" 
-                          disableEffects={!sleeveEffectsEnabled} 
-                          activeTurn={true}
-                        />
-                      </div>
-                    );
-                })}
+        
+        <div className="flex-1 flex items-center justify-center">
+          <div className="relative group">
+            <div className="absolute inset-0 bg-white/10 blur-[100px] rounded-full scale-150 animate-pulse"></div>
+            <div className="transform rotate-[-6deg] hover:rotate-0 transition-transform duration-700">
+              <Card faceDown activeTurn={true} coverStyle={sleeveStyle} className="!w-64 !h-[380px] shadow-[0_60px_120px_rgba(0,0,0,0.8)] ring-1 ring-white/20 rounded-[2rem]" disableEffects={!sleeveEffectsEnabled} />
             </div>
-
-            {/* Static Message Area */}
-            <div className="z-[100] flex flex-col items-center text-center px-6">
-                <div className="h-[1px] w-24 sm:w-48 bg-gradient-to-r from-transparent via-white/20 to-transparent mb-4"></div>
-                {!sleeveEffectsEnabled && (isPrestige || isSuperPrestige) && (
-                    <div className="bg-rose-600/20 backdrop-blur-md border border-rose-500/40 px-6 py-2 rounded-full animate-pulse">
-                        <p className="text-[7px] sm:text-[9px] font-black text-rose-500 uppercase tracking-[0.2em]">
-                            Visual FX Disabled in Settings
-                        </p>
-                    </div>
-                )}
-                <div className="h-[1px] w-24 sm:w-48 bg-gradient-to-r from-transparent via-white/20 to-transparent mt-4"></div>
-            </div>
-
-            {/* Player Hand (Face Up) - High Precision Alignment */}
-            <div className="relative w-full flex justify-center perspective-[2000px]">
-                {PREVIEW_HAND.map((card, i) => {
-                    const total = PREVIEW_HAND.length;
-                    const mid = (total - 1) / 2;
-                    const offset = i - mid;
-                    const rotation = offset * 3; 
-                    const translateY = -Math.abs(offset) * 4; 
-
-                    return (
-                      <div 
-                        key={`player-${card.id}`}
-                        className="absolute transition-all duration-700 ease-out animate-in slide-in-from-bottom-12 fade-in shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
-                        style={{ 
-                          transform: `translateX(calc(var(--step) * ${offset})) translateY(${translateY}px) rotate(${rotation}deg)`,
-                          zIndex: i,
-                          animationDelay: `${(total - i) * 30}ms`,
-                          '--step': 'clamp(18px, 5.5vw, 55px)'
-                        } as any}
-                      >
-                        <Card 
-                          card={card} 
-                          coverStyle={sleeveStyle} 
-                          className="!w-20 !h-28 sm:!w-28 sm:!h-40 md:!w-40 md:!h-60 ring-2 ring-white/5" 
-                          disableEffects={!sleeveEffectsEnabled} 
-                          activeTurn={true}
-                        />
-                      </div>
-                    );
-                })}
-            </div>
+          </div>
         </div>
-
-        <div className="p-6 sm:p-12 flex flex-col items-center gap-2 bg-gradient-to-t from-black/60 to-transparent">
-            <p className="text-[7px] sm:text-[9px] font-black text-white/30 uppercase tracking-[1em] text-center">Tactical Interface Fully Rendered</p>
+        
+        <div className="p-12 flex justify-center">
+           <div className="bg-black/40 backdrop-blur-xl px-10 py-4 rounded-full border border-white/10">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.8em]">Preview Mode // {sleeveStyle}</span>
+           </div>
         </div>
       </div>
     </div>
   );
 };
 
-const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => void }> = ({ themeId, onClose }) => {
-  const theme = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
+export const DummyTablePreview: React.FC<{
+  themeId: BackgroundTheme;
+  onClose: () => void;
+}> = ({ themeId, onClose }) => {
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={onClose}>
       <BoardSurface themeId={themeId} isMini />
-
       <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Top Bar Navigation */}
         <div className="p-8 flex justify-between items-start">
-            <div className="flex flex-col">
-              <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] font-serif uppercase italic">ARENA PREVIEW</h1>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
-                <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-md">{theme.name} Terrain Profile</p>
-              </div>
-            </div>
-            
-            <button 
-              onClick={onClose} 
-              className="group flex items-center gap-4 px-6 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-red-500/30 text-red-400 hover:text-white hover:bg-red-600/80 transition-all duration-300 shadow-[0_15px_30px_rgba(0,0,0,0.6)] active:scale-95"
-            >
-              <span className="text-[10px] font-black uppercase tracking-[0.4em]">Exit Preview</span>
-              <div className="w-6 h-6 rounded-full bg-red-500/10 group-hover:bg-white/20 flex items-center justify-center transition-colors">
-                <span className="text-xs font-black group-hover:rotate-90 transition-transform">✕</span>
-              </div>
-            </button>
+          <div className="flex flex-col">
+            <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic">ARENA SURFACE PREVIEW</h1>
+            <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2">Surface Profile Loaded</p>
+          </div>
+          <button onClick={onClose} className="group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">
+            <span className="group-hover:-translate-x-1 transition-transform">RETURN ←</span>
+          </button>
         </div>
-
-        {/* Scaled Dummy Hand for context */}
-        <div className="mt-auto p-12 flex flex-col items-center gap-6 bg-gradient-to-t from-black/40 to-transparent">
-            <div className="flex -space-x-12 opacity-50 grayscale-[0.2] scale-90">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="transform hover:-translate-y-4 transition-transform duration-300">
-                      <Card faceDown coverStyle="GOLDEN_IMPERIAL" />
-                    </div>
-                ))}
-            </div>
-            <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.8em]">Tactical Interface Simulated</p>
-        </div>
+        <div className="flex-1"></div>
       </div>
     </div>
   );
@@ -272,14 +223,14 @@ export const Store: React.FC<StoreProps> = ({
   const [density, setDensity] = useState<1 | 2 | 4>(2);
   const [hideOwned, setHideOwned] = useState(false);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
+  const [showTierInfo, setShowTierInfo] = useState(false);
   
-  // Purchase states
   const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
 
   useEffect(() => { 
     setActiveTab(initialTab as any);
-    fetchEmotes().then(setRemoteEmotes);
+    if (typeof fetchEmotes === 'function') fetchEmotes().then(setRemoteEmotes);
   }, [initialTab]);
 
   const isUnlockedSleeve = (itemId: string) => profile?.unlocked_sleeves.includes(itemId) || SLEEVES.find(s => s.id === itemId)?.price === 0;
@@ -292,8 +243,6 @@ export const Store: React.FC<StoreProps> = ({
     const price = isAvatar ? 250 : item.price;
     const type = isAvatar ? 'AVATAR' : isBoard ? 'BOARD' : 'SLEEVE';
     
-    if (profile.coins < price) return;
-
     setPendingPurchase({
       id,
       name: isAvatar ? getAvatarName(id, remoteEmotes) : item.name,
@@ -305,6 +254,7 @@ export const Store: React.FC<StoreProps> = ({
 
   const executePurchase = async () => {
     if (!pendingPurchase || !profile || buying) return;
+    if (profile.coins < pendingPurchase.price) return;
     setBuying(pendingPurchase.id);
     try {
       await buyItem(profile!.id, pendingPurchase.price, pendingPurchase.id, pendingPurchase.type as any, !!isGuest);
@@ -332,6 +282,7 @@ export const Store: React.FC<StoreProps> = ({
     const price = isAvatar ? 250 : item.price;
     const canAfford = (profile?.coins || 0) >= price;
     const itemName = isAvatar ? getAvatarName(item, remoteEmotes) : item.name;
+    const tier = item.tier || 'COMMON';
     
     let isEquipped = false;
     if (isAvatar) isEquipped = playerAvatar === item;
@@ -342,17 +293,33 @@ export const Store: React.FC<StoreProps> = ({
     const visualSize = density === 4 ? 'scale-100' : density === 2 ? 'scale-100' : 'scale-110';
     const nameSize = density === 4 ? 'text-[7px]' : 'text-[9px] sm:text-[10px]';
 
-    const isPrestigeSleeve = !isAvatar && !isBoard && PRESTIGE_SLEEVE_IDS.includes(item.style);
-    const isSuperPrestigeSleeve = !isAvatar && !isBoard && SUPER_PRESTIGE_SLEEVE_IDS.includes(item.style);
-
     return (
-      <div key={id} onClick={() => isAvatar ? setPreviewAvatar(item) : isBoard ? setPreviewThemeId(item.id) : setPreviewSleeveStyle(item.style)} className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl cursor-pointer`}>
-        <div className="absolute top-2.5 right-2.5 z-10">
+      <div 
+        key={id} 
+        onClick={() => {
+            if (unlocked) {
+                if (isAvatar) setPreviewAvatar(item);
+                else if (isBoard) setPreviewThemeId(item.id);
+                else setPreviewSleeveStyle(item.style);
+            } else {
+                handlePurchaseAttempt(item, isAvatar, isBoard);
+            }
+        }} 
+        className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl cursor-pointer`}
+      >
+        <div className="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-2">
           {unlocked && isEquipped && (
             <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] sm:text-[8px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>
           )}
-          {unlocked && !isEquipped && (
-            <div onClick={(e) => { e.stopPropagation(); if (isAvatar) onEquipAvatar(item); else if (isBoard) onEquipBoard(item.id); else onEquipSleeve(item.style); }} className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-white/20 bg-transparent hover:border-white/50 cursor-pointer transition-colors"></div>
+          {!isAvatar && !isBoard && tier !== 'COMMON' && (
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black border shadow-[0_0_10px_rgba(0,0,0,0.5)] ${TIER_COLORS[tier]}`}>
+              {TIER_SUIT_MAP[tier]}
+            </div>
+          )}
+          {!isAvatar && !isBoard && tier === 'COMMON' && (
+            <div className={`px-2 py-0.5 rounded-full text-[6px] font-black uppercase tracking-widest border ${TIER_COLORS[tier]}`}>
+              {tier}
+            </div>
           )}
         </div>
 
@@ -368,16 +335,6 @@ export const Store: React.FC<StoreProps> = ({
           ) : (
            <div className="relative group/card">
               <Card faceDown coverStyle={item.style} activeTurn={true} className={`${density === 4 ? '!w-16 !h-24' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} />
-              {isPrestigeSleeve && !isSuperPrestigeSleeve && (
-                <div className="absolute -top-1.5 -left-1.5 bg-black/80 rounded-full w-5 h-5 flex items-center justify-center border border-yellow-500/40 shadow-[0_0_10px_rgba(234,179,8,0.4)] z-20 group-hover/card:scale-110 transition-transform">
-                  <span className="text-yellow-500 text-[10px] font-black drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]">♠</span>
-                </div>
-              )}
-              {isSuperPrestigeSleeve && (
-                <div className="absolute -top-2 -left-2 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-[0_0_15px_rgba(234,179,8,0.8)] z-20 group-hover/card:scale-110 transition-transform animate-pulse">
-                  <span className="text-white text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">♥</span>
-                </div>
-              )}
            </div>
           )}
         </div>
@@ -416,10 +373,10 @@ export const Store: React.FC<StoreProps> = ({
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
+      {showTierInfo && <TierSystemModal onClose={() => setShowTierInfo(false)} />}
       {previewThemeId && <DummyTablePreview themeId={previewThemeId} onClose={() => setPreviewThemeId(null)} />}
       {previewSleeveStyle && <SleeveArenaPreview sleeveStyle={previewSleeveStyle} themeId={currentTheme} sleeveEffectsEnabled={profile?.sleeve_effects_enabled !== false} onClose={() => setPreviewSleeveStyle(null)} />}
       
-      {/* AVATAR PREVIEW MODAL */}
       {previewAvatar && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in zoom-in-95 duration-200" onClick={() => setPreviewAvatar(null)}>
           <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-10 flex flex-col items-center text-center shadow-[0_0_150px_rgba(251,191,36,0.1)] relative" onClick={e => e.stopPropagation()}>
@@ -431,9 +388,9 @@ export const Store: React.FC<StoreProps> = ({
             <p className="text-gray-500 text-[10px] uppercase tracking-[0.4em] mb-10 italic">Elite Signature Series</p>
             
             <div className="w-full">
-              {isUnlockedAvatar(previewAvatar) ? (
+              {isUnlockedAvatar(previewAvatar!) ? (
                 <button 
-                  onClick={() => { onEquipAvatar(previewAvatar); setPreviewAvatar(null); }}
+                  onClick={() => { onEquipAvatar(previewAvatar!); setPreviewAvatar(null); }}
                   className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] transition-all shadow-xl ${playerAvatar === previewAvatar ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 cursor-default' : 'bg-emerald-600 text-white hover:scale-105 active:scale-95'}`}
                   disabled={playerAvatar === previewAvatar}
                 >
@@ -442,7 +399,7 @@ export const Store: React.FC<StoreProps> = ({
               ) : (
                 <button 
                   onClick={() => { setPreviewAvatar(null); handlePurchaseAttempt(previewAvatar, true); }}
-                  disabled={profile && profile.coins < 250 || !!buying}
+                  disabled={(profile && profile.coins < 250) || !!buying}
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black font-black uppercase tracking-[0.25em] text-[11px] shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
                 >
                   {buying === previewAvatar ? 'UNREELING...' : `UNLOCK | 💰 250`}
@@ -453,30 +410,78 @@ export const Store: React.FC<StoreProps> = ({
         </div>
       )}
 
-      {/* PURCHASE CONFIRMATION MODAL */}
       {pendingPurchase && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-              <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[2rem] p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)]">
-                  <div className="text-4xl mb-4">💳</div>
-                  <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Confirm Purchase?</h3>
-                  <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-6">
-                    Unlock <span className="text-white">{pendingPurchase.name}</span> for <span className="text-yellow-500">{pendingPurchase.price} GOLD</span>
+          <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+              <div className="fixed top-8 left-8 z-[300] animate-in slide-in-from-left-4 fade-in duration-500 pointer-events-none">
+                  <div className="bg-black/60 backdrop-blur-3xl border border-yellow-500/30 rounded-xl px-3 py-1.5 flex items-center gap-2 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                      <span className="text-lg drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">💰</span>
+                      <div className="flex flex-col">
+                          <span className="text-[8px] font-black text-yellow-500/60 uppercase tracking-widest leading-none">Your Gold</span>
+                          <span className="text-sm font-black text-white font-mono tracking-tighter leading-none mt-0.5">
+                              {profile?.coins.toLocaleString()}
+                          </span>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-8 pt-20 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)] relative">
+                  <div className="absolute -top-24 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center">
+                      <div className="absolute inset-[-40px] bg-yellow-500/10 blur-[60px] rounded-full animate-pulse"></div>
+                      
+                      {pendingPurchase.type === 'BOARD' ? (
+                          <div className="w-56 aspect-[16/10] rounded-3xl overflow-hidden border-2 border-yellow-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
+                             <BoardPreview themeId={pendingPurchase.id} hideActiveMarker={true} />
+                          </div>
+                      ) : pendingPurchase.type === 'SLEEVE' ? (
+                          <div className="transform rotate-[-4deg]">
+                             <Card faceDown coverStyle={pendingPurchase.style} className="!w-32 !h-48 shadow-[0_25px_60px_rgba(0,0,0,0.9)] border-2 border-yellow-500/40 rounded-2xl" activeTurn={true} />
+                          </div>
+                      ) : (
+                          <div className="w-32 h-32 rounded-full bg-black border-2 border-yellow-500/40 shadow-[0_0_40px_rgba(234,179,8,0.4)] flex items-center justify-center overflow-hidden">
+                             <VisualEmote trigger={pendingPurchase.id} remoteEmotes={remoteEmotes} size="lg" />
+                          </div>
+                      )}
+                  </div>
+
+                  <h3 className="text-white font-black uppercase tracking-tight text-2xl mb-2 mt-6 font-serif italic whitespace-nowrap">Secure Asset?</h3>
+                  <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-8 px-4 leading-relaxed">
+                    Unlock <span className="text-white font-bold">{pendingPurchase.name}</span> for <span className="text-yellow-500 font-bold">{pendingPurchase.price} GOLD</span>
                   </p>
-                  <div className="grid grid-cols-2 gap-3 w-full">
-                      <button onClick={() => setPendingPurchase(null)} className="py-3 rounded-xl bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:text-white transition-colors">Cancel</button>
-                      <button 
-                        onClick={executePurchase} 
-                        disabled={buying === pendingPurchase.id}
-                        className="py-3 rounded-xl bg-yellow-500 text-black text-[10px] font-black uppercase tracking-widest shadow-lg hover:scale-105 transition-transform disabled:opacity-50"
-                      >
-                        {buying ? '...' : 'Confirm'}
-                      </button>
+                  
+                  <div className="flex flex-col gap-3 w-full">
+                      <div className="grid grid-cols-2 gap-3 w-full">
+                          <button onClick={() => setPendingPurchase(null)} className="py-3.5 rounded-xl bg-white/5 border border-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all active:scale-95">Cancel</button>
+                          <button 
+                            onClick={executePurchase} 
+                            disabled={!!buying || (profile && profile.coins < pendingPurchase.price)}
+                            className="py-3.5 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-700 text-black text-[10px] font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(234,179,8,0.2)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+                          >
+                            {buying ? '...' : 'Confirm'}
+                          </button>
+                      </div>
+                      
+                      {pendingPurchase.type === 'SLEEVE' && (
+                        <button 
+                          onClick={() => setPreviewSleeveStyle(pendingPurchase.style!)}
+                          className="w-full py-3 rounded-xl bg-white/[0.03] border border-white/10 text-white/60 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-white/10 hover:text-white transition-all active:scale-95"
+                        >
+                          🔍 PREVIEW ARENA
+                        </button>
+                      )}
+
+                      {pendingPurchase.type === 'BOARD' && (
+                        <button 
+                          onClick={() => setPreviewThemeId(pendingPurchase.id as BackgroundTheme)}
+                          className="w-full py-3 rounded-xl bg-white/[0.03] border border-white/10 text-white/60 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-white/10 hover:text-white transition-all active:scale-95"
+                        >
+                          🔍 PREVIEW BOARD
+                        </button>
+                      )}
                   </div>
               </div>
           </div>
       )}
 
-      {/* ASSET SECURED AWARD ANIMATION */}
       {awardItem && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500 overflow-hidden" onClick={e => e.stopPropagation()}>
               {Array.from({ length: 20 }).map((_, i) => (
@@ -501,7 +506,7 @@ export const Store: React.FC<StoreProps> = ({
                       ) : awardItem.type === 'SLEEVE' ? (
                           <div className="relative">
                             <div className="absolute inset-0 bg-white/10 blur-3xl rounded-full scale-150"></div>
-                            <Card faceDown coverStyle={awardItem.style} activeTurn={true} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" />
+                            <Card faceDown activeTurn={true} coverStyle={awardItem.style} className="!w-40 !h-60 shadow-[0_40px_80px_rgba(0,0,0,1)] ring-2 ring-yellow-500/50" />
                           </div>
                       ) : (
                           <div className="w-64 aspect-[16/10] rounded-3xl overflow-hidden ring-2 ring-yellow-500/50 shadow-2xl">
@@ -543,7 +548,9 @@ export const Store: React.FC<StoreProps> = ({
 
         <div className="px-4 sm:px-8 pb-1 flex flex-col items-center justify-center mt-12 sm:mt-8">
           <div className="flex flex-col items-center text-center">
-            <h2 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif leading-none px-2">XIII SHOP</h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif leading-none px-2">XIII SHOP</h2>
+            </div>
             <p className="text-[8px] sm:text-[9px] font-black tracking-[0.6em] sm:tracking-[0.8em] text-gray-600 mt-1 sm:mt-2 uppercase">UP YOUR GAME</p>
           </div>
 
@@ -567,15 +574,26 @@ export const Store: React.FC<StoreProps> = ({
                   ))}
                </div>
 
-               <button 
-                 onClick={() => setHideOwned(!hideOwned)} 
-                 className="flex items-center gap-2 sm:gap-3 px-1 sm:px-2 group cursor-pointer"
-               >
-                 <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-colors ${hideOwned ? 'text-yellow-500' : 'text-white/30'} whitespace-nowrap`}>Owned</span>
-                 <div className={`w-8 h-4 sm:w-10 sm:h-5 rounded-full relative transition-all duration-500 ${hideOwned ? 'bg-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-white/5 border border-white/10'}`}>
-                    <div className={`absolute top-0.5 w-3 h-3 sm:w-4 sm:h-4 rounded-full transition-all duration-500 ease-out ${hideOwned ? 'translate-x-4 sm:translate-x-5 bg-white' : 'translate-x-0.5 bg-white/20'}`}></div>
-                 </div>
-               </button>
+               <div className="flex items-center gap-4 px-2">
+                 <button 
+                   onClick={() => setHideOwned(!hideOwned)} 
+                   className="flex items-center gap-2 sm:gap-3 group cursor-pointer"
+                 >
+                   <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-colors ${hideOwned ? 'text-yellow-500' : 'text-white/30'} whitespace-nowrap`}>Owned</span>
+                   <div className={`w-8 h-4 sm:w-10 sm:h-5 rounded-full relative transition-all duration-500 ${hideOwned ? 'bg-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-white/5 border border-white/10'}`}>
+                      <div className={`absolute top-0.5 w-3 h-3 sm:w-4 sm:h-4 rounded-full transition-all duration-500 ease-out ${hideOwned ? 'translate-x-4 sm:translate-x-5 bg-white' : 'translate-x-0.5 bg-white/20'}`}></div>
+                   </div>
+                 </button>
+
+                 {activeTab === 'SLEEVES' && (
+                    <button 
+                      onClick={() => setShowTierInfo(true)}
+                      className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all shadow-xl active:scale-90 group"
+                    >
+                      <span className="text-[10px] font-black italic">i</span>
+                    </button>
+                 )}
+               </div>
             </div>
           </div>
         </div>
@@ -594,25 +612,6 @@ export const Store: React.FC<StoreProps> = ({
             </div>
         </div>
       </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes awardPop {
-            0% { transform: scale(0.5); opacity: 0; filter: blur(20px); }
-            60% { transform: scale(1.1); opacity: 1; filter: blur(0); }
-            100% { transform: scale(1); }
-        }
-        @keyframes awardText {
-            0% { transform: translateY(20px); opacity: 0; }
-            100% { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes awardParticle {
-            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0) rotate(var(--rot)); opacity: 0; }
-        }
-        .animate-award-pop { animation: awardPop 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
-        .animate-award-text { opacity: 0; animation: awardText 0.6s ease-out forwards; }
-        .animate-award-particle { animation: awardParticle 1.2s ease-out forwards; }
-      `}} />
     </div>
   );
 };

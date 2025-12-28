@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus, SocketEvents, UserProfile, Emote } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
-import { BoardSurface } from './UserHub';
+import { BoardSurface, HubTab } from './UserHub';
 import { audioService } from '../services/audio';
 import { sortCards, validateMove, getComboType, findAllValidCombos, canPlayAnyMove } from '../utils/gameLogic';
 import { socket } from '../services/socket';
@@ -209,7 +209,20 @@ const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'b
   );
 };
 
-export const GameTable: React.FC<any> = ({ 
+interface GameTableProps {
+  gameState: GameState;
+  myId: string;
+  myHand: CardType[];
+  onPlayCards: (cards: CardType[]) => void;
+  onPassTurn: () => void;
+  cardCoverStyle: CardCoverStyle;
+  backgroundTheme: BackgroundTheme;
+  onOpenSettings: () => void;
+  profile: UserProfile | null;
+  playAnimationsEnabled?: boolean;
+}
+
+export const GameTable: React.FC<GameTableProps> = ({ 
   gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
@@ -224,16 +237,17 @@ export const GameTable: React.FC<any> = ({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const isMyTurn = gameState.currentPlayerId === myId;
-  const me = (gameState.players as any[])?.find((p: any) => p.id === myId);
+  const me = gameState.players.find((p) => p.id === myId);
   const isFinished = !!me?.finishedRank;
   
-  // Fix: Explicitly cast currentPlayPile to any[] to avoid "unknown" type errors when accessing .length
-  const playPile = (gameState as any).currentPlayPile as any[] | undefined;
+  // Fix: Explicitly cast currentPlayPile to ensure length property exists for TS safety
+  const playPile: PlayTurn[] = (gameState.currentPlayPile || []) as PlayTurn[];
   const isLeader = !playPile || playPile.length === 0;
   
-  // Fix: Use the properly cast playPile array to safely get the last move
-  const lastMove: any = playPile && playPile.length > 0 ? playPile[playPile.length - 1] : null;
-  const sleeveEffectsEnabled = profile?.sleeve_effects_enabled !== false;
+  // Fix: Derive lastMove from the properly cast playPile array
+  const lastMove: PlayTurn | null = playPile && playPile.length > 0 ? playPile[playPile.length - 1] : null;
+  // Fix: Explicitly handle potential unknown/null profile type
+  const sleeveEffectsEnabled = (profile as UserProfile | null)?.sleeve_effects_enabled !== false;
 
   useEffect(() => {
     if (!isMyTurn) {
@@ -255,11 +269,8 @@ export const GameTable: React.FC<any> = ({
     } else {
       setShowBombEffect(false);
     }
-    /** 
-     * Fix: Ensure lastMove.cards is correctly cast to any[] before accessing .length in the dependency array.
-     * This addresses the error "Property 'length' does not exist on type 'unknown'" at line 316.
-     */
-  }, [(lastMove?.cards as any[])?.length || 0, lastMove?.playerId, lastMove?.comboType]);
+    // Fix: Safely access length using optional chaining in dependency array to satisfy TS and avoid 'unknown' errors
+  }, [lastMove?.cards?.length, lastMove?.playerId, lastMove?.comboType]);
 
   const unlockedAvatars = useMemo(() => {
     const unlocked = profile?.unlocked_avatars || [];
@@ -270,11 +281,11 @@ export const GameTable: React.FC<any> = ({
   useEffect(() => { 
     setSelectedCardIds(prev => { 
       const next = new Set<string>(); 
-      prev.forEach(id => { if (myHand.some((c: any) => c.id === id)) next.add(id); }); 
+      prev.forEach(id => { if (myHand.some((c) => c.id === id)) next.add(id); }); 
       return next; 
     }); 
   }, [myHand]);
-  useEffect(() => { fetchEmotes().then(setRemoteEmotes); }, []);
+  useEffect(() => { if (typeof fetchEmotes === 'function') fetchEmotes().then(setRemoteEmotes); }, []);
 
   useEffect(() => {
     const handleReceiveEmote = ({ playerId, emote }: { playerId: string; emote: string }) => {
@@ -288,7 +299,7 @@ export const GameTable: React.FC<any> = ({
   }, []);
 
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
-  const myIndex = gameState.players.findIndex((p: any) => p.id === myId);
+  const myIndex = gameState.players.findIndex((p) => p.id === myId);
 
   useEffect(() => {
     if (!isMyTurn || !gameState.turnEndTime) { setTimeLeft(0); return; }
@@ -305,7 +316,7 @@ export const GameTable: React.FC<any> = ({
 
   const validationResult = useMemo(() => { 
     if (selectedCardIds.size === 0) return { isValid: false, reason: '' }; 
-    const cards = myHand.filter((c: any) => selectedCardIds.has(c.id)); 
+    const cards = myHand.filter((c) => selectedCardIds.has(c.id)); 
     return validateMove(cards, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame, myHand); 
   }, [selectedCardIds, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
@@ -323,13 +334,13 @@ export const GameTable: React.FC<any> = ({
 
   const getPlayerPosition = (index: number) => { const relativeIndex = (index - myIndex + gameState.players.length) % gameState.players.length; switch(relativeIndex) { case 0: return 'bottom'; case 1: return 'left'; case 2: return 'top'; case 3: return 'right'; default: return 'bottom'; } };
 
-  const opponents = useMemo(() => { return gameState.players.map((p: any, i: number) => ({ player: p, index: i, position: getPlayerPosition(i) })).filter((o: any) => o.position !== 'bottom'); }, [gameState.players, myId, myIndex]);
+  const opponents = useMemo(() => { return gameState.players.map((p, i: number) => ({ player: p, index: i, position: getPlayerPosition(i) })).filter((o) => o.position !== 'bottom'); }, [gameState.players, myId, myIndex]);
 
   const toggleCard = (id: string) => { if (!isMyTurn) return; const next = new Set(selectedCardIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedCardIds(next); };
 
   const handlePlay = () => { 
     if (selectedCardIds.size === 0 || !isMyTurn) return; 
-    const cards = myHand.filter((c: any) => selectedCardIds.has(c.id)); 
+    const cards = myHand.filter((c) => selectedCardIds.has(c.id)); 
     const res = validateMove(cards, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame, myHand);
     if (res.isValid) { 
       onPlayCards(cards); 
@@ -346,14 +357,11 @@ export const GameTable: React.FC<any> = ({
   };
 
   const cycleComboType = (type: string) => {
-    // Fix: Explicitly cast to 'any' for better robustness against inference failures and ensure list.length is valid
-    const list = (combosByGroup[type] || []) as any[][];
+    const list = combosByGroup[type] || [];
     if (list.length === 0) return;
     
-    // Fix: Explicitly type parameter as 'any' and cast inside comparison to ensure .length is accessible during complex inference
-    let targetIndex = list.findIndex((combo: any) => {
-      const c = combo as any[];
-      return c.length === selectedCardIds.size && c.every((item: any) => selectedCardIds.has(item.id));
+    let targetIndex = list.findIndex((combo) => {
+      return combo.length === selectedCardIds.size && combo.every((item) => selectedCardIds.has(item.id));
     });
     
     if (targetIndex !== -1) {
@@ -362,10 +370,9 @@ export const GameTable: React.FC<any> = ({
       targetIndex = 0;
     }
     
-    // Fix: Ensure we access the correct combo and cast its cards
     const nextCombo = list[targetIndex];
     if (nextCombo) {
-      setSelectedCardIds(new Set(nextCombo.map((c: any) => c.id)));
+      setSelectedCardIds(new Set(nextCombo.map((c) => c.id)));
       audioService.playExpandHand(); 
     }
   };
@@ -383,15 +390,15 @@ export const GameTable: React.FC<any> = ({
             : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14')
   };
 
-  const topOpponent = opponents.find((o: any) => o.position === 'top');
-  const leftOpponent = opponents.find((o: any) => o.position === 'left');
-  const rightOpponent = opponents.find((o: any) => o.position === 'right');
+  const topOpponent = opponents.find((o) => o.position === 'top');
+  const leftOpponent = opponents.find((o) => o.position === 'left');
+  const rightOpponent = opponents.find((o) => o.position === 'right');
 
-  const iHave3Spades = useMemo(() => myHand.some((c: any) => c.rank === Rank.Three && c.suit === Suit.Spades), [myHand]);
+  const iHave3Spades = useMemo(() => myHand.some((c) => c.rank === Rank.Three && c.suit === Suit.Spades), [myHand]);
 
   const lastMovePlayerPosition = useMemo(() => {
     if (!lastMove) return null;
-    const idx = gameState.players.findIndex((p: any) => p.id === lastMove.playerId);
+    const idx = gameState.players.findIndex((p) => p.id === lastMove.playerId);
     return getPlayerPosition(idx);
   }, [lastMove, gameState.players, myIndex]);
 
@@ -468,14 +475,14 @@ export const GameTable: React.FC<any> = ({
       <BombOverlay active={showBombEffect} />
       {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
 
-      {activeEmotes.map(ae => { const playerIdx = gameState.players.findIndex((p: any) => p.id === ae.playerId); if (playerIdx === -1) return null; return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={getPlayerPosition(playerIdx) as any} />; })}
+      {activeEmotes.map(ae => { const playerIdx = gameState.players.findIndex((p) => p.id === ae.playerId); if (playerIdx === -1) return null; return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={getPlayerPosition(playerIdx) as any} />; })}
 
       {/* Top Left Status Stack (Landscape Only) */}
       <div className="fixed top-4 left-4 z-[250] hidden landscape:flex flex-col gap-4 pointer-events-none items-start">
           {lastMove && (
              <div className="flex flex-col items-center animate-in slide-in-from-left-4 duration-500">
                 <span className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.4em] whitespace-nowrap">
-                    {gameState.players.find((p: any) => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE
+                    {gameState.players.find((p) => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE
                 </span>
                 <div className="h-[2px] w-12 bg-yellow-500/40 mt-1.5 rounded-full shadow-[0_0_12px_rgba(234,179,8,0.5)]"></div>
              </div>
@@ -491,10 +498,8 @@ export const GameTable: React.FC<any> = ({
                       <div className="flex flex-col gap-2">
                           {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { 
                             if (lists.length === 0) return null; 
-                            // Fix: Explicitly type parameter as 'any' and ensure its length property is accessed safely
-                            const currentIndex = lists.findIndex((combo: any) => {
-                              const c = combo as any[];
-                              return c.length === selectedCardIds.size && c.every((item: any) => selectedCardIds.has(item.id));
+                            const currentIndex = lists.findIndex((combo) => {
+                              return combo.length === selectedCardIds.size && combo.every((item) => selectedCardIds.has(item.id));
                             }); 
                             const isTypeSelected = currentIndex !== -1; 
                             const typeLabel = type === 'RUN' ? 'STRAIGHT' : type === '4_PAIRS' ? '4 PAIRS' : type;
@@ -524,265 +529,4 @@ export const GameTable: React.FC<any> = ({
       {isMyTurn && selectedCardIds.size > 0 && hasValidCombos && (
           <div className="fixed top-4 left-4 z-[200] flex flex-col gap-2 animate-in slide-in-from-left-4 duration-500 max-w-[160px] landscape:hidden">
               <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-[1.5rem] shadow-2xl">
-                  <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5">
-                      <span className="w-1 h-1 rounded-full bg-yellow-500 animate-pulse"></span>
-                      <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                      {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { 
-                        if (lists.length === 0) return null; 
-                        // Fix: Explicitly type parameter as 'any' and cast inside comparison to ensure its length property is accessible
-                        const currentIndex = lists.findIndex((combo: any) => {
-                          const c = combo as any[];
-                          return c.length === selectedCardIds.size && c.every((item: any) => selectedCardIds.has(item.id));
-                        }); 
-                        const isTypeSelected = currentIndex !== -1; 
-                        const typeLabel = type === 'RUN' ? 'STRAIGHT' : type === '4_PAIRS' ? '4 PAIRS' : type;
-                        const displayIndex = isTypeSelected ? currentIndex + 1 : 1;
-                        
-                        return ( 
-                          <button 
-                            key={type} 
-                            onClick={() => cycleComboType(type)} 
-                            className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-300 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}
-                          > 
-                            <div className="flex justify-between items-center w-full z-10 gap-2"> 
-                              <span className="truncate">{typeLabel}</span> 
-                              <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> 
-                                {displayIndex}/{lists.length}
-                              </span> 
-                            </div> 
-                          </button> 
-                        ); 
-                      })}
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* Control Nodes (Landscape Only) */}
-      <div className="fixed bottom-4 left-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
-          {isMyTurn && passButtonUI}
-      </div>
-
-      {/* Local Player Profile (Landscape Only - Pinned flush above PASS button) */}
-      <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-500 w-24 flex justify-center">
-          <div className={`${isMyTurn ? 'opacity-100 translate-y-0' : (isFinished ? 'opacity-60 scale-90 translate-y-4' : 'opacity-0 translate-y-20')}`}>
-            {me && (
-                <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
-            )}
-          </div>
-      </div>
-
-      {/* Left Opponent (Landscape Only - Stacked parallel above Local Player Profile) */}
-      <div className="fixed bottom-[180px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-500 w-24 flex justify-center">
-          {leftOpponent && (
-              <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
-          )}
-      </div>
-
-      <div className="fixed bottom-4 right-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
-          {isMyTurn && playButtonUI}
-      </div>
-
-      <div className="fixed bottom-24 right-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
-          {isMyTurn && expandButtonUI}
-      </div>
-
-      {/* Right Opponent (Landscape Only - Pinned parallel above Row Expander) */}
-      <div className="fixed bottom-[180px] right-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-500 w-24 flex justify-center">
-          {rightOpponent && (
-              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
-          )}
-      </div>
-
-      <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
-        <div className="flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
-            <div className="relative">
-            <button onClick={() => setShowEmotePicker(!showEmotePicker)} className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all shadow-xl hover:scale-110 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg></button>
-            {showEmotePicker && ( 
-                <div className="absolute top-full right-0 mt-3 p-4 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl z-[300] grid grid-cols-3 gap-3 min-w-[200px] sm:min-w-[240px] animate-in fade-in zoom-in-95 duration-200"> 
-                {unlockedAvatars.map(emoji => ( 
-                    <button 
-                    key={emoji} 
-                    onClick={() => sendEmote(emoji)} 
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 hover:bg-white/15 transition-all flex items-center justify-center p-2 group/emote-btn overflow-hidden"
-                    >
-                    <VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="md" className="group-hover/emote-btn:scale-110 transition-transform duration-300" />
-                    </button> 
-                ))} 
-                </div> 
-            )}
-            </div>
-            <button onClick={onOpenSettings} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><SettingsIcon /></button>
-            <button onClick={() => setShowInstructions(true)} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all shadow-xl hover:scale-110"><span className="text-lg font-black">?</span></button>
-        </div>
-
-        <div className="hidden landscape:block absolute top-14 right-0 min-w-max transition-all duration-700">
-            {turnIndicatorUI}
-        </div>
-      </div>
-
-      {/* Opponent Grid */}
-      <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
-        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''}`}>
-          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />)}
-        </div>
-        
-        <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-150 ease-[0.2,0,0,1] ${isMyTurn ? '-translate-y-32 z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16 z-[60]' : '')} landscape:hidden`}>
-          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
-        </div>
-        
-        <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} landscape:hidden`}>
-          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
-        </div>
-      </div>
-
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-in-out ${isMyTurn ? 'portrait:-translate-y-24 landscape:-translate-y-7' : 'portrait:-translate-y-8 landscape:-translate-y-5'}`}>
-        <div className="relative flex flex-col items-center">
-          {lastMove ? (
-            <div 
-              key={lastMove.playerId + (lastMove.cards as any[]).map((c: any) => c.id).join('')}
-              className={`flex flex-col items-center gap-4 scale-90 sm:scale-125 landscape:scale-[0.4] ${arrivalAnimationClass}`}
-            >
-               <div className="flex -space-x-12">
-                {(lastMove.cards as any[]).map((c: any, i: number) => (
-                  <div 
-                    key={c.id} 
-                    style={{ 
-                        transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})`,
-                        animationDelay: playAnimationsEnabled ? `${i * 0.05}s` : '0s'
-                    } as any}
-                    className={playAnimationsEnabled ? "animate-play-bounce" : ""}
-                  >
-                    <Card 
-                      card={c} 
-                      coverStyle={lastMove.playerId === myId ? cardCoverStyle : 'BLUE'} 
-                      className="shadow-2xl ring-1 ring-white/10" 
-                      disableEffects={!sleeveEffectsEnabled}
-                      activeTurn={gameState.currentPlayerId === lastMove.playerId}
-                    />
-                  </div>
-                ))}
-               </div>
-               <div className="mt-3 flex flex-col items-center opacity-0 animate-[fadeInLabel_0.5s_0.3s_forwards] pointer-events-none z-[100] portrait:scale-x-90 landscape:hidden">
-                  <span className="text-[12px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] whitespace-nowrap">{gameState.players.find((p: any) => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE</span>
-                  <div className="h-[2px] w-20 bg-yellow-500/40 mt-1 rounded-full shadow-[0_0_12px_rgba(234,179,8,0.5)]"></div>
-               </div>
-            </div>
-          ) : (<div className="opacity-10 border-2 border-dashed border-white/40 rounded-[3rem] p-24"><div className="text-white text-base font-black uppercase tracking-[1em]">Arena</div></div>)}
-        </div>
-      </div>
-
-      <div className="absolute bottom-0 left-0 w-full p-2 sm:p-4 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
-        <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden">
-            {turnIndicatorUI}
-        </div>
-
-        <div className="relative w-full flex flex-col items-center">
-            <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-500 landscape:hidden
-                ${isMyTurn ? '-top-[95px]' : (isFinished ? '-top-[55px]' : 'top-20 opacity-0')}`}>
-              {me && (
-                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} sleeveEffectsEnabled={sleeveEffectsEnabled} />
-              )}
-            </div>
-
-            <div className={`flex flex-row items-stretch justify-center gap-3 w-full max-w-sm mb-3 transition-all duration-500 h-16 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
-              <div className="relative flex-1 landscape:hidden">
-                {passButtonUI}
-              </div>
-
-              <div className="flex-[2] landscape:hidden">
-                {playButtonUI}
-              </div>
-
-              <div className="flex-1 landscape:hidden">
-                {expandButtonUI}
-              </div>
-            </div>
-        </div>
-
-        <div className="relative flex items-center justify-center w-full max-w-[96vw] landscape:px-32 sm:landscape:px-12 xl:landscape:px-0">
-           <div className={`flex transition-all duration-800 landscape:scale-[0.46] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap ${spacing.portrait} portrait:pb-16 max-w-full`}`}>
-            {sortedHand.map((c: any) => {
-              const is3Spades = c.rank === Rank.Three && c.suit === Suit.Spades;
-              const showHint = isMyTurn && isLeader && gameState.isFirstTurnOfGame && is3Spades && !selectedCardIds.has(c.id);
-              return (
-                <Card 
-                  key={c.id} 
-                  card={c} 
-                  coverStyle={cardCoverStyle}
-                  selected={selectedCardIds.has(c.id)} 
-                  onClick={() => toggleCard(c.id)} 
-                  disableEffects={!sleeveEffectsEnabled}
-                  activeTurn={isMyTurn}
-                  className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''}`} 
-                />
-              );
-            })}
-           </div>
-        </div>
-      </div>
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes satisfyingTurnGlow {
-          0% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.4), inset 0 0 5px rgba(255, 255, 255, 0.1); border-color: rgba(52, 211, 153, 0.4); }
-          50% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.2); border-color: rgba(52, 211, 153, 1); }
-          100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.4), inset 0 0 5px rgba(255, 255, 255, 0.1); border-color: rgba(52, 211, 153, 0.4); }
-        }
-        .animate-satisfying-turn-glow { animation: satisfyingTurnGlow 2s ease-in-out infinite; }
-        
-        @keyframes turn-ping-slow {
-          0% { transform: scale(1); opacity: 0.8; }
-          100% { transform: scale(1.6); opacity: 0; }
-        }
-        .animate-turn-ping-slow { animation: turn-ping-slow 3s cubic-bezier(0, 0, 0.2, 1) infinite; }
-
-        @keyframes startCardHint {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-25px); }
-        }
-        .animate-start-card-hint { animation: startCardHint 1.5s ease-in-out infinite; }
-
-        @keyframes rewardingEmote { 
-          0% { transform: translate(0, 0) scale(0.5); opacity: 0; filter: blur(10px); } 
-          20% { transform: translate(var(--tx), var(--ty)) scale(2.2); opacity: 1; filter: blur(0px); } 
-          35% { transform: translate(var(--tx), var(--ty)) scale(2.3); opacity: 1; } 
-          75% { transform: translate(var(--tx), calc(var(--ty) - 30px)) scale(2.2); opacity: 1; filter: blur(0px); } 
-          100% { transform: translate(var(--tx), calc(var(--ty) - 150px)) scale(2); opacity: 0; filter: blur(20px); } 
-        } 
-        .animate-rewarding-emote { animation: rewardingEmote 3.8s cubic-bezier(0.19, 1, 0.22, 1) forwards; } 
-        @keyframes fadeInLabel { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
-        @keyframes shake { 0%, 100% { transform: translate(0,0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-10px, -10px); } 20%, 40%, 60%, 80% { transform: translate(10px, 10px); } } 
-        .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
-        
-        @keyframes playFromBottom {
-          0% { transform: translateY(50vh) rotate(15deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
-        }
-        @keyframes playFromTop {
-          0% { transform: translateY(-50vh) rotate(-15deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
-        }
-        @keyframes playFromLeft {
-          0% { transform: translateX(-50vw) rotate(-90deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
-        }
-        @keyframes playFromRight {
-          0% { transform: translateX(50vw) rotate(90deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
-        }
-        @keyframes playBounce {
-          0% { transform: scale(0.8); }
-          50% { transform: scale(1.05); }
-          100% { transform: scale(1); }
-        }
-
-        .animate-play-from-bottom { animation: playFromBottom 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        .animate-play-from-top { animation: playFromTop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        .animate-play-from-left { animation: playFromLeft 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        .animate-play-from-right { animation: playFromRight 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        .animate-play-bounce { animation: playBounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-      ` }} />
-    </div>
-  );
-};
+                  <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/

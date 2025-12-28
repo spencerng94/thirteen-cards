@@ -2,7 +2,8 @@
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
-export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR' | 'AETHER_VOID' | 'DIVINE_ROYAL' | 'EMPERORS_HUBRIS' | 'WITS_END';
+/* Added sovereign styles to fix type errors in Store.tsx */
+export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR' | 'AETHER_VOID' | 'DIVINE_ROYAL' | 'EMPERORS_HUBRIS' | 'WITS_END' | 'SOVEREIGN_SPADE' | 'SOVEREIGN_CLUB' | 'SOVEREIGN_DIAMOND' | 'SOVEREIGN_HEART';
 
 interface CardProps {
   card?: CardType;
@@ -57,6 +58,35 @@ const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit, disableEf
   }
 
   switch (style) {
+    /* Sovereign face themes */
+    case 'SOVEREIGN_SPADE':
+      bg = 'bg-[#020617]';
+      border = 'border-indigo-500/40';
+      textColor = 'text-indigo-400';
+      symbolColor = 'text-indigo-500';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(99,102,241,0.2)]';
+      break;
+    case 'SOVEREIGN_CLUB':
+      bg = 'bg-[#022c22]';
+      border = 'border-emerald-500/40';
+      textColor = 'text-emerald-400';
+      symbolColor = 'text-emerald-500';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(52,211,153,0.2)]';
+      break;
+    case 'SOVEREIGN_DIAMOND':
+      bg = 'bg-[#450a0a]';
+      border = 'border-rose-500/40';
+      textColor = 'text-rose-400';
+      symbolColor = 'text-rose-500';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(244,63,94,0.2)]';
+      break;
+    case 'SOVEREIGN_HEART':
+      bg = 'bg-[#881337]';
+      border = 'border-pink-500/40';
+      textColor = 'text-pink-400';
+      symbolColor = 'text-pink-500';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(244,114,182,0.2)]';
+      break;
     case 'WITS_END':
       bg = 'bg-gradient-to-br from-[#020005] via-[#0a0515] to-[#010003]';
       border = 'border-purple-900/60 shadow-[inset_0_0_15px_rgba(147,51,234,0.3)]';
@@ -175,6 +205,27 @@ export const Card: React.FC<CardProps> = ({
     let specialAnimation = "";
 
     switch (coverStyle) {
+        /* Sovereign back styles */
+        case 'SOVEREIGN_SPADE':
+            bgClass = 'bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-black';
+            borderClass = 'border-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.4)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-indigo-400/20 to-transparent";
+            break;
+        case 'SOVEREIGN_CLUB':
+            bgClass = 'bg-gradient-to-br from-[#022c22] via-[#064e3b] to-black';
+            borderClass = 'border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-emerald-400/20 to-transparent";
+            break;
+        case 'SOVEREIGN_DIAMOND':
+            bgClass = 'bg-gradient-to-br from-[#450a0a] via-[#7f1d1d] to-black';
+            borderClass = 'border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.4)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-rose-400/20 to-transparent";
+            break;
+        case 'SOVEREIGN_HEART':
+            bgClass = 'bg-gradient-to-br from-[#881337] via-[#be123c] to-black';
+            borderClass = 'border-pink-400 shadow-[0_0_20px_rgba(244,114,182,0.4)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-pink-400/20 to-transparent";
+            break;
         case 'WITS_END':
             bgClass = 'bg-gradient-to-br from-[#05000a] via-[#100520] to-[#010003]';
             borderClass = 'border-purple-600 shadow-[0_0_40px_rgba(147,51,234,0.4),inset_0_0_15px_rgba(255,255,255,0.2)]';

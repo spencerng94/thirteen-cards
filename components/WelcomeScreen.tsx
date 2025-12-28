@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -44,20 +45,20 @@ interface WelcomeScreenProps {
 const SLEEVES = [
   { id: 'BLUE', name: 'Imperial Blue', price: 0, style: 'BLUE' as CardCoverStyle },
   { id: 'RED', name: 'Dynasty Red', price: 0, style: 'RED' as CardCoverStyle },
-  { id: 'PATTERN', name: 'Golden Lattice', price: 250, style: 'PATTERN' as CardCoverStyle },
-  { id: 'ROYAL_JADE', name: 'Imperial Jade', price: 500, style: 'ROYAL_JADE' as CardCoverStyle },
-  { id: 'CRYSTAL_EMERALD', name: 'Crystal Gem', price: 1500, style: 'CRYSTAL_EMERALD' as CardCoverStyle },
-  { id: 'GOLDEN_IMPERIAL', name: 'Sun King', price: 1000, style: 'GOLDEN_IMPERIAL' as CardCoverStyle },
-  { id: 'VOID_ONYX', name: 'Void Walker', price: 2000, style: 'VOID_ONYX' as CardCoverStyle },
-  { id: 'DRAGON_SCALE', name: 'Dragon Skin', price: 2500, style: 'DRAGON_SCALE' as CardCoverStyle },
-  { id: 'NEON_CYBER', name: 'Neon Circuit', price: 3500, style: 'NEON_CYBER' as CardCoverStyle },
-  { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 3500, style: 'PIXEL_CITY_LIGHTS' as CardCoverStyle },
+  { id: 'PATTERN', name: 'Golden Lattice', price: 500, style: 'PATTERN' as CardCoverStyle },
+  { id: 'ROYAL_JADE', name: 'Imperial Jade', price: 1000, style: 'ROYAL_JADE' as CardCoverStyle },
+  { id: 'GOLDEN_IMPERIAL', name: 'Sun King', price: 2000, style: 'GOLDEN_IMPERIAL' as CardCoverStyle },
   { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, style: 'AMETHYST_ROYAL' as CardCoverStyle },
-  { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 5000, style: 'CHERRY_BLOSSOM_NOIR' as CardCoverStyle },
-  { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, style: 'AETHER_VOID' as CardCoverStyle },
-  { id: 'WITS_END', name: "Wit's End", price: 20000, style: 'WITS_END' as CardCoverStyle },
-  { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 25000, style: 'DIVINE_ROYAL' as CardCoverStyle },
-  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 25000, style: 'EMPERORS_HUBRIS' as CardCoverStyle },
+  { id: 'VOID_ONYX', name: 'Void Walker', price: 6000, style: 'VOID_ONYX' as CardCoverStyle },
+  { id: 'NEON_CYBER', name: 'Neon Circuit', price: 8000, style: 'NEON_CYBER' as CardCoverStyle },
+  { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 10000, style: 'PIXEL_CITY_LIGHTS' as CardCoverStyle },
+  { id: 'CRYSTAL_EMERALD', name: 'Crystal Gem', price: 12500, style: 'CRYSTAL_EMERALD' as CardCoverStyle },
+  { id: 'DRAGON_SCALE', name: 'Dragon Skin', price: 15000, style: 'DRAGON_SCALE' as CardCoverStyle },
+  { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 18500, style: 'CHERRY_BLOSSOM_NOIR' as CardCoverStyle },
+  { id: 'AETHER_VOID', name: 'Aether Void', price: 25000, style: 'AETHER_VOID' as CardCoverStyle },
+  { id: 'WITS_END', name: "Wit's End", price: 35000, style: 'WITS_END' as CardCoverStyle },
+  { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 50000, style: 'DIVINE_ROYAL' as CardCoverStyle },
+  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 75000, style: 'EMPERORS_HUBRIS' as CardCoverStyle },
 ];
 
 const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -237,7 +238,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
         <SectionLabel>PLAYER PROFILE</SectionLabel>
         
-        {/* Clickable Profile Card */}
         <div 
           onClick={() => onOpenHub('PROFILE')}
           className="flex flex-col items-center gap-6 bg-black/40 p-8 rounded-3xl border border-white/10 backdrop-blur-md cursor-pointer group hover:bg-black/60 transition-all active:scale-[0.98] relative overflow-hidden"
@@ -286,9 +286,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <SectionLabel 
           rightElement={
             <div className="flex flex-col gap-4 w-full">
-              {/* Controls Row (Density + Owned) */}
               <div className="flex items-center justify-center gap-4 bg-black/40 backdrop-blur-md px-4 py-2.5 rounded-[2rem] border border-white/5 shadow-inner">
-                {/* Density Switcher */}
                 <div className="flex items-center gap-1 bg-black/40 p-1 rounded-full border border-white/5">
                   {( [1, 2, 4] as const).map((d) => (
                     <button 
@@ -303,7 +301,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
                 <div className="h-4 w-[1px] bg-white/10"></div>
 
-                {/* Owned Toggle */}
                 <button 
                   onClick={() => setHideUnowned(!hideUnowned)}
                   className="flex items-center gap-3 group px-2"
@@ -315,7 +312,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 </button>
               </div>
 
-              {/* Sub-tabs row */}
               <div className="grid grid-cols-2 gap-2 p-1 bg-black/60 rounded-2xl border border-white/5 shadow-inner">
                 {(['SLEEVES', 'BOARDS'] as const).map(tab => (
                   <button
@@ -492,7 +488,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
       {pendingPurchase && (
           <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-              {/* Viewport Gold Display - Moved to top left of screen, and made smaller */}
               <div className="fixed top-8 left-8 z-[300] animate-in slide-in-from-left-4 fade-in duration-500 pointer-events-none">
                   <div className="bg-black/60 backdrop-blur-3xl border border-yellow-500/30 rounded-xl px-3 py-1.5 flex items-center gap-2 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
                       <span className="text-lg drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">💰</span>
@@ -506,7 +501,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </div>
 
               <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-8 pt-20 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)] relative">
-                  {/* Adaptive Overlapping Preview Element */}
                   <div className="absolute -top-24 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center">
                       <div className="absolute inset-[-40px] bg-yellow-500/10 blur-[60px] rounded-full animate-pulse"></div>
                       
