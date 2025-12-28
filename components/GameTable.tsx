@@ -9,30 +9,6 @@ import { socket } from '../services/socket';
 import { DEFAULT_AVATARS, fetchEmotes } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 
-interface GameTableProps {
-  gameState: GameState;
-  myId: string;
-  myHand: CardType[];
-  onPlayCards: (cards: CardType[]) => void;
-  onPassTurn: () => void;
-  cardCoverStyle: CardCoverStyle;
-  onChangeCoverStyle: (style: CardCoverStyle) => void;
-  onExitGame: () => void;
-  onSignOut: () => void;
-  backgroundTheme: BackgroundTheme;
-  onChangeBackgroundTheme: (theme: BackgroundTheme) => void;
-  isSinglePlayer?: boolean;
-  spQuickFinish?: boolean;
-  setSpQuickFinish?: (val: boolean) => void;
-  currentDifficulty?: AiDifficulty;
-  onChangeDifficulty?: (d: AiDifficulty) => void;
-  soundEnabled: boolean;
-  setSoundEnabled: (val: boolean) => void;
-  playAnimationsEnabled?: boolean;
-  onOpenSettings: () => void;
-  profile?: UserProfile | null;
-}
-
 interface ActiveEmote {
   id: string;
   playerId: string;
@@ -43,7 +19,7 @@ const EMOTE_COOLDOWN = 2000;
 
 const SettingsIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
     <circle cx="12" cy="12" r="3.5" fill="currentColor" fillOpacity="0.2" />
   </svg>
 );
@@ -107,10 +83,13 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
         <div className="relative flex flex-col items-center shrink-0">
             <div className="relative w-16 h-16 sm:w-24 sm:h-24 landscape:w-24 landscape:h-24">
                 {isTurn && !isFinished && (
-                    <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-500/50'} animate-ping`}></div>
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-yellow-500/60 shadow-[0_0_15px_rgba(234,179,8,0.4)]'} animate-turn-ping-slow`}></div>
+                    <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500/50' : 'border-yellow-500/30'} animate-turn-ping-slow [animation-delay:1.5s]`}></div>
+                  </div>
                 )}
                 
-                <div className={`w-full h-full aspect-square rounded-full border-2 transition-all duration-150 ease-out overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500' : 'border-emerald-400') + ' scale-110' : 'border-white/10'} ${getGlowClass()}`}>
+                <div className={`w-full h-full aspect-square rounded-full border-2 transition-all duration-150 ease-out overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (timeLeft <= 3 && timeLeft > 0 ? 'border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.4)]') + ' scale-110' : 'border-white/10'} ${getGlowClass()}`}>
                     <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="lg" />
                     {isTurn && !isFinished && timeLeft > 0 && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -133,8 +112,13 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
                 )}
             </div>
 
-            <div className={`bg-black/60 backdrop-blur-md px-3 py-0.5 sm:px-4 sm:py-1 rounded-full border min-w-[75px] sm:min-w-[95px] landscape:w-24 landscape:min-w-0 landscape:px-0 text-center shadow-lg mt-1.5 transition-colors ${player.isOffline ? 'border-amber-500/50' : 'border-white/5'} ${isFinished ? 'opacity-40 border-white/20' : ''}`}>
-                <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] landscape:max-w-[88px] inline-block ${player.isOffline ? 'text-amber-500' : 'text-white/90'}`}>
+            <div className={`bg-black/60 backdrop-blur-md px-3 py-0.5 sm:px-4 sm:py-1 rounded-full border min-w-[75px] sm:min-w-[95px] landscape:w-24 landscape:min-w-0 landscape:px-0 text-center shadow-lg mt-1.5 transition-all duration-500 
+              ${isFinished ? 'opacity-40 border-white/20' : 
+                player.isOffline ? 'border-amber-500/50' : 
+                (isTurn ? 'border-yellow-500/50 bg-yellow-950/40 shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'border-white/5')}`}>
+                <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] landscape:max-w-[88px] inline-block transition-colors duration-500
+                  ${player.isOffline ? 'text-amber-500' : 
+                    (isTurn && !isFinished ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'text-white/90')}`}>
                   {player.name}
                 </span>
             </div>
@@ -224,7 +208,7 @@ const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'b
   );
 };
 
-export const GameTable: React.FC<GameTableProps> = ({ 
+export const GameTable: React.FC<any> = ({ 
   gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
@@ -239,7 +223,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const isMyTurn = gameState.currentPlayerId === myId;
-  const me = gameState.players.find(p => p.id === myId);
+  const me = gameState.players.find((p: any) => p.id === myId);
   const isFinished = !!me?.finishedRank;
   const isLeader = !gameState.currentPlayPile || gameState.currentPlayPile.length === 0;
   const sleeveEffectsEnabled = profile?.sleeve_effects_enabled !== false;
@@ -277,7 +261,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   useEffect(() => { 
     setSelectedCardIds(prev => { 
       const next = new Set<string>(); 
-      prev.forEach(id => { if (myHand.some(c => c.id === id)) next.add(id); }); 
+      prev.forEach(id => { if (myHand.some((c: any) => c.id === id)) next.add(id); }); 
       return next; 
     }); 
   }, [myHand]);
@@ -295,7 +279,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   }, []);
 
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
-  const myIndex = gameState.players.findIndex(p => p.id === myId);
+  const myIndex = gameState.players.findIndex((p: any) => p.id === myId);
 
   useEffect(() => {
     if (!isMyTurn || !gameState.turnEndTime) { setTimeLeft(0); return; }
@@ -312,7 +296,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const validationResult = useMemo(() => { 
     if (selectedCardIds.size === 0) return { isValid: false, reason: '' }; 
-    const cards = myHand.filter(c => selectedCardIds.has(c.id)); 
+    const cards = myHand.filter((c: any) => selectedCardIds.has(c.id)); 
     return validateMove(cards, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame, myHand); 
   }, [selectedCardIds, myHand, gameState.currentPlayPile, gameState.isFirstTurnOfGame]);
 
@@ -330,13 +314,13 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const getPlayerPosition = (index: number) => { const relativeIndex = (index - myIndex + gameState.players.length) % gameState.players.length; switch(relativeIndex) { case 0: return 'bottom'; case 1: return 'left'; case 2: return 'top'; case 3: return 'right'; default: return 'bottom'; } };
 
-  const opponents = useMemo(() => { return gameState.players.map((p, i) => ({ player: p, index: i, position: getPlayerPosition(i) })).filter(o => o.position !== 'bottom'); }, [gameState.players, myId, myIndex]);
+  const opponents = useMemo(() => { return gameState.players.map((p: any, i: number) => ({ player: p, index: i, position: getPlayerPosition(i) })).filter((o: any) => o.position !== 'bottom'); }, [gameState.players, myId, myIndex]);
 
   const toggleCard = (id: string) => { if (!isMyTurn) return; const next = new Set(selectedCardIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedCardIds(next); };
 
   const handlePlay = () => { 
     if (selectedCardIds.size === 0 || !isMyTurn) return; 
-    const cards = myHand.filter(c => selectedCardIds.has(c.id)); 
+    const cards = myHand.filter((c: any) => selectedCardIds.has(c.id)); 
     const res = validateMove(cards, gameState.currentPlayPile || [], !!gameState.isFirstTurnOfGame, myHand);
     if (res.isValid) { 
       onPlayCards(cards); 
@@ -383,15 +367,15 @@ export const GameTable: React.FC<GameTableProps> = ({
             : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14')
   };
 
-  const topOpponent = opponents.find(o => o.position === 'top');
-  const leftOpponent = opponents.find(o => o.position === 'left');
-  const rightOpponent = opponents.find(o => o.position === 'right');
+  const topOpponent = opponents.find((o: any) => o.position === 'top');
+  const leftOpponent = opponents.find((o: any) => o.position === 'left');
+  const rightOpponent = opponents.find((o: any) => o.position === 'right');
 
-  const iHave3Spades = useMemo(() => myHand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades), [myHand]);
+  const iHave3Spades = useMemo(() => myHand.some((c: any) => c.rank === Rank.Three && c.suit === Suit.Spades), [myHand]);
 
   const lastMovePlayerPosition = useMemo(() => {
     if (!lastMove) return null;
-    const idx = gameState.players.findIndex(p => p.id === lastMove.playerId);
+    const idx = gameState.players.findIndex((p: any) => p.id === lastMove.playerId);
     return getPlayerPosition(idx);
   }, [lastMove, gameState.players, myIndex]);
 
@@ -408,7 +392,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const turnIndicatorUI = (
     <div className={`flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400'}`}>
+        <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors ${timeLeft <= 3 && timeLeft > 0 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-satisfying-turn-glow'}`}>
             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">
             {isLeader && gameState.isFirstTurnOfGame && iHave3Spades ? '3♠ YOUR TURN' : (isLeader ? 'YOUR LEAD' : 'Your Turn')}
             </span>
@@ -468,10 +452,57 @@ export const GameTable: React.FC<GameTableProps> = ({
       <BombOverlay active={showBombEffect} />
       {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
 
-      {activeEmotes.map(ae => { const playerIdx = gameState.players.findIndex(p => p.id === ae.playerId); if (playerIdx === -1) return null; return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={getPlayerPosition(playerIdx) as any} />; })}
+      {activeEmotes.map(ae => { const playerIdx = gameState.players.findIndex((p: any) => p.id === ae.playerId); if (playerIdx === -1) return null; return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={getPlayerPosition(playerIdx) as any} />; })}
+
+      {/* Top Left Status Stack (Landscape Only) */}
+      <div className="fixed top-4 left-4 z-[250] hidden landscape:flex flex-col gap-4 pointer-events-none items-start">
+          {lastMove && (
+             <div className="flex flex-col items-center animate-in slide-in-from-left-4 duration-500">
+                <span className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.4em] whitespace-nowrap">
+                    {gameState.players.find((p: any) => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE
+                </span>
+                <div className="h-[2px] w-12 bg-yellow-500/40 mt-1.5 rounded-full shadow-[0_0_12px_rgba(234,179,8,0.5)]"></div>
+             </div>
+          )}
+          
+          {isMyTurn && selectedCardIds.size > 0 && hasValidCombos && (
+              <div className="flex flex-col gap-2 animate-in slide-in-from-left-4 duration-500 max-w-[160px] pointer-events-auto">
+                  <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-[1.5rem] shadow-2xl">
+                      <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5">
+                          <span className="w-1 h-1 rounded-full bg-yellow-500 animate-pulse"></span>
+                          <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                          {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { 
+                            if (lists.length === 0) return null; 
+                            const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); 
+                            const isTypeSelected = currentIndex !== -1; 
+                            const typeLabel = type === 'RUN' ? 'STRAIGHT' : type === '4_PAIRS' ? '4 PAIRS' : type;
+                            const displayIndex = isTypeSelected ? currentIndex + 1 : 1;
+                            
+                            return ( 
+                              <button 
+                                key={type} 
+                                onClick={() => cycleComboType(type)} 
+                                className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-300 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                              > 
+                                <div className="flex justify-between items-center w-full z-10 gap-2"> 
+                                  <span className="truncate">{typeLabel}</span> 
+                                  <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> 
+                                    {displayIndex}/{lists.length}
+                                  </span> 
+                                </div> 
+                              </button> 
+                            ); 
+                          })}
+                      </div>
+                  </div>
+              </div>
+          )}
+      </div>
 
       {isMyTurn && selectedCardIds.size > 0 && hasValidCombos && (
-          <div className="fixed top-4 left-4 z-[200] flex flex-col gap-2 animate-in slide-in-from-left-4 duration-500 max-w-[160px]">
+          <div className="fixed top-4 left-4 z-[200] flex flex-col gap-2 animate-in slide-in-from-left-4 duration-500 max-w-[160px] landscape:hidden">
               <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-[1.5rem] shadow-2xl">
                   <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5">
                       <span className="w-1 h-1 rounded-full bg-yellow-500 animate-pulse"></span>
@@ -570,7 +601,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {/* Opponent Grid */}
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
-        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''}`}>
+        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-150 ease-[0.2,0,0,1] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''}`}>
           {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />)}
         </div>
         
@@ -583,15 +614,15 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-in-out ${isMyTurn ? 'portrait:-translate-y-28 landscape:translate-y-2' : 'portrait:-translate-y-12 landscape:translate-y-2'}`}>
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-in-out ${isMyTurn ? 'portrait:-translate-y-24 landscape:-translate-y-7' : 'portrait:-translate-y-8 landscape:-translate-y-5'}`}>
         <div className="relative flex flex-col items-center">
           {lastMove ? (
             <div 
-              key={lastMove.playerId + lastMove.cards.map(c => c.id).join('')}
-              className={`flex flex-col items-center gap-6 scale-90 sm:scale-125 landscape:scale-[0.65] ${arrivalAnimationClass}`}
+              key={lastMove.playerId + lastMove.cards.map((c: any) => c.id).join('')}
+              className={`flex flex-col items-center gap-4 scale-90 sm:scale-125 landscape:scale-[0.4] ${arrivalAnimationClass}`}
             >
                <div className="flex -space-x-12">
-                {lastMove.cards.map((c, i) => (
+                {lastMove.cards.map((c: any, i: number) => (
                   <div 
                     key={c.id} 
                     style={{ 
@@ -610,8 +641,8 @@ export const GameTable: React.FC<GameTableProps> = ({
                   </div>
                 ))}
                </div>
-               <div className="mt-4 landscape:mt-0 flex flex-col items-center opacity-0 animate-[fadeInLabel_0.5s_0.3s_forwards] pointer-events-none z-[100]">
-                  <span className="text-[12px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] whitespace-nowrap">{gameState.players.find(p => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE</span>
+               <div className="mt-3 flex flex-col items-center opacity-0 animate-[fadeInLabel_0.5s_0.3s_forwards] pointer-events-none z-[100] portrait:scale-x-90 landscape:hidden">
+                  <span className="text-[12px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] whitespace-nowrap">{gameState.players.find((p: any) => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE</span>
                   <div className="h-[2px] w-20 bg-yellow-500/40 mt-1 rounded-full shadow-[0_0_12px_rgba(234,179,8,0.5)]"></div>
                </div>
             </div>
@@ -649,22 +680,45 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         <div className="relative flex items-center justify-center w-full max-w-[96vw] landscape:px-32 sm:landscape:px-12 xl:landscape:px-0">
            <div className={`flex transition-all duration-800 landscape:scale-[0.46] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap ${spacing.portrait} portrait:pb-16 max-w-full`}`}>
-            {sortedHand.map((c) => (
-              <Card 
-                key={c.id} 
-                card={c} 
-                coverStyle={cardCoverStyle}
-                selected={selectedCardIds.has(c.id)} 
-                onClick={() => toggleCard(c.id)} 
-                disableEffects={!sleeveEffectsEnabled}
-                activeTurn={isMyTurn}
-                className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''}`} 
-              />
-            ))}
+            {sortedHand.map((c: any) => {
+              const is3Spades = c.rank === Rank.Three && c.suit === Suit.Spades;
+              const showHint = isMyTurn && isLeader && gameState.isFirstTurnOfGame && is3Spades && !selectedCardIds.has(c.id);
+              return (
+                <Card 
+                  key={c.id} 
+                  card={c} 
+                  coverStyle={cardCoverStyle}
+                  selected={selectedCardIds.has(c.id)} 
+                  onClick={() => toggleCard(c.id)} 
+                  disableEffects={!sleeveEffectsEnabled}
+                  activeTurn={isMyTurn}
+                  className={`transform transition-all duration-300 ${isMyTurn ? 'cursor-pointer active:scale-110 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''}`} 
+                />
+              );
+            })}
            </div>
         </div>
       </div>
       <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes satisfyingTurnGlow {
+          0% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.4), inset 0 0 5px rgba(255, 255, 255, 0.1); border-color: rgba(52, 211, 153, 0.4); }
+          50% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.2); border-color: rgba(52, 211, 153, 1); }
+          100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.4), inset 0 0 5px rgba(255, 255, 255, 0.1); border-color: rgba(52, 211, 153, 0.4); }
+        }
+        .animate-satisfying-turn-glow { animation: satisfyingTurnGlow 2s ease-in-out infinite; }
+        
+        @keyframes turn-ping-slow {
+          0% { transform: scale(1); opacity: 0.8; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+        .animate-turn-ping-slow { animation: turn-ping-slow 3s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+        @keyframes startCardHint {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-25px); }
+        }
+        .animate-start-card-hint { animation: startCardHint 1.5s ease-in-out infinite; }
+
         @keyframes rewardingEmote { 
           0% { transform: translate(0, 0) scale(0.5); opacity: 0; filter: blur(10px); } 
           20% { transform: translate(var(--tx), var(--ty)) scale(2.2); opacity: 1; filter: blur(0px); } 
