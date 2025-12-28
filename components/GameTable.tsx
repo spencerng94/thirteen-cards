@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus, SocketEvents, UserProfile, Emote } from '../types';
 import { Card, CardCoverStyle } from './Card';
@@ -337,11 +338,13 @@ export const GameTable: React.FC<any> = ({
   };
 
   const cycleComboType = (type: string) => {
-    const list = combosByGroup[type];
+    // Fix: Explicitly cast to 'any' for better robustness against inference failures in findIndex callbacks
+    const list = combosByGroup[type] as any[][];
     if (!list || list.length === 0) return;
-    let targetIndex = list.findIndex(combo => 
+    // Fix: Explicitly type parameter as 'any' to ensure .length is accessible during complex inference
+    let targetIndex = list.findIndex((combo: any) => 
       combo.length === selectedCardIds.size && 
-      combo.every(c => selectedCardIds.has(c.id))
+      combo.every((c: any) => selectedCardIds.has(c.id))
     );
     
     if (targetIndex !== -1) {
@@ -350,7 +353,8 @@ export const GameTable: React.FC<any> = ({
       targetIndex = 0;
     }
     
-    setSelectedCardIds(new Set(list[targetIndex].map(c => c.id)));
+    // Fix: Use 'any' to satisfy property access on potential 'unknown' elements
+    setSelectedCardIds(new Set(list[targetIndex].map((c: any) => c.id)));
     audioService.playExpandHand(); 
   };
 
@@ -475,7 +479,8 @@ export const GameTable: React.FC<any> = ({
                       <div className="flex flex-col gap-2">
                           {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { 
                             if (lists.length === 0) return null; 
-                            const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); 
+                            // Fix: Explicitly type the 'combo' parameter as any to avoid 'unknown' inference error
+                            const currentIndex = lists.findIndex((combo: any) => combo.length === selectedCardIds.size && combo.every((c: any) => selectedCardIds.has(c.id))); 
                             const isTypeSelected = currentIndex !== -1; 
                             const typeLabel = type === 'RUN' ? 'STRAIGHT' : type === '4_PAIRS' ? '4 PAIRS' : type;
                             const displayIndex = isTypeSelected ? currentIndex + 1 : 1;
@@ -511,7 +516,8 @@ export const GameTable: React.FC<any> = ({
                   <div className="flex flex-col gap-2">
                       {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { 
                         if (lists.length === 0) return null; 
-                        const currentIndex = lists.findIndex(combo => combo.length === selectedCardIds.size && combo.every(c => selectedCardIds.has(c.id))); 
+                        // Fix: Explicitly type the 'combo' parameter as any to avoid 'unknown' inference error
+                        const currentIndex = lists.findIndex((combo: any) => combo.length === selectedCardIds.size && combo.every((c: any) => selectedCardIds.has(c.id))); 
                         const isTypeSelected = currentIndex !== -1; 
                         const typeLabel = type === 'RUN' ? 'STRAIGHT' : type === '4_PAIRS' ? '4 PAIRS' : type;
                         const displayIndex = isTypeSelected ? currentIndex + 1 : 1;

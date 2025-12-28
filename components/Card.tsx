@@ -116,7 +116,7 @@ const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit, disableEf
       innerGlow = 'shadow-[inset_0_0_20px_rgba(30,58,138,0.5)]';
       break;
     case 'CHERRY_BLOSSOM_NOIR':
-      bg = 'bg-gradient-to-br from-[#0a0508] via-[#150a10] to-[#050204]';
+      bg = 'bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#050505]';
       border = 'border-pink-500/40';
       textColor = isRedSuit ? 'text-pink-500' : 'text-slate-100';
       symbolColor = isRedSuit ? 'text-pink-400' : 'text-slate-50';
@@ -127,7 +127,7 @@ const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit, disableEf
       border = 'border-purple-300/40';
       textColor = isRedSuit ? 'text-purple-400' : 'text-slate-200';
       symbolColor = isRedSuit ? 'text-purple-300' : 'text-white';
-      innerGlow = 'shadow-[inset_0_0_20px_rgba(168,85,247,0.3)]';
+      innerGlow = 'shadow-[inset_0_0_20px_rgba(16,185,129,0.3)]';
       break;
     case 'DRAGON_SCALE':
       bg = 'bg-gradient-to-br from-[#2a0a05] via-[#1a0a05] to-[#0a0502]';
@@ -502,7 +502,8 @@ export const Card: React.FC<CardProps> = ({
   const suitSymbol = getSuitSymbol(card.suit);
   const isHighValue = card.rank === Rank.Two;
 
-  const { bg, border, textColor, symbolColor, innerGlow, fontClass } = getFaceTheming(coverStyle, card.suit, disableEffects);
+  /* Explicitly cast coverStyle to CardCoverStyle to resolve type widening issues */
+  const { bg, border, textColor, symbolColor, innerGlow, fontClass } = getFaceTheming(coverStyle as CardCoverStyle, card.suit, disableEffects);
 
   return (
     <div
