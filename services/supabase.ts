@@ -235,11 +235,21 @@ const XP_TABLE = [
 
 export const calculateLevel = (xp: number) => {
   const safeXp = Math.max(0, xp);
-  // Scan pre-defined table
-  for (let i = XP_TABLE.length - 1; i >= 0; i--) {
-    if (safeXp >= XP_TABLE[i]) return i + 1;
+  
+  // High performance level scan
+  // Start by checking if it's within the static table
+  if (safeXp < XP_TABLE[XP_TABLE.length - 1]) {
+    for (let i = XP_TABLE.length - 1; i >= 0; i--) {
+      if (safeXp >= XP_TABLE[i]) return i + 1;
+    }
   }
-  return 1;
+
+  // Otherwise, procedurally check levels beyond the table
+  let currentLevel = XP_TABLE.length;
+  while (getXpForLevel(currentLevel + 1) <= safeXp && currentLevel < 500) {
+    currentLevel++;
+  }
+  return currentLevel;
 };
 
 export const getXpForLevel = (level: number) => {
@@ -248,13 +258,21 @@ export const getXpForLevel = (level: number) => {
     return XP_TABLE[safeLevel - 1];
   }
   
-  // High-level procedural logic
-  const baseLevel = XP_TABLE.length;
-  const baseXP = XP_TABLE[XP_TABLE.length - 1];
-  const levelDiff = safeLevel - baseLevel;
-  
-  // Each subsequent level requires 500 + (levelDiff * 50) XP
-  return baseXP + (levelDiff * 500) + (levelDiff * (levelDiff - 1) * 25);
+  // Range 16 - 40: Steady climb
+  if (safeLevel <= 40) {
+    const baseLevel = XP_TABLE.length;
+    const baseXP = XP_TABLE[XP_TABLE.length - 1];
+    const levelDiff = safeLevel - baseLevel;
+    // Base 500 jump per level, increasing by 50 per level gap
+    return baseXP + (levelDiff * 500) + (levelDiff * (levelDiff - 1) * 25);
+  }
+
+  // Range 41+: "Much Slower" progression
+  // Massive leap in XP required per level
+  const xpAt40 = getXpForLevel(40);
+  const post40Diff = safeLevel - 40;
+  // 5000 XP per level after level 40
+  return xpAt40 + (post40Diff * 5000);
 };
 
 export const transferGuestData = async (userId: string) => {};

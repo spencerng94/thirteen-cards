@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect, useRef } from 'react';
 import { UserProfile, Card as CardType } from '../types';
 import { calculateLevel } from '../services/supabase';
@@ -56,6 +57,16 @@ const REWARDS: Reward[] = [
   { level: 38, label: '500', type: 'GOLD', value: 500 },
   { level: 39, label: '500', type: 'GOLD', value: 500 },
   { level: 40, label: 'HEART', type: 'SLEEVE', value: 'SOVEREIGN_HEART', isMilestone: true },
+  { level: 41, label: '500', type: 'GOLD', value: 500 },
+  { level: 42, label: '500', type: 'GOLD', value: 500 },
+  { level: 43, label: '500', type: 'GOLD', value: 500 },
+  { level: 44, label: '500', type: 'GOLD', value: 500 },
+  { level: 45, label: '500', type: 'GOLD', value: 500, isMilestone: true },
+  { level: 46, label: '500', type: 'GOLD', value: 500 },
+  { level: 47, label: '500', type: 'GOLD', value: 500 },
+  { level: 48, label: '500', type: 'GOLD', value: 500 },
+  { level: 49, label: '500', type: 'GOLD', value: 500 },
+  { level: 50, label: '500', type: 'GOLD', value: 500, isMilestone: true },
 ];
 
 export const LevelRewards: React.FC<LevelRewardsProps> = ({ onClose, profile }) => {
@@ -63,7 +74,8 @@ export const LevelRewards: React.FC<LevelRewardsProps> = ({ onClose, profile }) 
   const currentLevelRef = useRef<HTMLDivElement>(null);
 
   const currentLevel = useMemo(() => profile ? calculateLevel(profile.xp) : 1, [profile]);
-  const maxLevelDisplay = 45;
+  // Increase display limit to show new levels
+  const maxLevelDisplay = 60;
 
   const progressSteps = useMemo(() => {
     return Array.from({ length: maxLevelDisplay }, (_, i) => i + 1);
