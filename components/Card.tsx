@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
@@ -37,6 +36,13 @@ const getSuitSymbol = (suit: Suit): string => {
     case Suit.Spades: return '♠';
     default: return '?';
   }
+};
+
+const SUIT_PATH_DATA = {
+  SPADE: "M50 5 C65 40 100 65 75 90 C65 100 55 95 50 85 C45 95 35 100 25 90 C0 65 35 40 50 5 M50 80 L58 100 L42 100 Z",
+  HEART: "M50 30 C50 10 10 10 10 45 C10 75 50 95 50 95 C50 95 90 75 90 45 C90 10 50 10 50 30 Z",
+  CLUB: "M50 25 A18 18 0 1 1 68 43 A18 18 0 1 1 55 65 L55 85 L65 95 L35 95 L45 85 L45 65 A18 18 0 1 1 32 43 A18 18 0 1 1 50 25 Z",
+  DIAMOND: "M50 5 L90 50 L50 95 L10 50 Z"
 };
 
 /**
@@ -204,27 +210,52 @@ export const Card: React.FC<CardProps> = ({
     let metallicReflect = "bg-gradient-to-tr from-white/0 via-white/10 to-white/0";
     let specialAnimation = "";
 
+    const renderSovereignSuit = (type: keyof typeof SUIT_PATH_DATA, colorClass: string, shadowClass: string) => (
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
+          <svg viewBox="0 0 100 100" className={`w-full h-full drop-shadow-[0_0_15px_${shadowClass}] ${colorClass} opacity-90`}>
+            <defs>
+              <linearGradient id={`goldMetallicPremium-${type}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#3d280a" />
+                <stop offset="25%" stopColor="#d4af37" />
+                <stop offset="50%" stopColor="#fbf5b7" />
+                <stop offset="75%" stopColor="#d4af37" />
+                <stop offset="100%" stopColor="#3d280a" />
+              </linearGradient>
+            </defs>
+            <path d={SUIT_PATH_DATA[type]} fill={`url(#goldMetallicPremium-${type})`} />
+          </svg>
+          {!disableEffects && (
+            <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_40%,rgba(255,255,255,0.6)_50%,transparent_60%)] bg-[length:200%_100%] animate-[sovereign-glint_3s_infinite_linear] pointer-events-none mix-blend-overlay" style={{ clipPath: `path('${SUIT_PATH_DATA[type]}')` }}></div>
+          )}
+        </div>
+      </div>
+    );
+
     switch (coverStyle) {
-        /* Sovereign back styles */
         case 'SOVEREIGN_SPADE':
             bgClass = 'bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-black';
             borderClass = 'border-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.4)]';
             metallicReflect = "bg-gradient-to-tr from-transparent via-indigo-400/20 to-transparent";
+            patternContent = renderSovereignSuit('SPADE', 'text-indigo-400', 'rgba(99,102,241,0.5)');
             break;
         case 'SOVEREIGN_CLUB':
             bgClass = 'bg-gradient-to-br from-[#022c22] via-[#064e3b] to-black';
             borderClass = 'border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4)]';
             metallicReflect = "bg-gradient-to-tr from-transparent via-emerald-400/20 to-transparent";
+            patternContent = renderSovereignSuit('CLUB', 'text-emerald-400', 'rgba(52,211,153,0.5)');
             break;
         case 'SOVEREIGN_DIAMOND':
             bgClass = 'bg-gradient-to-br from-[#450a0a] via-[#7f1d1d] to-black';
             borderClass = 'border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.4)]';
             metallicReflect = "bg-gradient-to-tr from-transparent via-rose-400/20 to-transparent";
+            patternContent = renderSovereignSuit('DIAMOND', 'text-rose-400', 'rgba(244,63,94,0.5)');
             break;
         case 'SOVEREIGN_HEART':
             bgClass = 'bg-gradient-to-br from-[#881337] via-[#be123c] to-black';
             borderClass = 'border-pink-400 shadow-[0_0_20px_rgba(244,114,182,0.4)]';
             metallicReflect = "bg-gradient-to-tr from-transparent via-pink-400/20 to-transparent";
+            patternContent = renderSovereignSuit('HEART', 'text-pink-400', 'rgba(244,114,182,0.5)');
             break;
         case 'WITS_END':
             bgClass = 'bg-gradient-to-br from-[#05000a] via-[#100520] to-[#010003]';
@@ -234,14 +265,11 @@ export const Card: React.FC<CardProps> = ({
             patternContent = (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="relative group/void">
-                        {/* Central Void Eye / Shattered mind symbol */}
                         <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_0_12px_rgba(168,85,247,0.6)] fill-purple-500 opacity-60">
                              <path d="M50 20 C30 20 10 50 10 50 C10 50 30 80 50 80 C70 80 90 50 90 50 C90 50 70 20 50 20 Z M50 65 C41.7 65 35 58.3 35 50 C35 41.7 41.7 35 50 35 C58.3 35 65 41.7 65 50 C65 58.3 58.3 65 50 65 Z" />
                              <circle cx="50" cy="50" r="8" className="animate-pulse" />
-                             {/* Cracks */}
                              <path d="M40 30 L30 20 M60 30 L70 20 M40 70 L30 80 M60 70 L70 80" stroke="currentColor" strokeWidth="2" />
                         </svg>
-                        {/* Shifting Ethereal Particles */}
                         {!disableEffects && (
                             <div className="absolute inset-0">
                                 <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-purple-400 rounded-full blur-md animate-ethereal-float"></div>
@@ -249,7 +277,6 @@ export const Card: React.FC<CardProps> = ({
                                 <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-slate-200 rounded-full blur-sm animate-ethereal-float [animation-delay:1.4s]"></div>
                             </div>
                         )}
-                        {/* Turn-based smoke effect for Wit's End (Void smoke) */}
                         {activeTurn && !disableEffects && (
                             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2">
                                 <div className="w-5 h-5 bg-purple-900/40 rounded-full blur-xl animate-smoke-puff"></div>
@@ -269,11 +296,9 @@ export const Card: React.FC<CardProps> = ({
                     <div className="relative group/dragon">
                         <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] fill-[#3d2b1f] opacity-80 filter grayscale-[0.2]">
                              <path d="M50 10C55 10 60 15 60 20C60 25 55 30 50 30C45 30 40 25 40 20C40 15 45 10 50 10ZM50 80C30 80 15 65 15 45C15 25 30 10 50 10C70 10 85 25 85 45C85 65 70 80 50 80ZM50 35C50 35 30 50 30 65C30 80 50 90 50 90C50 90 70 80 70 65C70 50 50 35Z" opacity="0.3"/>
-                             {/* Embossed Dragon Shape */}
                              <path d="M82,45 C82,20 60,15 50,15 C40,15 18,20 18,45 C18,65 35,85 50,85 C65,85 82,65 82,45 M50,25 C58,25 65,32 65,40 C65,48 58,55 50,55 C42,55 35,48 35,40 C35,32 42,25 50,25" />
                              <circle cx="50" cy="40" r="5" />
                         </svg>
-                        {/* Smoke Puff Animation when it's turn */}
                         {activeTurn && !disableEffects && (
                             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2">
                                 <div className="w-4 h-4 bg-white/40 rounded-full blur-md animate-smoke-puff"></div>
@@ -511,38 +536,40 @@ export const Card: React.FC<CardProps> = ({
                 <div className={`absolute inset-0 ${metallicReflect} ${coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END' ? '' : '-translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out'}`}></div>
                 <div className="w-8 h-12 bg-white/5 rounded-full blur-xl transform rotate-45 group-hover:bg-white/10 transition-colors"></div>
             </div>
-            {(coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END') && (
-                <style dangerouslySetInnerHTML={{ __html: `
-                    @keyframes divineAura {
-                        0% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
-                        50% { transform: translateY(-5px); filter: drop-shadow(0 25px 40px rgba(234,179,8,0.5)); }
-                        100% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
-                    }
-                    @keyframes etherealPulse {
-                        0% { transform: translateY(0) scale(1); filter: drop-shadow(0 5px 15px rgba(168,85,247,0.4)); }
-                        50% { transform: translateY(-3px) scale(1.02); filter: drop-shadow(0 20px 35px rgba(147,51,234,0.6)); }
-                        100% { transform: translateY(0) scale(1); filter: drop-shadow(0 5px 15px rgba(168,85,247,0.4)); }
-                    }
-                    @keyframes smokePuff {
-                        0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-                        50% { opacity: 0.6; }
-                        100% { transform: translate(-80%, -150%) scale(2.5); opacity: 0; }
-                    }
-                    @keyframes etherealFloat {
-                        0% { transform: translate(-50%, -50%) translate(0, 0) scale(1); opacity: 0; }
-                        50% { opacity: 0.5; }
-                        100% { transform: translate(-50%, -50%) translate(var(--ex, 10px), var(--ey, -30px)) scale(2); opacity: 0; }
-                    }
-                    .animate-divine-aura { animation: divineAura 4s ease-in-out infinite; }
-                    .animate-ethereal-pulse { animation: etherealPulse 5s ease-in-out infinite; }
-                    .animate-smoke-puff { animation: smokePuff 1.5s ease-out infinite; }
-                    .animate-ethereal-float { 
-                        animation: etherealFloat 2s ease-out infinite;
-                        --ex: ${Math.random() * 40 - 20}px;
-                        --ey: ${-Math.random() * 40 - 20}px;
-                    }
-                `}} />
-            )}
+            <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes divineAura {
+                    0% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
+                    50% { transform: translateY(-5px); filter: drop-shadow(0 25px 40px rgba(234,179,8,0.5)); }
+                    100% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
+                }
+                @keyframes etherealPulse {
+                    0% { transform: translateY(0) scale(1); filter: drop-shadow(0 5px 15px rgba(168,85,247,0.4)); }
+                    50% { transform: translateY(-3px) scale(1.02); filter: drop-shadow(0 20px 35px rgba(147,51,234,0.6)); }
+                    100% { transform: translateY(0) scale(1); filter: drop-shadow(0 5px 15px rgba(168,85,247,0.4)); }
+                }
+                @keyframes smokePuff {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    50% { opacity: 0.6; }
+                    100% { transform: translate(-80%, -150%) scale(2.5); opacity: 0; }
+                }
+                @keyframes etherealFloat {
+                    0% { transform: translate(-50%, -50%) translate(0, 0) scale(1); opacity: 0; }
+                    50% { opacity: 0.5; }
+                    100% { transform: translate(-50%, -50%) translate(var(--ex, 10px), var(--ey, -30px)) scale(2); opacity: 0; }
+                }
+                @keyframes sovereign-glint {
+                  0% { transform: translateX(-150%) skewX(-15deg); }
+                  100% { transform: translateX(150%) skewX(-15deg); }
+                }
+                .animate-divine-aura { animation: divineAura 4s ease-in-out infinite; }
+                .animate-ethereal-pulse { animation: etherealPulse 5s ease-in-out infinite; }
+                .animate-smoke-puff { animation: smokePuff 1.5s ease-out infinite; }
+                .animate-ethereal-float { 
+                    animation: etherealFloat 2s ease-out infinite;
+                    --ex: ${Math.random() * 40 - 20}px;
+                    --ey: ${-Math.random() * 40 - 20}px;
+                }
+            `}} />
         </div>
     );
   }
@@ -595,21 +622,6 @@ export const Card: React.FC<CardProps> = ({
         <div className="absolute inset-[-10px] rounded-[1.5rem] bg-yellow-400/20 blur-xl animate-pulse pointer-events-none z-[-1]"></div>
       )}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] rounded-xl"></div>
-
-      {(coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END') && (
-        <style dangerouslySetInnerHTML={{ __html: `
-            @keyframes divineAura {
-                0% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
-                50% { transform: translateY(-5px); filter: drop-shadow(0 25px 40px rgba(234,179,8,0.5)); }
-                100% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
-            }
-            @keyframes etherealPulse {
-                0% { transform: translateY(0) scale(1); filter: drop-shadow(0 5px 15px rgba(168,85,247,0.4)); }
-                50% { transform: translateY(-3px) scale(1.02); filter: drop-shadow(0 20px 35px rgba(147,51,234,0.6)); }
-                100% { transform: translateY(0) scale(1); filter: drop-shadow(0 5px 15px rgba(168,85,247,0.4)); }
-            }
-        `}} />
-      )}
     </div>
   );
 };

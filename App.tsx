@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
-import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player } from './types';
+import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player, HubTab } from './types';
 import { GameTable } from './components/GameTable';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { Lobby } from './components/Lobby';
@@ -9,7 +8,7 @@ import { VictoryScreen } from './components/VictoryScreen';
 import { TutorialMode } from './components/TutorialMode';
 import { GameEndTransition } from './components/GameEndTransition';
 import { AuthScreen } from './components/AuthScreen';
-import { UserHub, HubTab } from './components/UserHub';
+import { UserHub } from './components/UserHub';
 import { GameSettings } from './components/GameSettings';
 import { Store } from './components/Store';
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
@@ -32,6 +31,7 @@ const App: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
 
   const [view, setView] = useState<ViewState>('WELCOME');
+  const [gameMode, setGameMode] = useState<GameMode>(null);
   const [hubState, setHubState] = useState<{ open: boolean, tab: HubTab }>({ open: false, tab: 'PROFILE' });
   const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
@@ -39,12 +39,12 @@ const App: React.FC = () => {
   
   const [playerName, setPlayerName] = useState('');
   const [playerAvatar, setPlayerAvatar] = useState(':cool:');
-  const [gameMode, setGameMode] = useState<GameMode>(null);
   const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('RED');
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('EMERALD');
   const [spQuickFinish, setSpQuickFinish] = useState(true);
   const [sleeveEffectsEnabled, setSleeveEffectsEnabled] = useState(true);
   const [playAnimationsEnabled, setPlayAnimationsEnabled] = useState(true);
+  const [turnTimerSetting, setTurnTimerSetting] = useState(0);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('MEDIUM');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -58,11 +58,12 @@ const App: React.FC = () => {
   const [spChops, setSpChops] = useState(0);
   
   const [error, setError] = useState<string | null>(null);
-  const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean } | null>(null);
+  const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean, totalXpAfter: number } | null>(null);
 
   const isLoggingOutRef = useRef(false);
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
+  const aiThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -81,6 +82,40 @@ const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('room');
   }, []);
+
+  // Bot Logic Effect
+  useEffect(() => {
+    if (gameMode !== 'SINGLE_PLAYER' || !spGameState || spGameState.status !== GameStatus.PLAYING) return;
+    
+    const currentPlayerId = spGameState.currentPlayerId;
+    const isBot = currentPlayerId?.startsWith('b');
+    
+    if (isBot) {
+      if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+      
+      aiThinkingTimerRef.current = setTimeout(() => {
+        const botHand = spOpponentHands[currentPlayerId!];
+        if (!botHand) return;
+
+        const move = findBestMove(botHand, spGameState.currentPlayPile, !!spGameState.isFirstTurnOfGame, aiDifficulty);
+        
+        if (move) {
+          handleLocalPlay(currentPlayerId!, move);
+        } else {
+          if (spGameState.currentPlayPile.length > 0) {
+            handleLocalPass(currentPlayerId!);
+          } else {
+            const sorted = sortCards(botHand);
+            handleLocalPlay(currentPlayerId!, [sorted[0]]);
+          }
+        }
+      }, 1000 + Math.random() * 1000);
+    }
+
+    return () => {
+      if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+    };
+  }, [spGameState?.currentPlayerId, spGameState?.status, spGameState?.currentPlayPile?.length, gameMode, spOpponentHands, aiDifficulty]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -131,7 +166,7 @@ const App: React.FC = () => {
       }
     });
     return () => subscription.unsubscribe();
-  }, [isGuest]);
+  }, [isGuest, playerName, playerAvatar]);
 
   const loadProfile = async (uid: string) => {
     loadingProfileInProgressRef.current = true;
@@ -146,6 +181,7 @@ const App: React.FC = () => {
       if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
       if (data.sleeve_effects_enabled !== undefined) setSleeveEffectsEnabled(data.sleeve_effects_enabled);
       if (data.play_animations_enabled !== undefined) setPlayAnimationsEnabled(data.play_animations_enabled);
+      if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
       setProfile(data);
     }
     setTimeout(() => { 
@@ -166,9 +202,10 @@ const App: React.FC = () => {
       if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
       if (data.sleeve_effects_enabled !== undefined) setSleeveEffectsEnabled(data.sleeve_effects_enabled);
       if (data.play_animations_enabled !== undefined) setPlayAnimationsEnabled(data.play_animations_enabled);
+      if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
       initialSyncCompleteRef.current = true;
     }
-  }, [isGuest, session]);
+  }, [isGuest, session, playerName]);
 
   useEffect(() => {
     const userId = session?.user?.id || (isGuest ? 'guest' : null);
@@ -179,23 +216,23 @@ const App: React.FC = () => {
     if (backgroundTheme !== profile.active_board) { updates.active_board = backgroundTheme; updates.equipped_board = backgroundTheme; }
     if (soundEnabled !== profile.sfx_enabled) updates.sfx_enabled = soundEnabled;
     if (spQuickFinish !== profile.turbo_enabled) updates.turbo_enabled = spQuickFinish;
-    // Fixed: Corrected variable names to use the camelCase versions defined in the state
+    // Fix: Use the correct camelCase local state variable names instead of the property names from UserProfile.
     if (sleeveEffectsEnabled !== profile.sleeve_effects_enabled) updates.sleeve_effects_enabled = sleeveEffectsEnabled;
-    // Fixed: Corrected variable names to use the camelCase versions defined in the state
     if (playAnimationsEnabled !== profile.play_animations_enabled) updates.play_animations_enabled = playAnimationsEnabled;
+    if (turnTimerSetting !== profile.turn_timer_setting) updates.turn_timer_setting = turnTimerSetting;
     
     if (Object.keys(updates).length > 0) {
       updateProfileSettings(userId, updates);
       setProfile(prev => prev ? { ...prev, ...updates } : null);
     }
-  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, session, authChecked, profile, isGuest]);
+  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, turnTimerSetting, session, authChecked, profile, isGuest]);
 
   const handleSignOut = async () => {
     localStorage.removeItem(SESSION_KEY);
     isLoggingOutRef.current = true;
     initialSyncCompleteRef.current = false;
     if (session) await supabase.auth.signOut();
-    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar(':cool:'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setSleeveEffectsEnabled(true); setPlayAnimationsEnabled(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); handleExit();
+    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar(':cool:'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setSleeveEffectsEnabled(true); setPlayAnimationsEnabled(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); setGameMode(null);
     setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 
@@ -218,10 +255,12 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const onGameState = (state: GameState) => {
+    const onGameState = async (state: GameState) => {
       if (view === 'WELCOME' && !gameMode) return;
       
+      const prevStatus = mpGameState?.status;
       setMpGameState(state);
+
       if (state.roomId !== 'LOCAL') {
          localStorage.setItem(SESSION_KEY, JSON.stringify({ 
            roomId: state.roomId, 
@@ -229,10 +268,31 @@ const App: React.FC = () => {
            timestamp: Date.now() 
          }));
       }
-      if (state.status === GameStatus.PLAYING) setView('GAME_TABLE');
-      else if (state.status === GameStatus.FINISHED && view === 'GAME_TABLE') triggerMatchEndTransition();
-      else if (state.status === GameStatus.FINISHED && view !== 'GAME_TABLE') setView('VICTORY');
-      else if (state.status === GameStatus.LOBBY) setView('LOBBY');
+
+      if (state.status === GameStatus.PLAYING) {
+        setView('GAME_TABLE');
+      } else if (state.status === GameStatus.FINISHED) {
+        // Record MP Result if we just finished
+        if (prevStatus === GameStatus.PLAYING || view === 'GAME_TABLE') {
+          const myRank = state.players.find(p => p.id === myPersistentId)?.finishedRank || 4;
+          const result = await recordGameResult(myRank, false, 'MEDIUM', isGuest, session?.user?.id, 0, mpMyHand.length);
+          
+          setLastMatchRewards({ 
+            xp: result.xpGained, 
+            coins: result.coinsGained, 
+            diff: 'MEDIUM', 
+            bonus: result.xpBonusApplied,
+            totalXpAfter: result.newTotalXp 
+          });
+          
+          setProfile(prev => prev ? { ...prev, xp: result.newTotalXp, coins: prev.coins + result.coinsGained } : null);
+          
+          if (view === 'GAME_TABLE') triggerMatchEndTransition();
+          else setView('VICTORY');
+        }
+      } else if (state.status === GameStatus.LOBBY) {
+        setView('LOBBY');
+      }
     };
     const onPlayerHand = (cards: Card[]) => setMpMyHand(cards);
     socket.on(SocketEvents.GAME_STATE, onGameState);
@@ -245,7 +305,7 @@ const App: React.FC = () => {
       socket.off(SocketEvents.GAME_STATE); socket.off(SocketEvents.PLAYER_HAND);
       socket.off(SocketEvents.ERROR);
     };
-  }, [view, gameMode, triggerMatchEndTransition, myPersistentId]);
+  }, [view, gameMode, triggerMatchEndTransition, myPersistentId, mpGameState?.status, mpMyHand.length, isGuest, session?.user?.id]);
 
   const handleLocalPass = (pid: string) => {
     setSpGameState(prev => {
@@ -278,7 +338,9 @@ const App: React.FC = () => {
           nextPlayerId = players[leadIndex].id; 
         }
       }
-      return { ...prev, players, currentPlayerId: nextPlayerId, currentPlayPile: finalPlayPile };
+
+      // No turn timer in single player
+      return { ...prev, players, currentPlayerId: nextPlayerId, currentPlayPile: finalPlayPile, turnEndTime: undefined };
     });
     audioService.playPass();
   };
@@ -338,10 +400,18 @@ const App: React.FC = () => {
           const myRank = players.find(p => p.id === 'me')?.finishedRank || 4;
           setTimeout(async () => {
              const result = await recordGameResult(myRank, true, aiDifficulty, isGuest, session?.user?.id, currentChops, spMyHand.length);
-             setLastMatchRewards({ xp: result.xpGained, coins: result.coinsGained, diff: aiDifficulty, bonus: result.xpBonusApplied });
+             setLastMatchRewards({ 
+               xp: result.xpGained, 
+               coins: result.coinsGained, 
+               diff: aiDifficulty, 
+               bonus: result.xpBonusApplied,
+               totalXpAfter: result.newTotalXp
+             });
+             // Push update to profile state immediately
+             setProfile(prev => prev ? { ...prev, xp: result.newTotalXp, coins: prev.coins + result.coinsGained } : null);
              triggerMatchEndTransition();
           }, 1000);
-          return { ...prev, players, status: finalStatus, finishedPlayers, currentPlayPile: [], lastPlayerToPlayId: pid };
+          return { ...prev, players, status: finalStatus, finishedPlayers, currentPlayPile: [], lastPlayerToPlayId: pid, turnEndTime: undefined };
       }
 
       const newPlayPile = [...prev.currentPlayPile, { playerId: pid, cards, comboType: getComboType(cards) }];
@@ -370,162 +440,98 @@ const App: React.FC = () => {
           }
       }
 
-      return { ...prev, players, status: finalStatus, finishedPlayers, currentPlayerId: finalPlayerId, currentPlayPile: finalPile, lastPlayerToPlayId: pid, isFirstTurnOfGame: false };
+      // No turn timer in single player
+      return { ...prev, players, status: finalStatus, finishedPlayers, currentPlayerId: finalPlayerId, currentPlayPile: finalPile, lastPlayerToPlayId: pid, isFirstTurnOfGame: false, turnEndTime: undefined };
     });
 
     if (playError) { setError(playError); setTimeout(() => setError(null), 2500); } else { audioService.playPlay(); }
   };
 
-  useEffect(() => {
-    if (gameMode !== 'SINGLE_PLAYER' || !spGameState || spGameState.status !== GameStatus.PLAYING) return;
-    const curPlayer = spGameState.players.find(p => p.id === spGameState.currentPlayerId);
-    if (curPlayer?.isBot && !curPlayer.finishedRank) {
-        const timer = setTimeout(() => {
-            setSpGameState(current => {
-                if (!current || current.status !== GameStatus.PLAYING || current.currentPlayerId !== curPlayer.id) return current;
-                const hand = spOpponentHands[curPlayer.id];
-                let move = findBestMove(hand, current.currentPlayPile, !!current.isFirstTurnOfGame, aiDifficulty);
-                
-                if (!move && current.currentPlayPile.length === 0) {
-                    const sorted = sortCards(hand);
-                    move = [sorted[0]];
-                }
-
-                if (move) {
-                    setTimeout(() => handleLocalPlay(curPlayer.id, move!), 0);
-                } else {
-                    setTimeout(() => handleLocalPass(curPlayer.id), 0);
-                }
-                return current;
-            });
-        }, 1200);
-        return () => clearTimeout(timer);
-    }
-  }, [spGameState?.currentPlayerId, spGameState?.status, gameMode, aiDifficulty, spOpponentHands]);
-
-  const handleStart = (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL', coverStyle: CardCoverStyle, avatar: string, quickFinish?: boolean, difficulty?: AiDifficulty) => {
-    setPlayerName(name.toUpperCase());
-    setPlayerAvatar(avatar);
-    setCardCoverStyle(coverStyle);
-    if (quickFinish !== undefined) setSpQuickFinish(quickFinish);
-    if (difficulty) setAiDifficulty(difficulty);
-    
+  const handleStart = (name: string, mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'TUTORIAL') { setView('TUTORIAL'); return; }
-    
     setGameMode(mode);
     if (mode === 'MULTI_PLAYER') {
-      connectSocket();
-      // Instead of creating a room immediately, we now take the user to the lobby browser.
-      setView('LOBBY');
+        connectSocket();
+        setView('LOBBY');
     } else {
-      const hands = dealCards();
-      const pNames = ['SABER', 'LANCE', 'PHANTOM'];
-      const players: Player[] = [
-        { id: 'me', name: name.toUpperCase(), avatar, cardCount: 13, isHost: true },
-        { id: 'bot1', name: pNames[0], avatar: BOT_AVATARS[0], cardCount: 13, isHost: false, isBot: true },
-        { id: 'bot2', name: pNames[1], avatar: BOT_AVATARS[1], cardCount: 13, isHost: false, isBot: true },
-        { id: 'bot3', name: pNames[2], avatar: BOT_AVATARS[2], cardCount: 13, isHost: false, isBot: true }
-      ];
-      setSpMyHand(hands[0]);
-      setSpOpponentHands({ 'bot1': hands[1], 'bot2': hands[2], 'bot3': hands[3] });
-      setSpChops(0);
-      
-      let starterIndex = 0;
-      let minScore = 999;
-      let has3S = false;
-      hands.forEach((h, i) => h.forEach(c => {
-          const s = c.rank * 10 + c.suit;
-          if (s < minScore) { minScore = s; starterIndex = i; }
-          if (c.rank === Rank.Three && c.suit === Suit.Spades) has3S = true;
-      }));
-      
-      setSpGameState({
-        roomId: 'LOCAL', status: GameStatus.PLAYING, players, currentPlayerId: players[starterIndex].id,
-        currentPlayPile: [], lastPlayerToPlayId: null, winnerId: null, finishedPlayers: [], isFirstTurnOfGame: has3S
-      });
-      setView('GAME_TABLE');
+        const hands = dealCards();
+        setSpMyHand(hands[0]);
+        setSpOpponentHands({ b1: hands[1], b2: hands[2], b3: hands[3] });
+        setSpChops(0);
+        
+        let starterId = 'me';
+        let minScore = 999;
+        hands.forEach((h, i) => {
+            h.forEach(c => {
+               const score = c.rank * 10 + c.suit;
+               if (score < minScore) { minScore = score; starterId = i === 0 ? 'me' : `b${i}`; }
+            });
+        });
+
+        setSpGameState({
+            roomId: 'LOCAL', status: GameStatus.PLAYING, currentPlayerId: starterId, currentPlayPile: [], lastPlayerToPlayId: null, winnerId: null, finishedPlayers: [], isFirstTurnOfGame: true,
+            turnEndTime: undefined,
+            players: [
+                { id: 'me', name: name.toUpperCase(), avatar: playerAvatar, cardCount: 13, isHost: true },
+                { id: 'b1', name: 'TSUBU', avatar: BOT_AVATARS[0], cardCount: 13, isHost: false, isBot: true },
+                { id: 'b2', name: 'MUNCHIE', avatar: BOT_AVATARS[1], cardCount: 13, isHost: false, isBot: true },
+                { id: 'b3', name: 'KUMA', avatar: BOT_AVATARS[2], cardCount: 13, isHost: false, isBot: true }
+            ]
+        });
+        setView('GAME_TABLE');
     }
   };
 
   const handleExit = () => {
-    socket.off(SocketEvents.GAME_STATE);
-    socket.off(SocketEvents.PLAYER_HAND);
     if (gameMode === 'MULTI_PLAYER') disconnectSocket();
-    
-    setGameMode(null); 
-    setMpGameState(null); 
-    setSpGameState(null); 
-    setSpOpponentHands({}); 
-    setSpMyHand([]); 
-    localStorage.removeItem(SESSION_KEY);
-    
-    setGameSettingsOpen(false);
-    setHubState({ open: false, tab: 'PROFILE' });
-    setStoreOpen(false);
-    setError(null);
-
-    setView('WELCOME');
-    
-    setTimeout(() => {
-      try {
-        if (window.location.search) {
-          window.history.replaceState({}, '', window.location.pathname);
-        }
-      } catch (e) {}
-    }, 10);
+    setGameMode(null); setView('WELCOME'); setMpGameState(null); setSpGameState(null); localStorage.removeItem(SESSION_KEY); setGameSettingsOpen(false);
   };
 
-  const currentGameState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
-  const currentHand = gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand;
-
-  if (!authChecked || (session?.user && !profile && !loadingProfileInProgressRef.current)) {
-     return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div></div>;
-  }
-
+  if (!authChecked) return null;
   if (!session && !isGuest) return <AuthScreen onPlayAsGuest={() => setIsGuest(true)} />;
 
   return (
-    <div className="min-h-screen bg-[#030303] text-white font-sans selection:bg-yellow-500/30">
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
       {isTransitioning && <GameEndTransition />}
       
       {view === 'WELCOME' && (
         <WelcomeScreen 
+          onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={handleRefreshProfile}
+          onOpenHub={(tab) => setHubState({ open: true, tab })} onOpenStore={handleOpenStore}
           playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar}
           cardCoverStyle={cardCoverStyle} setCardCoverStyle={setCardCoverStyle} aiDifficulty={aiDifficulty} setAiDifficulty={setAiDifficulty}
           quickFinish={spQuickFinish} setQuickFinish={setSpQuickFinish} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled}
-          backgroundTheme={backgroundTheme} setBackgroundTheme={setBackgroundTheme}
+          backgroundTheme={backgroundTheme} setBackgroundTheme={setBackgroundTheme} isGuest={isGuest}
           sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled}
           playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled}
-          onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={handleRefreshProfile}
-          // Fix: In App.tsx, setHubState's tab is HubTab, so onOpenHub should correctly receive its tab as HubTab.
-          onOpenHub={(tab) => setHubState({ open: true, tab: tab as HubTab })} onOpenStore={() => setStoreOpen(true)} isGuest={isGuest}
         />
       )}
 
       {view === 'LOBBY' && (
-        <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPersistentId} />
-      )}
-
-      {view === 'GAME_TABLE' && currentGameState && (
-        <GameTable 
-          gameState={currentGameState} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} myHand={currentHand}
-          onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: currentGameState.roomId, cards, playerId: myPersistentId }) : handleLocalPlay('me', cards)}
-          onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: currentGameState.roomId, playerId: myPersistentId }) : handleLocalPass('me')}
-          cardCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} onExitGame={handleExit} onSignOut={handleSignOut}
-          backgroundTheme={backgroundTheme} onChangeBackgroundTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'}
-          spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} 
-          currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty}
-          soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} 
-          playAnimationsEnabled={playAnimationsEnabled}
-          onOpenSettings={() => setGameSettingsOpen(true)} profile={profile}
+        <Lobby 
+          playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme}
+          onBack={handleExit} onSignOut={handleSignOut} myId={myPersistentId} turnTimerSetting={turnTimerSetting}
         />
       )}
 
-      {view === 'VICTORY' && currentGameState && (
+      {view === 'GAME_TABLE' && (
+        <GameTable 
+          gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!}
+          myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'}
+          myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand}
+          onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPersistentId }) : handleLocalPlay('me', cards)}
+          onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : handleLocalPass('me')}
+          cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled}
+          onOpenSettings={() => setGameSettingsOpen(true)}
+        />
+      )}
+
+      {view === 'VICTORY' && (
         <VictoryScreen 
-           players={currentGameState.players} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'}
-           onPlayAgain={() => { if (gameMode === 'MULTI_PLAYER') socket.emit(SocketEvents.START_GAME, { roomId: currentGameState.roomId, playerId: myPersistentId }); else handleStart(playerName, 'SINGLE_PLAYER', cardCoverStyle, playerAvatar); }}
-           onGoHome={handleExit} profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus}
+          players={gameMode === 'MULTI_PLAYER' ? mpGameState!.players : spGameState!.players}
+          myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'}
+          onPlayAgain={() => { setView(gameMode === 'MULTI_PLAYER' ? 'LOBBY' : 'WELCOME'); if (gameMode === 'SINGLE_PLAYER') handleStart(playerName, 'SINGLE_PLAYER'); }}
+          onGoHome={handleExit} profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} totalXpAfter={lastMatchRewards?.totalXpAfter}
         />
       )}
 
@@ -533,33 +539,35 @@ const App: React.FC = () => {
 
       {hubState.open && (
         <UserHub 
-          onClose={() => setHubState({ ...hubState, open: false })} profile={profile} playerName={playerName} setPlayerName={setPlayerName}
-          playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} onSignOut={handleSignOut} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} remoteEmotes={[]}
+          profile={profile} onClose={() => setHubState({ ...hubState, open: false })}
+          playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar}
+          onSignOut={handleSignOut} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} initialTab={hubState.tab}
         />
       )}
 
       {gameSettingsOpen && (
         <GameSettings 
-          onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle}
-          currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish}
-          setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled}
+          onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit}
+          currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle}
+          currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme}
+          isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish}
+          currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty}
+          soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled}
           sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled}
           playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled}
+          turnTimerSetting={turnTimerSetting} setTurnTimerSetting={setTurnTimerSetting}
+          unlockedSleeves={profile?.unlocked_sleeves || []}
         />
       )}
 
       {storeOpen && (
         <Store 
           onClose={() => setStoreOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile}
-          onEquipSleeve={setCardCoverStyle} currentSleeve={cardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar}
-          currentTheme={backgroundTheme} onEquipBoard={setBackgroundTheme} isGuest={isGuest} initialTab={storeTab}
+          onEquipSleeve={setCardCoverStyle} currentSleeve={cardCoverStyle}
+          playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar}
+          currentTheme={backgroundTheme} onEquipBoard={setBackgroundTheme}
+          isGuest={isGuest} initialTab={storeTab}
         />
-      )}
-
-      {error && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[1000] px-8 py-4 bg-red-600/90 backdrop-blur-xl border-2 border-red-400 text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl animate-in slide-in-from-bottom-4">
-           {error}
-        </div>
       )}
     </div>
   );

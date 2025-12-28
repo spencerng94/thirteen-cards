@@ -65,6 +65,7 @@ export interface GameState {
   finishedPlayers: string[];
   isFirstTurnOfGame?: boolean;
   turnEndTime?: number; // Server timestamp when current turn expires
+  turnDuration?: number; // Seconds (0, 30, 60, 90)
   // New Room Attributes
   isPublic?: boolean;
   roomName?: string;
@@ -114,6 +115,7 @@ export interface UserProfile {
   turbo_enabled?: boolean;
   sleeve_effects_enabled?: boolean;
   play_animations_enabled?: boolean;
+  turn_timer_setting: number; // 0, 30, 60, 90
   undo_count: number;
   finish_dist: number[];
   total_chops: number;
@@ -121,3 +123,5 @@ export interface UserProfile {
   current_streak: number;
   longest_streak: number;
 }
+
+export type HubTab = 'PROFILE' | 'CUSTOMIZE' | 'STATS' | 'LEVEL_REWARDS';

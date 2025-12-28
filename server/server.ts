@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -52,12 +51,13 @@ interface GameRoom {
   turnTimer?: any;
   isPublic: boolean;
   roomName: string;
+  turnDuration: number; // In ms
 }
 
 const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
-const BOT_NAMES = ['VALKYRIE', 'SABER', 'LANCE', 'PHANTOM', 'GHOST', 'REAPER', 'VOID', 'SPECTRE'];
+const BOT_NAMES = ['TSUBU', 'MUNCHIE', 'KUMA', 'VALKYRIE', 'SABER', 'LANCE', 'PHANTOM', 'GHOST', 'REAPER', 'VOID', 'SPECTRE'];
 const RECONNECTION_GRACE_PERIOD = 30000; 
-const TURN_DURATION_MS = 60000; 
+const DEFAULT_TURN_DURATION_MS = 60000; 
 
 const app = express();
 const httpServer = createServer(app);
@@ -250,6 +250,7 @@ const getGameStateData = (room: GameRoom) => ({
   status: room.status,
   isPublic: room.isPublic,
   roomName: room.roomName,
+  turnDuration: Math.floor(room.turnDuration / 1000),
   players: room.players.map(p => ({
     id: p.id,
     name: p.name,
@@ -301,8 +302,14 @@ const startTurnTimer = (roomId: string) => {
   const room = rooms[roomId];
   if (!room || room.status !== 'PLAYING') return;
   if (room.turnTimer) clearTimeout(room.turnTimer);
-  room.turnEndTime = Date.now() + TURN_DURATION_MS;
-  room.turnTimer = setTimeout(() => { handleTurnTimeout(roomId); }, TURN_DURATION_MS);
+  
+  if (room.turnDuration === 0) {
+    room.turnEndTime = undefined;
+    return;
+  }
+
+  room.turnEndTime = Date.now() + room.turnDuration;
+  room.turnTimer = setTimeout(() => { handleTurnTimeout(roomId); }, room.turnDuration);
 };
 
 const handleTurnTimeout = (roomId: string) => {
@@ -499,13 +506,14 @@ const mapIdentity = (socket: Socket, roomId: string, playerId: string) => {
 io.on('connection', (socket: Socket) => {
   socket.emit('public_rooms_list', getPublicRoomsList());
 
-  socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName }) => {
+  socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName, turnTimer }) => {
     const roomId = generateRoomCode();
     const pId = playerId || uuidv4();
     rooms[roomId] = {
       id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
       isPublic: isPublic === true,
       roomName: roomName || `${name.toUpperCase()}'S MATCH`,
+      turnDuration: turnTimer ? turnTimer * 1000 : 0,
       players: [{ id: pId, name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
     };
     mapIdentity(socket, roomId, pId);

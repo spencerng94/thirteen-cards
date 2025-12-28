@@ -123,8 +123,11 @@ export const fetchGuestProfile = (): UserProfile => {
     unlocked_avatars: [...DEFAULT_AVATARS],
     unlocked_boards: ['EMERALD'],
     avatar_url: ':cool:',
+    sfx_enabled: true,
+    turbo_enabled: true,
     sleeve_effects_enabled: true,
     play_animations_enabled: true,
+    turn_timer_setting: 0,
     undo_count: 0,
     finish_dist: [0,0,0,0],
     total_chops: 0,
@@ -132,13 +135,21 @@ export const fetchGuestProfile = (): UserProfile => {
     current_streak: 0,
     longest_streak: 0
   } as UserProfile;
-  return data as UserProfile;
+  return {
+    ...data,
+    turn_timer_setting: data.turn_timer_setting ?? 0
+  } as UserProfile;
 };
 
 export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:'): Promise<UserProfile | null> => {
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-  if (!error && data) return data as UserProfile;
+  if (!error && data) {
+    return {
+      ...data,
+      turn_timer_setting: data.turn_timer_setting ?? 0
+    } as UserProfile;
+  }
   return null;
 };
 
@@ -178,15 +189,72 @@ export const buyItem = async (userId: string, price: number, itemName: string, t
 };
 
 export const recordGameResult = async (rank: number, isBot: boolean, difficulty: AiDifficulty, isGuest: boolean, userId?: string, chopsInMatch: number = 0, cardsRemaining: number = 0) => {
-  return { xpGained: 10, coinsGained: 50, newTotalXp: 100, xpBonusApplied: false };
+  // Balanced rewards
+  const xpGained = rank === 1 ? 25 : rank === 2 ? 15 : 10; 
+  const coinsGained = rank === 1 ? 100 : rank === 2 ? 50 : 25;
+  
+  const profile = isGuest ? fetchGuestProfile() : await fetchProfile(userId!);
+  if (profile) {
+    const newXp = profile.xp + xpGained;
+    const newLevel = calculateLevel(newXp);
+    const updates = { 
+      xp: newXp, 
+      level: newLevel,
+      coins: profile.coins + coinsGained,
+      games_played: profile.games_played + 1,
+      wins: rank === 1 ? profile.wins + 1 : profile.wins
+    };
+    await updateProfileSettings(userId || 'guest', updates);
+    return { xpGained, coinsGained, newTotalXp: newXp, xpBonusApplied: false };
+  }
+  
+  return { xpGained: 10, coinsGained: 50, newTotalXp: 10, xpBonusApplied: false };
 };
 
+/**
+ * Robust leveling thresholds. 
+ * Requirements strictly increase to ensure accurate progress bar rendering.
+ */
+const XP_TABLE = [
+  0,      // L1
+  30,     // L2 (+30)
+  75,     // L3 (+45)
+  135,    // L4 (+60)
+  210,    // L5 (+75)
+  310,    // L6 (+100)
+  435,    // L7 (+125)
+  585,    // L8 (+150)
+  760,    // L9 (+175)
+  960,    // L10 (+200)
+  1210,   // L11 (+250)
+  1510,   // L12 (+300)
+  1860,   // L13 (+350)
+  2260,   // L14 (+400)
+  2760    // L15 (+500)
+];
+
 export const calculateLevel = (xp: number) => {
-  return Math.floor(Math.sqrt(xp / 100)) + 1;
+  const safeXp = Math.max(0, xp);
+  // Scan pre-defined table
+  for (let i = XP_TABLE.length - 1; i >= 0; i--) {
+    if (safeXp >= XP_TABLE[i]) return i + 1;
+  }
+  return 1;
 };
 
 export const getXpForLevel = (level: number) => {
-  return Math.pow(level - 1, 2) * 100;
+  const safeLevel = Math.max(1, level);
+  if (safeLevel <= XP_TABLE.length) {
+    return XP_TABLE[safeLevel - 1];
+  }
+  
+  // High-level procedural logic
+  const baseLevel = XP_TABLE.length;
+  const baseXP = XP_TABLE[XP_TABLE.length - 1];
+  const levelDiff = safeLevel - baseLevel;
+  
+  // Each subsequent level requires 500 + (levelDiff * 50) XP
+  return baseXP + (levelDiff * 500) + (levelDiff * (levelDiff - 1) * 25);
 };
 
 export const transferGuestData = async (userId: string) => {};

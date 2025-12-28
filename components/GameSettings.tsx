@@ -1,9 +1,8 @@
-
 import React from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
 import { PREMIUM_BOARDS, BoardPreview } from './UserHub';
-import { SUPER_PRESTIGE_SLEEVE_IDS } from './Store';
+import { SUPER_PRESTIGE_SLEEVE_IDS, SOVEREIGN_IDS, SLEEVES as ALL_STORE_SLEEVES } from './Store';
 
 interface GameSettingsProps {
   onClose: () => void;
@@ -23,6 +22,9 @@ interface GameSettingsProps {
   setSleeveEffectsEnabled: (val: boolean) => void;
   playAnimationsEnabled: boolean;
   setPlayAnimationsEnabled: (val: boolean) => void;
+  turnTimerSetting: number;
+  setTurnTimerSetting: (val: number) => void;
+  unlockedSleeves?: string[];
 }
 
 const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -38,45 +40,6 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     <div className="h-[1px] flex-1 bg-gradient-to-r from-yellow-500/30 to-transparent"></div>
   </div>
 );
-
-const getThemeStyles = (themeId: BackgroundTheme, active: boolean) => {
-    if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
-    
-    switch (themeId) {
-      case 'CLASSIC_GREEN':
-        return "bg-[#064e3b] text-emerald-300 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]";
-      case 'EMERALD':
-        return "bg-emerald-600/90 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-400/30";
-      case 'CYBER_BLUE':
-        return "bg-blue-600/90 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] border-blue-400/30";
-      case 'CRIMSON_VOID':
-        return "bg-rose-900/90 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-rose-400/30";
-      case 'CYBERPUNK_NEON':
-        return "bg-slate-700/90 text-white shadow-[0_0_15px_rgba(51,65,85,0.4)] border-white/30";
-      case 'OBSIDIAN_MADNESS':
-        return "bg-black text-red-600 border-red-950 shadow-[0_0_20px_rgba(153,27,27,0.6)] font-black italic";
-      case 'SHIBA':
-        return "bg-orange-100 text-orange-600 border-orange-300 shadow-[0_0_20px_rgba(251,191,36,0.4)] font-black italic";
-      case 'JUST_A_GIRL':
-        return "bg-pink-100 text-pink-600 border-pink-300 shadow-[0_0_20px_rgba(244,114,182,0.4)] font-black italic";
-      case 'LAS_VEGAS':
-        return "bg-black text-yellow-500 border-yellow-500 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic uppercase tracking-widest";
-      case 'LOTUS_FOREST':
-        return "bg-pink-600/90 text-white shadow-[0_0_15px_rgba(219,39,119,0.4)] border-pink-400/30";
-      case 'CHRISTMAS_YULETIDE':
-        return "bg-blue-800/90 text-white shadow-[0_0_15px_rgba(30,58,138,0.4)] border-blue-400/30";
-      case 'GOLDEN_EMPEROR':
-        return "bg-gradient-to-r from-yellow-500 via-yellow-200 to-yellow-500 text-black border-yellow-300 shadow-[0_0_20px_rgba(234,179,8,0.5)]";
-      case 'ZEN_POND':
-        return "bg-[#082f49] text-cyan-400 border-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.4)] font-black italic";
-      case 'HIGH_ROLLER':
-        return "bg-black text-yellow-500 border-yellow-600 shadow-[0_0_25px_rgba(251,191,36,0.6)] font-black italic";
-      case 'GOLD_FLUX':
-        return "bg-[#fffbeb] text-yellow-600 border-yellow-400 shadow-[0_0_25px_rgba(251,191,36,0.4)] font-black italic";
-      default:
-        return "bg-white/10 text-white shadow-lg";
-    }
-};
 
 export const GameSettings: React.FC<GameSettingsProps> = ({ 
   onClose, 
@@ -95,9 +58,12 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   sleeveEffectsEnabled,
   setSleeveEffectsEnabled,
   playAnimationsEnabled,
-  setPlayAnimationsEnabled
+  setPlayAnimationsEnabled,
+  turnTimerSetting,
+  setTurnTimerSetting,
+  unlockedSleeves = []
 }) => {
-  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'WITS_END', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS'];
+  const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'WITS_END', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'SOVEREIGN_SPADE', 'SOVEREIGN_CLUB', 'SOVEREIGN_DIAMOND', 'SOVEREIGN_HEART'];
 
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300" onClick={onClose}>
@@ -143,7 +109,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
               </div>
               <button 
                 onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)}
-                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${sleeveEffectsEnabled ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
+                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${sleeveEffectsEnabled ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
@@ -170,12 +136,29 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                 </div>
                 <button 
                   onClick={() => setSpQuickFinish(!spQuickFinish)}
-                  className={`w-12 h-6 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
+                  className={`w-12 h-6 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
                 >
                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${spQuickFinish ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Turn Timer Setting */}
+          <div className="space-y-4">
+            <SectionHeader>Multiplayer Turn Duration</SectionHeader>
+            <div className="grid grid-cols-4 gap-2 p-1 bg-black/40 rounded-2xl border border-white/5">
+                {[0, 30, 60, 90].map(val => (
+                    <button 
+                        key={val} 
+                        onClick={() => setTurnTimerSetting(val)}
+                        className={`py-3 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${turnTimerSetting === val ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/30 hover:text-white/60'}`}
+                    >
+                        {val === 0 ? 'OFF' : `${val}s`}
+                    </button>
+                ))}
+            </div>
+            <p className="text-[7px] text-white/20 uppercase tracking-widest text-center italic">Only applies to Multiplayer lobbies you host. Single Player turns remain untimed.</p>
           </div>
 
           {/* AI Difficulty */}
@@ -229,18 +212,21 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
               {coverStyles.map(style => {
                 const active = currentCoverStyle === style;
-                const isLegendary = style === 'AETHER_VOID';
                 const isPrestige = PRESTIGE_SLEEVE_IDS.includes(style);
                 const isSuperPrestige = SUPER_PRESTIGE_SLEEVE_IDS.includes(style);
+                const isSovereign = SOVEREIGN_IDS.includes(style);
+                const isUnlocked = unlockedSleeves.includes(style) || ALL_STORE_SLEEVES.find(s => s.style === style)?.price === 0;
 
                 return (
                   <div 
                     key={style} 
-                    onClick={() => onChangeCoverStyle(style)}
-                    className={`relative flex flex-col items-center gap-1 cursor-pointer transition-all ${active ? 'scale-110' : 'opacity-40 grayscale-[0.5] hover:opacity-100 hover:grayscale-0'}`}
+                    onClick={() => {
+                        if (isUnlocked) onChangeCoverStyle(style);
+                    }}
+                    className={`relative flex flex-col items-center gap-1 cursor-pointer transition-all ${active ? 'scale-110' : isUnlocked ? 'opacity-100' : 'opacity-40 grayscale-[0.5] hover:opacity-100 hover:grayscale-0'}`}
                   >
                     <div className="relative group/card-badge">
-                      <Card faceDown activeTurn={true} coverStyle={style} small className={`!w-12 !h-18 rounded-lg shadow-xl ${active ? 'ring-2 ring-yellow-500' : 'border-white/5'}`} disableEffects={!sleeveEffectsEnabled} />
+                      <Card faceDown activeTurn={true} coverStyle={style} small className={`!w-12 !h-18 rounded-lg shadow-xl ${active ? 'ring-2 ring-yellow-500' : 'border-white/5'}`} />
                       {isPrestige && !isSuperPrestige && (
                         <div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-badge:scale-110 transition-transform">
                           <span className="text-yellow-500 text-[8px] font-black">♠</span>
@@ -253,7 +239,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                       )}
                     </div>
                     {active && <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center text-[8px] text-black font-black border border-black shadow-lg">✓</div>}
-                    {isLegendary && <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-white rounded-full flex items-center justify-center text-[6px] shadow-lg animate-pulse">✨</div>}
+                    {!isUnlocked && isSovereign && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 border border-yellow-500/50 px-1.5 py-0.5 rounded-full z-30"><span className="text-[6px] font-black text-yellow-500 tracking-tighter">EVENT</span></div>}
                   </div>
                 );
               })}

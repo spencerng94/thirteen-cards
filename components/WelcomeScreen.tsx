@@ -1,14 +1,13 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
-import { AiDifficulty, UserProfile, BackgroundTheme, Emote, Rank, Suit } from '../types';
+import { AiDifficulty, UserProfile, BackgroundTheme, Emote, Rank, Suit, HubTab } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
 // Import corrected: SleeveArenaPreview moved to Store.tsx
-import { PREMIUM_BOARDS, BoardPreview, BoardSurface, HubTab } from './UserHub';
-import { SleeveArenaPreview, SUPER_PRESTIGE_SLEEVE_IDS } from './Store';
+import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
+import { SleeveArenaPreview, SUPER_PRESTIGE_SLEEVE_IDS, SLEEVES as ALL_STORE_SLEEVES, SOVEREIGN_IDS } from './Store';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 
@@ -41,25 +40,6 @@ interface WelcomeScreenProps {
   playAnimationsEnabled: boolean;
   setPlayAnimationsEnabled: (v: boolean) => void;
 }
-
-const SLEEVES = [
-  { id: 'BLUE', name: 'Imperial Blue', price: 0, style: 'BLUE' as CardCoverStyle },
-  { id: 'RED', name: 'Dynasty Red', price: 0, style: 'RED' as CardCoverStyle },
-  { id: 'PATTERN', name: 'Golden Lattice', price: 500, style: 'PATTERN' as CardCoverStyle },
-  { id: 'ROYAL_JADE', name: 'Imperial Jade', price: 1000, style: 'ROYAL_JADE' as CardCoverStyle },
-  { id: 'GOLDEN_IMPERIAL', name: 'Sun King', price: 2000, style: 'GOLDEN_IMPERIAL' as CardCoverStyle },
-  { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 4500, style: 'AMETHYST_ROYAL' as CardCoverStyle },
-  { id: 'VOID_ONYX', name: 'Void Walker', price: 6000, style: 'VOID_ONYX' as CardCoverStyle },
-  { id: 'NEON_CYBER', name: 'Neon Circuit', price: 8000, style: 'NEON_CYBER' as CardCoverStyle },
-  { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel City Lights', price: 10000, style: 'PIXEL_CITY_LIGHTS' as CardCoverStyle },
-  { id: 'CRYSTAL_EMERALD', name: 'Crystal Gem', price: 12500, style: 'CRYSTAL_EMERALD' as CardCoverStyle },
-  { id: 'DRAGON_SCALE', name: 'Dragon Skin', price: 15000, style: 'DRAGON_SCALE' as CardCoverStyle },
-  { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 18500, style: 'CHERRY_BLOSSOM_NOIR' as CardCoverStyle },
-  { id: 'AETHER_VOID', name: 'Aether Void', price: 25000, style: 'AETHER_VOID' as CardCoverStyle },
-  { id: 'WITS_END', name: "Wit's End", price: 35000, style: 'WITS_END' as CardCoverStyle },
-  { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 50000, style: 'DIVINE_ROYAL' as CardCoverStyle },
-  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 75000, style: 'EMPERORS_HUBRIS' as CardCoverStyle },
-];
 
 const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
   'ROYAL_JADE', 'CRYSTAL_EMERALD', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 
@@ -98,12 +78,19 @@ const SelectionCircle: React.FC<{
   status: 'equipped' | 'owned' | 'locked'; 
   price?: number; 
   onAction?: () => void;
-}> = ({ status, price, onAction }) => {
+  isEvent?: boolean;
+}> = ({ status, price, onAction, isEvent }) => {
   if (status === 'locked') {
     return (
       <div className="absolute top-2 right-2 z-20 px-1.5 py-0.5 bg-black/60 text-yellow-500 text-[7px] font-black rounded-full border border-white/10 flex items-center gap-1">
-        <span>💰</span>
-        <span>{price}</span>
+        {isEvent ? (
+            <span className="tracking-widest">EVENT</span>
+        ) : (
+            <>
+                <span>💰</span>
+                <span>{price}</span>
+            </>
+        )}
       </div>
     );
   }
@@ -223,7 +210,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     }
   };
 
-  const isSleeveUnlocked = (id: string) => profile?.unlocked_sleeves.includes(id) || SLEEVES.find(s => s.id === id)?.price === 0;
+  const isSleeveUnlocked = (id: string) => profile?.unlocked_sleeves.includes(id) || ALL_STORE_SLEEVES.find(s => s.id === id)?.price === 0;
   const isBoardUnlocked = (id: string) => profile?.unlocked_boards.includes(id) || PREMIUM_BOARDS.find(b => b.id === id)?.price === 0;
 
   const renderProfileTab = () => {
@@ -261,9 +248,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
            </div>
         </div>
 
-        <div className="bg-black/40 backdrop-blur-md border border-white/5 p-5 rounded-3xl space-y-2">
+        <div 
+            onClick={() => onOpenHub('LEVEL_REWARDS')}
+            className="bg-black/40 backdrop-blur-md border border-white/5 p-5 rounded-3xl space-y-2 cursor-pointer hover:bg-white/[0.02] transition-colors group"
+        >
           <div className="flex justify-between items-end">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Level {currentLevel}</span>
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest group-hover:text-white transition-colors">Level {currentLevel}</span>
             <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">{nextLevelXp - (profile?.xp || 0)} XP TO RANK UP</span>
           </div>
           <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
@@ -275,7 +265,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   const renderCustomizeTab = () => {
-    const filteredSleeves = hideUnowned ? SLEEVES.filter(s => isSleeveUnlocked(s.id)) : SLEEVES;
+    const filteredSleeves = hideUnowned ? ALL_STORE_SLEEVES.filter(s => isSleeveUnlocked(s.id)) : ALL_STORE_SLEEVES;
     const filteredBoards = hideUnowned ? PREMIUM_BOARDS.filter(b => isBoardUnlocked(b.id)) : PREMIUM_BOARDS;
 
     const sleeveGridClass = density === 4 ? 'grid-cols-3' : density === 1 ? 'grid-cols-1' : 'grid-cols-2';
@@ -339,10 +329,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 const isLegendary = s.id === 'AETHER_VOID';
                 const isPrestige = PRESTIGE_SLEEVE_IDS.includes(s.style);
                 const isSuperPrestige = SUPER_PRESTIGE_SLEEVE_IDS.includes(s.style);
+                const isSovereign = SOVEREIGN_IDS.includes(s.style);
 
                 return (
-                  <div key={s.id} onClick={() => unlocked ? setPreviewSleeveStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'} ${isLegendary ? 'ring-1 ring-yellow-500/20' : ''}`}>
-                    <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
+                  <div key={s.id} onClick={() => {
+                      if (unlocked) setPreviewSleeveStyle(s.style);
+                      else if (!isSovereign) handlePurchaseAttempt(s, s.price, 'SLEEVE');
+                  }} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'} ${isLegendary ? 'ring-1 ring-yellow-500/20' : ''}`}>
+                    <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} isEvent={isSovereign} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
                     
                     <div className="relative group/card-wrap">
                       <Card faceDown activeTurn={true} coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />
@@ -437,7 +431,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
            </button>
         </div>
         <div className="space-y-3">
-          <p className="text-[9px] font-black text-white/40 uppercase tracking-widest text-center">AI Aggression</p>
+          <p className="text-[9px] font-black text-white/40 uppercase tracking-widest text-center">AI Difficulty</p>
           <div className="grid grid-cols-3 gap-2 p-1 bg-black/60 backdrop-blur-md rounded-xl border border-white/5">
             {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map(d => {
               let activeClass = 'bg-yellow-500 text-black';
@@ -604,7 +598,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </div>
 
       <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-right-2 fade-in duration-700 pointer-events-none">
-        <UserBar profile={profile} isGuest={isGuest} avatar={playerAvatar} remoteEmotes={remoteEmotes} onClick={() => onOpenHub('PROFILE')} className="pointer-events-auto" />
+        <UserBar profile={profile} isGuest={isGuest} avatar={playerAvatar} remoteEmotes={remoteEmotes} onClick={(tab) => onOpenHub(tab)} className="pointer-events-auto" />
       </div>
 
       <div className="max-w-2xl w-full z-10 flex flex-col items-center gap-1.5 mt-10 md:mt-0">

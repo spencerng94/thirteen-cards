@@ -1,10 +1,10 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { UserProfile, BackgroundTheme, AiDifficulty, Emote } from '../types';
+import { UserProfile, BackgroundTheme, AiDifficulty, Emote, HubTab } from '../types';
 import { calculateLevel, getXpForLevel, DEFAULT_AVATARS, PREMIUM_AVATARS, buyItem, getAvatarName } from '../services/supabase';
 import { CardCoverStyle, Card } from './Card';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
+import { LevelRewards } from './LevelRewards';
 
 export interface ThemeConfig {
   id: string;
@@ -985,12 +985,16 @@ export const BoardPreview: React.FC<{ themeId: string; className?: string; activ
   );
 };
 
-export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, setPlayerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, remoteEmotes = [] }) => {
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'STATS'>('PROFILE');
+export const UserHub: React.FC<{ initialTab?: HubTab } & any> = ({ onClose, profile, playerName, setPlayerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, remoteEmotes = [], initialTab = 'PROFILE' }) => {
+  const [activeTab, setActiveTab] = useState<HubTab>(initialTab);
   const [isCatalogExpanded, setIsCatalogExpanded] = useState(false);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'AVATAR' } | null>(null);
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   if (!profile) return null;
 
@@ -1028,6 +1032,10 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
       setBuying(null);
     }
   };
+
+  if (activeTab === 'LEVEL_REWARDS') {
+    return <LevelRewards onClose={onClose} profile={profile} />;
+  }
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
@@ -1137,7 +1145,18 @@ export const UserHub: React.FC<HubTab | any> = ({ onClose, profile, playerName, 
                     </div>
                     <div className="flex-1 w-full space-y-3 sm:space-y-4">
                         <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value.toUpperCase())} maxLength={12} className="w-full bg-black/40 border border-white/5 px-4 py-2 rounded-xl text-white font-black uppercase tracking-widest text-lg sm:text-xl focus:border-yellow-500/30 outline-none transition-all shadow-inner" />
-                        <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2"><div className="flex justify-between items-end"><span className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em]">Mastery {currentLevel}</span><span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-widest">{nextLevelXp - profile.xp} XP TO ASCEND</span></div><div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5"><div className="h-full bg-gradient-to-r from-yellow-700 via-yellow-400 to-yellow-200 transition-all duration-1000" style={{ width: `${progress}%` }} /></div></div>
+                        <div 
+                            onClick={() => setActiveTab('LEVEL_REWARDS')}
+                            className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2 cursor-pointer hover:bg-white/[0.05] transition-colors group/lvl"
+                        >
+                            <div className="flex justify-between items-end">
+                                <span className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em] group-hover/lvl:text-white transition-colors">Mastery {currentLevel}</span>
+                                <span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-widest group-hover/lvl:text-yellow-500 transition-colors">{nextLevelXp - profile.xp} XP TO ASCEND</span>
+                            </div>
+                            <div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                <div className="h-full bg-gradient-to-r from-yellow-700 via-yellow-400 to-yellow-200 transition-all duration-1000" style={{ width: `${progress}%` }} />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1256,5 +1275,3 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <div className="h-[1px] flex-1 bg-gradient-to-r from-yellow-500/30 to-transparent"></div>
     </div>
 );
-
-export type HubTab = 'PROFILE' | 'CUSTOMIZE' | 'STATS';

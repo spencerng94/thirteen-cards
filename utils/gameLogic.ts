@@ -1,4 +1,3 @@
-
 import { Card, Rank, Suit, PlayTurn, AiDifficulty, GameStatus } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -221,11 +220,9 @@ export const getConsecutivePairs = (hand: Card[], count: number): Card[][] => {
   const result: Card[][] = [];
   if (pairs.length < count) return result;
   
-  // To handle multiple pairs of the same rank (though rare in a single deck), 
-  // we group them properly.
   const pairsByRank: Record<number, Card[][]> = {};
   pairs.forEach(p => {
-    if (p[0].rank === Rank.Two) return; // No 2s in sequences
+    if (p[0].rank === Rank.Two) return; 
     if (!pairsByRank[p[0].rank]) pairsByRank[p[0].rank] = [];
     pairsByRank[p[0].rank].push(p);
   });
@@ -242,7 +239,6 @@ export const getConsecutivePairs = (hand: Card[], count: number): Card[][] => {
     }
 
     if (valid) {
-      // Find all combinations of pairs for these ranks
       const combinations: Card[][] = [[]];
       for (let j = 0; j < count; j++) {
         const rank = sortedRanks[i + j];
@@ -260,10 +256,6 @@ export const getConsecutivePairs = (hand: Card[], count: number): Card[][] => {
   return result;
 };
 
-/**
- * findAllValidCombos: Robustly identifies all valid Vietnamese 13 combos containing a specific card.
- * Uses rank-based maps to avoid contiguous slice issues when duplicates are present.
- */
 export const findAllValidCombos = (
   hand: Card[],
   pivotId: string,
@@ -290,15 +282,12 @@ export const findAllValidCombos = (
     cardsByRank[r].push(c);
   });
 
-  // Singles
   if (validateMove([pivotCard], playPile, isFirstTurnOfGame, hand).isValid) {
     result.SINGLE.push([pivotCard]);
   }
 
-  // Pairs, Triples, Quads containing the pivot card
   const sameRankCards = cardsByRank[pivotCard.rank] || [];
   
-  // Pairs
   if (sameRankCards.length >= 2) {
     sameRankCards.forEach(c => {
       if (c.id !== pivotId) {
@@ -310,7 +299,6 @@ export const findAllValidCombos = (
     });
   }
 
-  // Triples
   if (sameRankCards.length >= 3) {
     for (let i = 0; i < sameRankCards.length; i++) {
       for (let j = i + 1; j < sameRankCards.length; j++) {
@@ -325,7 +313,6 @@ export const findAllValidCombos = (
     }
   }
 
-  // Quads
   if (sameRankCards.length === 4) {
     const quad = sortCards(sameRankCards);
     if (validateMove(quad, playPile, isFirstTurnOfGame, hand).isValid) {
@@ -333,7 +320,6 @@ export const findAllValidCombos = (
     }
   }
 
-  // Runs containing the pivot card
   if (pivotCard.rank !== Rank.Two) {
     for (let len = 3; len <= 12; len++) {
       for (let pos = 0; pos < len; pos++) {
@@ -372,7 +358,6 @@ export const findAllValidCombos = (
     }
   }
 
-  // Bombs (Consecutive Pairs)
   [3, 4].forEach(pairCount => {
     const typeKey = pairCount === 3 ? 'BOMB' : '4_PAIRS';
     getConsecutivePairs(hand, pairCount).forEach(bomb => {
@@ -407,20 +392,34 @@ export const findBestMove = (
 ): Card[] | null => {
   const sortedHand = sortCards(hand);
   
+  // LEADING A ROUND
   if (playPile.length === 0) {
     if (isFirstTurnOfGame) {
       const threeS = hand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
-      if (threeS) return [threeS];
+      if (threeS) {
+        // Try to find a combo with 3S
+        const pivotId = threeS.id;
+        const combos = findAllValidCombos(hand, pivotId, [], true);
+        if (combos.RUN.length > 0) return combos.RUN[0];
+        if (combos.TRIPLE.length > 0) return combos.TRIPLE[0];
+        if (combos.PAIR.length > 0) return combos.PAIR[0];
+        return [threeS];
+      }
     }
+    
+    // Standard AI lead
     const quads = getAllQuads(sortedHand);
     if (quads.length > 0) return quads[0];
     const triples = getAllTriples(sortedHand);
     if (triples.length > 0) return triples[0];
     const pairs = getAllPairs(sortedHand);
     if (pairs.length > 0) return pairs[0];
+    
+    // Lead lowest card
     return [sortedHand[0]];
   }
 
+  // RESPONDING TO A MOVE
   const lastTurn = playPile[playPile.length - 1];
   const lastCards = lastTurn.cards;
   const lType = getComboType(lastCards);
@@ -440,7 +439,6 @@ export const findBestMove = (
     if (match) return match;
   } else if (lType === 'RUN') {
     const targetLen = lastCards.length;
-    // For AI runs, we still use contiguous for speed or implement the same logic
     for (let i = 0; i <= sortedHand.length - targetLen; i++) {
       const candidate = sortedHand.slice(i, i + targetLen);
       if (getComboType(candidate) === 'RUN' && getCardScore(getHighestCard(candidate)!) > getCardScore(lHigh)) {
@@ -449,7 +447,6 @@ export const findBestMove = (
     }
   }
 
-  // Check for Chops if a 2 was played
   if (lHigh.rank === Rank.Two) {
     const quads = getAllQuads(sortedHand);
     if (quads.length > 0) return quads[0];

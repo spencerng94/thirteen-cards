@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { UserProfile, Emote } from '../types';
+import { UserProfile, Emote, HubTab } from '../types';
 import { calculateLevel, getXpForLevel } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 
@@ -9,7 +9,7 @@ interface UserBarProps {
   className?: string;
   isGuest?: boolean;
   onPromptAuth?: () => void;
-  onClick?: () => void;
+  onClick?: (tab: HubTab) => void;
   avatar?: string;
   remoteEmotes?: Emote[];
 }
@@ -36,7 +36,7 @@ export const UserBar: React.FC<UserBarProps> = ({
 
   return (
     <div 
-      onClick={onClick}
+      onClick={() => onClick?.('PROFILE')}
       className={`flex flex-col items-center py-3 px-2 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl transition-all duration-500 hover:bg-black/60 group cursor-pointer w-12 ${className}`}
     >
       {/* Mini Avatar */}
@@ -50,7 +50,10 @@ export const UserBar: React.FC<UserBarProps> = ({
       </div>
 
       {/* Level Info */}
-      <div className="flex flex-col items-center mb-4">
+      <div 
+        onClick={(e) => { e.stopPropagation(); onClick?.('LEVEL_REWARDS'); }}
+        className="flex flex-col items-center mb-4 cursor-pointer hover:scale-110 transition-transform"
+      >
         <span className="text-[6px] font-black text-white/40 uppercase tracking-widest leading-none">Level</span>
         <span className="text-xs font-black text-white leading-none mt-0.5 tracking-tighter">
           {currentLevel}

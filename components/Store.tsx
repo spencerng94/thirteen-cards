@@ -31,6 +31,8 @@ interface StoreItem {
   tier: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY' | 'MYTHIC';
 }
 
+export const SOVEREIGN_IDS: CardCoverStyle[] = ['SOVEREIGN_SPADE', 'SOVEREIGN_CLUB', 'SOVEREIGN_DIAMOND', 'SOVEREIGN_HEART'];
+
 export const SLEEVES: StoreItem[] = [
   // COMMON
   { id: 'BLUE', name: 'Imperial Blue', price: 0, tier: 'COMMON', type: 'SLEEVE', style: 'BLUE', description: 'Standard navy finish.' },
@@ -40,26 +42,26 @@ export const SLEEVES: StoreItem[] = [
   { id: 'AMETHYST_ROYAL', name: 'Royal Amethyst', price: 1500, tier: 'RARE', type: 'SLEEVE', style: 'AMETHYST_ROYAL', description: 'Velvet silk with silver filigree.' },
   { id: 'VOID_ONYX', name: 'Void Walker', price: 2000, tier: 'RARE', type: 'SLEEVE', style: 'VOID_ONYX', description: 'Matte black with indigo traces.' },
   { id: 'NEON_CYBER', name: 'Neon Circuit', price: 2500, tier: 'RARE', type: 'SLEEVE', style: 'NEON_CYBER', description: 'Active energetic circuitry.' },
-  { id: 'SOVEREIGN_SPADE', name: 'Sovereign Spade', price: 3000, tier: 'RARE', type: 'SLEEVE', style: 'SOVEREIGN_SPADE', description: 'The original rare spade signature.' },
+  { id: 'SOVEREIGN_SPADE', name: 'Sovereign Spade', price: -1, tier: 'RARE', type: 'SLEEVE', style: 'SOVEREIGN_SPADE', description: 'Legendary spade signature. Claim at Level 10.' },
 
   // EPIC (Clubs Theme)
   { id: 'CHERRY_BLOSSOM_NOIR', name: 'Sakura Noir', price: 4500, tier: 'EPIC', type: 'SLEEVE', style: 'CHERRY_BLOSSOM_NOIR', description: 'Obsidian wood with glowing blossoms.' },
   { id: 'DRAGON_SCALE', name: 'Dragon Skin', price: 5000, tier: 'EPIC', type: 'SLEEVE', style: 'DRAGON_SCALE', description: 'Ancient high-heat forged plating.' },
   { id: 'CRYSTAL_EMERALD', name: 'Crystal Gem', price: 5500, tier: 'EPIC', type: 'SLEEVE', style: 'CRYSTAL_EMERALD', description: 'Prismatic diffraction surfacing.' },
   { id: 'PIXEL_CITY_LIGHTS', name: 'Pixel Lights', price: 6000, tier: 'EPIC', type: 'SLEEVE', style: 'PIXEL_CITY_LIGHTS', description: 'Nocturnal pixel glow.' },
-  { id: 'SOVEREIGN_CLUB', name: 'Sovereign Club', price: 7500, tier: 'EPIC', type: 'SLEEVE', style: 'SOVEREIGN_CLUB', description: 'The original epic club signature.' },
+  { id: 'SOVEREIGN_CLUB', name: 'Sovereign Club', price: -1, tier: 'EPIC', type: 'SLEEVE', style: 'SOVEREIGN_CLUB', description: 'Legendary club signature. Claim at Level 20.' },
 
   // LEGENDARY (Diamonds Theme)
   { id: 'AETHER_VOID', name: 'Aether Noir', price: 12000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'AETHER_VOID', description: 'Clash of celestial light and darkness.' },
   { id: 'WITS_END', name: "Wit's End", price: 15000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'WITS_END', description: 'Ethereal void pulsing with energy.' },
   { id: 'ROYAL_JADE', name: 'Imperial Jade', price: 18000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'ROYAL_JADE', description: 'Polished emerald with gold trim.' },
   { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 20000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'DIVINE_ROYAL', description: 'Ivory parchment with animated aura.' },
-  { id: 'SOVEREIGN_DIAMOND', name: 'Sovereign Diamond', price: 25000, tier: 'LEGENDARY', type: 'SLEEVE', style: 'SOVEREIGN_DIAMOND', description: 'The original legendary diamond signature.' },
+  { id: 'SOVEREIGN_DIAMOND', name: 'Sovereign Diamond', price: -1, tier: 'LEGENDARY', type: 'SLEEVE', style: 'SOVEREIGN_DIAMOND', description: 'Legendary diamond signature. Claim at Level 30.' },
 
   // MYTHIC (Hearts Theme)
   { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 50000, tier: 'MYTHIC', type: 'SLEEVE', style: 'EMPERORS_HUBRIS', description: 'Liquid gold with an embossed dragon.' },
   { id: 'GOLDEN_IMPERIAL', name: 'Sun King', price: 75000, tier: 'MYTHIC', type: 'SLEEVE', style: 'GOLDEN_IMPERIAL', description: '24-karat polished gold leafing.' },
-  { id: 'SOVEREIGN_HEART', name: 'Sovereign Heart', price: 100000, tier: 'MYTHIC', type: 'SLEEVE', style: 'SOVEREIGN_HEART', description: 'The ultimate Mythic heart signature.' },
+  { id: 'SOVEREIGN_HEART', name: 'Sovereign Heart', price: -1, tier: 'MYTHIC', type: 'SLEEVE', style: 'SOVEREIGN_HEART', description: 'Legendary heart signature. Claim at Level 40.' },
 ];
 
 export const SUPER_PRESTIGE_SLEEVE_IDS = ['SOVEREIGN_HEART', 'AETHER_VOID', 'WITS_END', 'EMPERORS_HUBRIS', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR'];
@@ -79,21 +81,37 @@ const TIER_SUIT_MAP: Record<string, string> = {
   MYTHIC: '♥'
 };
 
-const TIER_INFO_DATA: { id: string, name: string, vibe: string, suit?: string, items: CardCoverStyle[] }[] = [
-  { id: 'COMMON', name: 'Common', vibe: 'Simple, flat colors, matte finish.', items: ['BLUE', 'RED'] },
-  { id: 'RARE', name: 'Rare', vibe: 'Slight metallic sheen, clean lines.', suit: 'Spades ♠', items: ['AMETHYST_ROYAL', 'VOID_ONYX', 'NEON_CYBER', 'SOVEREIGN_SPADE'] },
-  { id: 'EPIC', name: 'Epic', vibe: 'Glowing edges, subtle patterns.', suit: 'Clubs ♣', items: ['CHERRY_BLOSSOM_NOIR', 'DRAGON_SCALE', 'CRYSTAL_EMERALD', 'PIXEL_CITY_LIGHTS', 'SOVEREIGN_CLUB'] },
-  { id: 'LEGENDARY', name: 'Legendary', vibe: 'Animated effects, gold foil, 3D depth.', suit: 'Diamonds ♦', items: ['AETHER_VOID', 'WITS_END', 'ROYAL_JADE', 'DIVINE_ROYAL', 'SOVEREIGN_DIAMOND'] },
-  { id: 'MYTHIC', name: 'Mythic', vibe: 'Particle effects, changing colors, unique frames.', suit: 'Hearts ♥', items: ['EMPERORS_HUBRIS', 'GOLDEN_IMPERIAL', 'SOVEREIGN_HEART'] },
+const TIER_INFO_DATA = [
+  { id: 'COMMON', name: 'Common', colors: 'White / Grey', vibe: 'Simple, flat colors, matte finish.', perception: 'The starting point.', items: ['Imperial Blue', 'Dynasty Red'] },
+  { id: 'RARE', name: 'Rare', colors: 'Blue', vibe: 'Slight metallic sheen, clean lines.', perception: "I'm not a noob anymore.", suit: 'Spades ♠', items: ['Royal Amethyst', 'Void Walker', 'Neon Circuit', 'Sovereign Spade'] },
+  { id: 'EPIC', name: 'Epic', colors: 'Purple', vibe: 'Glowing edges, subtle patterns.', perception: 'This looks high-quality.', suit: 'Clubs ♣', items: ['Sakura Noir', 'Dragon Skin', 'Crystal Gem', 'Pixel Lights', 'Sovereign Club'] },
+  { id: 'LEGENDARY', name: 'Legendary', colors: 'Orange / Gold', vibe: 'Animated effects, gold foil, 3D depth.', perception: 'This looks like limited edition.', suit: 'Diamonds ♦', items: ['Aether Noir', "Wit's End", 'Imperial Jade', 'Divine Royal', 'Sovereign Diamond'] },
+  { id: 'MYTHIC', name: 'Mythic', colors: 'Red / Prismatic', vibe: 'Particle effects, changing colors, unique frames.', perception: 'I am the King of this game.', suit: 'Hearts ♥', items: ["Emperor's Hubris", 'Sun King', 'Sovereign Heart'] },
+];
+
+const PREVIEW_HAND: CardType[] = [
+  { id: 'p1', rank: Rank.Three, suit: Suit.Spades },
+  { id: 'p2', rank: Rank.Four, suit: Suit.Diamonds },
+  { id: 'p3', rank: Rank.Five, suit: Suit.Clubs },
+  { id: 'p4', rank: Rank.Six, suit: Suit.Hearts },
+  { id: 'p5', rank: Rank.Seven, suit: Suit.Spades },
+  { id: 'p6', rank: Rank.Eight, suit: Suit.Diamonds },
+  { id: 'p7', rank: Rank.Nine, suit: Suit.Clubs },
+  { id: 'p8', rank: Rank.Ten, suit: Suit.Hearts },
+  { id: 'p9', rank: Rank.Jack, suit: Suit.Spades },
+  { id: 'p10', rank: Rank.Queen, suit: Suit.Diamonds },
+  { id: 'p11', rank: Rank.King, suit: Suit.Clubs },
+  { id: 'p12', rank: Rank.Ace, suit: Suit.Hearts },
+  { id: 'p13', rank: Rank.Two, suit: Suit.Spades },
 ];
 
 const TierSystemModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
   <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/95 backdrop-blur-3xl p-4 animate-in fade-in duration-300" onClick={onClose}>
-    <div className="bg-[#080808] border border-white/10 w-full max-w-3xl max-h-[85vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="bg-[#080808] border border-white/10 w-full max-w-2xl max-h-[85vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
       <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-white uppercase italic tracking-widest font-serif leading-none">SLEEVE TIERING</h2>
-          <p className="text-[8px] font-black uppercase tracking-[0.4em] text-gray-500 mt-2">Asset Rarity Documentation</p>
+          <p className="text-[8px] font-black uppercase tracking-[0.4em] text-gray-500 mt-2">SLEEVE TIER INFORMATION</p>
         </div>
         <button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all active:scale-90"><span className="text-xl">✕</span></button>
       </div>
@@ -113,21 +131,24 @@ const TierSystemModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
               {tier.suit && <span className="text-sm font-black opacity-60 italic">{tier.suit} Set</span>}
             </div>
 
-            <div className="space-y-1">
-              <span className="text-[7px] font-black text-white/30 uppercase tracking-widest">Visual Vibe</span>
-              <p className="text-[10px] text-white/80 leading-relaxed uppercase">{tier.vibe}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <span className="text-[7px] font-black text-white/30 uppercase tracking-widest">Visual Vibe</span>
+                <p className="text-[10px] text-white/80 leading-relaxed uppercase">{tier.vibe}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[7px] font-black text-white/30 uppercase tracking-widest">Player Perception</span>
+                <p className="text-[10px] text-white/80 leading-relaxed italic">{tier.perception}</p>
+              </div>
             </div>
 
             <div className="pt-2 border-t border-white/5">
-              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest block mb-4">Signature Assets</span>
-              <div className="grid grid-cols-5 gap-3">
-                {tier.items.map(style => (
-                  <div key={style} className="flex flex-col items-center gap-1 group/sleeve">
-                    <Card faceDown coverStyle={style} small className="!w-12 !h-18 shadow-xl transition-transform group-hover/sleeve:scale-105 activeTurn={true} />
-                    <span className="text-[6px] font-black text-white/20 uppercase tracking-tighter truncate w-full text-center group-hover/sleeve:text-white/40 transition-colors">
-                      {style.replace(/_/g, ' ')}
-                    </span>
-                  </div>
+              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest block mb-2">Signature Assets</span>
+              <div className="flex flex-wrap gap-2">
+                {tier.items.map(item => (
+                  <span key={item} className="px-3 py-1 rounded-full bg-white/[0.03] border border-white/5 text-[8px] font-black uppercase tracking-wider text-white/60">
+                    {item}
+                  </span>
                 ))}
               </div>
             </div>
@@ -150,26 +171,66 @@ export const SleeveArenaPreview: React.FC<{
       <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-8 flex justify-between items-start">
           <div className="flex flex-col">
-            <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic">ARENA DEPLOYMENT</h1>
+            <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic">SLEEVE PREVIEW</h1>
             <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2">Active Sleeve Signature Loaded</p>
           </div>
-          <button onClick={onClose} className="group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">
+          <button 
+            onClick={onClose} 
+            className="group flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white/80 font-black uppercase text-[8px] tracking-[0.4em] hover:bg-white/10 hover:text-white transition-all active:scale-95 shadow-2xl"
+          >
             <span className="group-hover:-translate-x-1 transition-transform">RETURN ←</span>
           </button>
         </div>
         
-        <div className="flex-1 flex items-center justify-center">
-          <div className="relative group">
-            <div className="absolute inset-0 bg-white/10 blur-[100px] rounded-full scale-150 animate-pulse"></div>
-            <div className="transform rotate-[-6deg] hover:rotate-0 transition-transform duration-700">
-              <Card faceDown activeTurn={true} coverStyle={sleeveStyle} className="!w-64 !h-[380px] shadow-[0_60px_120px_rgba(0,0,0,0.8)] ring-1 ring-white/20 rounded-[2rem]" disableEffects={!sleeveEffectsEnabled} />
-            </div>
+        <div className="flex-1 relative flex flex-col items-center justify-center py-20 px-12 perspective-[1500px]">
+          <div 
+            className="absolute top-[18%] w-full flex justify-center -translate-y-full"
+            style={{ transformStyle: 'preserve-3d', transform: 'rotateX(22deg)' }}
+          >
+            {PREVIEW_HAND.map((c, i) => {
+               const offset = i - 6;
+               const xTranslation = offset * 45;
+               const yTranslation = -60 - (offset * offset) * 3.5;
+               const rotation = offset * 6; 
+               
+               return (
+                <div 
+                  key={`back-${c.id}`} 
+                  className="absolute left-1/2 -ml-12 transition-all duration-700 scale-[0.7]"
+                  style={{ transform: `translate3d(${xTranslation}px, ${yTranslation}px, 0) rotate(${180 - rotation}deg)` }}
+                >
+                  <Card faceDown activeTurn={true} coverStyle={sleeveStyle} className="shadow-2xl border-white/20" disableEffects={!sleeveEffectsEnabled} />
+                </div>
+               );
+            })}
+          </div>
+
+          <div 
+            className="absolute top-[38%] w-full flex justify-center"
+            style={{ transformStyle: 'preserve-3d', transform: 'rotateX(22deg)' }}
+          >
+            {PREVIEW_HAND.map((c, i) => {
+               const offset = i - 6; 
+               const xTranslation = offset * 45; 
+               const yTranslation = 100 + (offset * offset) * 3.2;
+               const rotation = offset * 6;
+
+               return (
+                <div 
+                  key={`front-${c.id}`} 
+                  className="absolute left-1/2 -ml-12 transition-all duration-700 scale-[1.0]"
+                  style={{ transform: `translate3d(${xTranslation}px, ${yTranslation}px, 0) rotate(${rotation}deg)` }}
+                >
+                  <Card card={c} activeTurn={true} coverStyle={sleeveStyle} className="shadow-2xl ring-1 ring-white/10" disableEffects={!sleeveEffectsEnabled} />
+                </div>
+               );
+            })}
           </div>
         </div>
         
-        <div className="p-12 flex justify-center">
-           <div className="bg-black/40 backdrop-blur-xl px-10 py-4 rounded-full border border-white/10">
-              <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.8em]">Preview Mode // {sleeveStyle}</span>
+        <div className="pb-16 flex justify-center">
+           <div className="bg-black/40 backdrop-blur-xl px-12 py-3 rounded-full border border-white/10 shadow-2xl">
+              <span className="text-[9px] font-black text-white/30 uppercase tracking-[1em] italic">Signature Profile // {sleeveStyle}</span>
            </div>
         </div>
       </div>
@@ -190,7 +251,10 @@ export const DummyTablePreview: React.FC<{
             <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic">ARENA SURFACE PREVIEW</h1>
             <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2">Surface Profile Loaded</p>
           </div>
-          <button onClick={onClose} className="group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">
+          <button 
+            onClick={onClose} 
+            className="group flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white/80 font-black uppercase text-[8px] tracking-[0.4em] hover:bg-white/10 hover:text-white transition-all active:scale-95 shadow-2xl"
+          >
             <span className="group-hover:-translate-x-1 transition-transform">RETURN ←</span>
           </button>
         </div>
@@ -234,13 +298,17 @@ export const Store: React.FC<StoreProps> = ({
   }, [initialTab]);
 
   const isUnlockedSleeve = (itemId: string) => profile?.unlocked_sleeves.includes(itemId) || SLEEVES.find(s => s.id === itemId)?.price === 0;
-  const isUnlockedAvatar = (avatar: string) => profile?.unlocked_avatars?.includes(avatar) || DEFAULT_AVATARS.includes(avatar);
+  const isAvatarUnlocked = (avatar: string) => profile?.unlocked_avatars?.includes(avatar) || DEFAULT_AVATARS.includes(avatar);
   const isUnlockedBoard = (id: string) => profile?.unlocked_boards.includes(id) || PREMIUM_BOARDS.find(b => b.id === id)?.price === 0;
 
   const handlePurchaseAttempt = (item: any, isAvatar: boolean = false, isBoard: boolean = false) => {
     if (!profile) return;
     const id = isAvatar ? item : item.id;
     const price = isAvatar ? 250 : item.price;
+    
+    // Check if item is an event reward
+    if (!isAvatar && !isBoard && price === -1) return;
+
     const type = isAvatar ? 'AVATAR' : isBoard ? 'BOARD' : 'SLEEVE';
     
     setPendingPurchase({
@@ -275,11 +343,12 @@ export const Store: React.FC<StoreProps> = ({
   };
 
   const renderItemCard = (item: any, isAvatar: boolean = false, isBoard: boolean = false) => {
-    const unlocked = isAvatar ? isUnlockedAvatar(item) : isBoard ? isUnlockedBoard(item.id) : isUnlockedSleeve(item.id);
+    const unlocked = isAvatar ? isAvatarUnlocked(item) : isBoard ? isUnlockedBoard(item.id) : isUnlockedSleeve(item.id);
     if (hideOwned && unlocked) return null;
 
     const id = isAvatar ? item : item.id;
     const price = isAvatar ? 250 : item.price;
+    const isEventReward = !isAvatar && !isBoard && price === -1;
     const canAfford = (profile?.coins || 0) >= price;
     const itemName = isAvatar ? getAvatarName(item, remoteEmotes) : item.name;
     const tier = item.tier || 'COMMON';
@@ -301,24 +370,19 @@ export const Store: React.FC<StoreProps> = ({
                 if (isAvatar) setPreviewAvatar(item);
                 else if (isBoard) setPreviewThemeId(item.id);
                 else setPreviewSleeveStyle(item.style);
-            } else {
+            } else if (!isEventReward) {
                 handlePurchaseAttempt(item, isAvatar, isBoard);
             }
         }} 
         className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl cursor-pointer`}
       >
-        <div className="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-2">
+        <div className="absolute top-2.5 left-2.5 z-10 flex flex-col items-start gap-2">
           {unlocked && isEquipped && (
             <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] sm:text-[8px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>
           )}
           {!isAvatar && !isBoard && tier !== 'COMMON' && (
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black border shadow-[0_0_10px_rgba(0,0,0,0.5)] ${TIER_COLORS[tier]}`}>
               {TIER_SUIT_MAP[tier]}
-            </div>
-          )}
-          {!isAvatar && !isBoard && tier === 'COMMON' && (
-            <div className={`px-2 py-0.5 rounded-full text-[6px] font-black uppercase tracking-widest border ${TIER_COLORS[tier]}`}>
-              {tier}
             </div>
           )}
         </div>
@@ -345,20 +409,31 @@ export const Store: React.FC<StoreProps> = ({
 
         <div className="w-full mt-auto">
           <button
-            onClick={(e) => { e.stopPropagation(); unlocked ? (isAvatar ? onEquipAvatar(item) : isBoard ? onEquipBoard(item.id) : onEquipSleeve(item.style)) : handlePurchaseAttempt(item, isAvatar, isBoard); }}
-            disabled={isEquipped || (!unlocked && !canAfford) || buying === id}
+            onClick={(e) => { 
+                e.stopPropagation(); 
+                if (unlocked) {
+                    if (isAvatar) onEquipAvatar(item); 
+                    else if (isBoard) onEquipBoard(item.id); 
+                    else onEquipSleeve(item.style);
+                } else if (!isEventReward) {
+                    handlePurchaseAttempt(item, isAvatar, isBoard);
+                }
+            }}
+            disabled={isEquipped || (!unlocked && !canAfford && !isEventReward) || buying === id}
             className={`
               w-full py-2 rounded-xl font-black uppercase ${density === 4 ? 'text-[7px]' : 'text-[8px] sm:text-[9px]'} tracking-[0.15em] transition-all 
               ${isEquipped 
                 ? 'bg-emerald-600 text-white shadow-lg' 
                 : unlocked 
                   ? 'bg-white/5 text-white/80 hover:bg-white/10' 
-                  : canAfford 
-                    ? 'bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black shadow-lg hover:scale-105 active:scale-95' 
-                    : 'bg-white/[0.03] text-white/10 border border-white/5 cursor-not-allowed grayscale'}
+                  : isEventReward
+                    ? 'bg-white/[0.05] text-yellow-500 border border-yellow-500/20 shadow-[0_0_10px_rgba(234,179,8,0.1)] cursor-default'
+                    : canAfford 
+                      ? 'bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black shadow-lg hover:scale-105 active:scale-95' 
+                      : 'bg-white/[0.03] text-white/10 border border-white/5 cursor-not-allowed grayscale'}
             `}
           >
-            {buying === id ? '...' : isEquipped ? 'Active' : unlocked ? 'Equip' : `💰 ${price}`}
+            {buying === id ? '...' : isEquipped ? 'Active' : unlocked ? 'Equip' : isEventReward ? 'EVENT' : `💰 ${price}`}
           </button>
         </div>
       </div>
@@ -388,7 +463,7 @@ export const Store: React.FC<StoreProps> = ({
             <p className="text-gray-500 text-[10px] uppercase tracking-[0.4em] mb-10 italic">Elite Signature Series</p>
             
             <div className="w-full">
-              {isUnlockedAvatar(previewAvatar!) ? (
+              {isAvatarUnlocked(previewAvatar!) ? (
                 <button 
                   onClick={() => { onEquipAvatar(previewAvatar!); setPreviewAvatar(null); }}
                   className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] transition-all shadow-xl ${playerAvatar === previewAvatar ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 cursor-default' : 'bg-emerald-600 text-white hover:scale-105 active:scale-95'}`}

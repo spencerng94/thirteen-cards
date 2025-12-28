@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket } from '../services/socket';
@@ -24,6 +23,7 @@ interface LobbyProps {
   onBack?: () => void;
   onSignOut: () => void;
   myId?: string; // Persistent UUID
+  turnTimerSetting: number;
 }
 
 const MAX_PLAYERS = 4;
@@ -63,13 +63,14 @@ const LuxuryActionTile: React.FC<{
     label: string; 
     sublabel: string;
     icon: React.ReactNode;
-    variant?: 'gold' | 'emerald' | 'ghost';
+    variant?: 'gold' | 'emerald' | 'ghost' | 'rose';
     className?: string;
 }> = ({ onClick, label, sublabel, icon, variant = 'ghost', className = '' }) => {
     const themes = {
         gold: { bg: "from-[#3d280a] via-[#b8860b] to-[#3d280a]", highlight: "from-[#b8860b] via-[#fbf5b7] to-[#8b6508]", text: "text-black", border: "border-yellow-300/40" },
         emerald: { bg: "from-[#064e3b] via-[#059669] to-[#064e3b]", highlight: "from-[#059669] via-[#34d399] to-[#047857]", text: "text-white", border: "border-yellow-500/50" },
-        ghost: { bg: "from-zinc-900 via-zinc-800 to-zinc-900", highlight: "from-zinc-800 via-zinc-700 to-zinc-900", text: "text-white", border: "border-white/10" }
+        ghost: { bg: "from-zinc-900 via-zinc-800 to-zinc-900", highlight: "from-zinc-800 via-zinc-700 to-zinc-900", text: "text-white", border: "border-white/10" },
+        rose: { bg: "from-[#450a0a] via-[#991b1b] to-[#450a0a]", highlight: "from-[#991b1b] via-[#ef4444] to-[#7f1d1d]", text: "text-white", border: "border-rose-500/40" }
     };
     const theme = themes[variant];
 
@@ -80,7 +81,7 @@ const LuxuryActionTile: React.FC<{
         >
             <div className={`absolute inset-0 bg-gradient-to-b ${theme.bg} group-hover:scale-110 transition-transform duration-1000`}></div>
             <div className={`absolute inset-0 bg-gradient-to-b ${theme.highlight} opacity-90 transition-opacity duration-500 group-hover:opacity-100`}></div>
-            <div className="relative z-10 flex flex-col items-center justify-center p-6 sm:p-8">
+            <div className="relative z-10 flex flex-col items-center justify-center p-5 sm:p-6 text-center">
                 <div className="flex items-center gap-3">
                     <span className={`text-xs sm:text-sm font-black uppercase tracking-[0.3em] font-serif ${theme.text} drop-shadow-md`}>{label}</span>
                     <div className={`${theme.text} group-hover:scale-110 group-hover:rotate-12 transition-transform duration-500`}>{icon}</div>
@@ -100,11 +101,13 @@ export const Lobby: React.FC<LobbyProps> = ({
   backgroundTheme,
   onBack,
   onSignOut,
-  myId
+  myId,
+  turnTimerSetting
 }) => {
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(`${playerName.toUpperCase()}'S MATCH`);
   const [isPublic, setIsPublic] = useState(true);
+  const [localTurnTimer, setLocalTurnTimer] = useState(turnTimerSetting);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
@@ -162,7 +165,8 @@ export const Lobby: React.FC<LobbyProps> = ({
       avatar: playerAvatar,
       playerId: myId,
       isPublic,
-      roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`
+      roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
+      turnTimer: localTurnTimer
     });
   };
 
@@ -212,189 +216,212 @@ export const Lobby: React.FC<LobbyProps> = ({
         )}
 
         {!gameState ? (
-          <div className="w-full space-y-12 animate-in fade-in zoom-in-95 duration-700">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className="relative inline-block">
+          <div className="w-full space-y-8 animate-in fade-in zoom-in-95 duration-700 flex flex-col items-center">
+            <div className="flex flex-col items-center text-center space-y-4 mb-4">
+              <div className="relative inline-block max-w-full overflow-visible">
                 <div className="absolute inset-0 bg-yellow-500/10 blur-[80px] rounded-full"></div>
-                <h1 className="text-5xl sm:text-8xl font-black text-white uppercase italic tracking-tighter drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)] font-serif relative z-10">
-                    MULTIPLAYER <span className="text-transparent bg-clip-text bg-gradient-to-b from-yellow-500 to-yellow-800">ARENA</span>
+                <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black text-white uppercase italic tracking-tighter drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)] font-serif relative z-10 leading-none px-4">
+                    ONLINE <span className="text-transparent bg-clip-text bg-gradient-to-b from-yellow-500 to-yellow-800">MULTIPLAYER</span>
                 </h1>
               </div>
               <div className="flex items-center gap-6">
-                <div className="h-[1px] w-24 bg-gradient-to-r from-transparent to-white/10"></div>
-                <p className="text-[11px] font-black uppercase tracking-[1em] text-white/30 whitespace-nowrap">Global Engagement Platform</p>
-                <div className="h-[1px] w-24 bg-gradient-to-l from-transparent to-white/10"></div>
+                <div className="h-[1px] w-12 sm:w-24 bg-gradient-to-r from-transparent to-white/10"></div>
+                <p className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.6em] sm:tracking-[1em] text-white/30 whitespace-nowrap">ONLINE MATCH</p>
+                <div className="h-[1px] w-12 sm:w-24 bg-gradient-to-l from-transparent to-white/10"></div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-                <div className="lg:col-span-4 flex flex-col gap-6">
-                    <GlassPanel className="p-2 flex flex-col">
+            <GlassPanel className="w-full flex flex-col min-h-[600px]">
+                {/* Refined Integrated Tab Bar with Sliding Animation */}
+                <div className="p-3 border-b border-white/5 bg-white/[0.02] flex justify-center">
+                    <div className="bg-black/40 p-1.5 rounded-[2.5rem] flex relative w-full max-w-xl shadow-inner border border-white/5 overflow-hidden">
+                        {/* Animated Slider Background */}
+                        <div 
+                          className={`
+                            absolute top-1.5 bottom-1.5 left-1.5 w-[calc(50%-6px)] 
+                            bg-white/10 border border-white/10 rounded-[2.2rem] shadow-xl 
+                            transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                            ${activeTab === 'PUBLIC' ? 'translate-x-0' : 'translate-x-[calc(100%+6px)]'}
+                          `}
+                        >
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-[2px] bg-yellow-500/50 rounded-full blur-[1px]"></div>
+                        </div>
+
                         {(['PUBLIC', 'CREATE'] as const).map(tab => (
                             <button 
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`
-                                    relative flex items-center justify-between p-6 rounded-[2rem] transition-all duration-500 group overflow-hidden
-                                    ${activeTab === tab ? 'bg-white/5 border border-white/10 shadow-xl' : 'hover:bg-white/[0.02] border border-transparent'}
+                                    flex-1 relative z-10 flex items-center justify-center gap-3 py-4 rounded-[2rem] transition-all duration-500
+                                    ${activeTab === tab ? 'text-yellow-500' : 'text-white/30 hover:text-white/50'}
                                 `}
                             >
-                                <div className="flex flex-col items-start relative z-10">
-                                    <span className={`text-xs font-black uppercase tracking-[0.2em] transition-colors ${activeTab === tab ? 'text-yellow-500' : 'text-white/40'}`}>
-                                        {tab === 'PUBLIC' ? 'Global Lobbies' : 'Establish Match'}
-                                    </span>
-                                    <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest mt-1">
-                                        {tab === 'PUBLIC' ? 'Browse active arena sessions' : 'Launch new tactical encounter'}
-                                    </span>
+                                <div className="flex items-center justify-center transition-all duration-500">
+                                    {tab === 'PUBLIC' ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="opacity-90"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="opacity-90"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    )}
                                 </div>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 ${activeTab === tab ? 'bg-yellow-500 text-black' : 'bg-white/5 text-white/20'}`}>
-                                    {tab === 'PUBLIC' ? '🌐' : '⚙️'}
-                                </div>
-                                {activeTab === tab && (
-                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-500 rounded-r-full"></div>
-                                )}
+                                <span className="text-xs font-black uppercase tracking-[0.2em]">
+                                    {tab === 'PUBLIC' ? 'FIND LOBBY' : 'CREATE LOBBY'}
+                                </span>
                             </button>
                         ))}
-                    </GlassPanel>
-
-                    <LuxuryActionTile 
-                        onClick={onBack!} 
-                        label="WITHDRAW TO HQ" 
-                        sublabel="Return to Main Menu" 
-                        icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
-                    />
+                    </div>
                 </div>
 
-                <div className="lg:col-span-8">
-                    <GlassPanel className="h-full flex flex-col">
-                        <div className="flex-1 p-8 sm:p-12 overflow-hidden flex flex-col">
-                            {activeTab === 'PUBLIC' ? (
-                                <div className="h-full flex flex-col space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
-                                    <div className="space-y-4">
-                                        <label className="text-[9px] font-black uppercase tracking-[0.4em] text-white/30 italic px-2">Access Sector via Identifier</label>
-                                        <div className="flex items-center gap-4 bg-black/40 p-3 rounded-[2rem] border border-white/5 shadow-inner focus-within:border-yellow-500/30 transition-all">
-                                            <input 
-                                                type="text" 
-                                                placeholder="ROOM CODE" 
-                                                value={roomIdInput}
-                                                maxLength={4}
-                                                onChange={e => setRoomIdInput(e.target.value.toUpperCase())}
-                                                className="flex-1 bg-transparent border-none outline-none text-3xl sm:text-5xl font-serif font-black tracking-[0.3em] text-yellow-500 placeholder:text-white/5 px-6 py-2"
-                                            />
-                                            <button 
-                                                onClick={() => joinRoom()} 
-                                                className="h-16 px-10 sm:px-14 bg-gradient-to-br from-yellow-500 to-yellow-700 hover:from-yellow-400 hover:to-yellow-600 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-[0_10px_20px_rgba(234,179,8,0.2)]"
-                                            >
-                                                INTERCEPT
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-
-                                    <div className="flex-1 flex flex-col min-h-0">
-                                        <div className="flex justify-between items-center px-2 mb-6">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic">OPERATIONAL LOBBIES</span>
-                                                <span className="text-[7px] font-bold text-white/20 uppercase tracking-widest mt-1">Found {publicRooms.length} discoverable arenas</span>
-                                            </div>
-                                            <button 
-                                                onClick={refreshRooms} 
-                                                disabled={isRefreshing} 
-                                                className={`w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all active:scale-90 ${isRefreshing ? 'opacity-50' : 'hover:bg-white/10 hover:text-yellow-500'}`}
-                                            >
-                                                <div className={isRefreshing ? 'animate-spin' : ''}><RecycleIcon /></div>
-                                            </button>
-                                        </div>
-
-                                        <div className="flex-1 overflow-y-auto pr-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                                            {publicRooms.length === 0 ? (
-                                                <div className="h-full flex flex-col items-center justify-center text-center opacity-30 py-12">
-                                                    <div className="w-20 h-20 rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-6">
-                                                        <span className="text-4xl italic font-serif">?</span>
-                                                    </div>
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.6em]">NO ACTIVE SECTORS DETECTED</p>
-                                                    <p className="text-[8px] font-bold uppercase tracking-[0.3em] text-white/40 mt-3">Try creating a match to start a session</p>
-                                                </div>
-                                            ) : (
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                    {publicRooms.map(room => (
-                                                        <div 
-                                                            key={room.id} 
-                                                            onClick={() => joinRoom(room.id)}
-                                                            className="group relative bg-white/[0.03] border border-white/5 rounded-[2.5rem] p-6 hover:bg-white/[0.08] hover:border-yellow-500/30 transition-all cursor-pointer shadow-xl flex flex-col gap-6"
-                                                        >
-                                                            <div className="flex justify-between items-start">
-                                                                <div className="w-14 h-14 rounded-3xl bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-110 transition-transform duration-500">
-                                                                    <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
-                                                                </div>
-                                                                <div className="bg-yellow-500/10 border border-yellow-500/30 px-4 py-1.5 rounded-full">
-                                                                    <span className="text-[10px] font-black text-yellow-500 font-mono">{room.playerCount}/4 UNIT</span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex flex-col">
-                                                                <span className="text-sm font-black text-white uppercase tracking-widest truncate">{room.name}</span>
-                                                                <span className="text-[8px] font-bold text-white/30 uppercase tracking-[0.4em] mt-1 italic">HQ: {room.hostName}</span>
-                                                            </div>
-                                                            <div className="absolute bottom-6 right-6 w-10 h-10 rounded-2xl bg-yellow-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all shadow-xl">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="h-full flex flex-col justify-center space-y-10 animate-in fade-in slide-in-from-right-4 duration-500 max-w-xl mx-auto w-full">
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 italic block px-2">Match Identifier</label>
-                                        <input 
-                                            type="text" 
-                                            value={roomNameInput}
-                                            onChange={e => setRoomNameInput(e.target.value.toUpperCase())}
-                                            maxLength={24}
-                                            placeholder="ENTER SECTOR NAME"
-                                            className="w-full bg-black/40 border border-white/10 px-8 py-6 rounded-[2rem] text-white font-black uppercase tracking-[0.2em] text-xl focus:border-yellow-500/50 outline-none transition-all shadow-inner placeholder:text-white/5"
-                                        />
-                                    </div>
-
-                                    <div className="bg-white/[0.02] p-8 rounded-[2.5rem] border border-white/5 space-y-8">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-xs font-black text-white uppercase tracking-widest">Global Discovery</span>
-                                                <span className="text-[8px] font-bold text-white/30 uppercase tracking-tight">Allow other agents to discover this sector</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => setIsPublic(!isPublic)}
-                                                className={`w-16 h-8 rounded-full relative transition-all duration-500 ${isPublic ? 'bg-emerald-600 shadow-[0_0_40px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
-                                            >
-                                                <div className={`absolute top-1.5 w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-500 ${isPublic ? 'translate-x-9' : 'translate-x-1.5'}`}></div>
-                                            </button>
-                                        </div>
-
-                                        <div className="h-[1px] w-full bg-white/5"></div>
-
-                                        <div className="flex items-center gap-6 p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10">
-                                            <span className="text-2xl">📡</span>
-                                            <p className="text-[9px] text-yellow-500/60 font-black uppercase tracking-[0.3em] leading-relaxed">
-                                                Match will be broadcast to the {isPublic ? 'Global Network' : 'Private Sector Only'}.
-                                            </p>
-                                        </div>
-                                    </div>
-
+                <div className="flex-1 p-6 sm:p-12 overflow-hidden flex flex-col">
+                    {activeTab === 'PUBLIC' ? (
+                        <div className="h-full flex flex-col space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <div className="space-y-4">
+                                <label className="text-[9px] font-black uppercase tracking-[0.4em] text-white/30 italic px-2">JOIN VIA 4-LETTER ROOM CODE</label>
+                                <div className="flex items-center gap-4 bg-black/40 p-3 rounded-[2rem] border border-white/5 shadow-inner focus-within:border-yellow-500/30 transition-all">
+                                    <input 
+                                        type="text" 
+                                        placeholder="CODE" 
+                                        value={roomIdInput}
+                                        maxLength={4}
+                                        onChange={e => setRoomIdInput(e.target.value.toUpperCase())}
+                                        className="flex-1 bg-transparent border-none outline-none text-3xl sm:text-5xl font-serif font-black tracking-[0.3em] text-yellow-500 placeholder:text-white/5 px-6 py-2"
+                                    />
                                     <button 
-                                        onClick={createRoom}
-                                        className="w-full py-8 bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 rounded-[2.5rem] text-black font-black uppercase tracking-[0.4em] text-sm shadow-[0_30px_60px_rgba(0,0,0,0.6)] hover:scale-[1.02] active:scale-95 transition-all group"
+                                        onClick={() => joinRoom()} 
+                                        className="h-16 px-10 sm:px-14 bg-gradient-to-br from-yellow-500 to-yellow-700 hover:from-yellow-400 hover:to-yellow-600 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-[0_10px_20px_rgba(234,179,8,0.2)]"
                                     >
-                                        ESTABLISH NEW ARENA SECTOR ⚔️
+                                        INTERCEPT
                                     </button>
                                 </div>
-                            )}
+                            </div>
+
+                            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+
+                            <div className="flex-1 flex flex-col min-h-0">
+                                <div className="flex justify-between items-center px-2 mb-6">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic">PUBLIC LOBBIES</span>
+                                        <span className="text-[7px] font-bold text-white/20 uppercase tracking-widest mt-1">Found {publicRooms.length} discoverable arenas</span>
+                                    </div>
+                                    <button 
+                                        onClick={refreshRooms} 
+                                        disabled={isRefreshing} 
+                                        className={`w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all active:scale-90 ${isRefreshing ? 'opacity-50' : 'hover:bg-white/10 hover:text-yellow-500'}`}
+                                    >
+                                        <div className={isRefreshing ? 'animate-spin' : ''}><RecycleIcon /></div>
+                                    </button>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto pr-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                                    {publicRooms.length === 0 ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-center opacity-30 py-12">
+                                            <div className="w-20 h-20 rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-6">
+                                                <span className="text-4xl italic font-serif">?</span>
+                                            </div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.6em]">NO PUBLIC LOBBIES FOUND</p>
+                                            <p className="text-[8px] font-bold uppercase tracking-[0.3em] text-white/40 mt-3">Try creating a match to start a session</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {publicRooms.map(room => (
+                                                <div 
+                                                    key={room.id} 
+                                                    onClick={() => joinRoom(room.id)}
+                                                    className="group relative bg-white/[0.03] border border-white/5 rounded-[2.5rem] p-6 hover:bg-white/[0.08] hover:border-yellow-500/30 transition-all cursor-pointer shadow-xl flex flex-col gap-6"
+                                                >
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="w-14 h-14 rounded-3xl bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-110 transition-transform duration-500">
+                                                            <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
+                                                        </div>
+                                                        <div className="bg-yellow-500/10 border border-yellow-500/30 px-4 py-1.5 rounded-full">
+                                                            <span className="text-[10px] font-black text-yellow-500 font-mono">{room.playerCount}/4 UNIT</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-black text-white uppercase tracking-widest truncate">{room.name}</span>
+                                                        <span className="text-[8px] font-bold text-white/30 uppercase tracking-[0.4em] mt-1 italic">HQ: {room.hostName}</span>
+                                                    </div>
+                                                    <div className="absolute bottom-6 right-6 w-10 h-10 rounded-2xl bg-yellow-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all shadow-xl">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                    </GlassPanel>
+                    ) : (
+                        <div className="h-full flex flex-col justify-center space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500 max-w-xl mx-auto w-full">
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 italic block px-2">LOBBY NAME</label>
+                                <input 
+                                    type="text" 
+                                    value={roomNameInput}
+                                    onChange={e => setRoomNameInput(e.target.value.toUpperCase())}
+                                    maxLength={24}
+                                    placeholder="ENTER LOBBY NAME"
+                                    className="w-full bg-black/40 border border-white/10 px-8 py-6 rounded-[2rem] text-white font-black uppercase tracking-[0.2em] text-xl focus:border-yellow-500/50 outline-none transition-all shadow-inner placeholder:text-white/5"
+                                />
+                            </div>
+
+                            <div className="bg-white/[0.02] p-8 rounded-[2.5rem] border border-white/5 space-y-8">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-black text-white uppercase tracking-widest">PUBLIC LOBBY</span>
+                                        <span className="text-[8px] font-bold text-white/30 uppercase tracking-tight">LOBBY WILL BE PUBLIC FOR ANYONE TO JOIN</span>
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsPublic(!isPublic)}
+                                        className={`w-14 h-7 rounded-full relative transition-all duration-500 p-1 flex items-center ${isPublic ? 'bg-emerald-600 shadow-[0_0_40px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-500 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
+                                    </button>
+                                </div>
+
+                                <div className="h-[1px] w-full bg-white/5"></div>
+
+                                <div className="space-y-4">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-black text-white uppercase tracking-widest">TURN TIMER</span>
+                                        <span className="text-[8px] font-bold text-white/30 uppercase tracking-tight">DURATION PER MOVE BEFORE AUTOMATIC PASS</span>
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-2 p-1 bg-black/40 rounded-2xl border border-white/5 shadow-inner">
+                                        {[0, 30, 60, 90].map(val => (
+                                            <button 
+                                                key={val} 
+                                                onClick={() => setLocalTurnTimer(val)}
+                                                className={`py-2.5 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${localTurnTimer === val ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/20 hover:text-white/40'}`}
+                                            >
+                                                {val === 0 ? 'OFF' : `${val}S`}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <LuxuryActionTile 
+                                onClick={createRoom} 
+                                label="CREATE NEW LOBBY" 
+                                sublabel="Establish Arena Session" 
+                                variant="emerald"
+                                className="w-full"
+                                icon={<span className="text-2xl">⚔️</span>}
+                            />
+                        </div>
+                    )}
                 </div>
+            </GlassPanel>
+
+            {/* Withdraw Button moved to bottom */}
+            <div className="w-full max-w-xl mt-4">
+                <LuxuryActionTile 
+                    onClick={onBack!} 
+                    label="WITHDRAW TO HQ" 
+                    sublabel="Return to Main Menu" 
+                    variant="rose"
+                    className="w-full"
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
+                />
             </div>
           </div>
         ) : (
@@ -448,8 +475,8 @@ export const Lobby: React.FC<LobbyProps> = ({
                     onClick={onBack!} 
                     label="ABORT MISSION" 
                     sublabel="Terminate Session" 
-                    variant="ghost"
-                    className="w-full !border-rose-500/20"
+                    variant="rose"
+                    className="w-full"
                     icon={<span className="text-xl">🛑</span>}
                   />
               </div>
@@ -595,6 +622,6 @@ export const Lobby: React.FC<LobbyProps> = ({
           100% { background-position: 100% 0; }
         }
       `}} />
-    </BackgroundWrapper>
+    </div>
   );
 };

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { Player, UserProfile, Emote } from '../types';
 import { calculateLevel, getXpForLevel, fetchEmotes } from '../services/supabase';
@@ -14,6 +13,7 @@ interface VictoryScreenProps {
   xpGained: number;
   coinsGained: number;
   xpBonusApplied?: boolean;
+  totalXpAfter?: number;
 }
 
 const Particle: React.FC<{ color: string }> = ({ color }) => {
@@ -38,7 +38,8 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   profile, 
   xpGained, 
   coinsGained,
-  xpBonusApplied
+  xpBonusApplied,
+  totalXpAfter: explicitTotalXpAfter
 }) => {
   const [animatedXp, setAnimatedXp] = useState(0);
   const [animatedCoins, setAnimatedCoins] = useState(0);
@@ -67,19 +68,22 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   useEffect(() => {
     audioService.playVictory();
     
-    if (!profile) return;
+    // Determine the XP values for animation
+    const finalXp = explicitTotalXpAfter !== undefined ? explicitTotalXpAfter : (profile?.xp || 0);
+    const startXp = Math.max(0, finalXp - xpGained);
     
-    const totalXpAfter = profile.xp;
-    const totalXpBefore = Math.max(0, totalXpAfter - xpGained);
-    const levelBefore = calculateLevel(totalXpBefore);
-    const levelAfter = calculateLevel(totalXpAfter);
+    const levelBefore = calculateLevel(startXp);
+    const levelAfter = calculateLevel(finalXp);
+    
     const xpFloorBefore = getXpForLevel(levelBefore);
     const xpCeilingBefore = getXpForLevel(levelBefore + 1);
-    const initialPercent = Math.max(0, ((totalXpBefore - xpFloorBefore) / (xpCeilingBefore - xpFloorBefore)) * 100);
+    
+    // Initial progress % within the "level before" range
+    const initialPercent = Math.max(0, ((startXp - xpFloorBefore) / (xpCeilingBefore - xpFloorBefore)) * 100);
     
     setBaseBarProgress(initialPercent);
     setDisplayLevel(levelBefore);
-    setXpRemaining(xpCeilingBefore - totalXpBefore);
+    setXpRemaining(xpCeilingBefore - startXp);
 
     // Timeline Sequence
     const t1 = setTimeout(() => setPhase('rewards'), 800);
@@ -98,9 +102,10 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
     };
     const t3 = setTimeout(() => requestAnimationFrame(animate), 1000);
 
-    // XP Bar
+    // XP Bar Progression Animation
     const t4 = setTimeout(() => {
       if (levelAfter > levelBefore) {
+        // Handle Level Up Animation
         setAddedBarProgress(100 - initialPercent);
         setTimeout(() => {
           setShowLevelUp(true);
@@ -109,21 +114,22 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
           setDisplayLevel(levelAfter);
           const xpFloorAfter = getXpForLevel(levelAfter);
           const xpCeilingAfter = getXpForLevel(levelAfter + 1);
-          const finalPercent = ((totalXpAfter - xpFloorAfter) / (xpCeilingAfter - xpFloorAfter)) * 100;
-          setXpRemaining(xpCeilingAfter - totalXpAfter);
+          const finalPercent = ((finalXp - xpFloorAfter) / (xpCeilingAfter - xpFloorAfter)) * 100;
+          setXpRemaining(xpCeilingAfter - finalXp);
           setTimeout(() => setAddedBarProgress(finalPercent), 100);
         }, 800);
       } else {
-        const finalPercent = ((totalXpAfter - xpFloorBefore) / (xpCeilingBefore - xpFloorBefore)) * 100;
+        // Standard progression within level
+        const finalPercent = ((finalXp - xpFloorBefore) / (xpCeilingBefore - xpFloorBefore)) * 100;
         setAddedBarProgress(Math.max(2, finalPercent - initialPercent));
-        setXpRemaining(xpCeilingBefore - totalXpAfter);
+        setXpRemaining(xpCeilingBefore - finalXp);
       }
     }, 1800);
 
     return () => {
         [t1, t2, t3, t4].forEach(clearTimeout);
     };
-  }, [profile?.xp, xpGained, coinsGained]);
+  }, [profile?.xp, xpGained, coinsGained, explicitTotalXpAfter]);
 
   const getRankConfig = (rank: number) => {
     switch(rank) {
@@ -226,7 +232,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
                 </div>
             </div>
 
-            {/* Players List - Sequential Row-by-Row Layout */}
+            {/* Players List */}
             <div className={`flex flex-col gap-3 w-full transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                 {sortedPlayers.map((p, idx) => {
                     const isMe = p.id === myId;
@@ -237,7 +243,6 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
                     
                     return (
                         <div key={p.id} className={`group relative flex items-center gap-5 p-4 rounded-[2rem] border transition-all duration-500 overflow-hidden ${isVictor ? 'bg-yellow-500/10 border-yellow-500/40 shadow-[0_0_50px_rgba(234,179,8,0.4)] ring-2 ring-yellow-400/20' : isMe ? 'bg-white/[0.08] border-white/20 shadow-lg' : 'bg-black/40 border-white/5 opacity-70'}`}>
-                            {/* Animated winner highlight sweep */}
                             {isVictor && (
                                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/0 via-yellow-500/10 to-yellow-500/0 animate-[winnerGlow_4s_infinite_linear]"></div>
                             )}
@@ -251,7 +256,6 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
                                     <div className="absolute inset-0 bg-yellow-500/30 blur-2xl rounded-full scale-150 animate-pulse"></div>
                                 )}
                                 <div className="absolute inset-0 bg-white/10 blur-xl rounded-full scale-150 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                {/* Use VisualEmote for the avatar portrait */}
                                 <div className="w-14 h-14 md:w-20 md:h-20 relative z-10 flex items-center justify-center overflow-hidden rounded-full border border-white/10 bg-black/40">
                                   <VisualEmote trigger={p.avatar || ':smile:'} remoteEmotes={remoteEmotes} size="lg" />
                                 </div>
