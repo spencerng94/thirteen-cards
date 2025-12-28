@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
-import { AiDifficulty, UserProfile, BackgroundTheme, Emote } from '../types';
+import { AiDifficulty, UserProfile, BackgroundTheme, Emote, Rank, Suit } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
@@ -71,6 +71,16 @@ const TAB_DESCRIPTIONS: Record<WelcomeTab, string> = {
   CUSTOMIZE: "Configure Game Visuals",
   SETTINGS: "Select Gameplay Settings"
 };
+
+const GridIcon1 = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" fillOpacity="0.4" stroke="currentColor" strokeWidth="2" /></svg>
+);
+const GridIcon2 = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1" /><rect x="13" y="3" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1" /><rect x="3" y="13" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1" /><rect x="13" y="13" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1" /></svg>
+);
+const GridIcon4 = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="4" height="4" rx="0.5" /><rect x="10" y="2" width="4" height="4" rx="0.5" /><rect x="18" y="2" width="4" height="4" rx="0.5" /><rect x="2" y="10" width="4" height="4" rx="0.5" /><rect x="10" y="10" width="4" height="4" rx="0.5" /><rect x="18" y="10" width="4" height="4" rx="0.5" /><rect x="2" y="18" width="4" height="4" rx="0.5" /><rect x="10" y="18" width="4" height="4" rx="0.5" /><rect x="18" y="18" width="4" height="4" rx="0.5" /></svg>
+);
 
 const SectionLabel: React.FC<{ children: React.ReactNode; rightElement?: React.ReactNode }> = ({ children, rightElement }) => (
   <div className="flex flex-col items-center mb-4 mt-2 px-2 w-full text-center">
@@ -155,10 +165,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   playAnimationsEnabled, setPlayAnimationsEnabled
 }) => {
   const [activeTab, setActiveTab] = useState<WelcomeTab>('PROFILE');
+  const [customizeSubTab, setCustomizeSubTab] = useState<'SLEEVES' | 'BOARDS'>('SLEEVES');
   const [hideUnowned, setHideUnowned] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [previewSleeveStyle, setPreviewSleeveStyle] = useState<CardCoverStyle | null>(null);
+  const [previewThemeId, setPreviewThemeId] = useState<BackgroundTheme | null>(null);
+  const [density, setDensity] = useState<1 | 2 | 4>(2);
 
   const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
@@ -175,7 +188,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   const handlePurchaseAttempt = (item: any, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD') => {
-    if (!profile || profile.coins < price || buying) return;
+    if (!profile || buying) return;
     
     setPendingPurchase({
       id: type === 'AVATAR' ? item : item.id,
@@ -188,6 +201,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const executePurchase = async () => {
     if (!pendingPurchase || !profile || buying) return;
+    if (profile.coins < pendingPurchase.price) return;
     const purchaseId = pendingPurchase.id;
     setBuying(purchaseId);
     try {
@@ -264,81 +278,124 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     const filteredSleeves = hideUnowned ? SLEEVES.filter(s => isSleeveUnlocked(s.id)) : SLEEVES;
     const filteredBoards = hideUnowned ? PREMIUM_BOARDS.filter(b => isBoardUnlocked(b.id)) : PREMIUM_BOARDS;
 
+    const sleeveGridClass = density === 4 ? 'grid-cols-3' : density === 1 ? 'grid-cols-1' : 'grid-cols-2';
+    const boardGridClass = density === 4 ? 'grid-cols-3' : density === 1 ? 'grid-cols-1' : 'grid-cols-2';
+
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
         <SectionLabel 
           rightElement={
-            <div className="flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/5">
-              <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${hideUnowned ? 'text-yellow-500' : 'text-white/40'}`}>Owned Only</span>
-              <button 
-                onClick={() => setHideUnowned(!hideUnowned)}
-                className={`w-10 h-5 rounded-full relative transition-all duration-500 ${hideUnowned ? 'bg-yellow-500' : 'bg-white/10'}`}
-              >
-                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-lg ${hideUnowned ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
+            <div className="flex flex-col gap-4 w-full">
+              {/* Controls Row (Density + Owned) */}
+              <div className="flex items-center justify-center gap-4 bg-black/40 backdrop-blur-md px-4 py-2.5 rounded-[2rem] border border-white/5 shadow-inner">
+                {/* Density Switcher */}
+                <div className="flex items-center gap-1 bg-black/40 p-1 rounded-full border border-white/5">
+                  {( [1, 2, 4] as const).map((d) => (
+                    <button 
+                      key={d} 
+                      onClick={() => setDensity(d)} 
+                      className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${density === d ? 'bg-white/10 text-white shadow-lg' : 'text-white/20 hover:text-white/50'}`}
+                    >
+                      {d === 1 ? <GridIcon1 /> : d === 2 ? <GridIcon2 /> : <GridIcon4 />}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="h-4 w-[1px] bg-white/10"></div>
+
+                {/* Owned Toggle */}
+                <button 
+                  onClick={() => setHideUnowned(!hideUnowned)}
+                  className="flex items-center gap-3 group px-2"
+                >
+                  <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${hideUnowned ? 'text-yellow-500' : 'text-white/40'}`}>OWNED</span>
+                  <div className={`w-10 h-5 rounded-full relative transition-all duration-500 ${hideUnowned ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}>
+                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-lg ${hideUnowned ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </div>
+                </button>
+              </div>
+
+              {/* Sub-tabs row */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-black/60 rounded-2xl border border-white/5 shadow-inner">
+                {(['SLEEVES', 'BOARDS'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setCustomizeSubTab(tab)}
+                    className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all 
+                      ${customizeSubTab === tab ? 'bg-white/10 text-white shadow-md' : 'text-white/30 hover:text-white/50'}`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
             </div>
           }
         >
-          Card Sleeve
+          Visual Assets
         </SectionLabel>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {filteredSleeves.map(s => {
-            const unlocked = isSleeveUnlocked(s.id);
-            const active = cardCoverStyle === s.style;
-            const isLegendary = s.id === 'AETHER_VOID';
-            const isPrestige = PRESTIGE_SLEEVE_IDS.includes(s.style);
-            const isSuperPrestige = SUPER_PRESTIGE_SLEEVE_IDS.includes(s.style);
+        {customizeSubTab === 'SLEEVES' ? (
+          <div className="animate-in fade-in duration-500">
+            <div className={`grid ${sleeveGridClass} gap-3`}>
+              {filteredSleeves.map(s => {
+                const unlocked = isSleeveUnlocked(s.id);
+                const active = cardCoverStyle === s.style;
+                const isLegendary = s.id === 'AETHER_VOID';
+                const isPrestige = PRESTIGE_SLEEVE_IDS.includes(s.style);
+                const isSuperPrestige = SUPER_PRESTIGE_SLEEVE_IDS.includes(s.style);
 
-            return (
-              <div key={s.id} onClick={() => unlocked ? setPreviewSleeveStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'} ${isLegendary ? 'ring-1 ring-yellow-500/20' : ''}`}>
-                <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
-                
-                <div className="relative group/card-wrap">
-                  <Card faceDown activeTurn={true} coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />
-                  {isPrestige && !isSuperPrestige && (
-                    <div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform">
-                      <span className="text-yellow-500 text-[8px] font-black">♠</span>
+                return (
+                  <div key={s.id} onClick={() => unlocked ? setPreviewSleeveStyle(s.style) : handlePurchaseAttempt(s, s.price, 'SLEEVE')} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'} ${isLegendary ? 'ring-1 ring-yellow-500/20' : ''}`}>
+                    <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
+                    
+                    <div className="relative group/card-wrap">
+                      <Card faceDown activeTurn={true} coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />
+                      {isPrestige && !isSuperPrestige && (
+                        <div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform">
+                          <span className="text-yellow-500 text-[8px] font-black">♠</span>
+                        </div>
+                      )}
+                      {isSuperPrestige && (
+                        <div className="absolute -top-1.5 -left-1.5 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-5 h-5 flex items-center justify-center border border-white shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform animate-pulse">
+                          <span className="text-white text-[10px] font-black">♥</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {isSuperPrestige && (
-                    <div className="absolute -top-1.5 -left-1.5 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-5 h-5 flex items-center justify-center border border-white shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform animate-pulse">
-                      <span className="text-white text-[10px] font-black">♥</span>
+
+                    <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center ${active ? 'text-emerald-400' : unlocked ? (isSuperPrestige ? 'text-yellow-300' : isLegendary ? 'text-yellow-400' : 'text-white/60') : 'text-white/20'}`}>{s.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="animate-in fade-in duration-500">
+            <div className={`grid ${boardGridClass} gap-3 pb-4 px-1`}>
+              {filteredBoards.map(b => {
+                const unlocked = isBoardUnlocked(b.id);
+                const active = backgroundTheme === b.id;
+                return (
+                  <div key={b.id} onClick={() => unlocked ? setBackgroundTheme(b.id as BackgroundTheme) : handlePurchaseAttempt(b, b.price as number, 'BOARD')} className="flex flex-col items-center gap-2 cursor-pointer group relative">
+                    <div className="relative w-full">
+                      <SelectionCircle 
+                        status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} 
+                        price={b.price as number} 
+                        onAction={() => !active && unlocked && setBackgroundTheme(b.id as BackgroundTheme)} 
+                      />
+                      <BoardPreview 
+                        themeId={b.id} 
+                        active={active} 
+                        unlocked={unlocked}
+                        className="shadow-xl"
+                      />
                     </div>
-                  )}
-                </div>
-
-                <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center ${active ? 'text-emerald-400' : unlocked ? (isSuperPrestige ? 'text-yellow-300' : isLegendary ? 'text-yellow-400' : 'text-white/60') : 'text-white/20'}`}>{s.name}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <SectionLabel>Board Themes</SectionLabel>
-        <div className="grid grid-cols-2 gap-3 pb-4 px-1">
-          {filteredBoards.map(b => {
-            const unlocked = isBoardUnlocked(b.id);
-            const active = backgroundTheme === b.id;
-            return (
-              <div key={b.id} onClick={() => unlocked ? setBackgroundTheme(b.id as BackgroundTheme) : handlePurchaseAttempt(b, b.price as number, 'BOARD')} className="flex flex-col items-center gap-2 cursor-pointer group relative">
-                <div className="relative w-full">
-                  <SelectionCircle 
-                    status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} 
-                    price={b.price as number} 
-                    onAction={() => !active && unlocked && setBackgroundTheme(b.id as BackgroundTheme)} 
-                  />
-                  <BoardPreview 
-                    themeId={b.id} 
-                    active={active} 
-                    unlocked={unlocked}
-                    className="shadow-xl"
-                  />
-                </div>
-                <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{b.name}</span>
-              </div>
-            );
-          })}
-        </div>
+                    <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{b.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -361,7 +418,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
              <span className="text-[10px] font-black text-white uppercase tracking-widest">Sleeve Face Effects</span>
              <span className="text-[7px] font-bold text-white/30 uppercase tracking-tight">Visual flair and glows on active card faces</span>
            </div>
-           {/* Fix: Corrected missing template literal syntax for sleeve effects button color */}
            <button onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)} className={`w-12 h-6 rounded-full relative ${sleeveEffectsEnabled ? 'bg-yellow-500' : 'bg-white/10'}`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
            </button>
@@ -417,23 +473,90 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         />
       )}
 
+      {previewThemeId && (
+        <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={() => setPreviewThemeId(null)}>
+           <BoardSurface themeId={previewThemeId} isMini />
+           <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="p-8 flex justify-between items-start">
+                  <div className="flex flex-col">
+                    <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic">ARENA PREVIEW</h1>
+                    <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2">Surface Profile Loaded</p>
+                  </div>
+                  <button onClick={() => setPreviewThemeId(null)} className="px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">Exit ✕</button>
+              </div>
+           </div>
+        </div>
+      )}
+
       {pendingPurchase && (
           <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-              <div className="bg-[#0a0a0a] border border-yellow-500/20 w-full max-w-xs rounded-[2rem] p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)]">
-                  <div className="text-4xl mb-4">💳</div>
-                  <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Confirm Purchase?</h3>
-                  <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-6">
-                    Unlock <span className="text-white">{pendingPurchase.name}</span> for <span className="text-yellow-500">{pendingPurchase.price} GOLD</span>
+              {/* Viewport Gold Display - Moved to top left of screen */}
+              <div className="fixed top-8 left-8 z-[300] animate-in slide-in-from-left-4 fade-in duration-500 pointer-events-none">
+                  <div className="bg-black/60 backdrop-blur-3xl border border-yellow-500/30 rounded-2xl px-6 py-3 flex items-center gap-3 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                      <span className="text-2xl drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">💰</span>
+                      <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-yellow-500/60 uppercase tracking-widest leading-none">Your Gold</span>
+                          <span className="text-xl font-black text-white font-mono tracking-tighter">
+                              {profile?.coins.toLocaleString()}
+                          </span>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-8 pt-20 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)] relative">
+                  {/* Adaptive Overlapping Preview Element */}
+                  <div className="absolute -top-24 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center">
+                      <div className="absolute inset-[-40px] bg-yellow-500/10 blur-[60px] rounded-full animate-pulse"></div>
+                      
+                      {pendingPurchase.type === 'BOARD' ? (
+                          <div className="w-56 aspect-[16/10] rounded-3xl overflow-hidden border-2 border-yellow-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
+                             <BoardPreview themeId={pendingPurchase.id} hideActiveMarker={true} />
+                          </div>
+                      ) : pendingPurchase.type === 'SLEEVE' ? (
+                          <div className="transform rotate-[-4deg]">
+                             <Card faceDown coverStyle={pendingPurchase.style} className="!w-32 !h-48 shadow-[0_25px_60px_rgba(0,0,0,0.9)] border-2 border-yellow-500/40 rounded-2xl" activeTurn={true} />
+                          </div>
+                      ) : (
+                          <div className="w-32 h-32 rounded-full bg-black border-2 border-yellow-500/40 shadow-[0_0_40px_rgba(234,179,8,0.4)] flex items-center justify-center overflow-hidden">
+                             <VisualEmote trigger={pendingPurchase.id} remoteEmotes={remoteEmotes} size="lg" />
+                          </div>
+                      )}
+                  </div>
+
+                  <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2 mt-6 font-serif italic">Secure Asset?</h3>
+                  <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-8 px-4 leading-relaxed">
+                    Unlock <span className="text-white font-bold">{pendingPurchase.name}</span> for <span className="text-yellow-500 font-bold">{pendingPurchase.price} GOLD</span>
                   </p>
-                  <div className="grid grid-cols-2 gap-3 w-full">
-                      <button onClick={() => setPendingPurchase(null)} className="py-3 rounded-xl bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:text-white transition-colors">Cancel</button>
-                      <button 
-                        onClick={executePurchase} 
-                        disabled={!!buying}
-                        className="py-3 rounded-xl bg-yellow-500 text-black text-[10px] font-black uppercase tracking-widest shadow-lg hover:scale-105 transition-transform disabled:opacity-50"
-                      >
-                        {buying ? '...' : 'Confirm'}
-                      </button>
+                  
+                  <div className="flex flex-col gap-3 w-full">
+                      <div className="grid grid-cols-2 gap-3 w-full">
+                          <button onClick={() => setPendingPurchase(null)} className="py-3.5 rounded-xl bg-white/5 border border-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all active:scale-95">Cancel</button>
+                          <button 
+                            onClick={executePurchase} 
+                            disabled={!!buying || (profile && profile.coins < pendingPurchase.price)}
+                            className="py-3.5 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-700 text-black text-[10px] font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(234,179,8,0.2)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+                          >
+                            {buying ? '...' : 'Confirm'}
+                          </button>
+                      </div>
+                      
+                      {pendingPurchase.type === 'SLEEVE' && (
+                        <button 
+                          onClick={() => setPreviewSleeveStyle(pendingPurchase.style!)}
+                          className="w-full py-3 rounded-xl bg-white/[0.03] border border-white/10 text-white/60 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-white/10 hover:text-white transition-all active:scale-95"
+                        >
+                          🔍 PREVIEW ARENA
+                        </button>
+                      )}
+
+                      {pendingPurchase.type === 'BOARD' && (
+                        <button 
+                          onClick={() => setPreviewThemeId(pendingPurchase.id as BackgroundTheme)}
+                          className="w-full py-3 rounded-xl bg-white/[0.03] border border-white/10 text-white/60 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-white/10 hover:text-white transition-all active:scale-95"
+                        >
+                          🔍 PREVIEW BOARD
+                        </button>
+                      )}
                   </div>
               </div>
           </div>

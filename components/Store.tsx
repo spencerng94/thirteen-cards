@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme, Emote, Rank, Suit, Card as CardType } from '../types';
@@ -46,7 +45,7 @@ export const SLEEVES: StoreItem[] = [
   { id: 'AETHER_VOID', name: 'Aether Void', price: 10000, type: 'SLEEVE', style: 'AETHER_VOID', description: 'Legendary clash of celestial light and eternal darkness.' },
   { id: 'WITS_END', name: "Wit's End", price: 20000, type: 'SLEEVE', style: 'WITS_END', description: 'A dark ethereal void that pulses with violet energy. For those at the edge of madness.' },
   { id: 'DIVINE_ROYAL', name: 'Divine Royal', price: 25000, type: 'SLEEVE', style: 'DIVINE_ROYAL', description: 'Super prestige ivory parchment with animated celestial aura.' },
-  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 25000, type: 'SLEEVE', style: 'EMPERORS_HUBRIS', description: 'Pure liquid gold with a 3D embossed dragon that breathes smoke on your turn. The ultimate flex.' },
+  { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", price: 25000, style: 'EMPERORS_HUBRIS', type: 'SLEEVE', description: 'Pure liquid gold with a 3D embossed dragon that breathes smoke on your turn. The ultimate flex.' },
 ];
 
 export const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -59,9 +58,6 @@ export const SUPER_PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
   'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'WITS_END'
 ];
 
-/**
- * Static hand for previewing: 3 to 2, alternating suits
- */
 const PREVIEW_HAND: CardType[] = [
   { rank: Rank.Three, suit: Suit.Spades, id: 'p1' },
   { rank: Rank.Four, suit: Suit.Clubs, id: 'p2' },
@@ -92,13 +88,13 @@ export const SleeveArenaPreview: React.FC<{
       <BoardSurface themeId={themeId} />
 
       <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Header Navigation */}
-        <div className="p-4 sm:p-8 flex justify-between items-start">
-            <div className="flex flex-col">
-              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-[0.2em] drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] font-serif uppercase italic leading-none">ARENA PREVIEW</h1>
-              <div className="flex items-center gap-3 mt-2">
-                <span className={`w-2 h-2 rounded-full ${isSuperPrestige ? 'bg-yellow-400' : isPrestige ? 'bg-yellow-500' : 'bg-emerald-500'} animate-pulse`}></span>
-                <p className={`text-[8px] sm:text-[10px] font-black ${isSuperPrestige ? 'text-yellow-400' : isPrestige ? 'text-yellow-500' : 'text-emerald-500'} uppercase tracking-[0.6em] drop-shadow-md whitespace-nowrap`}>
+        {/* Header Navigation - Fixed with min-w-0 and shrink-0 to prevent layout breakage from long names */}
+        <div className="p-4 sm:p-8 flex justify-between items-start gap-4">
+            <div className="flex flex-col min-w-0 flex-1">
+              <h1 className="text-xl sm:text-4xl font-black text-white tracking-[0.2em] drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] font-serif uppercase italic leading-none truncate">ARENA PREVIEW</h1>
+              <div className="flex items-center gap-3 mt-2 min-w-0">
+                <span className={`w-2 h-2 rounded-full ${isSuperPrestige ? 'bg-yellow-400' : isPrestige ? 'bg-yellow-500' : 'bg-emerald-500'} animate-pulse shrink-0`}></span>
+                <p className={`text-[8px] sm:text-[10px] font-black ${isSuperPrestige ? 'text-yellow-400' : isPrestige ? 'text-yellow-500' : 'text-emerald-500'} uppercase tracking-[0.6em] drop-shadow-md truncate`}>
                     {sleeveStyle.replace('_', ' ')} {isSuperPrestige ? 'Celestial Divine' : 'Tactile Visual'}
                 </p>
               </div>
@@ -106,7 +102,7 @@ export const SleeveArenaPreview: React.FC<{
             
             <button 
               onClick={onClose} 
-              className="group flex items-center gap-2 sm:gap-4 px-4 py-2 sm:px-6 sm:py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10 transition-all duration-300 shadow-[0_15px_30px_rgba(0,0,0,0.6)] active:scale-95"
+              className="shrink-0 group flex items-center gap-2 sm:gap-4 px-4 py-2 sm:px-6 sm:py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10 transition-all duration-300 shadow-[0_15px_30px_rgba(0,0,0,0.6)] active:scale-95"
             >
               <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em]">Exit</span>
               <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition-colors">
@@ -132,7 +128,6 @@ export const SleeveArenaPreview: React.FC<{
                         key={`opp-${card.id}`}
                         className="absolute transition-all duration-700 ease-out animate-in slide-in-from-top-12 fade-in"
                         style={{ 
-                          // Using a smaller step for mobile to prevent off-screen bleed
                           transform: `translateX(calc(var(--step) * ${offset})) translateY(${translateY}px) rotate(${-rotation}deg)`,
                           zIndex: i,
                           animationDelay: `${i * 30}ms`,
@@ -212,37 +207,37 @@ const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => voi
       <BoardSurface themeId={themeId} isMini />
 
       <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Top Bar Navigation */}
-        <div className="p-8 flex justify-between items-start">
-            <div className="flex flex-col">
-              <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] font-serif uppercase italic">ARENA PREVIEW</h1>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
-                <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-md">{theme.name} Terrain Profile</p>
+        {/* Top Bar Navigation - Fixed for long names */}
+        <div className="p-4 sm:p-8 flex justify-between items-start gap-4">
+            <div className="flex flex-col min-w-0 flex-1">
+              <h1 className="text-xl sm:text-4xl font-black text-white tracking-[0.2em] drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] font-serif uppercase italic truncate">ARENA PREVIEW</h1>
+              <div className="flex items-center gap-3 mt-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shrink-0"></span>
+                <p className="text-[8px] sm:text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-md truncate">{theme.name} Terrain Profile</p>
               </div>
             </div>
             
             <button 
               onClick={onClose} 
-              className="group flex items-center gap-4 px-6 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-red-500/30 text-red-400 hover:text-white hover:bg-red-600/80 transition-all duration-300 shadow-[0_15px_30px_rgba(0,0,0,0.6)] active:scale-95"
+              className="shrink-0 group flex items-center gap-2 sm:gap-4 px-4 py-2 sm:px-6 sm:py-3 rounded-full bg-black/40 backdrop-blur-xl border border-red-500/30 text-red-400 hover:text-white hover:bg-red-600/80 transition-all duration-300 shadow-[0_15px_30px_rgba(0,0,0,0.6)] active:scale-95"
             >
-              <span className="text-[10px] font-black uppercase tracking-[0.4em]">Exit Preview</span>
-              <div className="w-6 h-6 rounded-full bg-red-500/10 group-hover:bg-white/20 flex items-center justify-center transition-colors">
-                <span className="text-xs font-black group-hover:rotate-90 transition-transform">✕</span>
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em]">Exit</span>
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-500/10 group-hover:bg-white/20 flex items-center justify-center transition-colors">
+                <span className="text-[10px] sm:text-xs font-black group-hover:rotate-90 transition-transform">✕</span>
               </div>
             </button>
         </div>
 
         {/* Scaled Dummy Hand for context */}
-        <div className="mt-auto p-12 flex flex-col items-center gap-6 bg-gradient-to-t from-black/40 to-transparent">
-            <div className="flex -space-x-12 opacity-50 grayscale-[0.2] scale-90">
+        <div className="mt-auto p-6 sm:p-12 flex flex-col items-center gap-4 sm:gap-6 bg-gradient-to-t from-black/40 to-transparent">
+            <div className="flex -space-x-8 sm:-space-x-12 opacity-50 grayscale-[0.2] scale-75 sm:scale-90">
                 {Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="transform hover:-translate-y-4 transition-transform duration-300">
                       <Card faceDown coverStyle="GOLDEN_IMPERIAL" />
                     </div>
                 ))}
             </div>
-            <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.8em]">Tactical Interface Simulated</p>
+            <p className="text-[7px] sm:text-[9px] font-black text-white/30 uppercase tracking-[0.6em] sm:tracking-[0.8em]">Tactical Interface Simulated</p>
         </div>
       </div>
     </div>
@@ -443,7 +438,7 @@ export const Store: React.FC<StoreProps> = ({
                 <button 
                   onClick={() => { setPreviewAvatar(null); handlePurchaseAttempt(previewAvatar, true); }}
                   disabled={profile && profile.coins < 250 || !!buying}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black font-black uppercase tracking-[0.25em] text-[11px] shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+                  className="w-full py-4 rounded-2xl bg- gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black font-black uppercase tracking-[0.25em] text-[11px] shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
                 >
                   {buying === previewAvatar ? 'UNREELING...' : `UNLOCK | 💰 250`}
                 </button>

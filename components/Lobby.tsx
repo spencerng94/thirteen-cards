@@ -349,7 +349,7 @@ export const Lobby: React.FC<LobbyProps> = ({
           <div className="w-full space-y-6">
             <div className="flex flex-col items-center mb-4">
               <h1 className="text-4xl sm:text-5xl font-black text-white uppercase italic tracking-tighter drop-shadow-2xl">
-                MATCH STANDBY
+                NEW GAME LOBBY
               </h1>
               <div className="flex items-center gap-3 mt-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -357,42 +357,29 @@ export const Lobby: React.FC<LobbyProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <GlassPanel className="md:col-span-1 p-8 flex flex-col items-center justify-center text-center space-y-6">
-                <div className="space-y-1">
-                  <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.5em]">Sector Access</span>
-                  <div className="text-4xl font-serif font-black text-yellow-500 tracking-widest">{gameState.roomId}</div>
+            <div className="w-full max-w-2xl mx-auto">
+              <GlassPanel className="p-8 sm:p-10">
+                {/* Room Access Header */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-10 border-b border-white/5 pb-8">
+                  <div className="flex flex-col items-center sm:items-start space-y-1">
+                    <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.5em]">Sector Access</span>
+                    <div className="text-4xl font-serif font-black text-yellow-500 tracking-widest">{gameState.roomId}</div>
+                  </div>
+                  
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?room=${gameState.roomId}`);
+                      setCopyFeedback('COPIED!');
+                      setTimeout(() => setCopyFeedback(null), 2000);
+                    }}
+                    className="px-8 py-3 rounded-2xl bg-white/[0.03] border border-white/10 text-[9px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/10 transition-all flex items-center gap-3 active:scale-95"
+                  >
+                    <span>{copyFeedback || 'COPY INVITE LINK'}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  </button>
                 </div>
-                
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?room=${gameState.roomId}`);
-                    setCopyFeedback('COPIED!');
-                    setTimeout(() => setCopyFeedback(null), 2000);
-                  }}
-                  className="px-6 py-2 rounded-full bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
-                >
-                  <span>{copyFeedback || 'COPY INVITE LINK'}</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                </button>
 
-                <div className="pt-4 border-t border-white/5 w-full">
-                  {!isHost && (
-                    <div className="py-4">
-                       <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.4em] animate-pulse">Awaiting Host Authorization</span>
-                    </div>
-                  )}
-                  {isHost && (
-                    <div className="py-4 space-y-2">
-                       <span className="text-[9px] font-black text-yellow-500/60 uppercase tracking-[0.4em]">Sector Command</span>
-                       <p className="text-[7px] font-bold text-white/20 uppercase leading-relaxed tracking-widest">Awaiting full deployment of combat personnel.</p>
-                    </div>
-                  )}
-                </div>
-              </GlassPanel>
-
-              <GlassPanel className="md:col-span-2 p-8">
-                <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                <div className="flex justify-between items-center mb-6 px-1">
                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 italic">Combatant Roster</span>
                    <span className="text-[10px] font-black text-yellow-500">{gameState.players.length}/4</span>
                 </div>
@@ -418,7 +405,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                           </div>
                         </div>
 
-                        {/* Difficulty Toggles for CPU Units */}
                         {p.isBot && isHost && (
                           <div className="flex flex-col items-end gap-1.5 pr-2">
                              <div className="flex gap-1 bg-black/40 p-1 rounded-xl border border-white/5">
@@ -445,7 +431,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                           </div>
                         )}
 
-                        {/* Remove Button (CPU Only) - Top Right */}
                         {p.isBot && isHost && (
                           <button 
                             onClick={() => removeBot(p.id)}
@@ -485,7 +470,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                   })}
                 </div>
 
-                <div className="mt-8 flex flex-col gap-4">
+                <div className="mt-10 flex flex-col gap-4">
                   {isHost ? (
                     <button 
                       onClick={startGame}
