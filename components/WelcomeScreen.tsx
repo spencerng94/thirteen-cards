@@ -7,7 +7,7 @@ import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
 import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
-import { SleeveArenaPreview, SUPER_PRESTIGE_SLEEVE_IDS, SLEEVES as ALL_STORE_SLEEVES, SOVEREIGN_IDS } from './Store';
+import { SleeveArenaPreview, SUPER_PRESTIGE_SLEEVE_IDS, SLEEVES as ALL_STORE_SLEEVES, SOVEREIGN_IDS, CurrencyIcon, canAfford } from './Store';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 import { EventsModal } from './EventsModal';
@@ -78,9 +78,10 @@ const SectionLabel: React.FC<{ children: React.ReactNode; rightElement?: React.R
 const SelectionCircle: React.FC<{ 
   status: 'equipped' | 'owned' | 'locked'; 
   price?: number; 
+  currency?: 'GOLD' | 'GEMS';
   onAction?: () => void;
   isEvent?: boolean;
-}> = ({ status, price, onAction, isEvent }) => {
+}> = ({ status, price, currency = 'GOLD', onAction, isEvent }) => {
   if (status === 'locked') {
     return (
       <div className="absolute top-2 right-2 z-20 px-1.5 py-0.5 bg-black/60 text-yellow-500 text-[7px] font-black rounded-full border border-white/10 flex items-center gap-1">
@@ -88,7 +89,7 @@ const SelectionCircle: React.FC<{
             <span className="tracking-widest">EVENT</span>
         ) : (
             <>
-                <span>💰</span>
+                <CurrencyIcon type={currency} size="sm" />
                 <span>{price}</span>
             </>
         )}
@@ -163,7 +164,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [density, setDensity] = useState<1 | 2 | 4>(2);
   const [eventsOpen, setEventsOpen] = useState(false);
 
-  const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
+  const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, currency: 'GOLD' | 'GEMS', type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
   const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
 
   useEffect(() => {
@@ -184,6 +185,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       id: type === 'AVATAR' ? item : item.id,
       name: type === 'AVATAR' ? getAvatarName(item, remoteEmotes) : item.name,
       price,
+      currency: item.currency || 'GOLD',
       type,
       style: type === 'SLEEVE' ? item.style : undefined
     });
@@ -191,7 +193,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const executePurchase = async () => {
     if (!pendingPurchase || !profile || buying) return;
-    if (profile.coins < pendingPurchase.price) return;
+    const canAffordItem = pendingPurchase.currency === 'GEMS' ? (profile.gems >= pendingPurchase.price) : (profile.coins >= pendingPurchase.price);
+    if (!canAffordItem) return;
+    
     const purchaseId = pendingPurchase.id;
     setBuying(purchaseId);
     try {
@@ -338,7 +342,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                       if (unlocked) setPreviewSleeveStyle(s.style);
                       else if (!isSovereign) handlePurchaseAttempt(s, s.price, 'SLEEVE');
                   }} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'} ${isLegendary ? 'ring-1 ring-yellow-500/20' : ''}`}>
-                    <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} isEvent={isSovereign} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
+                    <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} currency={s.currency} isEvent={isSovereign} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} />
                     
                     <div className="relative group/card-wrap">
                       <Card faceDown activeTurn={true} coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-300 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />
@@ -485,13 +489,25 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       {pendingPurchase && (
           <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
               <div className="fixed top-8 left-8 z-[300] animate-in slide-in-from-left-4 fade-in duration-500 pointer-events-none">
-                  <div className="bg-black/60 backdrop-blur-3xl border border-yellow-500/30 rounded-xl px-3 py-1.5 flex items-center gap-2 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                      <span className="text-lg drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">💰</span>
-                      <div className="flex flex-col">
-                          <span className="text-[8px] font-black text-yellow-500/60 uppercase tracking-widest leading-none">Your Gold</span>
-                          <span className="text-sm font-black text-white font-mono tracking-tighter leading-none mt-0.5">
-                              {profile?.coins.toLocaleString()}
-                          </span>
+                  <div className="bg-black/60 backdrop-blur-3xl border border-white/10 rounded-xl px-3 py-1.5 flex items-center gap-4 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                      <div className="flex items-center gap-2">
+                        <CurrencyIcon type="GOLD" size="sm" />
+                        <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-yellow-500/60 uppercase tracking-widest leading-none">Your Gold</span>
+                            <span className="text-sm font-black text-white font-mono tracking-tighter leading-none mt-0.5">
+                                {profile?.coins.toLocaleString()}
+                            </span>
+                        </div>
+                      </div>
+                      <div className="w-[1px] h-6 bg-white/10"></div>
+                      <div className="flex items-center gap-2">
+                        <CurrencyIcon type="GEMS" size="sm" />
+                        <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-rose-500/60 uppercase tracking-widest leading-none">Your Gems</span>
+                            <span className="text-sm font-black text-white font-mono tracking-tighter leading-none mt-0.5">
+                                {profile?.gems.toLocaleString()}
+                            </span>
+                        </div>
                       </div>
                   </div>
               </div>
@@ -516,8 +532,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   </div>
 
                   <h3 className="text-white font-black uppercase tracking-tight text-2xl mb-2 mt-6 font-serif italic whitespace-nowrap">Secure Asset?</h3>
-                  <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-8 px-4 leading-relaxed">
-                    Unlock <span className="text-white font-bold">{pendingPurchase.name}</span> for <span className="text-yellow-500 font-bold">{pendingPurchase.price} GOLD</span>
+                  <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-8 px-4 leading-relaxed flex items-center justify-center gap-1 flex-wrap">
+                    Unlock <span className="text-white font-bold">{pendingPurchase.name}</span> for <span className="text-white font-bold">{pendingPurchase.price.toLocaleString()}</span>
+                    <CurrencyIcon type={pendingPurchase.currency} size="sm" />
                   </p>
                   
                   <div className="flex flex-col gap-3 w-full">
@@ -525,7 +542,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                           <button onClick={() => setPendingPurchase(null)} className="py-3.5 rounded-xl bg-white/5 border border-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all active:scale-95">Cancel</button>
                           <button 
                             onClick={executePurchase} 
-                            disabled={!!buying || (profile && profile.coins < pendingPurchase.price)}
+                            disabled={!!buying || (pendingPurchase.currency === 'GOLD' ? (profile?.coins || 0) < pendingPurchase.price : (profile?.gems || 0) < pendingPurchase.price)}
                             className="py-3.5 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-700 text-black text-[10px] font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(234,179,8,0.2)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
                           >
                             {buying ? '...' : 'Confirm'}
@@ -698,7 +715,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         }
         @keyframes awardParticle {
             0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0) rotate(var(--rot)); opacity: 0; }
+            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1) rotate(var(--rot)); opacity: 0; }
         }
         .animate-award-pop { animation: awardPop 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
         .animate-award-text { opacity: 0; animation: awardText 0.6s ease-out forwards; }

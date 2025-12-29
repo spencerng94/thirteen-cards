@@ -117,6 +117,7 @@ export const fetchGuestProfile = (): UserProfile => {
     games_played: 0,
     currency: 500,
     coins: 500,
+    gems: 0,
     xp: 0,
     level: 1,
     unlocked_sleeves: ['RED', 'BLUE'],
@@ -137,6 +138,7 @@ export const fetchGuestProfile = (): UserProfile => {
   } as UserProfile;
   return {
     ...data,
+    gems: data.gems ?? 0,
     turn_timer_setting: data.turn_timer_setting ?? 0
   } as UserProfile;
 };
@@ -147,6 +149,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   if (!error && data) {
     return {
       ...data,
+      gems: data.gems ?? 0,
       turn_timer_setting: data.turn_timer_setting ?? 0
     } as UserProfile;
   }

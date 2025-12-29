@@ -100,6 +100,7 @@ export interface UserProfile {
   games_played: number;
   currency: number;
   coins: number;
+  gems: number;
   xp: number;
   level: number;
   unlocked_sleeves: string[];
