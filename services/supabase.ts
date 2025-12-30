@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { UserProfile, AiDifficulty, Emote } from '../types';
 
@@ -107,35 +106,37 @@ export const fetchEmotes = async (): Promise<Emote[]> => {
   }
 };
 
+const getDefaultProfile = (id: string, avatar: string = ':cool:', username: string = 'AGENT'): UserProfile => ({
+  id,
+  username,
+  wins: 0,
+  games_played: 0,
+  currency: 500,
+  coins: 500,
+  gems: 0,
+  xp: 0,
+  level: 1,
+  unlocked_sleeves: ['RED', 'BLUE'],
+  unlocked_avatars: [...DEFAULT_AVATARS],
+  unlocked_boards: ['EMERALD'],
+  avatar_url: avatar,
+  sfx_enabled: true,
+  turbo_enabled: true,
+  sleeve_effects_enabled: true,
+  play_animations_enabled: true,
+  turn_timer_setting: 0,
+  undo_count: 0,
+  finish_dist: [0, 0, 0, 0],
+  total_chops: 0,
+  total_cards_left_sum: 0,
+  current_streak: 0,
+  longest_streak: 0
+});
+
 export const fetchGuestProfile = (): UserProfile => {
   const local = localStorage.getItem(GUEST_STORAGE_KEY);
   const data = local ? JSON.parse(local) : null;
-  if (!data) return {
-    id: 'guest',
-    username: 'PLAYER',
-    wins: 0,
-    games_played: 0,
-    currency: 500,
-    coins: 500,
-    gems: 0,
-    xp: 0,
-    level: 1,
-    unlocked_sleeves: ['RED', 'BLUE'],
-    unlocked_avatars: [...DEFAULT_AVATARS],
-    unlocked_boards: ['EMERALD'],
-    avatar_url: ':cool:',
-    sfx_enabled: true,
-    turbo_enabled: true,
-    sleeve_effects_enabled: true,
-    play_animations_enabled: true,
-    turn_timer_setting: 0,
-    undo_count: 0,
-    finish_dist: [0,0,0,0],
-    total_chops: 0,
-    total_cards_left_sum: 0,
-    current_streak: 0,
-    longest_streak: 0
-  } as UserProfile;
+  if (!data) return getDefaultProfile('guest');
   return {
     ...data,
     gems: data.gems ?? 0,
@@ -145,15 +146,24 @@ export const fetchGuestProfile = (): UserProfile => {
 
 export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:'): Promise<UserProfile | null> => {
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
+  
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-  if (!error && data) {
+  
+  if (error) {
+    console.error("Supabase Profile Fetch Error:", error);
+    return null;
+  }
+
+  if (data) {
     return {
       ...data,
       gems: data.gems ?? 0,
       turn_timer_setting: data.turn_timer_setting ?? 0
     } as UserProfile;
   }
-  return null;
+
+  // Row not found: return a default profile initialized with the user's ID
+  return getDefaultProfile(userId, currentAvatar);
 };
 
 export const updateProfileAvatar = async (userId: string, avatar: string) => {
@@ -162,7 +172,7 @@ export const updateProfileAvatar = async (userId: string, avatar: string) => {
     localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, avatar_url: avatar }));
     return;
   }
-  await supabase.from('profiles').update({ avatar_url: avatar }).eq('id', userId);
+  await supabase.from('profiles').upsert({ id: userId, avatar_url: avatar });
 };
 
 export const updateProfileSettings = async (userId: string, updates: Partial<UserProfile>) => {
@@ -171,7 +181,8 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, ...updates }));
     return;
   }
-  await supabase.from('profiles').update(updates).eq('id', userId);
+  // Use upsert to handle missing rows for existing/newly registered users
+  await supabase.from('profiles').upsert({ id: userId, ...updates });
 };
 
 export const buyItem = async (userId: string, price: number, itemName: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', isGuest: boolean = false) => {
@@ -183,35 +194,40 @@ export const buyItem = async (userId: string, price: number, itemName: string, t
   if (type === 'AVATAR') updates.unlocked_avatars = [...profile.unlocked_avatars, itemName];
   if (type === 'BOARD') updates.unlocked_boards = [...profile.unlocked_boards, itemName];
 
-  if (isGuest || !supabaseAnonKey) {
-    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...profile, ...updates }));
-    return true;
-  }
-  await supabase.from('profiles').update(updates).eq('id', userId);
+  await updateProfileSettings(userId, updates);
   return true;
 };
 
-export const recordGameResult = async (rank: number, isBot: boolean, difficulty: AiDifficulty, isGuest: boolean, userId?: string, chopsInMatch: number = 0, cardsRemaining: number = 0) => {
-  // Balanced rewards
-  const xpGained = rank === 1 ? 25 : rank === 2 ? 15 : 10; 
-  const coinsGained = rank === 1 ? 100 : rank === 2 ? 50 : 25;
-  
-  const profile = isGuest ? fetchGuestProfile() : await fetchProfile(userId!);
-  if (profile) {
-    const newXp = profile.xp + xpGained;
-    const newLevel = calculateLevel(newXp);
-    const updates = { 
-      xp: newXp, 
-      level: newLevel,
-      coins: profile.coins + coinsGained,
-      games_played: profile.games_played + 1,
-      wins: rank === 1 ? profile.wins + 1 : profile.wins
-    };
-    await updateProfileSettings(userId || 'guest', updates);
-    return { xpGained, coinsGained, newTotalXp: newXp, xpBonusApplied: false };
+export const recordGameResult = async (rank: number, isBot: boolean, difficulty: AiDifficulty, isGuest: boolean, currentProfile: UserProfile | null, chopsInMatch: number = 0, cardsRemaining: number = 0) => {
+  if (!currentProfile) {
+     return { xpGained: 10, coinsGained: 25, newTotalXp: 10, xpBonusApplied: false };
   }
+
+  // Balanced rewards
+  const xpGained = rank === 1 ? 40 : rank === 2 ? 25 : 10; 
+  const coinsGained = rank === 1 ? 150 : rank === 2 ? 75 : 25;
   
-  return { xpGained: 10, coinsGained: 50, newTotalXp: 10, xpBonusApplied: false };
+  const newXp = currentProfile.xp + xpGained;
+  const newLevel = calculateLevel(newXp);
+  const newCoins = currentProfile.coins + coinsGained;
+  
+  const updates: Partial<UserProfile> = { 
+    xp: newXp, 
+    level: newLevel,
+    coins: newCoins,
+    games_played: currentProfile.games_played + 1,
+    wins: rank === 1 ? currentProfile.wins + 1 : currentProfile.wins,
+    total_chops: (currentProfile.total_chops || 0) + chopsInMatch
+  };
+
+  await updateProfileSettings(currentProfile.id, updates);
+  
+  return { 
+    xpGained, 
+    coinsGained, 
+    newTotalXp: newXp, 
+    xpBonusApplied: false 
+  };
 };
 
 /**
@@ -240,14 +256,12 @@ export const calculateLevel = (xp: number) => {
   const safeXp = Math.max(0, xp);
   
   // High performance level scan
-  // Start by checking if it's within the static table
   if (safeXp < XP_TABLE[XP_TABLE.length - 1]) {
     for (let i = XP_TABLE.length - 1; i >= 0; i--) {
       if (safeXp >= XP_TABLE[i]) return i + 1;
     }
   }
 
-  // Otherwise, procedurally check levels beyond the table
   let currentLevel = XP_TABLE.length;
   while (getXpForLevel(currentLevel + 1) <= safeXp && currentLevel < 500) {
     currentLevel++;
@@ -261,20 +275,15 @@ export const getXpForLevel = (level: number) => {
     return XP_TABLE[safeLevel - 1];
   }
   
-  // Range 16 - 40: Steady climb
   if (safeLevel <= 40) {
     const baseLevel = XP_TABLE.length;
     const baseXP = XP_TABLE[XP_TABLE.length - 1];
     const levelDiff = safeLevel - baseLevel;
-    // Base 500 jump per level, increasing by 50 per level gap
     return baseXP + (levelDiff * 500) + (levelDiff * (levelDiff - 1) * 25);
   }
 
-  // Range 41+: "Much Slower" progression
-  // Massive leap in XP required per level
   const xpAt40 = getXpForLevel(40);
   const post40Diff = safeLevel - 40;
-  // 5000 XP per level after level 40
   return xpAt40 + (post40Diff * 5000);
 };
 

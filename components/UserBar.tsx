@@ -1,26 +1,31 @@
-
 import React from 'react';
 import { UserProfile, Emote, HubTab } from '../types';
 import { calculateLevel, getXpForLevel } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 import { CurrencyIcon } from './Store';
 
+/* FIXED: Added onOpenGemPacks to UserBarProps interface */
 interface UserBarProps {
   profile: UserProfile | null;
   className?: string;
   isGuest?: boolean;
   onPromptAuth?: () => void;
   onClick?: (tab: HubTab) => void;
+  onOpenStore?: (tab: 'SLEEVES' | 'AVATARS' | 'BOARDS' | 'GEMS') => void;
+  onOpenGemPacks?: () => void;
   avatar?: string;
   remoteEmotes?: Emote[];
 }
 
+/* FIXED: Destructured onOpenGemPacks from props */
 export const UserBar: React.FC<UserBarProps> = ({ 
   profile, 
   className = '', 
   isGuest, 
   onPromptAuth, 
   onClick, 
+  onOpenStore,
+  onOpenGemPacks,
   avatar,
   remoteEmotes = [] 
 }) => {
@@ -36,11 +41,9 @@ export const UserBar: React.FC<UserBarProps> = ({
 
   return (
     <div 
-      onClick={() => onClick?.('PROFILE')}
-      className={`flex flex-col items-center py-4 px-2 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl transition-all duration-500 hover:bg-black/60 group cursor-pointer w-14 ${className}`}
+      className={`flex flex-col items-center py-4 px-2 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl transition-all duration-500 hover:bg-black/60 group w-14 ${className}`}
     >
-      {/* Mini Avatar */}
-      <div className="relative mb-3">
+      <div className="relative mb-3 cursor-pointer" onClick={() => onClick?.('PROFILE')}>
         <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-white/10 to-transparent border border-white/10 flex items-center justify-center text-lg shadow-inner group-hover:scale-110 transition-transform duration-500 overflow-hidden">
           <VisualEmote trigger={avatar || ':smile:'} remoteEmotes={remoteEmotes} size="sm" />
         </div>
@@ -49,7 +52,6 @@ export const UserBar: React.FC<UserBarProps> = ({
         )}
       </div>
 
-      {/* Level Info */}
       <div 
         onClick={(e) => { e.stopPropagation(); onClick?.('LEVEL_REWARDS'); }}
         className="flex flex-col items-center mb-4 cursor-pointer hover:scale-110 transition-transform"
@@ -66,27 +68,27 @@ export const UserBar: React.FC<UserBarProps> = ({
         </div>
       </div>
 
-      {/* Currency Display Stack */}
       <div className="flex flex-col items-center gap-5">
-        {/* Mini Gold - Coins are now high-fidelity SVGs with black spade */}
-        <div className="flex flex-col items-center gap-0.5">
-          <div className="group-hover:scale-110 transition-transform duration-300">
-            <CurrencyIcon type="GOLD" size="sm" />
-          </div>
+        <button 
+          onClick={(e) => { e.stopPropagation(); onOpenStore?.('SLEEVES'); }}
+          className="flex flex-col items-center gap-0.5 hover:scale-110 transition-transform"
+        >
+          <CurrencyIcon type="GOLD" size="sm" />
           <span className="text-[8px] font-black text-yellow-500/90 leading-none tracking-tighter text-center">
             {profile.coins > 999 ? (profile.coins / 1000).toFixed(1) + 'k' : profile.coins}
           </span>
-        </div>
+        </button>
 
-        {/* Mini Gems */}
-        <div className="flex flex-col items-center gap-0.5">
-          <div className="group-hover:scale-110 transition-transform duration-300">
-            <CurrencyIcon type="GEMS" size="sm" />
-          </div>
+        <button 
+          /* FIXED: Used onOpenGemPacks if available, otherwise fall back to onOpenStore('GEMS') */
+          onClick={(e) => { e.stopPropagation(); onOpenGemPacks ? onOpenGemPacks() : onOpenStore?.('GEMS'); }}
+          className="flex flex-col items-center gap-0.5 hover:scale-110 transition-transform"
+        >
+          <CurrencyIcon type="GEMS" size="sm" />
           <span className="text-[8px] font-black text-white/90 leading-none tracking-tighter text-center">
             {(profile.gems || 0) > 999 ? ((profile.gems || 0) / 1000).toFixed(1) + 'k' : (profile.gems || 0)}
           </span>
-        </div>
+        </button>
       </div>
 
       {showSecurityPrompt && onPromptAuth && (
