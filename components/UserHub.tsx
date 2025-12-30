@@ -522,7 +522,7 @@ const MadnessEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black perspective-[1000px]">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#0a0000_0%,_#000000_70%,_#000000_100%)]"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#0a0000_0%,_#000008_70%,_#000000_100%)]"></div>
       
       <div className="absolute inset-0 opacity-40 mix-blend-multiply">
           <div className="absolute bottom-0 left-0 w-full h-[60%] bg-gradient-to-t from-red-950/30 to-transparent animate-pulse"></div>
