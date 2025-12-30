@@ -1077,17 +1077,6 @@ export const UserHub: React.FC<{ initialTab?: HubTab } & any> = ({ onClose, prof
       {/* ASSET SECURED AWARD ANIMATION */}
       {awardItem && (
           <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500 overflow-hidden" onClick={e => e.stopPropagation()}>
-              {Array.from({ length: 20 }).map((_, i) => (
-                  <div key={i} className="absolute w-2 h-2 rounded-sm bg-yellow-500/40 animate-award-particle" style={{
-                      left: '50%',
-                      top: '50%',
-                      '--tx': `${(Math.random() - 0.5) * 600}px`,
-                      '--ty': `${(Math.random() - 0.5) * 600}px`,
-                      '--rot': `${Math.random() * 360}deg`,
-                      animationDelay: `${Math.random() * 0.2}s`
-                  } as any}></div>
-              ))}
-              
               <div className="relative flex flex-col items-center text-center max-sm:px-4">
                   <div className="absolute inset-0 bg-yellow-500/10 blur-[120px] animate-pulse"></div>
                   
@@ -1117,4 +1106,176 @@ export const UserHub: React.FC<{ initialTab?: HubTab } & any> = ({ onClose, prof
             <button onClick={onClose} className="w-10 h-10 bg-red-600/10 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all group border border-white/5"><span className="text-lg font-black group-hover:rotate-90 transition-transform">✕</span></button>
           </div>
           
-          <div className="flex gap-2 p-1 bg-black/40 rounded-2xl border border-white
+          <div className="flex gap-2 p-1 bg-black/40 rounded-2xl border border-white/5 w-full">
+            <button 
+                onClick={() => setActiveTab('PROFILE')}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'PROFILE' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+            >
+                Credentials
+            </button>
+            <button 
+                onClick={() => setActiveTab('STATS')}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'STATS' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+            >
+                Arena Stats
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          {activeTab === 'PROFILE' ? (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex flex-col sm:flex-row gap-8 items-center">
+                    <div className="relative shrink-0">
+                      <div className="absolute inset-[-15px] bg-yellow-500/10 blur-[40px] rounded-full"></div>
+                      
+                      <div className="absolute -top-1 -right-1 z-30 bg-black border-2 border-yellow-500 text-yellow-500 px-2 py-0.5 rounded-lg shadow-2xl flex items-center gap-1 animate-in zoom-in duration-500 select-none">
+                         <span className="text-[10px] font-black tracking-tighter">LVL {currentLevel}</span>
+                      </div>
+
+                      <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center shadow-inner overflow-hidden cursor-pointer group" onClick={() => setPreviewAvatar(playerAvatar)}>
+                        <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" className="group-hover:scale-110 transition-transform duration-500" />
+                      </div>
+                    </div>
+                    <div className="flex-1 w-full space-y-3 sm:space-y-4">
+                        <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value.toUpperCase())} maxLength={12} className="w-full bg-black/40 border border-white/5 px-4 py-2 rounded-xl text-white font-black uppercase tracking-widest text-lg sm:text-xl focus:border-yellow-500/30 outline-none transition-all shadow-inner" />
+                        <div 
+                            onClick={() => setActiveTab('LEVEL_REWARDS')}
+                            className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2 cursor-pointer hover:bg-white/[0.05] transition-colors group/lvl"
+                        >
+                            <div className="flex justify-between items-end">
+                                <span className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em] group-hover/lvl:text-white transition-colors">Mastery {currentLevel}</span>
+                                <span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-widest group-hover/lvl:text-yellow-500 transition-colors">{nextLevelXp - profile.xp} XP TO ASCEND</span>
+                            </div>
+                            <div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                <div className="h-full bg-gradient-to-r from-yellow-700 via-yellow-400 to-yellow-200 transition-all duration-1000" style={{ width: `${progress}%` }} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-5 gap-2">
+                    {visibleAvatars.map(a => {
+                      const isEquipped = playerAvatar === a;
+                      const unlocked = isAvatarUnlocked(a);
+                      return (
+                        <button 
+                          key={a} 
+                          onClick={() => setPreviewAvatar(a)} 
+                          className={`aspect-square rounded-xl flex items-center justify-center transition-all relative overflow-hidden group ${isEquipped ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : unlocked ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale hover:opacity-40'}`}
+                        >
+                          <VisualEmote trigger={a} remoteEmotes={remoteEmotes} size="md" />
+                          
+                          {isEquipped && (
+                             <div className="absolute top-0.5 right-0.5 bg-emerald-500 text-white p-0.5 rounded-full shadow-md scale-75 border border-white/20 z-10">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                             </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+
+                <div className="flex flex-col items-center pt-1"><button onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} className="group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 transition-all duration-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}><polyline points="6 9 12 15 18 9"></polyline></svg></button><span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1">{isCatalogExpanded ? "MINIMIZE" : "EXPAND"}</span></div>
+            </div>
+          ) : (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                        { label: 'Battles', value: profile.games_played, icon: '⚔️' },
+                        { label: 'Elite Chops', value: profile.total_chops, icon: '💣' },
+                        { label: 'Win Streak', value: profile.current_streak, icon: '🔥' },
+                        { label: 'Max Streak', value: profile.longest_streak, icon: '👑' }
+                    ].map(stat => (
+                        <div key={stat.label} className="bg-white/[0.02] border border-white/5 p-4 rounded-3xl flex flex-col items-center gap-1 group hover:bg-white/[0.04] transition-all">
+                            <span className="text-xl mb-1">{stat.icon}</span>
+                            <span className="text-xl font-black text-white">{stat.value}</span>
+                            <span className="text-[7px] font-black uppercase tracking-widest text-white/30">{stat.label}</span>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] space-y-4">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-yellow-500">Defeat Severity</span>
+                            <span className="text-xs font-black text-white">{avgCardsLeft}</span>
+                        </div>
+                        <p className="text-[9px] text-white/40 leading-relaxed uppercase tracking-widest">Typical hand size when failing to extract from arena.</p>
+                        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
+                            <div className="h-full bg-rose-500/60" style={{ width: `${Math.min(100, parseFloat(avgCardsLeft) * 7.7)}%` }}></div>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] space-y-4">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Victory Efficiency</span>
+                            <span className="text-xs font-black text-white">
+                                {profile.games_played > 0 ? ((profile.wins / profile.games_played) * 100).toFixed(0) : 0}%
+                            </span>
+                        </div>
+                        <p className="text-[9px] text-white/40 leading-relaxed uppercase tracking-widest">Protocol success rate across all historical deployments.</p>
+                        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500/60" style={{ width: `${(profile.wins / Math.max(1, profile.games_played)) * 100}%` }}></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <SectionHeaderLong>Placement Distribution</SectionHeaderLong>
+                    <div className="space-y-3">
+                        {['1ST', '2ND', '3RD', '4TH'].map((label, i) => {
+                            const val = finishDist[i];
+                            const percent = (val / maxFinish) * 100;
+                            const colorClass = i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-300' : i === 2 ? 'bg-orange-400' : 'bg-red-500';
+                            return (
+                                <div key={label} className="group flex items-center gap-4">
+                                    <span className="text-[8px] font-black text-white/40 w-6">{label}</span>
+                                    <div className="flex-1 h-3 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                        <div 
+                                            className={`h-full ${colorClass} transition-all duration-1000 ease-out flex items-center justify-end px-2`}
+                                            style={{ width: `${percent}%` }}
+                                        >
+                                            {val > 0 && <span className="text-[7px] font-black text-black/60">{val}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+          )}
+
+          <div className="pt-8 border-t border-white/5">
+          </div>
+        </div>
+      </div>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes awardPop {
+            0% { transform: scale(0.5); opacity: 0; filter: blur(20px); }
+            60% { transform: scale(1.1); opacity: 1; filter: blur(0); }
+            100% { transform: scale(1); }
+        }
+        @keyframes awardText {
+            0% { transform: translateY(20px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes awardParticle {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0) rotate(var(--rot)); opacity: 0; }
+        }
+        .animate-award-pop { animation: awardPop 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
+        .animate-award-text { opacity: 0; animation: awardText 0.6s ease-out forwards; }
+        .animate-award-particle { animation: awardParticle 1.2s ease-out forwards; }
+      `}} />
+    </div>
+  );
+};
+
+const SectionHeaderLong: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div className="flex items-center gap-3 mb-4">
+        <span className="text-[9px] font-black uppercase tracking-[0.4em] text-yellow-500/70 italic whitespace-nowrap">{children}</span>
+        <div className="h-[1px] flex-1 bg-gradient-to-r from-yellow-500/30 to-transparent"></div>
+    </div>
+);
