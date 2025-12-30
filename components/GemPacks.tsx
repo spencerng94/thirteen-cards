@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { UserProfile } from '../types';
 import { CurrencyIcon } from './Store';
 
@@ -20,15 +20,13 @@ const GEM_PACKS: GemPack[] = [
 
 /**
  * AAA-Grade Sharp Faceted Hexagon
- * Replaces circular gloss with geometric light refraction logic.
  */
-const HexFacetedGem: React.FC<{ tier: number; size: number }> = ({ tier, size }) => {
+const HexFacetedGem: React.FC<{ tier: number; size: number; className?: string }> = ({ tier, size, className = "" }) => {
   const isElite = tier >= 5;
   const primary = isElite ? '#ff007f' : '#ec4899';
   const mid = isElite ? '#9d174d' : '#be185d';
   const dark = isElite ? '#4c0519' : '#701a35';
 
-  // Master Hex Points
   const p = {
     top: "50,5",
     tr: "89,27.5",
@@ -46,7 +44,7 @@ const HexFacetedGem: React.FC<{ tier: number; size: number }> = ({ tier, size })
   };
 
   return (
-    <svg viewBox="0 0 100 100" style={{ width: size, height: size }} className="overflow-visible filter drop-shadow-[0_0_30px_rgba(255,0,127,0.3)]">
+    <svg viewBox="0 0 100 100" style={{ width: size, height: size }} className={`${className} overflow-visible filter drop-shadow-[0_0_30px_rgba(255,0,127,0.3)]`}>
       <defs>
         <filter id="facetingBloom">
           <feGaussianBlur stdDeviation="3" result="blur" />
@@ -58,33 +56,23 @@ const HexFacetedGem: React.FC<{ tier: number; size: number }> = ({ tier, size })
         </linearGradient>
       </defs>
 
-      {/* Deep Aura */}
-      <circle cx="50" cy="50" r="45" fill={primary} opacity={0.15 + (tier * 0.05)} filter="url(#facetingBloom)" className="animate-pulse" />
+      {!className.includes('shard-gem') && (
+        <circle cx="50" cy="50" r="45" fill={primary} opacity={0.15 + (tier * 0.05)} filter="url(#facetingBloom)" className="animate-pulse" />
+      )}
 
-      {/* Main Base Hexagon */}
       <polygon points={`${p.top} ${p.tr} ${p.br} ${p.bottom} ${p.bl} ${p.tl}`} fill={dark} />
 
-      {/* Brilliant Cut Facets */}
       <g opacity={0.8}>
-        {/* Top-Right Facet */}
         <polygon points={`${p.center} ${p.top} ${p.tr}`} fill={primary} opacity="0.9" />
-        {/* Right Facet */}
         <polygon points={`${p.center} ${p.tr} ${p.br}`} fill={mid} opacity="1" />
-        {/* Bottom-Right Facet */}
         <polygon points={`${p.center} ${p.br} ${p.bottom}`} fill={dark} opacity="0.8" />
-        {/* Bottom-Left Facet */}
         <polygon points={`${p.center} ${p.bottom} ${p.bl}`} fill={dark} opacity="1" />
-        {/* Left Facet */}
         <polygon points={`${p.center} ${p.bl} ${p.tl}`} fill={mid} opacity="0.9" />
-        {/* Top-Left Facet */}
         <polygon points={`${p.center} ${p.tl} ${p.top}`} fill={primary} opacity="1" />
       </g>
 
-      {/* Internal "Table" Cut (The crown of the gem) */}
       <g stroke="white" strokeWidth="0.5" strokeOpacity="0.3">
         <polygon points={`${p.ct} ${p.ctr} ${p.cbr} ${p.cb} ${p.cbl} ${p.ctl}`} fill={`url(#gradFace1-${tier})`} opacity="0.9" />
-        
-        {/* Connecting Edge Bevels */}
         <line x1="50" y1="5" x2="50" y2="25" />
         <line x1="89" y1="27.5" x2="73" y2="38" />
         <line x1="89" y1="72.5" x2="73" y2="62" />
@@ -93,24 +81,57 @@ const HexFacetedGem: React.FC<{ tier: number; size: number }> = ({ tier, size })
         <line x1="11" y1="27.5" x2="27" y2="38" />
       </g>
 
-      {/* Sharp Specular Linear Glints (Replaces the "cheap" circular arc) */}
       <g style={{ mixBlendMode: 'plus-lighter' }}>
         <path d="M50 25 L73 38 L50 42 Z" fill="white" opacity="0.4" />
         <path d="M27 38 L50 25 L50 35 Z" fill="white" opacity="0.2" />
-        
-        {/* Tier-based intensity: Brilliant Point */}
-        {tier >= 3 && (
-            <circle cx="50" cy="35" r="4" fill="white" opacity="0.6" filter="url(#facetingBloom)" className="animate-pulse" />
-        )}
       </g>
-
-      {/* Elite Crystalline Flare */}
-      {isElite && (
-        <g filter="url(#facetingBloom)">
-            <path d="M50 20 L53 45 L70 50 L53 55 L50 80 L47 55 L30 50 L47 45 Z" fill="white" opacity="0.4" className="animate-pulse" />
-        </g>
-      )}
     </svg>
+  );
+};
+
+/**
+ * Renders a "Giant Pile" on the floor around the keystone gem.
+ */
+const GiantPile: React.FC<{ tier: number; baseSize: number }> = ({ tier, baseSize }) => {
+  if (tier < 5) return null;
+
+  const shardCount = tier === 5 ? 12 : 24;
+  
+  // Fixed: Import useMemo from 'react' to fix the "Cannot find name 'useMemo'" error on line 101.
+  const shards = useMemo(() => Array.from({ length: shardCount }).map((_, i) => {
+    const angle = (i / shardCount) * Math.PI * 2 + (Math.random() * 0.5);
+    const radiusX = 35 + Math.random() * 40;
+    const radiusY = 15 + Math.random() * 15; // Flattened Y for floor perspective
+    return {
+      x: Math.cos(angle) * radiusX,
+      y: Math.sin(angle) * radiusY + 30, // Offset Y to be at the "feet" of the keystone
+      rot: Math.random() * 360,
+      scale: 0.25 + Math.random() * 0.2,
+      delay: Math.random() * -5,
+      depth: Math.sin(angle) // -1 is back, 1 is front
+    };
+  }), [shardCount]);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none" style={{ perspective: '800px' }}>
+      {/* Floor Shadow for the whole pile */}
+      <div className="absolute top-[65%] left-1/2 -translate-x-1/2 w-48 h-12 bg-pink-900/10 blur-2xl rounded-full"></div>
+
+      {shards.map((s, i) => (
+        <div
+          key={i}
+          className="absolute left-1/2 top-1/2"
+          style={{
+            transform: `translate(calc(-50% + ${s.x}px), calc(-50% + ${s.y}px)) rotate(${s.rot}deg) scale(${s.scale})`,
+            zIndex: s.depth > 0 ? 20 : 5, // Keystone is roughly z-10
+            opacity: s.depth < -0.5 ? 0.4 : 0.8, // Distance fade
+            filter: `brightness(${0.7 + (s.depth + 1) * 0.15})` // Lighting based on front/back position
+          }}
+        >
+          <HexFacetedGem tier={tier - 2} size={baseSize} className="shard-gem" />
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -119,26 +140,30 @@ const CinematicNode: React.FC<{ tier: number }> = ({ tier }) => {
   const size = baseSize + (tier * 16);
 
   return (
-    <div className="relative flex items-center justify-center animate-[float-gem-v3_6s_ease-in-out_infinite]">
+    <div className="relative flex items-center justify-center">
       {/* Background Volumetrics */}
       <div className={`absolute inset-[-140%] bg-pink-600/10 blur-[100px] rounded-full transition-opacity duration-1000 ${tier >= 4 ? 'opacity-100' : 'opacity-30'}`}></div>
       
-      {/* Precision Orbit (Tier 3+) */}
+      {/* Precision Orbit */}
       {tier >= 3 && (
-        <div className="absolute inset-[-45%] border-[0.5px] border-white/5 rounded-full animate-[spin_25s_linear_infinite] opacity-40">
+        <div className={`absolute ${tier >= 5 ? 'inset-[-75%]' : 'inset-[-45%]'} border-[0.5px] border-white/5 rounded-full animate-[spin_25s_linear_infinite] opacity-40`}>
            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-pink-300 rounded-full shadow-[0_0_12px_#ff007f]"></div>
         </div>
       )}
 
       {/* Prismatic Rays (Tier 6 Only) */}
       {tier === 6 && (
-        <div className="absolute inset-[-250%] z-0 pointer-events-none opacity-40">
-           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500%] h-[0.5px] bg-gradient-to-r from-transparent via-white/40 to-transparent rotate-[15deg] animate-pulse"></div>
-           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500%] h-[0.5px] bg-gradient-to-r from-transparent via-white/40 to-transparent -rotate-[15deg] animate-pulse [animation-delay:2s]"></div>
+        <div className="absolute inset-[-300%] z-0 pointer-events-none opacity-40">
+           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600%] h-[0.5px] bg-gradient-to-r from-transparent via-white/40 to-transparent rotate-[15deg] animate-pulse"></div>
+           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600%] h-[0.5px] bg-gradient-to-r from-transparent via-white/40 to-transparent -rotate-[15deg] animate-pulse [animation-delay:2s]"></div>
         </div>
       )}
 
-      <div className="relative z-10 transition-all duration-700 hover:scale-110">
+      {/* Pile Foundation on Floor */}
+      <GiantPile tier={tier} baseSize={size} />
+
+      {/* Main Keystone Floating */}
+      <div className="relative z-10 transition-all duration-700 hover:scale-110 animate-[float-gem-v3_6s_ease-in-out_infinite]">
         <HexFacetedGem tier={tier} size={size} />
       </div>
     </div>
@@ -153,7 +178,7 @@ export const GemPacks: React.FC<{
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/98 backdrop-blur-3xl p-3 sm:p-4 animate-in fade-in duration-700 overflow-hidden" onClick={onClose}>
       
-      {/* Deep Space Background Ambience */}
+      {/* Deep Space Background */}
       <div className="absolute inset-0 pointer-events-none opacity-20">
          {Array.from({ length: 40 }).map((_, i) => (
            <div key={i} className="absolute w-[1.2px] h-[1.2px] bg-white rounded-full animate-float-pixel-v3" style={{
@@ -174,20 +199,19 @@ export const GemPacks: React.FC<{
              <span className="text-[16px] font-black text-white tracking-tighter font-mono">{(profile?.gems || 0).toLocaleString()}</span>
           </div>
           <div className="w-[1px] h-4 bg-white/10"></div>
-          <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">Gem Vault</span>
+          <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">Vault</span>
         </div>
 
         <button onClick={onClose} className="absolute top-6 right-6 z-[100] w-10 h-10 bg-white/[0.02] hover:bg-white/[0.08] border border-white/5 text-white rounded-xl flex items-center justify-center transition-all active:scale-90 group">
           <span className="text-xl font-black group-hover:rotate-90 transition-transform">✕</span>
         </button>
 
-        {/* Brand Header */}
+        {/* Brand Header - Renamed to GEM PACKS */}
         <div className="px-8 mt-24 mb-4 flex flex-col items-center">
-            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif leading-none text-center">SHARD DEPOT</h1>
-            <div className="h-[1.5px] w-24 bg-gradient-to-r from-transparent via-pink-500/40 to-transparent mt-5 rounded-full"></div>
+            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif leading-none text-center">GEM PACKS</h1>
+            <div className="h-[1.5px] w-24 bg-gradient-to-r from-transparent via-pink-500/40 to-transparent mt-5 rounded-full shadow-[0_0_15px_rgba(236,72,153,0.2)]"></div>
         </div>
 
-        {/* Optimized Vertical Scroll */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
           {GEM_PACKS.map((pack, idx) => {
             const tier = idx + 1;
@@ -200,11 +224,11 @@ export const GemPacks: React.FC<{
                   ${isElite 
                     ? 'bg-gradient-to-br from-[#100008] via-black to-black border-pink-500/30 shadow-[inset_0_0_40px_rgba(236,72,153,0.05)]' 
                     : 'bg-white/[0.02] border-white/5 hover:border-white/20'}
-                  min-h-[140px]
+                  min-h-[160px]
                 `}
               >
                 {/* Visual Node */}
-                <div className="relative z-10 w-24 sm:w-28 h-24 sm:h-28 flex items-center justify-center shrink-0">
+                <div className="relative z-10 w-28 sm:w-32 h-28 sm:h-32 flex items-center justify-center shrink-0">
                    <CinematicNode tier={tier} />
                 </div>
 
@@ -220,7 +244,7 @@ export const GemPacks: React.FC<{
                            <span className="text-[9px] font-black text-pink-400 uppercase tracking-[0.1em] animate-pulse">+{pack.bonusGems.toLocaleString()} BONUS</span>
                         </div>
                       ) : (
-                        <span className="text-[8px] font-black text-white/10 uppercase tracking-[0.4em] mt-2 italic">Refined Yield</span>
+                        <span className="text-[8px] font-black text-white/10 uppercase tracking-[0.4em] mt-2 italic">Standard Yield</span>
                       )}
                    </div>
                    
@@ -231,30 +255,28 @@ export const GemPacks: React.FC<{
                    </div>
                 </div>
 
-                {/* Tech Pattern Detail */}
+                {/* Tech Pattern Decoration */}
                 <div className="absolute inset-0 opacity-[0.02] pointer-events-none mix-blend-screen overflow-hidden">
                    <div className="absolute top-0 left-0 w-full h-full" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.5) 1.5px, transparent 1.5px)', backgroundSize: '25px 25px' }}></div>
                 </div>
                 
-                {/* Radial Glow */}
+                {/* Visual Depth Glow */}
                 <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-pink-500/5 blur-[80px] rounded-full"></div>
               </div>
             );
           })}
 
-          {/* Maintenance Notice */}
           <div className="pt-12 pb-16 flex flex-col items-center opacity-30 text-center space-y-4">
              <div className="flex items-center gap-3">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_#ef4444]"></span>
                 <p className="text-[10px] font-black uppercase tracking-[0.8em] text-white">REFINERY OFFLINE</p>
              </div>
              <p className="text-[9px] font-medium max-w-[240px] uppercase tracking-[0.3em] leading-relaxed text-white/60">
-               Acquisition protocols are undergoing structural refinement. Check back soon.
+               Structural node refinement in progress. Acquisition suspended.
              </p>
           </div>
         </div>
 
-        {/* Footer Fade */}
         <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none z-20"></div>
       </div>
 

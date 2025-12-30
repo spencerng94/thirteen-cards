@@ -39,7 +39,7 @@ const getSuitSymbol = (suit: Suit): string => {
 };
 
 const SUIT_PATH_DATA = {
-  SPADE: "M50 2 C58 28 95 45 95 72 C95 88 85 96 70 96 C60 96 50 88 50 88 C50 88 40 96 30 96 C15 96 5 88 5 72 C5 45 42 28 50 2 Z M45 88 L30 100 L70 100 L55 88 Z",
+  SPADE: "M50 2 C55 35 92 48 92 72 C92 88 80 97 65 97 C55 97 50 88 50 88 C50 88 45 97 35 97 C20 97 8 88 8 72 C8 48 45 35 50 2 Z M46 88 L34 100 H66 L54 88 Z",
   HEART: "M50 30 C50 10 10 10 10 45 C10 75 50 95 50 95 C50 95 90 75 90 45 C90 10 50 10 50 30 Z",
   CLUB: "M50 25 A18 18 0 1 1 68 43 A18 18 0 1 1 55 65 L55 85 L65 95 L35 95 L45 85 L45 65 A18 18 0 1 1 32 43 A18 18 0 1 1 50 25 Z",
   DIAMOND: "M50 5 L90 50 L50 95 L10 50 Z"
@@ -231,9 +231,11 @@ export const Card: React.FC<CardProps> = ({
               </linearGradient>
             </defs>
             <path d={SUIT_PATH_DATA[type]} fill={`url(#goldMetallicPremium-${type})`} />
+            {/* Added an inner "core" highlight for more premium depth */}
+            <path d={SUIT_PATH_DATA[type]} fill="white" opacity="0.1" transform="scale(0.85) translate(8.8, 8.8)" filter="blur(2px)" />
           </svg>
           {!disableEffects && (
-            <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_40%,rgba(255,255,255,0.6)_50%,transparent_60%)] bg-[length:200%_100%] animate-[sovereign-glint_3s_infinite_linear] pointer-events-none mix-blend-overlay" style={{ clipPath: `path('${SUIT_PATH_DATA[type]}')` }}></div>
+            <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_40%,rgba(255,255,255,0.6)_50%,transparent_60%)] bg-[length:200%_100%] animate-[sovereign-glint_2s_infinite_linear] pointer-events-none mix-blend-overlay" style={{ clipPath: `path('${SUIT_PATH_DATA[type]}')` }}></div>
           )}
         </div>
       </div>
@@ -249,7 +251,6 @@ export const Card: React.FC<CardProps> = ({
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="relative group/royal">
                   <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)] fill-white opacity-100">
-                    {/* Crown + Cross Motif */}
                     <path d="M50 20 L55 35 L70 35 L60 45 L65 60 L50 50 L35 60 L40 45 L30 35 L45 35 Z" opacity="0.8" />
                     <path d="M48 10 H52 V80 H48 Z" />
                     <path d="M20 42 H80 V46 H20 Z" />
@@ -267,10 +268,10 @@ export const Card: React.FC<CardProps> = ({
             );
             break;
         case 'SOVEREIGN_SPADE':
-            bgClass = 'bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-black';
-            borderClass = 'border-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.4)]';
-            metallicReflect = "bg-gradient-to-tr from-transparent via-indigo-400/20 to-transparent";
-            patternContent = renderSovereignSuit('SPADE', 'text-indigo-400', 'rgba(99,102,241,0.5)');
+            bgClass = 'bg-gradient-to-br from-[#020617] via-[#0a1130] to-black';
+            borderClass = 'border-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.5),inset_0_0_10px_rgba(99,102,241,0.3)]';
+            metallicReflect = "bg-gradient-to-tr from-transparent via-indigo-400/30 to-transparent";
+            patternContent = renderSovereignSuit('SPADE', 'text-indigo-400', 'rgba(99,102,241,0.6)');
             break;
         case 'SOVEREIGN_CLUB':
             bgClass = 'bg-gradient-to-br from-[#022c22] via-[#064e3b] to-black';

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { UserProfile } from '../types';
 import { CardCoverStyle } from './Card';
@@ -272,7 +271,7 @@ export const EventsModal: React.FC<EventsModalProps> = ({ onClose, profile, onRe
         {/* Header */}
         <div className="relative z-10 p-10 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex justify-between items-start">
           <div className="flex flex-col">
-            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-tighter leading-none">THIRTEEN EVENTS</h2>
+            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-tighter leading-none">XIII EVENTS</h2>
             <div className="flex items-center gap-3 mt-3">
                <div className={`w-1.5 h-1.5 rounded-full ${activeTab === 'DAILY' ? 'bg-emerald-500 animate-pulse' : activeTab === 'WEEKLY' ? 'bg-blue-500 shadow-[0_0_10px_#3b82f6]' : 'bg-yellow-500 shadow-[0_0_10px_#eab308]'}`}></div>
                <p className={`text-[9px] font-black uppercase tracking-[0.5em] ${activeTab === 'DAILY' ? 'text-emerald-500' : activeTab === 'WEEKLY' ? 'text-blue-500' : 'text-yellow-500'}`}>Current Game Events</p>
@@ -314,10 +313,6 @@ export const EventsModal: React.FC<EventsModalProps> = ({ onClose, profile, onRe
         <div className="relative z-10 flex-1 overflow-y-auto p-10 space-y-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-5">
                {activeTab === 'DAILY' ? dailyEvents.map(renderEventItem) : activeTab === 'WEEKLY' ? weeklyEvents.map(renderEventItem) : newPlayerEvents.map(renderEventItem)}
-            </div>
-            
-            <div className="pt-12 text-center pb-4 opacity-20">
-                <span className="text-[8px] font-black text-white uppercase tracking-[0.8em]">Operational cycle active</span>
             </div>
         </div>
 
