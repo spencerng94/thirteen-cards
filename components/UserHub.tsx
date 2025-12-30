@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, BackgroundTheme, AiDifficulty, Emote, HubTab } from '../types';
 import { calculateLevel, getXpForLevel, DEFAULT_AVATARS, PREMIUM_AVATARS, buyItem, getAvatarName } from '../services/supabase';
@@ -446,7 +445,7 @@ const TokyoEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
             left: `${Math.random() * 100}%`, 
             top: '-20px', 
             animationDelay: `${Math.random() * -20}s`,
-            animationDuration: `${10 + Math.random() * 15}s`,
+            animationDuration: `${10 + Math.random() * 10}s`,
             transform: `rotate(${Math.random() * 360}deg)`
           }}
         />
