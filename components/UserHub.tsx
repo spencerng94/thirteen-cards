@@ -103,7 +103,6 @@ const JustAGirlEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
         </div>
       ))}
 
-      {/* Decorative Bubbles */}
       {!isMini && Array.from({ length: 15 }).map((_, i) => (
         <div 
           key={`bubble-${i}`}
@@ -918,364 +917,187 @@ const ZenPondEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 
       {!isMini && Array.from({ length: 15 }).map((_, i) => (
         <div 
-          key={`petal-${i}`}
-          className="absolute w-2 h-2 bg-white/40 rounded-full blur-[1px] animate-petal-fall"
+          key={`sparkle-${i}`}
+          className="absolute w-0.5 h-0.5 bg-white rounded-full animate-pulse opacity-20"
           style={{ 
-            left: `${Math.random() * 100}%`, 
-            top: '-20px', 
-            animationDelay: `${Math.random() * -15}s`,
-            animationDuration: `${10 + Math.random() * 10}s`,
-            '--tx': `${(Math.random() - 0.5) * 200}px`
-          } as any}
+              left: `${Math.random() * 100}%`, 
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 5}s`
+          }}
         />
       ))}
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes water-flow {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(50%); }
-        }
-        @keyframes moon-shimmer {
-          0%, 100% { transform: scale(1) opacity(0.4); }
-          50% { transform: scale(1.1) opacity(0.6); }
-        }
-        @keyframes pond-ripple {
-          0% { transform: scale(1); opacity: 0.8; }
-          100% { transform: scale(300); opacity: 0; }
-        }
-        @keyframes petal-fall {
-          0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
-          20% { opacity: 0.6; }
-          80% { opacity: 0.6; }
-          100% { transform: translateY(120vh) translateX(var(--tx)) rotate(720deg); opacity: 0; }
-        }
+        @keyframes water-flow { 0% { transform: translateX(0); } 100% { transform: translateX(50%); } }
+        @keyframes moon-shimmer { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.6; } }
+        @keyframes pond-ripple { 0% { transform: scale(0); opacity: 0.8; } 100% { transform: scale(100); opacity: 0; } }
       `}} />
     </div>
   );
 };
 
-export const BoardSurface: React.FC<{ themeId: string; isMini?: boolean; className?: string; }> = ({ themeId, isMini = false, className = "" }) => {
-  const theme = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
-  return (
-    <div className={`absolute inset-0 overflow-hidden ${theme.base} ${className}`}>
-      {theme.texture && <FeltTextureLayer />}
-      {theme.id === 'CYBERPUNK_NEON' && <SpaceEngine isMini={isMini} />}
-      {theme.zenPond && <ZenPondEngine isMini={isMini} />}
-      {theme.id === 'LOTUS_FOREST' && <LotusForestEngine isMini={isMini} />}
-      {theme.id === 'GOLDEN_EMPEROR' && <GoldenEmperorEngine isMini={isMini} />}
-      {theme.yuletide && <YuletideEngine isMini={isMini} />}
-      {theme.obsidianMadness && <MadnessEngine isMini={isMini} />}
-      {theme.lasVegas && <LasVegasEngine isMini={isMini} />}
-      {theme.shiba && <ShibaEngine isMini={isMini} />}
-      {theme.justAGirl && <JustAGirlEngine isMini={isMini} />}
-      {theme.id === 'HIGH_ROLLER' && <CastleOblivionEngine isMini={isMini} />}
-      
-      <div className={`absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${theme.colors} opacity-100 mix-blend-screen transition-all duration-1000 z-1`}></div>
-      <div className="absolute inset-0 pointer-events-none z-4" style={{ backgroundImage: `radial-gradient(circle at center, ${theme.spotlight || 'rgba(255,255,255,0.05)'} 0%, transparent 80%)` }}></div>
-    </div>
-  );
-};
+/* Component exports to fix "no exported member" errors */
 
-export const BoardPreview: React.FC<{ themeId: string; className?: string; active?: boolean; unlocked?: boolean; hideActiveMarker?: boolean; }> = ({ themeId, className = "", active, unlocked = true, hideActiveMarker = false }) => {
-  return (
-    <div className={`relative w-full aspect-[16/10] rounded-2xl overflow-hidden border transition-all duration-500 ${active ? 'border-yellow-500/50 ring-2 ring-yellow-500 ring-inset shadow-2xl' : 'border-white/10 group-hover:border-white/20'} ${className}`}>
-      <BoardSurface themeId={themeId} isMini />
-      {!unlocked && <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center"><div className="w-8 h-8 rounded-full bg-black/60 border border-white/10 flex items-center justify-center opacity-60"><span className="text-xs">🔒</span></div></div>}
-    </div>
-  );
-};
-
-export const UserHub: React.FC<{ initialTab?: HubTab } & any> = ({ onClose, profile, playerName, setPlayerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, remoteEmotes = [], initialTab = 'PROFILE' }) => {
-  const [activeTab, setActiveTab] = useState<HubTab>(initialTab);
-  const [isCatalogExpanded, setIsCatalogExpanded] = useState(false);
-  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
-  const [buying, setBuying] = useState<string | null>(null);
-  const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'AVATAR' } | null>(null);
-
-  useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
-  }, [initialTab]);
-
-  if (!profile) return null;
-
-  const currentLevel = calculateLevel(profile.xp);
-  const nextLevelXp = getXpForLevel(currentLevel + 1);
-  const curLevelXpFloor = getXpForLevel(currentLevel);
-  const progress = Math.min(100, Math.max(0, ((profile.xp - curLevelXpFloor) / (nextLevelXp - curLevelXpFloor)) * 100));
-
-  const isAvatarUnlocked = (emoji: string) => profile?.unlocked_avatars?.includes(emoji) || DEFAULT_AVATARS.includes(emoji);
-  const visibleAvatars = isCatalogExpanded ? [...DEFAULT_AVATARS, ...PREMIUM_AVATARS] : [...DEFAULT_AVATARS, ...PREMIUM_AVATARS].slice(0, 10);
-
-  const gamesLost = profile.games_played - profile.wins;
-  const avgCardsLeft = gamesLost > 0 ? (profile.total_cards_left_sum / gamesLost).toFixed(1) : '0.0';
-  const finishDist = profile.finish_dist || [0, 0, 0, 0];
-  const maxFinish = Math.max(...finishDist, 1);
-
-  const handlePurchaseAvatar = async (avatar: string) => {
-    if (!profile || buying) return;
-    const price = 250;
-    if (profile.coins < price) return;
-    setBuying(avatar);
-    try {
-      await buyItem(profile.id, price, avatar, 'AVATAR', !!isGuest);
-      audioService.playPurchase();
-      setAwardItem({
-        id: avatar,
-        name: getAvatarName(avatar, remoteEmotes),
-        type: 'AVATAR'
-      });
-      onRefreshProfile();
-      setPreviewAvatar(null);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setBuying(null);
-    }
-  };
-
-  if (activeTab === 'LEVEL_REWARDS') {
-    return <LevelRewards onClose={onClose} profile={profile} />;
-  }
-
-  return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
-      
-      {/* Avatar Preview Modal */}
-      {previewAvatar && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in zoom-in-95 duration-200" onClick={() => setPreviewAvatar(null)}>
-          <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-10 flex flex-col items-center text-center shadow-[0_0_150px_rgba(251,191,36,0.1)] relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setPreviewAvatar(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"><span className="text-xl font-black">✕</span></button>
-            <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-black/60 border border-yellow-500/20 flex items-center justify-center mb-8 overflow-hidden shadow-inner">
-               <VisualEmote trigger={previewAvatar} remoteEmotes={remoteEmotes} size="xl" />
-            </div>
-            <h3 className="text-white font-black uppercase tracking-widest text-lg mb-2">{getAvatarName(previewAvatar, remoteEmotes)}</h3>
-            <p className="text-gray-500 text-[10px] uppercase tracking-[0.4em] mb-10 italic">Elite Signature Series</p>
+/**
+ * BoardSurface renders the full animated background for a theme.
+ */
+export const BoardSurface: React.FC<{ themeId: BackgroundTheme; isMini?: boolean }> = ({ themeId, isMini }) => {
+    const config = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
+    return (
+        <div className={`absolute inset-0 ${config.base} overflow-hidden`}>
+            {config.texture && <FeltTextureLayer />}
+            {config.justAGirl && <JustAGirlEngine isMini={isMini} />}
+            {config.shiba && <ShibaEngine isMini={isMini} />}
+            {config.lasVegas && <LasVegasEngine isMini={isMini} />}
+            {config.highRoller && <CastleOblivionEngine isMini={isMini} />}
+            {config.zenPond && <ZenPondEngine isMini={isMini} />}
+            {config.obsidianMadness && <MadnessEngine isMini={isMini} />}
+            {config.lotusForest && <LotusForestEngine isMini={isMini} />}
+            {config.yuletide && <YuletideEngine isMini={isMini} />}
+            {config.prestige && <GoldenEmperorEngine isMini={isMini} />}
+            {config.id === 'CYBERPUNK_NEON' && <TokyoEngine isMini={isMini} />}
             
-            <div className="w-full">
-              {isAvatarUnlocked(previewAvatar) ? (
-                <button 
-                  onClick={() => { setPlayerAvatar(previewAvatar); setPreviewAvatar(null); }}
-                  className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] transition-all shadow-xl ${playerAvatar === previewAvatar ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 cursor-default' : 'bg-emerald-600 text-white hover:scale-105 active:scale-95'}`}
-                  disabled={playerAvatar === previewAvatar}
-                >
-                  {playerAvatar === previewAvatar ? 'EQUIPPED' : 'EQUIP'}
-                </button>
-              ) : (
-                <button 
-                  onClick={() => handlePurchaseAvatar(previewAvatar)}
-                  disabled={profile.coins < 250 || !!buying}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black font-black uppercase tracking-[0.25em] text-[11px] shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
-                >
-                  {buying === previewAvatar ? 'UNREELING...' : `UNLOCK | 💰 250`}
-                </button>
-              )}
-            </div>
-          </div>
+            <div className={`absolute inset-0 bg-gradient-to-br ${config.colors}`} />
+            
+            {config.spotlight && (
+                <div 
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full"
+                  style={{ background: `radial-gradient(circle at center, ${config.spotlight} 0%, transparent 70%)` }}
+                />
+            )}
         </div>
-      )}
-
-      {/* ASSET SECURED AWARD ANIMATION */}
-      {awardItem && (
-          <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500 overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="relative flex flex-col items-center text-center max-sm:px-4">
-                  <div className="absolute inset-0 bg-yellow-500/10 blur-[120px] animate-pulse"></div>
-                  
-                  <div className="relative mb-10 animate-award-pop">
-                      <div className="w-40 h-40 flex items-center justify-center">
-                        <VisualEmote trigger={awardItem.id} remoteEmotes={remoteEmotes} size="xl" />
-                      </div>
-                  </div>
-
-                  <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-yellow-200 to-yellow-500 uppercase tracking-tighter italic animate-award-text">ASSET SECURED</h2>
-                  <p className="text-[10px] font-black uppercase tracking-[0.6em] text-gray-500 mt-4 animate-award-text [animation-delay:0.2s]">{awardItem.name} • UNLOCKED</p>
-                  
-                  <button 
-                    onClick={() => setAwardItem(null)} 
-                    className="mt-12 px-12 py-4 rounded-full bg-white text-black font-black uppercase tracking-[0.3em] text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl animate-award-text [animation-delay:0.4s]"
-                  >
-                    DEPLOY ASSET
-                  </button>
-              </div>
-          </div>
-      )}
-
-      <div className="relative bg-[#050505] border border-white/10 w-full max-w-2xl max-h-[90vh] rounded-[2.5rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex flex-col gap-4">
-          <div className="flex justify-between items-center w-full">
-            <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-widest leading-none">PLAYER PROFILE</h2>
-            <button onClick={onClose} className="w-10 h-10 bg-red-600/10 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all group border border-white/5"><span className="text-lg font-black group-hover:rotate-90 transition-transform">✕</span></button>
-          </div>
-          
-          <div className="flex gap-2 p-1 bg-black/40 rounded-2xl border border-white/5 w-full">
-            <button 
-                onClick={() => setActiveTab('PROFILE')}
-                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'PROFILE' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white/60'}`}
-            >
-                Credentials
-            </button>
-            <button 
-                onClick={() => setActiveTab('STATS')}
-                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'STATS' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white/60'}`}
-            >
-                Arena Stats
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          {activeTab === 'PROFILE' ? (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex flex-col sm:flex-row gap-8 items-center">
-                    <div className="relative shrink-0">
-                      <div className="absolute inset-[-15px] bg-yellow-500/10 blur-[40px] rounded-full"></div>
-                      
-                      <div className="absolute -top-1 -right-1 z-30 bg-black border-2 border-yellow-500 text-yellow-500 px-2 py-0.5 rounded-lg shadow-2xl flex items-center gap-1 animate-in zoom-in duration-500 select-none">
-                         <span className="text-[10px] font-black tracking-tighter">LVL {currentLevel}</span>
-                      </div>
-
-                      <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center shadow-inner overflow-hidden cursor-pointer group" onClick={() => setPreviewAvatar(playerAvatar)}>
-                        <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" className="group-hover:scale-110 transition-transform duration-500" />
-                      </div>
-                    </div>
-                    <div className="flex-1 w-full space-y-3 sm:space-y-4">
-                        <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value.toUpperCase())} maxLength={12} className="w-full bg-black/40 border border-white/5 px-4 py-2 rounded-xl text-white font-black uppercase tracking-widest text-lg sm:text-xl focus:border-yellow-500/30 outline-none transition-all shadow-inner" />
-                        <div 
-                            onClick={() => setActiveTab('LEVEL_REWARDS')}
-                            className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2 cursor-pointer hover:bg-white/[0.05] transition-colors group/lvl"
-                        >
-                            <div className="flex justify-between items-end">
-                                <span className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em] group-hover/lvl:text-white transition-colors">Mastery {currentLevel}</span>
-                                <span className="text-[7px] font-black text-yellow-500/60 uppercase tracking-widest group-hover/lvl:text-yellow-500 transition-colors">{nextLevelXp - profile.xp} XP TO ASCEND</span>
-                            </div>
-                            <div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-                                <div className="h-full bg-gradient-to-r from-yellow-700 via-yellow-400 to-yellow-200 transition-all duration-1000" style={{ width: `${progress}%` }} />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-5 gap-2">
-                    {visibleAvatars.map(a => {
-                      const isEquipped = playerAvatar === a;
-                      const unlocked = isAvatarUnlocked(a);
-                      return (
-                        <button 
-                          key={a} 
-                          onClick={() => setPreviewAvatar(a)} 
-                          className={`aspect-square rounded-xl flex items-center justify-center transition-all relative overflow-hidden group ${isEquipped ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : unlocked ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale hover:opacity-40'}`}
-                        >
-                          <VisualEmote trigger={a} remoteEmotes={remoteEmotes} size="md" />
-                          
-                          {isEquipped && (
-                             <div className="absolute top-0.5 right-0.5 bg-emerald-500 text-white p-0.5 rounded-full shadow-md scale-75 border border-white/20 z-10">
-                               <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                             </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                </div>
-
-                <div className="flex flex-col items-center pt-1"><button onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} className="group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 transition-all duration-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}><polyline points="6 9 12 15 18 9"></polyline></svg></button><span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1">{isCatalogExpanded ? "MINIMIZE" : "EXPAND"}</span></div>
-            </div>
-          ) : (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {[
-                        { label: 'Battles', value: profile.games_played, icon: '⚔️' },
-                        { label: 'Elite Chops', value: profile.total_chops, icon: '💣' },
-                        { label: 'Win Streak', value: profile.current_streak, icon: '🔥' },
-                        { label: 'Max Streak', value: profile.longest_streak, icon: '👑' }
-                    ].map(stat => (
-                        <div key={stat.label} className="bg-white/[0.02] border border-white/5 p-4 rounded-3xl flex flex-col items-center gap-1 group hover:bg-white/[0.04] transition-all">
-                            <span className="text-xl mb-1">{stat.icon}</span>
-                            <span className="text-xl font-black text-white">{stat.value}</span>
-                            <span className="text-[7px] font-black uppercase tracking-widest text-white/30">{stat.label}</span>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] space-y-4">
-                        <div className="flex justify-between items-center">
-                            <span className="text-[8px] font-black uppercase tracking-widest text-yellow-500">Defeat Severity</span>
-                            <span className="text-xs font-black text-white">{avgCardsLeft}</span>
-                        </div>
-                        <p className="text-[9px] text-white/40 leading-relaxed uppercase tracking-widest">Typical hand size when failing to extract from arena.</p>
-                        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
-                            <div className="h-full bg-rose-500/60" style={{ width: `${Math.min(100, parseFloat(avgCardsLeft) * 7.7)}%` }}></div>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] space-y-4">
-                        <div className="flex justify-between items-center">
-                            <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Victory Efficiency</span>
-                            <span className="text-xs font-black text-white">
-                                {profile.games_played > 0 ? ((profile.wins / profile.games_played) * 100).toFixed(0) : 0}%
-                            </span>
-                        </div>
-                        <p className="text-[9px] text-white/40 leading-relaxed uppercase tracking-widest">Protocol success rate across all historical deployments.</p>
-                        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500/60" style={{ width: `${(profile.wins / Math.max(1, profile.games_played)) * 100}%` }}></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    <SectionHeaderLong>Placement Distribution</SectionHeaderLong>
-                    <div className="space-y-3">
-                        {['1ST', '2ND', '3RD', '4TH'].map((label, i) => {
-                            const val = finishDist[i];
-                            const percent = (val / maxFinish) * 100;
-                            const colorClass = i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-300' : i === 2 ? 'bg-orange-400' : 'bg-red-500';
-                            return (
-                                <div key={label} className="group flex items-center gap-4">
-                                    <span className="text-[8px] font-black text-white/40 w-6">{label}</span>
-                                    <div className="flex-1 h-3 bg-black/40 rounded-full overflow-hidden border border-white/5">
-                                        <div 
-                                            className={`h-full ${colorClass} transition-all duration-1000 ease-out flex items-center justify-end px-2`}
-                                            style={{ width: `${percent}%` }}
-                                        >
-                                            {val > 0 && <span className="text-[7px] font-black text-black/60">{val}</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-          )}
-
-          <div className="pt-8 border-t border-white/5">
-          </div>
-        </div>
-      </div>
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes awardPop {
-            0% { transform: scale(0.5); opacity: 0; filter: blur(20px); }
-            60% { transform: scale(1.1); opacity: 1; filter: blur(0); }
-            100% { transform: scale(1); }
-        }
-        @keyframes awardText {
-            0% { transform: translateY(20px); opacity: 0; }
-            100% { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes awardParticle {
-            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0) rotate(var(--rot)); opacity: 0; }
-        }
-        .animate-award-pop { animation: awardPop 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
-        .animate-award-text { opacity: 0; animation: awardText 0.6s ease-out forwards; }
-        .animate-award-particle { animation: awardParticle 1.2s ease-out forwards; }
-      `}} />
-    </div>
-  );
+    );
 };
 
-const SectionHeaderLong: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <div className="flex items-center gap-3 mb-4">
-        <span className="text-[9px] font-black uppercase tracking-[0.4em] text-yellow-500/70 italic whitespace-nowrap">{children}</span>
-        <div className="h-[1px] flex-1 bg-gradient-to-r from-yellow-500/30 to-transparent"></div>
-    </div>
-);
+/**
+ * BoardPreview renders a compact preview of a theme for selectors.
+ */
+export const BoardPreview: React.FC<{ themeId: string; unlocked?: boolean; active?: boolean; className?: string; hideActiveMarker?: boolean }> = ({ themeId, unlocked, active, className = '', hideActiveMarker }) => {
+    return (
+        <div className={`relative aspect-[16/10] w-full rounded-2xl overflow-hidden border-2 transition-all duration-300 ${active ? 'border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.4)]' : 'border-white/10'} ${className}`}>
+            <BoardSurface themeId={themeId as BackgroundTheme} isMini />
+            {!unlocked && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center">
+                    <span className="text-xl">🔒</span>
+                </div>
+            )}
+            {active && !hideActiveMarker && (
+                <div className="absolute top-2 right-2 bg-yellow-500 text-black text-[8px] font-black px-2 py-0.5 rounded-full shadow-lg">ACTIVE</div>
+            )}
+        </div>
+    );
+};
+
+interface UserHubProps {
+  profile: UserProfile | null;
+  onClose: () => void;
+  playerName: string;
+  setPlayerName: (name: string) => void;
+  playerAvatar: string;
+  setPlayerAvatar: (avatar: string) => void;
+  onSignOut: () => void;
+  onRefreshProfile: () => void;
+  isGuest?: boolean;
+  initialTab?: HubTab;
+}
+
+/**
+ * UserHub is the main modal interface for user stats and customization.
+ */
+export const UserHub: React.FC<UserHubProps> = ({ 
+    profile, onClose, playerName, playerAvatar, onSignOut, initialTab = 'PROFILE'
+}) => {
+    const [activeTab, setActiveTab] = useState<HubTab>(initialTab);
+
+    if (!profile) return null;
+
+    const currentLevel = calculateLevel(profile.xp);
+    
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
+            <div className="relative bg-[#050505] border border-white/10 w-full max-w-4xl max-h-[90vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
+                {/* Hub Navigation */}
+                <div className="flex border-b border-white/5 bg-white/[0.02]">
+                    {(['PROFILE', 'CUSTOMIZE', 'STATS', 'LEVEL_REWARDS'] as HubTab[]).map(tab => (
+                        <button 
+                            key={tab} 
+                            onClick={() => setActiveTab(tab)}
+                            className={`flex-1 py-5 text-[10px] font-black uppercase tracking-[0.3em] transition-all border-b-2 ${activeTab === tab ? 'text-yellow-500 border-yellow-500 bg-white/5' : 'text-gray-500 border-transparent hover:text-white'}`}
+                        >
+                            {tab.replace('_', ' ')}
+                        </button>
+                    ))}
+                    <button onClick={onClose} className="px-8 text-gray-500 hover:text-white transition-colors"><span className="text-xl">✕</span></button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                    {activeTab === 'PROFILE' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="flex flex-col items-center gap-6 py-4">
+                                <div className="relative w-32 h-32 rounded-full bg-black border-2 border-yellow-500/30 flex items-center justify-center overflow-hidden shadow-2xl">
+                                    <VisualEmote trigger={playerAvatar} size="xl" />
+                                </div>
+                                <div className="text-center">
+                                    <h3 className="text-3xl font-black text-white uppercase italic tracking-tighter">{playerName}</h3>
+                                    <p className="text-[10px] font-black text-yellow-500/60 uppercase tracking-[0.6em] mt-1">Mastery Rank {currentLevel}</p>
+                                </div>
+                            </div>
+                            
+                            {/* Dashboard Stats */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                    <span className="block text-[8px] font-black text-white/30 uppercase tracking-widest mb-1">Wins</span>
+                                    <span className="text-2xl font-black text-white">{profile.wins}</span>
+                                </div>
+                                <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                    <span className="block text-[8px] font-black text-white/30 uppercase tracking-widest mb-1">Played</span>
+                                    <span className="text-2xl font-black text-white">{profile.games_played}</span>
+                                </div>
+                                <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                    <span className="block text-[8px] font-black text-white/30 uppercase tracking-widest mb-1">Win Rate</span>
+                                    <span className="text-2xl font-black text-white">{profile.games_played ? Math.round((profile.wins / profile.games_played) * 100) : 0}%</span>
+                                </div>
+                                <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                    <span className="block text-[8px] font-black text-white/30 uppercase tracking-widest mb-1">Chops</span>
+                                    <span className="text-2xl font-black text-yellow-500">{profile.total_chops || 0}</span>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={onSignOut}
+                                className="w-full py-4 bg-red-600/10 border border-red-500/20 rounded-2xl text-red-500 text-[10px] font-black uppercase tracking-[0.4em] hover:bg-red-600 hover:text-white transition-all"
+                            >
+                                Terminate Session
+                            </button>
+                        </div>
+                    )}
+                    
+                    {activeTab === 'LEVEL_REWARDS' && <LevelRewards profile={profile} onClose={onClose} />}
+
+                    {activeTab === 'CUSTOMIZE' && (
+                        <div className="flex flex-col items-center justify-center py-20 opacity-20 select-none animate-in fade-in duration-500">
+                             <div className="w-24 h-24 rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-6">
+                                <span className="text-4xl italic font-serif">!</span>
+                             </div>
+                             <p className="text-[10px] font-black uppercase tracking-[0.5em] text-center max-w-xs leading-relaxed">Customize your presence in the Store or Game Settings.</p>
+                        </div>
+                    )}
+
+                    {activeTab === 'STATS' && (
+                        <div className="space-y-6 animate-in fade-in duration-300">
+                            <div className="bg-white/5 p-8 rounded-3xl border border-white/10">
+                                <h4 className="text-xs font-black text-white/40 uppercase tracking-[0.4em] mb-6">Match Statistics</h4>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center"><span className="text-[10px] text-white/60 uppercase">Longest Streak</span><span className="text-lg font-black text-white">{profile.longest_streak || 0}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-[10px] text-white/60 uppercase">Current Streak</span><span className="text-lg font-black text-emerald-400">{profile.current_streak || 0}</span></div>
+                                    <div className="h-[1px] bg-white/5 w-full my-4"></div>
+                                    <div className="flex justify-between items-center"><span className="text-[10px] text-white/60 uppercase">Total XP</span><span className="text-lg font-black text-yellow-500">{profile.xp.toLocaleString()}</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};

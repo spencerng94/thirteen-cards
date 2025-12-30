@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
@@ -24,6 +23,7 @@ interface GameSettingsProps {
   playAnimationsEnabled: boolean;
   setPlayAnimationsEnabled: (val: boolean) => void;
   unlockedSleeves?: string[];
+  unlockedBoards?: string[];
 }
 
 const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -58,12 +58,13 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   setSleeveEffectsEnabled,
   playAnimationsEnabled,
   setPlayAnimationsEnabled,
-  unlockedSleeves = []
+  unlockedSleeves = [],
+  unlockedBoards = []
 }) => {
   const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'WITS_END', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'SOVEREIGN_SPADE', 'SOVEREIGN_CLUB', 'SOVEREIGN_DIAMOND', 'SOVEREIGN_HEART', 'ROYAL_CROSS'];
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300" onClick={onClose}>
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={onClose}>
       
       <div 
         className="relative bg-[#050505] border border-white/10 w-full max-lg max-h-[90vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" 
@@ -78,7 +79,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                <p className="text-[7px] font-black uppercase tracking-[0.4em] text-gray-500">Battlefield Configuration</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-10 h-10 bg-white/[0.03] hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all active:scale-90 group border border-white/5"><span className="text-lg font-black group-hover:rotate-90 transition-transform">✕</span></button>
+          <button onClick={onClose} className="w-10 h-10 bg-white/[0.03] hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all active:scale-90 group border border-white/5"><span className="text-lg font-black group-hover:rotate-90 transition-transform duration-200">✕</span></button>
         </div>
 
         {/* Content */}
@@ -93,9 +94,9 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
               </div>
               <button 
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${soundEnabled ? 'bg-emerald-600 shadow-[0_0_100px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
+                className={`w-12 h-6 rounded-full relative transition-all duration-200 ${soundEnabled ? 'bg-emerald-600 shadow-[0_0_100px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
             
@@ -106,9 +107,9 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
               </div>
               <button 
                 onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)}
-                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${sleeveEffectsEnabled ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
+                className={`w-12 h-6 rounded-full relative transition-all duration-200 ${sleeveEffectsEnabled ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
 
@@ -119,9 +120,9 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
               </div>
               <button 
                 onClick={() => setPlayAnimationsEnabled(!playAnimationsEnabled)}
-                className={`w-12 h-6 rounded-full relative transition-all duration-500 ${playAnimationsEnabled ? 'bg-emerald-600 shadow-[0_0_100px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
+                className={`w-12 h-6 rounded-full relative transition-all duration-200 ${playAnimationsEnabled ? 'bg-emerald-600 shadow-[0_0_100px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${playAnimationsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${playAnimationsEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
 
@@ -133,9 +134,9 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                 </div>
                 <button 
                   onClick={() => setSpQuickFinish(!spQuickFinish)}
-                  className={`w-12 h-6 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
+                  className={`w-12 h-6 rounded-full relative transition-all duration-200 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_100px_rgba(234,179,8,0.3)]' : 'bg-white/10'}`}
                 >
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-500 ${spQuickFinish ? 'translate-x-7' : 'translate-x-1'}`} />
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${spQuickFinish ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
             )}
@@ -156,7 +157,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                     <button 
                       key={d} 
                       onClick={() => onChangeDifficulty(d)} 
-                      className={`py-3 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${active ? activeStyle : 'text-white/30 hover:text-white/60 hover:bg-white/5'}`}
+                      className={`py-3 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all duration-150 ${active ? activeStyle : 'text-white/30 hover:text-white/60 hover:bg-white/5'}`}
                     >
                       {d}
                     </button>
@@ -172,13 +173,16 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
             <div className="grid grid-cols-2 gap-3 px-1">
               {PREMIUM_BOARDS.map(b => {
                 const active = currentTheme === b.id;
+                const isUnlocked = unlockedBoards.includes(b.id) || b.price === 0;
                 return (
                   <div 
                     key={b.id} 
-                    onClick={() => onChangeTheme(b.id as BackgroundTheme)}
-                    className="flex flex-col items-center gap-2 cursor-pointer group"
+                    onClick={() => {
+                        if (isUnlocked) onChangeTheme(b.id as BackgroundTheme);
+                    }}
+                    className={`flex flex-col items-center gap-2 cursor-pointer group transition-all duration-200 ${isUnlocked ? 'opacity-100' : 'opacity-50 grayscale hover:opacity-80'}`}
                   >
-                    <BoardPreview themeId={b.id} active={active} />
+                    <BoardPreview themeId={b.id} active={active} unlocked={isUnlocked} />
                     <p className={`text-[8px] font-black uppercase tracking-widest text-center mt-1 ${active ? 'text-yellow-500' : 'text-white/40'}`}>{b.name}</p>
                   </div>
                 );
@@ -203,17 +207,17 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                     onClick={() => {
                         if (isUnlocked) onChangeCoverStyle(style);
                     }}
-                    className={`relative flex flex-col items-center gap-1 cursor-pointer transition-all ${active ? 'scale-110' : isUnlocked ? 'opacity-100' : 'opacity-40 grayscale-[0.5] hover:opacity-100 hover:grayscale-0'}`}
+                    className={`relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 ${active ? 'scale-110' : isUnlocked ? 'opacity-100' : 'opacity-40 grayscale-[0.5] hover:opacity-100 hover:grayscale-0'}`}
                   >
                     <div className="relative group/card-badge">
                       <Card faceDown activeTurn={true} coverStyle={style} small className={`!w-12 !h-18 rounded-lg shadow-xl ${active ? 'ring-2 ring-yellow-500' : 'border-white/5'}`} />
                       {isPrestige && !isSuperPrestige && (
-                        <div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-badge:scale-110 transition-transform">
+                        <div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-badge:scale-110 transition-transform duration-200">
                           <span className="text-yellow-500 text-[8px] font-black">♠</span>
                         </div>
                       )}
                       {isSuperPrestige && (
-                        <div className="absolute -top-1.5 -left-1.5 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-5 h-5 flex items-center justify-center border border-white shadow-lg z-20 group-hover/card-badge:scale-110 transition-transform animate-pulse">
+                        <div className="absolute -top-1.5 -left-1.5 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-5 h-5 flex items-center justify-center border border-white shadow-lg z-20 group-hover/card-badge:scale-110 transition-transform duration-200 animate-pulse">
                           <span className="text-white text-[10px] font-black">♥</span>
                         </div>
                       )}
@@ -231,7 +235,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
         <div className="p-8 bg-black/40 border-t border-white/5 flex flex-col gap-4">
           <button 
             onClick={onClose}
-            className="w-full group relative overflow-hidden py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl"
+            className="w-full group relative overflow-hidden py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl active:scale-95 transition-all duration-150"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 group-hover:scale-110 transition-transform duration-500"></div>
             <span className="relative z-10 text-white">SAVE & RESUME ARENA</span>
@@ -239,7 +243,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
           
           <button 
             onClick={onExitGame}
-            className="w-full py-3 bg-white/[0.02] hover:bg-red-600/10 border border-white/5 border-red-500/20 rounded-2xl text-gray-500 hover:text-red-400 text-[9px] font-black uppercase tracking-[0.4em] transition-all"
+            className="w-full py-3 bg-white/[0.02] hover:bg-red-600/10 border border-white/5 border-red-500/20 rounded-2xl text-gray-500 hover:text-red-400 text-[9px] font-black uppercase tracking-[0.4em] transition-all duration-150 active:scale-95"
           >
             WITHDRAW TO HQ
           </button>

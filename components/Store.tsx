@@ -74,7 +74,7 @@ export const CurrencyIcon: React.FC<{ type: 'GOLD' | 'GEMS'; size?: 'sm' | 'md' 
         className="absolute inset-[-30%] rounded-full blur-md opacity-60"
         style={{ background: `radial-gradient(circle, white 0%, ${glowColor} 70%, transparent 100%)` }}
       />
-      <div className="w-full h-full relative z-10 transition-transform duration-500 hover:scale-125 hover:rotate-12">
+      <div className="w-full h-full relative z-10 transition-transform duration-300 hover:scale-125 hover:rotate-12">
         {type === 'GOLD' ? <CoinIconSVG /> : <GemIconSVG />}
       </div>
     </div>
@@ -92,7 +92,7 @@ const GridIcon4 = () => (
 );
 
 const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => void }> = ({ themeId, onClose }) => (
-  <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={onClose}>
+  <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-200 overflow-hidden" onClick={onClose}>
      <BoardSurface themeId={themeId} isMini />
      <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-8 flex justify-between items-start">
@@ -100,8 +100,8 @@ const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => voi
               <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic truncate">ARENA PREVIEW</h1>
               <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2 truncate">Surface Profile Loaded</p>
             </div>
-            <button onClick={onClose} className="shrink-0 group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">
-              <span className="group-hover:-translate-x-1 transition-transform">RETURN ←</span>
+            <button onClick={onClose} className="shrink-0 group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all duration-150 active:scale-95">
+              <span className="group-hover:-translate-x-1 transition-transform duration-150">RETURN ←</span>
             </button>
         </div>
      </div>
@@ -111,7 +111,7 @@ const DummyTablePreview: React.FC<{ themeId: BackgroundTheme; onClose: () => voi
 export const SleeveArenaPreview: React.FC<{ sleeveStyle: CardCoverStyle; themeId: BackgroundTheme; sleeveEffectsEnabled: boolean; onClose: () => void }> = ({ sleeveStyle, themeId, sleeveEffectsEnabled, onClose }) => {
   const cards: CardType[] = [{ id: 'p1', rank: 15, suit: 3 }, { id: 'p2', rank: 14, suit: 0 }, { id: 'p3', rank: 3, suit: 0 }];
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center animate-in fade-in duration-200 overflow-hidden" onClick={onClose}>
       <BoardSurface themeId={themeId} isMini />
       <div className="relative z-10 w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-8 flex justify-between items-start">
@@ -119,8 +119,8 @@ export const SleeveArenaPreview: React.FC<{ sleeveStyle: CardCoverStyle; themeId
               <h1 className="text-4xl font-black text-white tracking-[0.2em] drop-shadow-2xl uppercase italic truncate">ARENA PREVIEW</h1>
               <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.6em] mt-2 truncate">Visual Profile: {sleeveStyle.replace(/_/g, ' ')}</p>
             </div>
-            <button onClick={onClose} className="shrink-0 group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95">
-              <span className="group-hover:-translate-x-1 transition-transform">RETURN ←</span>
+            <button onClick={onClose} className="shrink-0 group flex items-center gap-3 px-8 py-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white font-black uppercase tracking-widest hover:bg-white/10 transition-all duration-150 active:scale-95">
+              <span className="group-hover:-translate-x-1 transition-transform duration-150">RETURN ←</span>
             </button>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-12">
@@ -202,15 +202,15 @@ const TIER_INFO_DATA = [
 ];
 
 const TierSystemModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
-  <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/95 backdrop-blur-3xl p-4 animate-in fade-in duration-300" onClick={onClose}>
+  <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/95 backdrop-blur-3xl p-4 animate-in fade-in duration-200" onClick={onClose}>
     <div className="bg-[#080808] border border-white/10 w-full max-w-2xl max-h-[85vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
       <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
         <h2 className="text-2xl font-black text-white uppercase italic tracking-widest font-serif leading-none">SLEEVE TIERING</h2>
-        <button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all active:scale-90"><span className="text-xl">✕</span></button>
+        <button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all duration-150 active:scale-90"><span className="text-xl">✕</span></button>
       </div>
       <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
         {TIER_INFO_DATA.map(tier => (
-          <div key={tier.id} className={`p-6 rounded-[2rem] border ${TIER_COLORS[tier.id]} space-y-2`}>
+          <div key={tier.id} className={`p-6 rounded-[2rem] border transition-all duration-200 ${TIER_COLORS[tier.id]} space-y-2`}>
             <h3 className="text-lg font-black uppercase tracking-widest">{tier.name}</h3>
             <p className="text-[10px] text-white/60 uppercase">{tier.vibe}</p>
           </div>
@@ -297,7 +297,7 @@ export const Store: React.FC<{
     const cardPadding = density === 4 ? 'p-2 sm:p-3' : density === 2 ? 'p-4 sm:p-6' : 'p-8 sm:p-10';
 
     return (
-      <div key={id} onClick={() => { if (unlocked) { if (isAvatar) setPreviewAvatar(item); else if (isBoard) setPreviewThemeId(item.id); else setPreviewSleeveStyle(item.style); } else { handlePurchaseAttempt(item, isAvatar, isBoard); } }} className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl cursor-pointer`}>
+      <div key={id} onClick={() => { if (unlocked) { if (isAvatar) setPreviewAvatar(item); else if (isBoard) setPreviewThemeId(item.id); else setPreviewSleeveStyle(item.style); } else { handlePurchaseAttempt(item, isAvatar, isBoard); } }} className={`relative group bg-white/[0.02] border border-white/5 rounded-[2rem] ${cardPadding} flex flex-col items-center gap-1 sm:gap-3 transition-all duration-150 hover:bg-white/[0.04] hover:border-yellow-500/20 shadow-xl cursor-pointer`}>
         {!isAvatar && !isBoard && tier !== 'COMMON' && (
           <div className="absolute top-2.5 left-2.5 z-20">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black border shadow-[0_0_10px_rgba(0,0,0,0.5)] ${TIER_COLORS[tier]}`}>{TIER_SUIT_MAP[tier]}</div>
@@ -306,18 +306,18 @@ export const Store: React.FC<{
         <div className="absolute top-2.5 right-2.5 z-20">
           {unlocked && isEquipped && <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[7px] font-bold shadow-[0_0_10px_rgba(16,185,129,0.5)]">✓</div>}
         </div>
-        <div className={`py-1 sm:py-3 flex-1 flex flex-col items-center justify-center w-full transition-transform duration-300`}>
+        <div className={`py-1 sm:py-3 flex-1 flex flex-col items-center justify-center w-full transition-transform duration-150`}>
           {isAvatar ? (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 flex items-center justify-center group-hover:scale-110 transition-transform duration-500"><VisualEmote trigger={item} remoteEmotes={remoteEmotes} size="lg" /></div>
+            <div className="w-20 h-20 sm:w-28 sm:h-28 flex items-center justify-center group-hover:scale-105 transition-transform duration-150"><VisualEmote trigger={item} remoteEmotes={remoteEmotes} size="lg" /></div>
           ) : isBoard ? (
             <div className="w-full"><BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker={true} /></div>
           ) : (
-            <div className="relative group/card"><Card faceDown coverStyle={item.style} activeTurn={true} className={`${density === 4 ? '!w-16 !h-24' : '!w-24 !h-36'} shadow-2xl group-hover:scale-110 transition-transform`} /></div>
+            <div className="relative group/card"><Card faceDown coverStyle={item.style} activeTurn={true} className={`${density === 4 ? '!w-16 !h-24' : '!w-24 !h-36'} shadow-2xl group-hover:scale-105 transition-transform duration-150`} /></div>
           )}
         </div>
         <span className={`${density === 4 ? 'text-[7px]' : 'text-[9px] sm:text-[10px]'} font-black uppercase text-center tracking-widest text-white/50 truncate w-full mb-1`}>{isAvatar ? getAvatarName(item, remoteEmotes) : item.name}</span>
         <div className="w-full mt-auto">
-          <button onClick={(e) => { e.stopPropagation(); if (unlocked) { if (isAvatar) onEquipAvatar(item); else if (isBoard) onEquipBoard(item.id); else onEquipSleeve(item.style); } else { handlePurchaseAttempt(item, isAvatar, isBoard); } }} disabled={isEquipped || (!unlocked && !affordable && price !== -1) || buying === id} className={`w-full py-2 rounded-xl font-black uppercase tracking-[0.15em] text-[8px] sm:text-[8.5px] transition-all ${isEquipped ? 'bg-emerald-600 text-white shadow-lg' : unlocked ? 'bg-white/5 text-white/80 hover:bg-white/10' : price === -1 ? 'bg-white/[0.05] text-yellow-500 border border-yellow-500/20 cursor-default' : affordable ? 'bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black shadow-lg hover:scale-105 active:scale-95' : 'bg-white/[0.03] text-white/10 border border-white/5 cursor-not-allowed grayscale'}`}>
+          <button onClick={(e) => { e.stopPropagation(); if (unlocked) { if (isAvatar) onEquipAvatar(item); else if (isBoard) onEquipBoard(item.id); else onEquipSleeve(item.style); } else { handlePurchaseAttempt(item, isAvatar, isBoard); } }} disabled={isEquipped || (!unlocked && !affordable && price !== -1) || buying === id} className={`w-full py-2 rounded-xl font-black uppercase tracking-[0.15em] text-[8px] sm:text-[8.5px] transition-all duration-150 ${isEquipped ? 'bg-emerald-600 text-white shadow-lg' : unlocked ? 'bg-white/5 text-white/80 hover:bg-white/10' : price === -1 ? 'bg-white/[0.05] text-yellow-500 border border-yellow-500/20 cursor-default' : affordable ? 'bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black shadow-lg hover:scale-105 active:scale-95' : 'bg-white/[0.03] text-white/10 border border-white/5 cursor-not-allowed grayscale'}`}>
             {buying === id ? '...' : isEquipped ? 'Active' : unlocked ? 'Equip' : price === -1 ? 'LOCKED' : <div className="flex items-center justify-center gap-1"><CurrencyIcon type={currency as any} size="sm" /><span>{price.toLocaleString()}</span></div>}
           </button>
         </div>
@@ -328,14 +328,14 @@ export const Store: React.FC<{
   const gridClass = density === 4 ? 'grid-cols-3' : density === 1 ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4';
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-200" onClick={onClose}>
       {showTierInfo && <TierSystemModal onClose={() => setShowTierInfo(false)} />}
       {previewThemeId && <DummyTablePreview themeId={previewThemeId} onClose={() => setPreviewThemeId(null)} />}
       {previewSleeveStyle && <SleeveArenaPreview sleeveStyle={previewSleeveStyle} themeId={currentTheme} sleeveEffectsEnabled={profile?.sleeve_effects_enabled !== false} onClose={() => setPreviewSleeveStyle(null)} />}
       {previewAvatar && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in zoom-in-95 duration-200" onClick={() => setPreviewAvatar(null)}>
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in zoom-in-95 duration-150" onClick={() => setPreviewAvatar(null)}>
           <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-10 flex flex-col items-center text-center shadow-[0_0_150px_rgba(251,191,36,0.1)] relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setPreviewAvatar(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"><span className="text-xl font-black">✕</span></button>
+            <button onClick={() => setPreviewAvatar(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors duration-150"><span className="text-xl font-black">✕</span></button>
             <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-black/60 border border-yellow-500/20 flex items-center justify-center mb-8 overflow-hidden shadow-inner">
                <VisualEmote trigger={previewAvatar} remoteEmotes={remoteEmotes} size="xl" />
             </div>
@@ -343,16 +343,16 @@ export const Store: React.FC<{
             <p className="text-gray-500 text-[10px] uppercase tracking-[0.4em] mb-10 italic">Elite Signature Series</p>
             <div className="w-full">
               {isAvatarUnlocked(previewAvatar) ? (
-                <button onClick={() => { onEquipAvatar(previewAvatar); setPreviewAvatar(null); }} className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] transition-all shadow-xl ${playerAvatar === previewAvatar ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 cursor-default' : 'bg-emerald-600 text-white hover:scale-105 active:scale-95'}`} disabled={playerAvatar === previewAvatar}>{playerAvatar === previewAvatar ? 'EQUIPPED' : 'EQUIP'}</button>
+                <button onClick={() => { onEquipAvatar(previewAvatar); setPreviewAvatar(null); }} className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] transition-all duration-150 shadow-xl ${playerAvatar === previewAvatar ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 cursor-default' : 'bg-emerald-600 text-white hover:scale-105 active:scale-95'}`} disabled={playerAvatar === previewAvatar}>{playerAvatar === previewAvatar ? 'EQUIPPED' : 'EQUIP'}</button>
               ) : (
-                <button onClick={() => handlePurchaseAttempt(previewAvatar, true)} disabled={profile.coins < 250 || !!buying} className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black font-black uppercase tracking-[0.25em] text-[11px] shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale">{buying === previewAvatar ? 'UNREELING...' : `UNLOCK | 💰 250`}</button>
+                <button onClick={() => handlePurchaseAttempt(previewAvatar, true)} disabled={profile.coins < 250 || !!buying} className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-600 text-black font-black uppercase tracking-[0.25em] text-[11px] shadow-lg hover:scale-105 active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:grayscale">{buying === previewAvatar ? 'UNREELING...' : `UNLOCK | 💰 250`}</button>
               )}
             </div>
           </div>
         </div>
       )}
       {pendingPurchase && (
-          <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
               <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xs rounded-[3rem] p-8 pt-20 flex flex-col items-center text-center shadow-[0_0_100px_rgba(234,179,8,0.15)] relative">
                   <div className="absolute -top-24 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center">
                       <div className="absolute inset-[-40px] bg-yellow-500/10 blur-[60px] rounded-full animate-pulse"></div>
@@ -362,16 +362,11 @@ export const Store: React.FC<{
                   <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-8 px-4 leading-relaxed flex items-center justify-center gap-1 flex-wrap">Unlock <span className="text-white font-bold">{pendingPurchase.name}</span> for <span className="text-white font-bold">{pendingPurchase.price}</span> <CurrencyIcon type={pendingPurchase.currency} size="sm" /></p>
                   <div className="flex flex-col gap-3 w-full">
                       <div className="grid grid-cols-2 gap-3 w-full">
-                          <button onClick={() => setPendingPurchase(null)} className="py-3.5 rounded-xl bg-white/5 border border-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all active:scale-95">Cancel</button>
-                          <button onClick={executePurchase} disabled={!!buying || (pendingPurchase.currency === 'GOLD' ? (profile?.coins || 0) < (pendingPurchase.price as number) : pendingPurchase.currency === 'GEMS' ? (profile?.gems || 0) < (pendingPurchase.price as number) : false)} className="py-3.5 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-700 text-black text-[10px] font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(234,179,8,0.2)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale">{buying ? '...' : 'Confirm'}</button>
+                          <button onClick={() => setPendingPurchase(null)} className="py-3.5 rounded-xl bg-white/5 border border-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all duration-150 active:scale-95">Cancel</button>
+                          <button onClick={executePurchase} disabled={!!buying || (pendingPurchase.currency === 'GOLD' ? (profile?.coins || 0) < (pendingPurchase.price as number) : pendingPurchase.currency === 'GEMS' ? (profile?.gems || 0) < (pendingPurchase.price as number) : false)} className="py-3.5 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-700 text-black text-[10px] font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(234,179,8,0.2)] hover:scale-105 active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:grayscale">{buying ? '...' : 'Confirm'}</button>
                       </div>
                   </div>
               </div>
-          </div>
-      )}
-      {awardItem && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500 overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="relative flex flex-col items-center text-center max-sm:px-4"><h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-yellow-200 to-yellow-500 uppercase tracking-tighter italic animate-award-text">ASSET SECURED</h2><p className="text-[10px] font-black uppercase tracking-[0.6em] text-gray-500 mt-4 animate-award-text">{(awardItem as any).name} • UNLOCKED</p><button onClick={() => setAwardItem(null)} className="mt-12 px-12 py-4 rounded-full bg-white text-black font-black uppercase tracking-[0.3em] text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl animate-award-text">DEPLOY ASSET</button></div>
           </div>
       )}
       <div className="relative bg-[#050505] border border-white/10 w-full max-w-5xl max-h-[95vh] sm:max-h-[90vh] rounded-[2.5rem] sm:rounded-[3.5rem] overflow-hidden shadow-[0_0_150px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -379,21 +374,21 @@ export const Store: React.FC<{
             <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 flex items-center gap-2 sm:gap-2.5 shadow-2xl cursor-default"><CurrencyIcon type="GOLD" size="sm" /><span className="text-[11px] sm:text-[13px] font-black text-white tracking-tighter font-mono">{profile?.coins.toLocaleString()}</span></div>
             <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 flex items-center gap-2 sm:gap-2.5 shadow-2xl cursor-default"><CurrencyIcon type="GEMS" size="sm" /><span className="text-[11px] sm:text-[13px] font-black text-white/90 tracking-tighter font-mono">{(profile?.gems || 0).toLocaleString()}</span></div>
         </div>
-        <button onClick={onClose} className="absolute top-4 sm:top-6 right-4 sm:right-6 z-50 w-7 h-7 sm:w-8 sm:h-8 bg-white/[0.03] hover:bg-red-600 border border-white/10 text-white rounded-lg flex items-center justify-center transition-all group shadow-2xl"><span className="text-xs sm:text-sm font-black group-hover:rotate-90 transition-transform">✕</span></button>
+        <button onClick={onClose} className="absolute top-4 sm:top-6 right-4 sm:right-6 z-50 w-7 h-7 sm:w-8 sm:h-8 bg-white/[0.03] hover:bg-red-600 border border-white/10 text-white rounded-lg flex items-center justify-center transition-all duration-150 group shadow-2xl"><span className="text-xs sm:text-sm font-black group-hover:rotate-90 transition-transform duration-200">✕</span></button>
         <div className="px-4 sm:px-8 pb-1 flex flex-col items-center justify-center mt-20 sm:mt-12"><h2 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase tracking-tighter italic font-serif px-2">XIII SHOP</h2><p className="text-[8px] sm:text-[9px] font-black tracking-[0.6em] sm:tracking-[0.8em] text-gray-600 mt-1 uppercase">UP YOUR GAME</p>
           <div className="flex flex-col items-center gap-2 mt-3 w-full">
             <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 rounded-full border border-white/10 w-full max-sm:max-w-[320px] max-w-xl shadow-inner">
               {(['SLEEVES', 'AVATARS', 'BOARDS'] as const).map(tab => (
-                <button key={tab} onClick={() => setActiveTab(tab)} className={`py-1.5 sm:py-2 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white hover:bg-white/5'}`}>{tab}</button>
+                <button key={tab} onClick={() => setActiveTab(tab)} className={`py-1.5 sm:py-2 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all duration-150 ${activeTab === tab ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/40 hover:text-white hover:bg-white/5'}`}>{tab}</button>
               ))}
             </div>
             <div className="flex items-center justify-center gap-2 bg-black/40 p-1 rounded-full border border-white/5 shadow-inner">
               <div className="flex gap-0.5 pr-2 border-r border-white/10">
-                {([1, 2, 4] as const).map(d => (<button key={d} onClick={() => setDensity(d)} className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${density === d ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white/50'}`}>{d === 1 ? <GridIcon1 /> : d === 2 ? <GridIcon2 /> : <GridIcon4 />}</button>))}
+                {([1, 2, 4] as const).map(d => (<button key={d} onClick={() => setDensity(d)} className={`w-7 h-7 flex items-center justify-center rounded-full transition-all duration-150 ${density === d ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white/50'}`}>{d === 1 ? <GridIcon1 /> : d === 2 ? <GridIcon2 /> : <GridIcon4 />}</button>))}
               </div>
               <div className="flex items-center gap-4 px-2">
-                <button onClick={() => setHideOwned(!hideOwned)} className="flex items-center gap-2 group cursor-pointer"><span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${hideOwned ? 'text-yellow-500' : 'text-white/30'}`}>Owned</span><div className={`w-8 h-4 rounded-full relative transition-all duration-500 ${hideOwned ? 'bg-emerald-600' : 'bg-white/5 border border-white/10'}`}><div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-500 ${hideOwned ? 'translate-x-4 bg-white' : 'translate-x-0.5 bg-white/20'}`}></div></div></button>
-                {activeTab === 'SLEEVES' && (<button onClick={() => setShowTierInfo(true)} className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all shadow-xl active:scale-90 group"><span className="text-[10px] font-black italic">i</span></button>)}
+                <button onClick={() => setHideOwned(!hideOwned)} className="flex items-center gap-2 group cursor-pointer"><span className={`text-[8px] font-black uppercase tracking-widest transition-colors duration-150 ${hideOwned ? 'text-yellow-500' : 'text-white/30'}`}>Owned</span><div className={`w-8 h-4 rounded-full relative transition-all duration-300 ${hideOwned ? 'bg-emerald-600' : 'bg-white/5 border border-white/10'}`}><div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-300 ${hideOwned ? 'translate-x-4 bg-white' : 'translate-x-0.5 bg-white/20'}`}></div></div></button>
+                {activeTab === 'SLEEVES' && (<button onClick={() => setShowTierInfo(true)} className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all duration-150 shadow-xl active:scale-90 group"><span className="text-[10px] font-black italic">i</span></button>)}
               </div>
             </div>
           </div>
