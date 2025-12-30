@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, BackgroundTheme, AiDifficulty, Emote, HubTab } from '../types';
 import { calculateLevel, getXpForLevel, DEFAULT_AVATARS, PREMIUM_AVATARS, buyItem, getAvatarName } from '../services/supabase';
@@ -1113,7 +1114,7 @@ export const UserHub: React.FC<{ initialTab?: HubTab } & any> = ({ onClose, prof
       <div className="relative bg-[#050505] border border-white/10 w-full max-w-2xl max-h-[90vh] rounded-[2.5rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex flex-col gap-4">
           <div className="flex justify-between items-center w-full">
-            <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/90 to-white/40 uppercase italic tracking-widest leading-none">PLAYER PROFILE</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/80 to-white/40 uppercase italic tracking-widest leading-none">PLAYER PROFILE</h2>
             <button onClick={onClose} className="w-10 h-10 bg-red-600/10 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all group border border-white/5"><span className="text-lg font-black group-hover:rotate-90 transition-transform">✕</span></button>
           </div>
           
@@ -1139,6 +1140,12 @@ export const UserHub: React.FC<{ initialTab?: HubTab } & any> = ({ onClose, prof
                 <div className="flex flex-col sm:flex-row gap-8 items-center">
                     <div className="relative shrink-0">
                       <div className="absolute inset-[-15px] bg-yellow-500/10 blur-[40px] rounded-full"></div>
+                      
+                      {/* LVL Badge remains ONLY on the large profile avatar */}
+                      <div className="absolute -top-1 -right-1 z-30 bg-black border-2 border-yellow-500 text-yellow-500 px-2 py-0.5 rounded-lg shadow-2xl flex items-center gap-1 animate-in zoom-in duration-500 select-none">
+                         <span className="text-[10px] font-black tracking-tighter">LVL {currentLevel}</span>
+                      </div>
+
                       <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-black/40 border-2 border-yellow-500/20 flex items-center justify-center shadow-inner overflow-hidden cursor-pointer group" onClick={() => setPreviewAvatar(playerAvatar)}>
                         <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" className="group-hover:scale-110 transition-transform duration-500" />
                       </div>
@@ -1161,15 +1168,26 @@ export const UserHub: React.FC<{ initialTab?: HubTab } & any> = ({ onClose, prof
                 </div>
 
                 <div className="grid grid-cols-5 gap-2">
-                    {visibleAvatars.map(a => (
-                      <button 
-                        key={a} 
-                        onClick={() => setPreviewAvatar(a)} 
-                        className={`aspect-square rounded-xl flex items-center justify-center transition-all ${playerAvatar === a ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : isAvatarUnlocked(a) ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale hover:opacity-40'}`}
-                      >
-                        <VisualEmote trigger={a} remoteEmotes={remoteEmotes} size="md" />
-                      </button>
-                    ))}
+                    {visibleAvatars.map(a => {
+                      const isEquipped = playerAvatar === a;
+                      const unlocked = isAvatarUnlocked(a);
+                      return (
+                        <button 
+                          key={a} 
+                          onClick={() => setPreviewAvatar(a)} 
+                          className={`aspect-square rounded-xl flex items-center justify-center transition-all relative overflow-hidden group ${isEquipped ? 'bg-yellow-500/20 ring-2 ring-yellow-500 scale-110' : unlocked ? 'bg-white/5 hover:bg-white/10' : 'opacity-20 grayscale hover:opacity-40'}`}
+                        >
+                          <VisualEmote trigger={a} remoteEmotes={remoteEmotes} size="md" />
+                          
+                          {/* Equipped indicator moved to TOP RIGHT corner, and LVL badge removed from smaller icons */}
+                          {isEquipped && (
+                             <div className="absolute top-0.5 right-0.5 bg-emerald-500 text-white p-0.5 rounded-full shadow-md scale-75 border border-white/20 z-10">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                             </div>
+                          )}
+                        </button>
+                      );
+                    })}
                 </div>
 
                 <div className="flex flex-col items-center pt-1"><button onClick={() => setIsCatalogExpanded(!isCatalogExpanded)} className="group relative flex items-center justify-center w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 hover:border-yellow-500/40 transition-all duration-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 group-hover:text-yellow-500 transition-all duration-500 ${isCatalogExpanded ? 'rotate-180' : 'rotate-0'}`}><polyline points="6 9 12 15 18 9"></polyline></svg></button><span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 mt-1">{isCatalogExpanded ? "MINIMIZE" : "EXPAND"}</span></div>

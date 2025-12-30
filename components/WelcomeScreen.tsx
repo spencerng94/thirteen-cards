@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -223,6 +224,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
            <div className="absolute inset-0 bg-gradient-to-tr from-yellow-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
            <div className="relative">
               <div className="absolute inset-[-20px] bg-yellow-500/10 blur-[40px] rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
+              
+              {/* LVL Badge in upper right corner of the main profile avatar */}
+              <div className="absolute -top-1 -right-1 z-30 bg-black border-2 border-yellow-500 text-yellow-500 px-2 py-0.5 rounded-lg shadow-2xl flex items-center gap-1 animate-in zoom-in duration-500 select-none">
+                 <span className="text-[10px] font-black tracking-tighter">LVL {currentLevel}</span>
+              </div>
+
               <div className="relative w-28 h-28 rounded-full bg-black/40 border border-yellow-500/30 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-500 overflow-hidden"><VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" /></div>
            </div>
            <div className="flex flex-col items-center gap-1.5">
