@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -133,7 +134,7 @@ const validateMove = (playedCards: Card[], playPile: PlayTurn[], isFirstTurn: bo
   if (lType === 'QUAD' && pType === 'QUAD' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
   if (lType === 'BOMB' && pType === 'BOMB' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
   if (lType === '4_PAIRS' && pType === '4_PAIRS' && getCardScore(pHigh) > getCardScore(lHigh)) return { isValid: true, reason: 'Chop!' };
-  if (pType === '4_PAIRS' && (lType === 'BOMB' || lType === 'QUAD')) return { isValid: true, reason: 'Chop!' };
+  if (pType === '4_PAIRS' && (lType === 'BOMB' || lType === 'QUAD')) return { isValid: true, reason: 'Mega Bomb!' };
   
   if (pType !== lType || playedCards.length !== lastCards.length) return { isValid: false, reason: 'Combo mismatch.' };
   return getCardScore(pHigh) > getCardScore(lHigh) ? { isValid: true, reason: 'Beat.' } : { isValid: false, reason: 'Too low.' };
@@ -342,14 +343,15 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   if (!currentPlayer || currentPlayer.id !== playerId || currentPlayer.finishedRank) {
     return;
   }
-  const validation = validateMove(cards, room.currentPlayPile, room.isFirstTurnOfGame);
+  const sortedCards = sortCards(cards); // Ensure cards are sorted before further processing
+  const validation = validateMove(sortedCards, room.currentPlayPile, room.isFirstTurnOfGame);
   if (!validation.isValid) {
     if (!currentPlayer.isBot && currentPlayer.socketId) io.to(currentPlayer.socketId).emit('error', validation.reason);
     return;
   }
   if (room.turnTimer) clearTimeout(room.turnTimer);
-  currentPlayer.hand = currentPlayer.hand.filter(c => !cards.some(pc => pc.id === c.id));
-  room.currentPlayPile.push({ playerId, cards, comboType: getComboType(cards) });
+  currentPlayer.hand = currentPlayer.hand.filter(c => !sortedCards.some(pc => pc.id === c.id));
+  room.currentPlayPile.push({ playerId, cards: sortedCards, comboType: getComboType(sortedCards) });
   room.lastPlayerToPlayId = playerId;
   room.isFirstTurnOfGame = false;
   

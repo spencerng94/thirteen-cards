@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player, HubTab } from './types';
@@ -314,16 +315,17 @@ const App: React.FC = () => {
 
   const handleLocalPlay = (pid: string, cards: Card[]) => {
     let playError: string | null = null;
+    const sortedCards = sortCards(cards); // Ensure cards are sorted before updating state
     setSpGameState(prev => {
       if (!prev || prev.status !== GameStatus.PLAYING || prev.currentPlayerId !== pid) return prev;
-      const res = validateMove(cards, prev.currentPlayPile, !!prev.isFirstTurnOfGame, pid === 'me' ? spMyHand : spOpponentHands[pid]);
+      const res = validateMove(sortedCards, prev.currentPlayPile, !!prev.isFirstTurnOfGame, pid === 'me' ? spMyHand : spOpponentHands[pid]);
       if (!res.isValid) { playError = res.reason; return prev; }
       let currentChops = spChops;
       const lastTurn = prev.currentPlayPile[prev.currentPlayPile.length - 1];
-      if (lastTurn && (getComboType(cards) === 'QUAD' || getComboType(cards) === 'BOMB' || getComboType(cards) === '4_PAIRS') && lastTurn.cards[0].rank === Rank.Two) { currentChops++; setSpChops(currentChops); }
-      const players = prev.players.map(p => { if (p.id === pid) { const newCount = p.cardCount - cards.length; return { ...p, cardCount: newCount }; } return p; });
-      if (pid === 'me') setSpMyHand(prevHand => prevHand.filter(c => !cards.some(rc => rc.id === c.id)));
-      else setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !cards.some(rc => rc.id === c.id)) }));
+      if (lastTurn && (getComboType(sortedCards) === 'QUAD' || getComboType(sortedCards) === 'BOMB' || getComboType(sortedCards) === '4_PAIRS') && lastTurn.cards[0].rank === Rank.Two) { currentChops++; setSpChops(currentChops); }
+      const players = prev.players.map(p => { if (p.id === pid) { const newCount = p.cardCount - sortedCards.length; return { ...p, cardCount: newCount }; } return p; });
+      if (pid === 'me') setSpMyHand(prevHand => prevHand.filter(c => !sortedCards.some(rc => rc.id === c.id)));
+      else setSpOpponentHands(prevHands => ({ ...prevHands, [pid]: prevHands[pid].filter(c => !sortedCards.some(rc => rc.id === c.id)) }));
       const activeMover = players.find(p => p.id === pid)!;
       let finalStatus: GameStatus = prev.status;
       let finishedPlayers = [...prev.finishedPlayers];
@@ -350,7 +352,7 @@ const App: React.FC = () => {
           }, 1000);
           return { ...prev, players, status: finalStatus, finishedPlayers, currentPlayPile: [], lastPlayerToPlayId: pid, turnEndTime: undefined };
       }
-      const newPlayPile = [...prev.currentPlayPile, { playerId: pid, cards, comboType: getComboType(cards) }];
+      const newPlayPile = [...prev.currentPlayPile, { playerId: pid, cards: sortedCards, comboType: getComboType(sortedCards) }];
       let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % prev.players.length;
       let loopCount = 0;
       while ((players[nextIndex].hasPassed || players[nextIndex].finishedRank) && loopCount < players.length) { nextIndex = (nextIndex + 1) % prev.players.length; loopCount++; }
