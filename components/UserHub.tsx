@@ -5,6 +5,7 @@ import { CardCoverStyle, Card } from './Card';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 import { LevelRewards } from './LevelRewards';
+import { InventoryGrid } from './InventoryGrid';
 
 export interface ThemeConfig {
   id: string;
@@ -936,11 +937,6 @@ const ZenPondEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
   );
 };
 
-/* Component exports to fix "no exported member" errors */
-
-/**
- * BoardSurface renders the full animated background for a theme.
- */
 export const BoardSurface: React.FC<{ themeId: BackgroundTheme; isMini?: boolean }> = ({ themeId, isMini }) => {
     const config = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
     return (
@@ -969,9 +965,6 @@ export const BoardSurface: React.FC<{ themeId: BackgroundTheme; isMini?: boolean
     );
 };
 
-/**
- * BoardPreview renders a compact preview of a theme for selectors.
- */
 export const BoardPreview: React.FC<{ themeId: string; unlocked?: boolean; active?: boolean; className?: string; hideActiveMarker?: boolean }> = ({ themeId, unlocked, active, className = '', hideActiveMarker }) => {
     return (
         <div className={`relative aspect-[16/10] w-full rounded-2xl overflow-hidden border-2 transition-all duration-300 ${active ? 'border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.4)]' : 'border-white/10'} ${className}`}>
@@ -1001,11 +994,8 @@ interface UserHubProps {
   initialTab?: HubTab;
 }
 
-/**
- * UserHub is the main modal interface for user stats and customization.
- */
 export const UserHub: React.FC<UserHubProps> = ({ 
-    profile, onClose, playerName, playerAvatar, onSignOut, initialTab = 'PROFILE'
+    profile, onClose, playerName, playerAvatar, onSignOut, onRefreshProfile, initialTab = 'PROFILE'
 }) => {
     const [activeTab, setActiveTab] = useState<HubTab>(initialTab);
 
@@ -1017,12 +1007,12 @@ export const UserHub: React.FC<UserHubProps> = ({
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={onClose}>
             <div className="relative bg-[#050505] border border-white/10 w-full max-w-4xl max-h-[90vh] rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
                 {/* Hub Navigation */}
-                <div className="flex border-b border-white/5 bg-white/[0.02]">
-                    {(['PROFILE', 'CUSTOMIZE', 'STATS', 'LEVEL_REWARDS'] as HubTab[]).map(tab => (
+                <div className="flex border-b border-white/5 bg-white/[0.02] overflow-x-auto no-scrollbar">
+                    {(['PROFILE', 'INVENTORY', 'CUSTOMIZE', 'STATS', 'LEVEL_REWARDS'] as HubTab[]).map(tab => (
                         <button 
                             key={tab} 
                             onClick={() => setActiveTab(tab)}
-                            className={`flex-1 py-5 text-[10px] font-black uppercase tracking-[0.3em] transition-all border-b-2 ${activeTab === tab ? 'text-yellow-500 border-yellow-500 bg-white/5' : 'text-gray-500 border-transparent hover:text-white'}`}
+                            className={`flex-1 min-w-[120px] py-5 text-[10px] font-black uppercase tracking-[0.3em] transition-all border-b-2 ${activeTab === tab ? 'text-yellow-500 border-yellow-500 bg-white/5' : 'text-gray-500 border-transparent hover:text-white'}`}
                         >
                             {tab.replace('_', ' ')}
                         </button>
@@ -1071,6 +1061,8 @@ export const UserHub: React.FC<UserHubProps> = ({
                             </button>
                         </div>
                     )}
+
+                    {activeTab === 'INVENTORY' && <InventoryGrid profile={profile} onRefresh={onRefreshProfile} />}
                     
                     {activeTab === 'LEVEL_REWARDS' && <LevelRewards profile={profile} onClose={onClose} />}
 

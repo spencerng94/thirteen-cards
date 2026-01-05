@@ -4,12 +4,13 @@ import { BrandLogo } from './BrandLogo';
 import { AiDifficulty, UserProfile, BackgroundTheme, Emote, Rank, Suit, HubTab } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { UserBar } from './UserBar';
-import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes } from '../services/supabase';
+import { calculateLevel, getXpForLevel, buyItem, DEFAULT_AVATARS, PREMIUM_AVATARS, getAvatarName, fetchEmotes, updateProfileSettings } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { SleeveArenaPreview, SUPER_PRESTIGE_SLEEVE_IDS, SLEEVES as ALL_STORE_SLEEVES, SOVEREIGN_IDS, CurrencyIcon, canAfford } from './Store';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 import { EventsModal } from './EventsModal';
+import { ITEM_REGISTRY } from '../constants/ItemRegistry';
 
 export type WelcomeTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
 
@@ -127,7 +128,7 @@ const LuxuryButton: React.FC<{
   };
   const theme = themes[variant];
   return (
-    <button onClick={onClick} className={`group relative w-full ${slim ? 'py-3.5 px-3' : 'py-5 px-4'} rounded-2xl border transition-all duration-300 ease-[cubic-bezier(0.19,1,0.22,1)] active:scale-95 overflow-hidden ${theme.border} ${theme.shadow} shadow-[0_20px_40px_rgba(0,0,0,0.5)]`}>
+    <button onClick={onClick} className={`group relative w-full ${slim ? 'py-3.5 px-3' : 'py-5 px-4'} rounded-2xl border transition-all duration-300 ResolutionEase active:scale-95 overflow-hidden ${theme.border} ${theme.shadow} shadow-[0_20px_40px_rgba(0,0,0,0.5)]`}>
       <div className={`absolute inset-0 bg-gradient-to-b ${theme.bg} group-hover:scale-110 transition-transform duration-700`}></div>
       <div className={`absolute inset-0 bg-gradient-to-b ${theme.highlight} opacity-90 transition-opacity duration-200 group-hover:opacity-100`}></div>
       <div className="relative z-10 flex flex-col items-center justify-center">
@@ -160,12 +161,20 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [buying, setBuying] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [previewSleeveStyle, setPreviewSleeveStyle] = useState<CardCoverStyle | null>(null);
-  const [previewThemeId, setPreviewThemeId] = useState<BackgroundTheme | null>(null);
   const [density, setDensity] = useState<1 | 2 | 4>(2);
   const [eventsOpen, setEventsOpen] = useState(false);
 
-  const [pendingPurchase, setPendingPurchase] = useState<{ id: string, name: string, price: number, currency: 'GOLD' | 'GEMS', type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
-  const [awardItem, setAwardItem] = useState<{ id: string, name: string, type: 'SLEEVE' | 'AVATAR' | 'BOARD', style?: CardCoverStyle } | null>(null);
+  const [pendingPurchase, setPendingPurchase] = useState<{ 
+      id: string, 
+      name: string, 
+      description: string,
+      price: number, 
+      currency: 'GOLD' | 'GEMS', 
+      type: 'SLEEVE' | 'AVATAR' | 'BOARD', 
+      style?: CardCoverStyle,
+      unlocked: boolean,
+      equipped: boolean
+  } | null>(null);
 
   useEffect(() => {
     fetchEmotes().then(setRemoteEmotes);
@@ -178,28 +187,39 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     onStart(playerName.trim() || 'GUEST', mode, cardCoverStyle, playerAvatar, quickFinish, aiDifficulty);
   };
 
-  const handlePurchaseAttempt = (item: any, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD') => {
+  const handlePurchaseAttempt = (item: any, price: number, type: 'SLEEVE' | 'AVATAR' | 'BOARD', unlocked: boolean, equipped: boolean) => {
     if (!profile || buying) return;
     setPendingPurchase({
       id: type === 'AVATAR' ? item : item.id,
       name: type === 'AVATAR' ? getAvatarName(item, remoteEmotes) : item.name,
+      description: type === 'AVATAR' ? 'A high-fidelity elite avatar signature.' : (item.description || ITEM_REGISTRY[item.id]?.description || 'A signature XIII cosmetic upgrade.'),
       price,
       currency: item.currency || 'GOLD',
       type,
-      style: type === 'SLEEVE' ? item.style : undefined
+      style: type === 'SLEEVE' ? item.style : undefined,
+      unlocked,
+      equipped
     });
   };
 
   const executePurchase = async () => {
     if (!pendingPurchase || !profile || buying) return;
-    const canAffordItem = pendingPurchase.currency === 'GEMS' ? (profile.gems >= pendingPurchase.price) : (profile.coins >= pendingPurchase.price);
+
+    if (pendingPurchase.unlocked) {
+        if (pendingPurchase.type === 'SLEEVE') setCardCoverStyle(pendingPurchase.style as CardCoverStyle);
+        else if (pendingPurchase.type === 'BOARD') setBackgroundTheme(pendingPurchase.id as BackgroundTheme);
+        else if (pendingPurchase.type === 'AVATAR') setPlayerAvatar(pendingPurchase.id);
+        setPendingPurchase(null);
+        return;
+    }
+
+    const canAffordItem = pendingPurchase.currency === 'GEMS' ? ((profile.gems || 0) >= pendingPurchase.price) : (profile.coins >= pendingPurchase.price);
     if (!canAffordItem) return;
     const purchaseId = pendingPurchase.id;
     setBuying(purchaseId);
     try {
-      await buyItem(profile!.id, pendingPurchase.price, purchaseId, pendingPurchase.type, !!isGuest);
+      await buyItem(profile!.id, pendingPurchase.price, purchaseId, pendingPurchase.type, !!isGuest, pendingPurchase.currency);
       audioService.playPurchase();
-      setAwardItem({ id: purchaseId, name: pendingPurchase.name, type: pendingPurchase.type, style: pendingPurchase.style });
       setPendingPurchase(null);
       onRefreshProfile();
     } catch (err) { console.error(err); } finally { setBuying(null); }
@@ -207,6 +227,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const isSleeveUnlocked = (id: string) => profile?.unlocked_sleeves.includes(id) || ALL_STORE_SLEEVES.find(s => s.id === id)?.price === 0;
   const isBoardUnlocked = (id: string) => profile?.unlocked_boards.includes(id) || PREMIUM_BOARDS.find(b => b.id === id)?.price === 0;
+
+  const hasUnclaimedRewards = useMemo(() => {
+    return (profile?.event_stats?.ready_to_claim?.length || 0) > 0;
+  }, [profile?.event_stats?.ready_to_claim]);
 
   const renderProfileTab = () => {
     const currentLevel = profile ? calculateLevel(profile.xp) : 1;
@@ -271,13 +295,31 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 const isPrestige = PRESTIGE_SLEEVE_IDS.includes(s.style);
                 const isSuperPrestige = SUPER_PRESTIGE_SLEEVE_IDS.includes(s.style);
                 const isSovereign = SOVEREIGN_IDS.includes(s.style);
-                return (<div key={s.id} onClick={() => { if (unlocked) setPreviewSleeveStyle(s.style); else if (!isSovereign) handlePurchaseAttempt(s, s.price, 'SLEEVE'); }} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all duration-200 hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'}`}><SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} currency={s.currency} isEvent={isSovereign} onAction={() => !active && unlocked && setCardCoverStyle(s.style)} /><div className="relative group/card-wrap"><Card faceDown activeTurn={true} coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-200 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />{isPrestige && !isSuperPrestige && (<div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform duration-200"><span className="text-yellow-500 text-[8px] font-black">♠</span></div>)}{isSuperPrestige && (<div className="absolute -top-1.5 -left-1.5 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-5 h-5 flex items-center justify-center border border-white shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform duration-200 animate-pulse"><span className="text-white text-[10px] font-black">♥</span></div>)}</div><span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors duration-200 ${active ? 'text-emerald-400' : unlocked ? (isSuperPrestige ? 'text-yellow-300' : 'text-white/60') : 'text-white/20'}`}>{s.name}</span></div>);
+                return (
+                    <div key={s.id} onClick={() => handlePurchaseAttempt(s, s.price, 'SLEEVE', unlocked, active)} className={`relative group bg-black/40 backdrop-blur-sm border rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all duration-200 hover:bg-black/60 ${active ? 'border-emerald-500/40' : 'border-white/5'}`}>
+                        <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={s.price} currency={s.currency} isEvent={isSovereign} />
+                        <div className="relative group/card-wrap">
+                            <Card faceDown activeTurn={true} coverStyle={s.style} small className={`!w-12 !h-18 transition-transform duration-200 ${active ? 'scale-110 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'group-hover:scale-105'} ${!unlocked ? 'opacity-30' : ''}`} disableEffects={!sleeveEffectsEnabled} />
+                            {isPrestige && !isSuperPrestige && (<div className="absolute -top-1 -left-1 bg-black/80 rounded-full w-4 h-4 flex items-center justify-center border border-yellow-500/30 shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform duration-200"><span className="text-yellow-500 text-[8px] font-black">♠</span></div>)}
+                            {isSuperPrestige && (<div className="absolute -top-1.5 -left-1.5 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full w-5 h-5 flex items-center justify-center border border-white shadow-lg z-20 group-hover/card-wrap:scale-110 transition-transform duration-200 animate-pulse"><span className="text-white text-[10px] font-black">♥</span></div>)}
+                        </div>
+                        <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors duration-200 ${active ? 'text-emerald-400' : unlocked ? (isSuperPrestige ? 'text-yellow-300' : 'text-white/60') : 'text-white/20'}`}>{s.name}</span>
+                    </div>
+                );
               })}</div></div>
         ) : (
           <div className="animate-in fade-in duration-200"><div className={`grid ${boardGridClass} gap-3 pb-4 px-1`}>{filteredBoards.map(b => {
                 const unlocked = isBoardUnlocked(b.id);
                 const active = backgroundTheme === b.id;
-                return (<div key={b.id} onClick={() => unlocked ? setBackgroundTheme(b.id as BackgroundTheme) : handlePurchaseAttempt(b, b.price as number, 'BOARD')} className="flex flex-col items-center gap-2 cursor-pointer group relative"><div className="relative w-full"><SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={b.price as number} onAction={() => !active && unlocked && setBackgroundTheme(b.id as BackgroundTheme)} /><BoardPreview themeId={b.id} active={active} unlocked={unlocked} className="shadow-xl" /></div><span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors duration-200 ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{b.name}</span></div>);
+                return (
+                    <div key={b.id} onClick={() => handlePurchaseAttempt(b, b.price as number, 'BOARD', unlocked, active)} className="flex flex-col items-center gap-2 cursor-pointer group relative">
+                        <div className="relative w-full">
+                            <SelectionCircle status={active ? 'equipped' : unlocked ? 'owned' : 'locked'} price={b.price as number} />
+                            <BoardPreview themeId={b.id} active={active} unlocked={unlocked} className="shadow-xl" />
+                        </div>
+                        <span className={`text-[8px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors duration-200 ${active ? 'text-emerald-400' : unlocked ? 'text-white/60' : 'text-white/20'}`}>{b.name}</span>
+                    </div>
+                );
               })}</div></div>
         )}
       </div>
@@ -304,14 +346,99 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     </div>
   );
 
+  const hasVoucher = useMemo(() => (profile?.inventory?.items['GENERAL_10_OFF'] || 0) > 0, [profile]);
+  const [applyVoucher, setApplyVoucher] = useState(false);
+
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center p-4">
       <BoardSurface themeId={backgroundTheme} />
       {previewSleeveStyle && <SleeveArenaPreview sleeveStyle={previewSleeveStyle} themeId={backgroundTheme} sleeveEffectsEnabled={sleeveEffectsEnabled} onClose={() => setPreviewSleeveStyle(null)} />}
       {eventsOpen && profile && <EventsModal onClose={() => setEventsOpen(false)} profile={profile} onRefreshProfile={onRefreshProfile} isGuest={isGuest} />}
+      
+      {/* Purchase / Equip Modal for Customize */}
+      {pendingPurchase && profile && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-6" onClick={() => setPendingPurchase(null)}>
+          <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-sm rounded-[3rem] p-8 flex flex-col items-center text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-black uppercase text-2xl mb-2 italic">
+                {pendingPurchase.unlocked ? 'ASSET PROFILE' : 'SECURE ASSET?'}
+            </h3>
+            <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-6">
+                {pendingPurchase.unlocked ? 'Configure elite signature' : `Unlock ${pendingPurchase.name}`}
+            </p>
+            
+            {/* Visual Preview in Modal */}
+            <div className="w-full aspect-[16/10] bg-black/40 rounded-[2rem] border border-white/5 flex items-center justify-center mb-6 overflow-hidden relative group">
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent"></div>
+                {pendingPurchase.type === 'SLEEVE' ? (
+                    <Card faceDown activeTurn={true} coverStyle={pendingPurchase.style} className="!w-24 !h-36 shadow-2xl group-hover:scale-110 transition-transform duration-700" />
+                ) : pendingPurchase.type === 'BOARD' ? (
+                    <div className="w-full h-full p-2"><BoardPreview themeId={pendingPurchase.id} unlocked={true} hideActiveMarker className="!border-none !rounded-2xl" /></div>
+                ) : (
+                    <div className="w-32 h-32 flex items-center justify-center"><VisualEmote trigger={pendingPurchase.id} remoteEmotes={remoteEmotes} size="xl" /></div>
+                )}
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 w-full mb-6 text-center">
+              <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest leading-relaxed">
+                {pendingPurchase.description}
+              </p>
+            </div>
+            
+            {!pendingPurchase.unlocked && (
+                <div className="w-full flex items-center justify-center gap-4 mb-8">
+                   <div className={`text-2xl font-black ${applyVoucher ? 'text-gray-600 line-through' : 'text-white'}`}>{pendingPurchase.price}</div>
+                   {applyVoucher && <div className="text-3xl font-black text-emerald-400">{Math.floor(pendingPurchase.price * 0.9)}</div>}
+                   <CurrencyIcon type={pendingPurchase.currency} size="sm" />
+                </div>
+            )}
+
+            {hasVoucher && !pendingPurchase.unlocked && (
+              <button 
+                onClick={() => setApplyVoucher(!applyVoucher)}
+                className={`w-full mb-6 p-4 rounded-2xl border transition-all flex items-center justify-between ${applyVoucher ? 'bg-emerald-500/10 border-emerald-500' : 'bg-white/5 border-white/10'}`}
+              >
+                <div className="flex flex-col items-start">
+                   <span className="text-[10px] font-black uppercase text-emerald-400">GENERAL_10_OFF</span>
+                   <span className="text-[7px] font-bold text-white/30 uppercase mt-0.5">Apply Tactical Discount</span>
+                </div>
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${applyVoucher ? 'border-emerald-500 bg-emerald-500' : 'border-white/20'}`}>
+                  {applyVoucher && <span className="text-[8px]">✓</span>}
+                </div>
+              </button>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <button onClick={() => setPendingPurchase(null)} className="py-4 rounded-2xl bg-white/5 text-[10px] font-black uppercase tracking-widest">Abort</button>
+              <button onClick={executePurchase} disabled={pendingPurchase.equipped} className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg ${pendingPurchase.equipped ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-yellow-500 text-black'}`}>
+                {pendingPurchase.equipped ? 'EQUIPPED' : pendingPurchase.unlocked ? 'EQUIP' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="fixed top-8 left-8 z-[100] animate-in slide-in-from-left-2 fade-in duration-500 flex flex-col items-center gap-4">
         <div className="flex flex-col items-center gap-1.5"><button onClick={() => onOpenStore()} className="group relative w-12 h-12 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95"><div className="absolute inset-0 bg-yellow-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div><span className="text-xl group-hover:rotate-12 transition-transform duration-200">🏪</span></button><span className="text-[9px] font-black uppercase text-yellow-500/70 tracking-[0.2em] drop-shadow-sm">SHOP</span></div>
-        <div className="flex flex-col items-center gap-1.5"><button onClick={() => setEventsOpen(true)} className="group relative w-12 h-12 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95"><div className="absolute inset-0 bg-emerald-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div><span className="text-xl group-hover:scale-110 transition-transform duration-200">📅</span></button><span className="text-[9px] font-black uppercase text-emerald-500/70 tracking-[0.2em] drop-shadow-sm">EVENTS</span></div>
+        <div className="flex flex-col items-center gap-1.5">
+          <button onClick={() => setEventsOpen(true)} className="group relative w-12 h-12 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95">
+            <div className="absolute inset-0 bg-emerald-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <span className="text-xl group-hover:scale-110 transition-transform duration-200">📅</span>
+            {hasUnclaimedRewards && (
+              <div className="absolute -top-1 -right-1 flex items-center justify-center">
+                <span className="absolute w-4 h-4 bg-rose-600 rounded-full animate-ping opacity-75"></span>
+                <span className="relative w-3 h-3 bg-rose-500 rounded-full border border-white/20 shadow-[0_0_10px_rgba(244,63,94,0.6)]"></span>
+              </div>
+            )}
+          </button>
+          <span className="text-[9px] font-black uppercase text-emerald-500/70 tracking-[0.2em] drop-shadow-sm">EVENTS</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5">
+          <button onClick={() => onOpenHub('INVENTORY')} className="group relative w-12 h-12 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95">
+            <div className="absolute inset-0 bg-pink-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <span className="text-xl group-hover:rotate-12 transition-transform duration-200">🎒</span>
+          </button>
+          <span className="text-[9px] font-black uppercase text-pink-500/70 tracking-[0.2em] drop-shadow-sm">ITEMS</span>
+        </div>
       </div>
       <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-right-2 fade-in duration-500 pointer-events-none">
         <UserBar profile={profile} isGuest={isGuest} avatar={playerAvatar} remoteEmotes={remoteEmotes} onClick={(tab) => onOpenHub(tab)} onOpenStore={onOpenStore} onOpenGemPacks={onOpenGemPacks} className="pointer-events-auto" />

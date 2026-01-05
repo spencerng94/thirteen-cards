@@ -1,4 +1,3 @@
-
 export enum Suit {
   Spades = 0,
   Clubs = 1,
@@ -92,6 +91,11 @@ export enum SocketEvents {
 
 export type BackgroundTheme = 'CLASSIC_GREEN' | 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'OBSIDIAN_MADNESS' | 'GOLD_FLUX' | 'ZEN_POND' | 'LAS_VEGAS' | 'SHIBA' | 'JUST_A_GIRL';
 
+export interface UserInventory {
+  items: Record<string, number>;
+  active_boosters: Record<string, number>; // type -> expiration timestamp
+}
+
 export interface UserProfile {
   id: string;
   username: string;
@@ -124,15 +128,21 @@ export interface UserProfile {
   longest_streak: number;
   created_at?: string;
   last_daily_claim?: string;
+  last_ad_claim?: string; // 4-hour cooldown tracking
+  inventory?: UserInventory;
   event_stats?: {
     daily_games_played: number;
     daily_wins: number;
     weekly_games_played?: number;
     weekly_wins?: number;
     weekly_bombs_played?: number;
+    weekly_chops_performed?: number;
+    weekly_challenge_progress?: Record<string, number>; // challengeId -> currentCount
+    total_hands_played?: number;
     new_player_login_days: number;
-    claimed_events: string[]; // List of IDs
+    claimed_events: string[]; 
+    ready_to_claim?: string[];
   };
 }
 
-export type HubTab = 'PROFILE' | 'CUSTOMIZE' | 'STATS' | 'LEVEL_REWARDS';
+export type HubTab = 'PROFILE' | 'INVENTORY' | 'CUSTOMIZE' | 'STATS' | 'LEVEL_REWARDS';
