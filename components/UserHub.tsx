@@ -4220,16 +4220,27 @@ export const UserHub: React.FC<UserHubProps> = ({
                                             <div className="w-full sm:w-auto sm:flex-1 space-y-1.5 min-w-[200px]">
                                                 <div className="flex justify-between items-center text-xs">
                                                     <span className="text-white/50 font-medium">
-                                                        {getXpForLevel(currentLevel + 1) - profile.xp > 0 
-                                                            ? `${(getXpForLevel(currentLevel + 1) - profile.xp).toLocaleString()} XP TO RANK UP`
-                                                            : 'MAX LEVEL'
-                                                        }
+                                                        {(() => {
+                                                            const currentLevelXp = getXpForLevel(currentLevel);
+                                                            const nextLevelXp = getXpForLevel(currentLevel + 1);
+                                                            const safeXp = Math.max(currentLevelXp, profile.xp || 0);
+                                                            const xpToNext = nextLevelXp - safeXp;
+                                                            return xpToNext > 0 
+                                                                ? `${xpToNext.toLocaleString()} XP TO RANK UP`
+                                                                : 'MAX LEVEL';
+                                                        })()}
                                                     </span>
                                                 </div>
                                                 <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-white/10">
                                                     <div 
                                                         className="h-full bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.5)] transition-all duration-700 relative overflow-hidden" 
-                                                        style={{ width: `${Math.min(100, Math.max(0, ((profile.xp - getXpForLevel(currentLevel)) / Math.max(1, getXpForLevel(currentLevel + 1) - getXpForLevel(currentLevel))) * 100))}%` }}
+                                                        style={{ width: `${(() => {
+                                                            const currentLevelXp = getXpForLevel(currentLevel);
+                                                            const nextLevelXp = getXpForLevel(currentLevel + 1);
+                                                            const safeXp = Math.max(currentLevelXp, profile.xp || 0);
+                                                            const range = Math.max(1, nextLevelXp - currentLevelXp);
+                                                            return Math.min(100, Math.max(0, ((safeXp - currentLevelXp) / range) * 100));
+                                                        })()}%` }}
                                                     >
                                                         <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.4)_50%,transparent_75%)] bg-[length:200%_100%] animate-[shimmer_2s_infinite]"></div>
                                                     </div>

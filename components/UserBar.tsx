@@ -34,8 +34,10 @@ export const UserBar: React.FC<UserBarProps> = ({
   const currentLevel = calculateLevel(profile.xp);
   const nextLevelXp = getXpForLevel(currentLevel + 1);
   const currentLevelXp = getXpForLevel(currentLevel);
+  // Defensive check: ensure XP is at least the floor of current level (fixes legacy user issues)
+  const safeXp = Math.max(currentLevelXp, profile.xp || 0);
   const range = Math.max(1, nextLevelXp - currentLevelXp);
-  const progress = Math.min(100, Math.max(0, ((profile.xp - currentLevelXp) / range) * 100));
+  const progress = Math.min(100, Math.max(0, ((safeXp - currentLevelXp) / range) * 100));
   
   const showSecurityPrompt = isGuest && (profile.coins >= 1000 || currentLevel >= 2);
 

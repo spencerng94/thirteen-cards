@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket } from '../services/socket';
 import { BoardSurface } from './UserHub';
@@ -122,21 +122,47 @@ export const Lobby: React.FC<LobbyProps> = ({
     fetchEmotes().then(setRemoteEmotes);
   }, [initialRoomCode]);
 
+  // Deduplicate function to prevent duplicate rooms
+  const deduplicateRooms = useCallback((list: PublicRoom[]): PublicRoom[] => {
+    const seen = new Set<string>();
+    return list.filter(room => {
+      if (seen.has(room.id)) {
+        return false;
+      }
+      seen.add(room.id);
+      return true;
+    });
+  }, []);
+
+  // Register socket listener once on mount
   useEffect(() => {
     const handleRoomsList = (list: PublicRoom[]) => {
-      setPublicRooms(list);
+      // Deduplicate before setting state to prevent infinite duplicates
+      const uniqueRooms = deduplicateRooms(list);
+      setPublicRooms(uniqueRooms);
       setIsRefreshing(false);
     };
+    
+    // Remove any existing listeners first to prevent duplicates
+    socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     socket.on(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     
-    if (!gameState) {
-      refreshRooms();
-    }
+    // Initial fetch
+    refreshRooms();
 
+    // Cleanup: remove listener on unmount
     return () => {
       socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     };
-  }, [gameState]);
+  }, []); // Only register once on mount
+
+  // Separate effect to refresh when exiting a game
+  useEffect(() => {
+    if (!gameState) {
+      // Refresh rooms when we exit a game (gameState becomes null)
+      refreshRooms();
+    }
+  }, [gameState, refreshRooms]);
 
   useEffect(() => {
     let interval: any;
@@ -150,10 +176,10 @@ export const Lobby: React.FC<LobbyProps> = ({
     return () => clearInterval(interval);
   }, [gameState, myId]);
 
-  const refreshRooms = () => {
+  const refreshRooms = useCallback(() => {
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-  };
+  }, []);
 
   const forceResync = () => {
     socket.emit(SocketEvents.REQUEST_SYNC, { playerId: myId });

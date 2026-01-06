@@ -476,7 +476,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     const currentLevel = profile ? calculateLevel(profile.xp) : 1;
     const nextLevelXp = getXpForLevel(currentLevel + 1);
     const curLevelXpFloor = getXpForLevel(currentLevel);
-    const xpInRange = (profile?.xp || 0) - curLevelXpFloor;
+    // Defensive check: ensure XP is at least the floor of current level (fixes legacy user issues)
+    const safeXp = Math.max(curLevelXpFloor, profile?.xp || 0);
+    const xpInRange = safeXp - curLevelXpFloor;
     const rangeTotal = Math.max(1, nextLevelXp - curLevelXpFloor);
     const progress = Math.min(100, Math.max(0, (xpInRange / rangeTotal) * 100));
 

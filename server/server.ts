@@ -284,15 +284,25 @@ const broadcastState = (roomId: string) => {
 };
 
 const getPublicRoomsList = () => {
-  return Object.values(rooms)
+  // Get all public lobbies and deduplicate by room ID (safety measure)
+  const roomMap = new Map<string, any>();
+  
+  Object.values(rooms)
     .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length < 4)
-    .map(r => ({
-      id: r.id,
-      name: r.roomName,
-      playerCount: r.players.length,
-      hostName: r.players.find(p => p.isHost)?.name || 'Unknown',
-      hostAvatar: r.players.find(p => p.isHost)?.avatar || ':smile:'
-    }));
+    .forEach(r => {
+      // Use room ID as key to prevent duplicates
+      if (!roomMap.has(r.id)) {
+        roomMap.set(r.id, {
+          id: r.id,
+          name: r.roomName,
+          playerCount: r.players.length,
+          hostName: r.players.find(p => p.isHost)?.name || 'Unknown',
+          hostAvatar: r.players.find(p => p.isHost)?.avatar || ':smile:'
+        });
+      }
+    });
+  
+  return Array.from(roomMap.values());
 };
 
 const broadcastPublicLobbies = () => {

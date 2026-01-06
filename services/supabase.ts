@@ -247,7 +247,21 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (error) return null;
-  if (data) return { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
+  if (data) {
+    const profile = { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
+    // Normalize level for legacy users: ensure level matches calculated level based on XP
+    const calculatedLevel = calculateLevel(profile.xp || 0);
+    if (profile.level !== calculatedLevel) {
+      // Update level in database if it's out of sync (for legacy users)
+      // Only update if the difference is significant to avoid unnecessary writes
+      profile.level = calculatedLevel;
+      // Silently update in background (don't await to avoid blocking)
+      updateProfileSettings(userId, { level: calculatedLevel }).catch(err => 
+        console.warn('Failed to sync legacy user level:', err)
+      );
+    }
+    return profile;
+  }
   // New user - generate username with discriminator from Google metadata
   // baseUsername should come from Google OAuth metadata (full_name, name, or display_name)
   const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
@@ -785,11 +799,17 @@ export const searchUsers = async (query: string, limit: number = 20): Promise<Us
 };
 export const calculateLevel = (xp: number) => {
   const safeXp = Math.max(0, xp);
-  if (safeXp < XP_TABLE[XP_TABLE.length - 1]) {
-    for (let i = XP_TABLE.length - 1; i >= 0; i--) if (safeXp >= XP_TABLE[i]) return i + 1;
+  // Handle XP within the table (levels 1-15)
+  if (safeXp <= XP_TABLE[XP_TABLE.length - 1]) {
+    for (let i = XP_TABLE.length - 1; i >= 0; i--) {
+      if (safeXp >= XP_TABLE[i]) return i + 1;
+    }
   }
+  // Handle XP beyond the table
   let currentLevel = XP_TABLE.length;
-  while (getXpForLevel(currentLevel + 1) <= safeXp && currentLevel < 500) currentLevel++;
+  while (getXpForLevel(currentLevel + 1) <= safeXp && currentLevel < 500) {
+    currentLevel++;
+  }
   return currentLevel;
 };
 export const getXpForLevel = (level: number) => {

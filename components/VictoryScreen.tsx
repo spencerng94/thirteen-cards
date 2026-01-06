@@ -131,8 +131,12 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
     const xpFloorBefore = getXpForLevel(levelBefore);
     const xpCeilingBefore = getXpForLevel(levelBefore + 1);
     
+    // Defensive check: ensure startXp is at least the floor of current level (fixes legacy user issues)
+    const safeStartXp = Math.max(xpFloorBefore, startXp);
+    const rangeBefore = Math.max(1, xpCeilingBefore - xpFloorBefore);
+    
     // Initial progress % within the "level before" range
-    const initialPercent = Math.max(0, ((startXp - xpFloorBefore) / (xpCeilingBefore - xpFloorBefore)) * 100);
+    const initialPercent = Math.min(100, Math.max(0, ((safeStartXp - xpFloorBefore) / rangeBefore) * 100));
     
     setBaseBarProgress(initialPercent);
     setDisplayLevel(levelBefore);
@@ -167,15 +171,21 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
           setDisplayLevel(levelAfter);
           const xpFloorAfter = getXpForLevel(levelAfter);
           const xpCeilingAfter = getXpForLevel(levelAfter + 1);
-          const finalPercent = ((finalXp - xpFloorAfter) / (xpCeilingAfter - xpFloorAfter)) * 100;
-          setXpRemaining(xpCeilingAfter - finalXp);
+          // Defensive check: ensure finalXp is at least the floor of current level
+          const safeFinalXp = Math.max(xpFloorAfter, finalXp);
+          const rangeAfter = Math.max(1, xpCeilingAfter - xpFloorAfter);
+          const finalPercent = Math.min(100, Math.max(0, ((safeFinalXp - xpFloorAfter) / rangeAfter) * 100));
+          setXpRemaining(Math.max(0, xpCeilingAfter - safeFinalXp));
           setTimeout(() => setAddedBarProgress(finalPercent), 100);
         }, 800);
       } else {
         // Standard progression within level
-        const finalPercent = ((finalXp - xpFloorBefore) / (xpCeilingBefore - xpFloorBefore)) * 100;
+        // Defensive check: ensure finalXp is at least the floor of current level
+        const safeFinalXp = Math.max(xpFloorBefore, finalXp);
+        const range = Math.max(1, xpCeilingBefore - xpFloorBefore);
+        const finalPercent = Math.min(100, Math.max(0, ((safeFinalXp - xpFloorBefore) / range) * 100));
         setAddedBarProgress(Math.max(2, finalPercent - initialPercent));
-        setXpRemaining(xpCeilingBefore - finalXp);
+        setXpRemaining(Math.max(0, xpCeilingBefore - safeFinalXp));
       }
     }, 1800);
 
