@@ -55,7 +55,25 @@ interface GameRoom {
   turnDuration: number; // In ms
 }
 
-const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
+// All in-house emote trigger codes (excluding premium/remote-only emotes)
+const IN_HOUSE_EMOTES = [':smile:', ':blush:', ':cool:', ':annoyed:', ':heart_eyes:', ':money_mouth_face:', ':robot:', ':devil:', ':girly:'];
+
+// Shuffle function for randomizing emote selection
+const shuffleArray = <T>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+// Get a random emote from the shuffled array
+const getRandomEmote = (): string => {
+  const shuffled = shuffleArray(IN_HOUSE_EMOTES);
+  return shuffled[Math.floor(Math.random() * shuffled.length)];
+};
+
 const BOT_NAMES = ['TSUBU', 'MUNCHIE', 'KUMA', 'VALKYRIE', 'SABER', 'LANCE', 'PHANTOM', 'GHOST', 'REAPER', 'VOID', 'SPECTRE'];
 const RECONNECTION_GRACE_PERIOD = 30000; 
 const DEFAULT_TURN_DURATION_MS = 60000; 
@@ -564,7 +582,7 @@ io.on('connection', (socket: Socket) => {
     if (!requester || !requester.isHost) return;
     const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
     room.players.push({
-      id: botId, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], avatar: BOT_AVATARS[Math.floor(Math.random() * BOT_AVATARS.length)],
+      id: botId, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], avatar: getRandomEmote(),
       socketId: 'BOT', hand: [], isHost: false, hasPassed: false, finishedRank: null, isBot: true, difficulty: 'MEDIUM'
     });
     broadcastState(roomId);

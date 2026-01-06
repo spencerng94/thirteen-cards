@@ -29,7 +29,25 @@ type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
 
 const SESSION_KEY = 'thirteen_active_session';
 const PERSISTENT_ID_KEY = 'thirteen_persistent_uuid';
-const BOT_AVATARS = [':robot:', ':annoyed:', ':devil:', ':smile:', ':money_mouth_face:', ':girly:', ':cool:'];
+
+// All in-house emote trigger codes (excluding premium/remote-only emotes)
+const IN_HOUSE_EMOTES = [':smile:', ':blush:', ':cool:', ':annoyed:', ':heart_eyes:', ':money_mouth_face:', ':robot:', ':devil:', ':girly:'];
+
+// Shuffle function for randomizing emote selection
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+// Get a random emote from the shuffled array
+const getRandomEmote = (): string => {
+  const shuffled = shuffleArray(IN_HOUSE_EMOTES);
+  return shuffled[Math.floor(Math.random() * shuffled.length)];
+};
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -462,9 +480,9 @@ const App: React.FC = () => {
             roomId: 'LOCAL', status: GameStatus.PLAYING, currentPlayerId: starterId, currentPlayPile: [], lastPlayerToPlayId: null, winnerId: null, finishedPlayers: [], isFirstTurnOfGame: true, turnEndTime: undefined,
             players: [
                 { id: 'me', name: name.toUpperCase(), avatar: playerAvatar, cardCount: 13, isHost: true },
-                { id: 'b1', name: 'TSUBU', avatar: BOT_AVATARS[0], cardCount: 13, isHost: false, isBot: true },
-                { id: 'b2', name: 'MUNCHIE', avatar: BOT_AVATARS[1], cardCount: 13, isHost: false, isBot: true },
-                { id: 'b3', name: 'KUMA', avatar: BOT_AVATARS[2], cardCount: 13, isHost: false, isBot: true }
+                { id: 'b1', name: 'TSUBU', avatar: getRandomEmote(), cardCount: 13, isHost: false, isBot: true },
+                { id: 'b2', name: 'MUNCHIE', avatar: getRandomEmote(), cardCount: 13, isHost: false, isBot: true },
+                { id: 'b3', name: 'KUMA', avatar: getRandomEmote(), cardCount: 13, isHost: false, isBot: true }
             ]
         });
         setView('GAME_TABLE');
