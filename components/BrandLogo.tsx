@@ -16,7 +16,8 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
 
   const dimensions = sizeClasses[size];
 
-  const clockMarkers = Array.from({ length: 12 }).map((_, i) => {
+  // Create XIII markers around the ring
+  const xiiiMarkers = Array.from({ length: 12 }).map((_, i) => {
     const angle = i * 30;
     
     return (
@@ -27,8 +28,8 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               y="0"
               textAnchor="middle"
               dominantBaseline="central"
-              fontSize="60" 
-              fontWeight="400"
+            fontSize="52" 
+            fontWeight="700"
               fontFamily="'Cinzel', serif"
               fill="url(#goldMetallicPremium)"
               filter="url(#gold3DBevelPremium)"
@@ -36,23 +37,11 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               style={{ 
                 letterSpacing: '0.12em',
                 paintOrder: 'stroke fill',
-                textShadow: '0 0 10px rgba(251, 191, 36, 0.15)'
+              textShadow: '0 0 15px rgba(251, 191, 36, 0.4)'
               }}
             >
               XIII
             </text>
-        </g>
-        
-        <g transform={`rotate(15)`}>
-          <circle
-            cx="0"
-            cy="-270"
-            r="4"
-            fill="url(#goldMetallicPremium)"
-            filter="url(#goldBloomPremium)"
-            stroke="rgba(0,0,0,0.4)"
-            strokeWidth="0.5"
-          />
         </g>
       </g>
     );
@@ -67,22 +56,53 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
       >
         <defs>
           <linearGradient id="goldMetallicPremium" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3d280a" />
-            <stop offset="10%" stopColor="#8b6508" />
-            <stop offset="25%" stopColor="#d4af37" />
-            <stop offset="40%" stopColor="#fbf5b7" />
-            <stop offset="50%" stopColor="#ffffff" />
-            <stop offset="60%" stopColor="#fbf5b7" />
-            <stop offset="75%" stopColor="#d4af37" />
-            <stop offset="90%" stopColor="#8b6508" />
-            <stop offset="100%" stopColor="#3d280a" />
+            <stop offset="0%" stopColor="#1a0f00" />
+            <stop offset="8%" stopColor="#4a2e0a" />
+            <stop offset="18%" stopColor="#8b6508" />
+            <stop offset="28%" stopColor="#d4af37" />
+            <stop offset="38%" stopColor="#f4e4a6" />
+            <stop offset="48%" stopColor="#ffffff" />
+            <stop offset="52%" stopColor="#ffffff" />
+            <stop offset="62%" stopColor="#f4e4a6" />
+            <stop offset="72%" stopColor="#d4af37" />
+            <stop offset="82%" stopColor="#8b6508" />
+            <stop offset="92%" stopColor="#4a2e0a" />
+            <stop offset="100%" stopColor="#1a0f00" />
           </linearGradient>
 
-          <radialGradient id="imperialRedGradient" cx="50%" cy="35%" r="70%">
-            <stop offset="0%" stopColor="#e60000" />
-            <stop offset="40%" stopColor="#800000" />
-            <stop offset="75%" stopColor="#330000" />
-            <stop offset="100%" stopColor="#0a0000" />
+          <linearGradient id="goldMetallicEthereal" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#2a1a0a" stopOpacity="0.9" />
+            <stop offset="15%" stopColor="#6b4a1a" stopOpacity="0.95" />
+            <stop offset="30%" stopColor="#d4af37" stopOpacity="1" />
+            <stop offset="45%" stopColor="#f4e4a6" stopOpacity="1" />
+            <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
+            <stop offset="55%" stopColor="#f4e4a6" stopOpacity="1" />
+            <stop offset="70%" stopColor="#d4af37" stopOpacity="1" />
+            <stop offset="85%" stopColor="#6b4a1a" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#2a1a0a" stopOpacity="0.9" />
+          </linearGradient>
+
+          <radialGradient id="imperialRedGradient" cx="50%" cy="50%" r="90%">
+            <stop offset="0%" stopColor="#cc0000" />
+            <stop offset="15%" stopColor="#b30000" />
+            <stop offset="30%" stopColor="#990000" />
+            <stop offset="50%" stopColor="#770000" />
+            <stop offset="70%" stopColor="#550000" />
+            <stop offset="85%" stopColor="#330000" />
+            <stop offset="100%" stopColor="#1a0000" />
+          </radialGradient>
+
+          <radialGradient id="redGlossy" cx="50%" cy="25%" r="110%">
+            <stop offset="0%" stopColor="#ff4444" stopOpacity="0.5" />
+            <stop offset="25%" stopColor="#cc0000" stopOpacity="0.35" />
+            <stop offset="55%" stopColor="#990000" stopOpacity="0.2" />
+            <stop offset="80%" stopColor="#660000" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+          </radialGradient>
+
+          <radialGradient id="redDepth" cx="50%" cy="75%" r="80%">
+            <stop offset="0%" stopColor="#000000" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#000000" stopOpacity="0" />
           </radialGradient>
 
           <linearGradient id="goldRimGradient" x1="0%" y1="100%" x2="100%" y2="0%">
@@ -94,69 +114,211 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
           </linearGradient>
 
           <filter id="gold3DBevelPremium" x="-150%" y="-150%" width="400%" height="400%" colorInterpolationFilters="sRGB">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur" />
-            <feSpecularLighting in="blur" surfaceScale="20" specularConstant="2.2" specularExponent="70" lightingColor="#ffffff" result="spec1">
-              <fePointLight x="-2000" y="-2000" z="3500" />
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1.8" result="blur" />
+            <feSpecularLighting in="blur" surfaceScale="28" specularConstant="2.8" specularExponent="95" lightingColor="#ffffff" result="spec1">
+              <fePointLight x="-2800" y="-2800" z="4500" />
             </feSpecularLighting>
             <feComposite in="spec1" in2="SourceAlpha" operator="in" result="bevel1" />
-            <feSpecularLighting in="blur" surfaceScale="15" specularConstant="1.8" specularExponent="45" lightingColor="#fffaf0" result="spec2">
-              <fePointLight x="2000" y="2000" z="2500" />
+            <feSpecularLighting in="blur" surfaceScale="20" specularConstant="2.2" specularExponent="65" lightingColor="#fffaf0" result="spec2">
+              <fePointLight x="2800" y="2800" z="3500" />
             </feSpecularLighting>
             <feComposite in="spec2" in2="SourceAlpha" operator="in" result="bevel2" />
-            <feComposite in="SourceGraphic" in2="bevel1" operator="arithmetic" k1="0" k2="1" k3="1.3" k4="0" result="lit1" />
-            <feComposite in="lit1" in2="bevel2" operator="arithmetic" k1="0" k2="1" k3="1.0" k4="0" result="final" />
+            <feComposite in="SourceGraphic" in2="bevel1" operator="arithmetic" k1="0" k2="1" k3="1.6" k4="0" result="lit1" />
+            <feComposite in="lit1" in2="bevel2" operator="arithmetic" k1="0" k2="1" k3="1.3" k4="0" result="final" />
           </filter>
 
-          <filter id="goldBloomPremium" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="0.8" result="tightBlur" />
-            <feFlood floodColor="#fffde7" floodOpacity="0.15" result="coreColor" />
-            <feComposite in="coreColor" in2="tightBlur" operator="in" result="coreGlow" />
+          <filter id="etherealGlow" x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
+            <feFlood floodColor="#f4e4a6" floodOpacity="0.25" result="glowColor" />
+            <feComposite in="glowColor" in2="blur" operator="in" result="glow" />
+            <feGaussianBlur in="glow" stdDeviation="3" result="softGlow" />
             <feMerge>
-              <feMergeNode in="coreGlow" />
+              <feMergeNode in="softGlow" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+
+          <filter id="premiumDepth" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur" />
+            <feOffset in="blur" dx="1" dy="2" result="offsetBlur" />
+            <feFlood floodColor="#000000" floodOpacity="0.3" result="shadowColor" />
+            <feComposite in="shadowColor" in2="offsetBlur" operator="in" result="shadow" />
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <filter id="goldBloomPremium" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="tightBlur" />
+            <feFlood floodColor="#fffde7" floodOpacity="0.12" result="coreColor" />
+            <feComposite in="coreColor" in2="tightBlur" operator="in" result="coreGlow" />
+            <feGaussianBlur in="coreGlow" stdDeviation="1.5" result="softGlow" />
+            <feMerge>
+              <feMergeNode in="softGlow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <filter id="goldStrongGlow" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur" />
+            <feFlood floodColor="#fbbf24" floodOpacity="0.4" result="glowColor" />
+            <feComposite in="glowColor" in2="blur" operator="in" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          
+          {/* Mask to create true cutout for "13" - inverted so spade shows except where "13" is */}
+          <mask id="spadeMask">
+            <rect x="-100" y="-100" width="200" height="200" fill="white" />
+            <text
+              x="0"
+              y="8"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="98" 
+              fontWeight="900"
+              fontFamily="'Cinzel', serif"
+              fill="black"
+            >
+              13
+            </text>
+          </mask>
+          
+          {/* Mask for red background to show only through "13" */}
+          <mask id="redMask">
+            <rect x="-100" y="-100" width="200" height="200" fill="black" />
+            <text
+              x="0"
+              y="8"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="98" 
+              fontWeight="900"
+              fontFamily="'Cinzel', serif"
+              fill="white"
+            >
+              13
+            </text>
+          </mask>
         </defs>
 
         <g>
           <g transform="translate(512, 340)">
+             {/* Outer Golden Rim - Premium Final Fantasy Pristine */}
              <circle r="348" fill="url(#goldRimGradient)" filter="url(#gold3DBevelPremium)" />
-             <circle r="338" fill="url(#imperialRedGradient)" />
-
-             <path 
-                id="leiwenTrack"
-                d="M 0,-330 A 330,330 0 1,1 0,330 A 330,330 0 1,1 0,-330"
-                fill="none"
-                stroke="url(#goldMetallicPremium)"
-                strokeWidth="1.2"
-                strokeDasharray="10, 5, 2, 5" 
-                opacity="0.15"
-                filter="url(#goldBloomPremium)"
-             />
+             <circle r="348" fill="none" stroke="url(#goldMetallicEthereal)" strokeWidth="2.5" opacity="0.7" filter="url(#etherealGlow)" />
              
-             <g filter="url(#gold3DBevelPremium)">
-               {clockMarkers}
-             </g>
-
+             {/* Refined rim highlights for premium depth */}
+             <circle r="345" fill="none" stroke="url(#goldMetallicPremium)" strokeWidth="0.8" opacity="0.35" />
+             <circle r="342" fill="none" stroke="url(#goldMetallicPremium)" strokeWidth="0.4" opacity="0.2" />
+             
+             {/* Deep Red Circular Background - Premium Final Fantasy Pristine */}
+             <circle r="338" fill="url(#imperialRedGradient)" />
+             <circle r="338" fill="url(#redGlossy)" />
+             <circle r="338" fill="url(#redDepth)" />
+             
+             {/* Refined texture overlay for premium depth */}
+             <circle r="338" fill="none" stroke="#990000" strokeWidth="0.8" opacity="0.12" />
+             <circle r="336" fill="none" stroke="#660000" strokeWidth="0.4" opacity="0.08" />
+             
+             {/* Inner Golden Rim - Premium Final Fantasy Border */}
              <circle 
-                r="270" 
+                r="280" 
                 fill="none" 
                 stroke="url(#goldRimGradient)" 
-                strokeWidth="12" 
+                strokeWidth="10" 
                 filter="url(#gold3DBevelPremium)" 
+                opacity="1"
+             />
+             <circle 
+                r="280" 
+                fill="none" 
+                stroke="url(#goldMetallicEthereal)" 
+                strokeWidth="1.5" 
+                opacity="0.6"
+                filter="url(#etherealGlow)"
              />
              
-             <g opacity="0.2">
-                {Array.from({ length: 60 }).map((_, i) => (
-                    <line 
-                        key={i} 
-                        x1="0" y1="-270" 
-                        x2="0" y2="-264" 
-                        stroke="black" 
-                        strokeWidth="0.4" 
-                        transform={`rotate(${i * 6})`} 
-                    />
-                ))}
+             {/* Refined inner rim accent for depth */}
+             <circle r="277" fill="none" stroke="url(#goldMetallicPremium)" strokeWidth="0.8" opacity="0.25" />
+             <circle r="275" fill="none" stroke="url(#goldMetallicPremium)" strokeWidth="0.3" opacity="0.15" />
+             
+             {/* XIII Markers around the ring - High-Def Metallic Ethereal */}
+             <g filter="url(#gold3DBevelPremium)">
+               {xiiiMarkers}
+             </g>
+             <g filter="url(#etherealGlow)" opacity="0.5">
+               {xiiiMarkers}
+             </g>
+
+             {/* Central 13 - Premium Luxury Modern (Spade Removed) */}
+             <g transform="translate(0, 0)">
+               {/* Red background circle behind the "13" */}
+               <circle r="65" fill="url(#imperialRedGradient)" />
+               <circle r="65" fill="url(#redGlossy)" />
+               <circle r="65" fill="url(#redDepth)" />
+               
+               {/* Number 13 - Clean with Pure Red Background */}
+               {/* Deep shadow for depth effect */}
+               <text
+                 x="0.8"
+                 y="10"
+                 textAnchor="middle"
+                 dominantBaseline="central"
+                 fontSize="96" 
+                 fontWeight="900"
+                 fontFamily="'Cinzel', serif"
+                 fill="#000000"
+                 opacity="0.9"
+                 style={{ 
+                   paintOrder: 'fill'
+                 }}
+               >
+                 13
+               </text>
+               
+               {/* Main 13 - Pure red gradient */}
+               <text
+                 x="0"
+                 y="8"
+                 textAnchor="middle"
+                 dominantBaseline="central"
+                 fontSize="96" 
+                 fontWeight="900"
+                 fontFamily="'Cinzel', serif"
+                 fill="url(#imperialRedGradient)"
+                 stroke="#550000"
+                 strokeWidth="2"
+                 style={{ 
+                   paintOrder: 'stroke fill',
+                   filter: 'drop-shadow(0 3px 6px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 25px rgba(153, 0, 0, 0.6))'
+                 }}
+               >
+                 13
+               </text>
+               
+               {/* Subtle inner glow for premium depth */}
+               <text
+                 x="0"
+                 y="7"
+                 textAnchor="middle"
+                 dominantBaseline="central"
+                 fontSize="96" 
+                 fontWeight="900"
+                 fontFamily="'Cinzel', serif"
+                 fill="none"
+                 stroke="#cc0000"
+                 strokeWidth="1"
+                 opacity="0.4"
+                 style={{ 
+                   paintOrder: 'stroke'
+                 }}
+               >
+                 13
+               </text>
              </g>
           </g>
 

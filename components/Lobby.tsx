@@ -216,33 +216,31 @@ export const Lobby: React.FC<LobbyProps> = ({
         )}
 
         {!gameState ? (
-          <div className="w-full space-y-8 animate-in fade-in zoom-in-95 duration-400 flex flex-col items-center">
-            <div className="flex flex-col items-center text-center space-y-4 mb-4">
+          <div className="w-full space-y-6 sm:space-y-8 animate-in fade-in zoom-in-95 duration-400 flex flex-col items-center">
+            <div className="flex flex-col items-center text-center space-y-3 sm:space-y-4 mb-2 sm:mb-4">
               <div className="relative inline-block max-w-full overflow-visible">
-                <div className="absolute inset-0 bg-yellow-500/10 blur-[80px] rounded-full"></div>
-                <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black text-white uppercase italic tracking-tighter drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)] font-serif relative z-10 leading-none px-4">
-                    ONLINE <span className="text-transparent bg-clip-text bg-gradient-to-b from-yellow-500 to-yellow-800">MULTIPLAYER</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 via-pink-500/20 to-yellow-500/20 blur-[100px] rounded-full animate-pulse"></div>
+                <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white uppercase italic tracking-tighter drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)] font-serif relative z-10 leading-none px-4">
+                    PLAY <span className="text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 via-pink-400 to-yellow-600">WITH FRIENDS</span>
                 </h1>
               </div>
-              <div className="flex items-center gap-6">
-                <div className="h-[1px] w-12 sm:w-24 bg-gradient-to-r from-transparent to-white/10"></div>
-                <p className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.6em] sm:tracking-[1em] text-white/30 whitespace-nowrap">ONLINE MATCH</p>
-                <div className="h-[1px] w-12 sm:w-24 bg-gradient-to-l from-transparent to-white/10"></div>
-              </div>
+              <p className="text-xs sm:text-sm font-semibold text-yellow-400/80 uppercase tracking-wider">
+                Challenge friends • Join public matches • Create your own room
+              </p>
             </div>
 
-            <GlassPanel className="w-full flex flex-col min-h-[600px]">
-                <div className="p-3 border-b border-white/5 bg-white/[0.02] flex justify-center">
-                    <div className="bg-black/40 p-1.5 rounded-[2.5rem] flex relative w-full max-w-xl shadow-inner border border-white/5 overflow-hidden">
+            <GlassPanel className="w-full flex flex-col min-h-[500px] sm:min-h-[600px]">
+                <div className="p-4 sm:p-6 border-b border-white/10 bg-gradient-to-r from-white/[0.03] via-transparent to-white/[0.03] flex justify-center">
+                    <div className="bg-black/60 backdrop-blur-sm p-1.5 rounded-[2.5rem] flex relative w-full max-w-xl shadow-inner border border-white/10 overflow-hidden">
                         <div 
                           className={`
                             absolute top-1.5 bottom-1.5 left-1.5 w-[calc(50%-6px)] 
-                            bg-white/10 border border-white/10 rounded-[2.2rem] shadow-xl 
+                            bg-gradient-to-br from-yellow-500/20 to-pink-500/20 border border-yellow-500/30 rounded-[2.2rem] shadow-xl 
                             transition-all duration-300 ease-[cubic-bezier(0.19,1,0.22,1)]
                             ${activeTab === 'PUBLIC' ? 'translate-x-0' : 'translate-x-[calc(100%+6px)]'}
                           `}
                         >
-                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-[2px] bg-yellow-500/50 rounded-full blur-[1px]"></div>
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-[2px] bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded-full blur-[2px]"></div>
                         </div>
 
                         {(['PUBLIC', 'CREATE'] as const).map(tab => (
@@ -250,44 +248,50 @@ export const Lobby: React.FC<LobbyProps> = ({
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`
-                                    flex-1 relative z-10 flex items-center justify-center gap-3 py-4 rounded-[2rem] transition-all duration-200
-                                    ${activeTab === tab ? 'text-yellow-500' : 'text-white/30 hover:text-white/50'}
+                                    flex-1 relative z-10 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-4 rounded-[2rem] transition-all duration-200
+                                    ${activeTab === tab ? 'text-yellow-400' : 'text-white/40 hover:text-white/60'}
                                 `}
                             >
                                 <div className="flex items-center justify-center transition-all duration-200">
                                     {tab === 'PUBLIC' ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="opacity-90"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
                                     ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="opacity-90"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                     )}
                                 </div>
-                                <span className="text-xs font-black uppercase tracking-[0.2em]">
-                                    {tab === 'PUBLIC' ? 'FIND LOBBY' : 'CREATE LOBBY'}
+                                <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.15em]">
+                                    {tab === 'PUBLIC' ? 'Find Match' : 'Create Room'}
                                 </span>
                             </button>
                         ))}
                     </div>
                 </div>
 
-                <div className="flex-1 p-6 sm:p-12 overflow-hidden flex flex-col">
+                <div className="flex-1 p-4 sm:p-6 sm:p-8 overflow-hidden flex flex-col">
                     {activeTab === 'PUBLIC' ? (
-                        <div className="h-full flex flex-col space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <div className="space-y-4">
-                                <label className="text-[9px] font-black uppercase tracking-[0.4em] text-white/30 italic px-2">JOIN VIA 4-LETTER ROOM CODE</label>
-                                <div className="flex items-center gap-4 bg-black/40 p-3 rounded-[2rem] border border-white/5 shadow-inner focus-within:border-yellow-500/30 transition-all duration-200">
+                        <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                            <div className="space-y-3">
+                                <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Join with Room Code</label>
+                                <div className="flex items-stretch gap-2 sm:gap-3 bg-gradient-to-br from-black/60 to-black/40 p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] border-2 border-white/10 shadow-inner focus-within:border-yellow-500/50 focus-within:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300">
                                     <input 
                                         type="text" 
-                                        placeholder="CODE" 
+                                        placeholder="ABCD" 
                                         value={roomIdInput}
                                         maxLength={4}
                                         onChange={e => setRoomIdInput(e.target.value.toUpperCase())}
-                                        className="flex-1 bg-transparent border-none outline-none text-3xl sm:text-5xl font-serif font-black tracking-[0.3em] text-yellow-500 placeholder:text-white/5 px-6 py-2"
+                                        onKeyPress={(e) => {
+                                            if (e.key === 'Enter') {
+                                                joinRoom();
+                                            }
+                                        }}
+                                        className="flex-1 bg-transparent border-none outline-none text-2xl sm:text-4xl font-serif font-black tracking-[0.4em] text-yellow-400 placeholder:text-white/10 px-4 sm:px-6 py-2 min-w-0"
                                     />
                                     <button 
                                         onClick={() => joinRoom()} 
-                                        className="h-16 px-10 sm:px-14 bg-gradient-to-br from-yellow-500 to-yellow-700 hover:from-yellow-400 hover:to-yellow-600 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-[0_10px_20px_rgba(234,179,8,0.2)]"
+                                        disabled={!roomIdInput.trim()}
+                                        className="h-auto min-h-[56px] sm:min-h-[64px] px-5 sm:px-8 bg-gradient-to-br from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed disabled:opacity-40 text-black rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all active:scale-95 shadow-[0_8px_20px_rgba(234,179,8,0.3)] hover:shadow-[0_12px_30px_rgba(234,179,8,0.4)] whitespace-nowrap flex items-center justify-center"
                                     >
-                                        INTERCEPT
+                                        JOIN
                                     </button>
                                 </div>
                             </div>
@@ -295,51 +299,54 @@ export const Lobby: React.FC<LobbyProps> = ({
                             <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
 
                             <div className="flex-1 flex flex-col min-h-0">
-                                <div className="flex justify-between items-center px-2 mb-6">
+                                <div className="flex justify-between items-center px-2 mb-4 sm:mb-6">
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic">PUBLIC LOBBIES</span>
-                                        <span className="text-[7px] font-bold text-white/20 uppercase tracking-widest mt-1">Found {publicRooms.length} discoverable arenas</span>
+                                        <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">Public Matches</span>
+                                        <span className="text-[9px] sm:text-[10px] font-semibold text-white/40 uppercase tracking-wider mt-0.5">{publicRooms.length} {publicRooms.length === 1 ? 'room' : 'rooms'} available</span>
                                     </div>
                                     <button 
                                         onClick={refreshRooms} 
                                         disabled={isRefreshing} 
-                                        className={`w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all duration-150 active:scale-90 ${isRefreshing ? 'opacity-50' : 'hover:bg-white/10 hover:text-yellow-500'}`}
+                                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all duration-200 active:scale-90 ${isRefreshing ? 'opacity-50' : 'hover:bg-white/10 hover:border-yellow-500/30 hover:text-yellow-400'}`}
                                     >
                                         <div className={isRefreshing ? 'animate-spin' : ''}><RecycleIcon /></div>
                                     </button>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto pr-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                                <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                                     {publicRooms.length === 0 ? (
-                                        <div className="h-full flex flex-col items-center justify-center text-center opacity-30 py-12">
-                                            <div className="w-20 h-20 rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-6">
-                                                <span className="text-4xl italic font-serif">?</span>
+                                        <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+                                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
+                                                <span className="text-3xl sm:text-4xl">🃏</span>
                                             </div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.6em]">NO PUBLIC LOBBIES FOUND</p>
-                                            <p className="text-[8px] font-bold uppercase tracking-[0.3em] text-white/40 mt-3">Try creating a match to start a session</p>
+                                            <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
+                                            <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                             {publicRooms.map(room => (
                                                 <div 
                                                     key={room.id} 
                                                     onClick={() => joinRoom(room.id)}
-                                                    className="group relative bg-white/[0.03] border border-white/5 rounded-[2.5rem] p-6 hover:bg-white/[0.08] hover:border-yellow-500/30 transition-all duration-200 cursor-pointer shadow-xl flex flex-col gap-6"
+                                                    className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
                                                 >
                                                     <div className="flex justify-between items-start">
-                                                        <div className="w-14 h-14 rounded-3xl bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-105 transition-transform duration-200">
-                                                            <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
+                                                        <div className="relative">
+                                                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                                <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
+                                                            </div>
+                                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
                                                         </div>
-                                                        <div className="bg-yellow-500/10 border border-yellow-500/30 px-4 py-1.5 rounded-full">
-                                                            <span className="text-[10px] font-black text-yellow-500 font-mono">{room.playerCount}/4 UNIT</span>
+                                                        <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
+                                                            <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
                                                         </div>
                                                     </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-black text-white uppercase tracking-widest truncate">{room.name}</span>
-                                                        <span className="text-[8px] font-bold text-white/30 uppercase tracking-[0.4em] mt-1 italic">HQ: {room.hostName}</span>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
+                                                        <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
                                                     </div>
-                                                    <div className="absolute bottom-6 right-6 w-10 h-10 rounded-2xl bg-yellow-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-200 shadow-xl">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
+                                                    <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
                                                     </div>
                                                 </div>
                                             ))}
@@ -349,46 +356,46 @@ export const Lobby: React.FC<LobbyProps> = ({
                             </div>
                         </div>
                     ) : (
-                        <div className="h-full flex flex-col justify-center space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-xl mx-auto w-full">
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 italic block px-2">LOBBY NAME</label>
+                        <div className="h-full flex flex-col justify-center space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-xl mx-auto w-full">
+                            <div className="space-y-3">
+                                <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
                                 <input 
                                     type="text" 
                                     value={roomNameInput}
                                     onChange={e => setRoomNameInput(e.target.value.toUpperCase())}
                                     maxLength={24}
-                                    placeholder="ENTER LOBBY NAME"
-                                    className="w-full bg-black/40 border border-white/10 px-8 py-6 rounded-[2rem] text-white font-black uppercase tracking-[0.2em] text-xl focus:border-yellow-500/50 outline-none transition-all duration-200 shadow-inner placeholder:text-white/5"
+                                    placeholder="Enter room name..."
+                                    className="w-full bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 px-6 sm:px-8 py-4 sm:py-6 rounded-2xl sm:rounded-[2rem] text-white font-black uppercase tracking-wider text-lg sm:text-xl focus:border-yellow-500/50 focus:shadow-[0_0_30px_rgba(234,179,8,0.2)] outline-none transition-all duration-300 shadow-inner placeholder:text-white/10"
                                 />
                             </div>
 
-                            <div className="bg-white/[0.02] p-8 rounded-[2.5rem] border border-white/5 space-y-8">
+                            <div className="bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 space-y-6 sm:space-y-8">
                                 <div className="flex items-center justify-between">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-black text-white uppercase tracking-widest">PUBLIC LOBBY</span>
-                                        <span className="text-[8px] font-bold text-white/30 uppercase tracking-tight">LOBBY WILL BE PUBLIC FOR ANYONE TO JOIN</span>
+                                        <span className="text-sm font-black text-white uppercase tracking-wider">Public Room</span>
+                                        <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Anyone can discover and join</span>
                                     </div>
                                     <button 
                                         onClick={() => setIsPublic(!isPublic)}
-                                        className={`w-14 h-7 rounded-full relative transition-all duration-300 p-1 flex items-center ${isPublic ? 'bg-emerald-600 shadow-[0_0_40px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}
+                                        className={`w-14 h-7 rounded-full relative transition-all duration-300 p-1 flex items-center ${isPublic ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-white/10'}`}
                                     >
-                                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-300 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
+                                        <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-lg transition-transform duration-300 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
                                     </button>
                                 </div>
 
-                                <div className="h-[1px] w-full bg-white/5"></div>
+                                <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
 
-                                <div className="space-y-4">
+                                <div className="space-y-3 sm:space-y-4">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-black text-white uppercase tracking-widest">TURN TIMER</span>
-                                        <span className="text-[8px] font-bold text-white/30 uppercase tracking-tight">DURATION PER MOVE BEFORE AUTOMATIC PASS</span>
+                                        <span className="text-sm font-black text-white uppercase tracking-wider">Turn Timer</span>
+                                        <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Time per move before auto-pass</span>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2 p-1 bg-black/40 rounded-2xl border border-white/5 shadow-inner">
+                                    <div className="grid grid-cols-4 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner">
                                         {[0, 30, 60, 90].map(val => (
                                             <button 
                                                 key={val} 
                                                 onClick={() => setLocalTurnTimer(val)}
-                                                className={`py-2.5 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all duration-150 ${localTurnTimer === val ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/20 hover:text-white/40'}`}
+                                                className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'}`}
                                             >
                                                 {val === 0 ? 'OFF' : `${val}S`}
                                             </button>
@@ -397,28 +404,29 @@ export const Lobby: React.FC<LobbyProps> = ({
                                 </div>
                             </div>
 
-                            <LuxuryActionTile 
-                                onClick={createRoom} 
-                                label="CREATE NEW LOBBY" 
-                                sublabel="Establish Arena Session" 
-                                variant="emerald"
-                                className="w-full"
-                                icon={<span className="text-2xl">⚔️</span>}
-                            />
+                            <button
+                                onClick={createRoom}
+                                className="w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-300 active:scale-95 relative overflow-hidden group"
+                            >
+                                <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
+                                <span className="relative z-10 flex items-center justify-center gap-3">
+                                    <span className="text-xl sm:text-2xl">🎮</span>
+                                    Create Room
+                                </span>
+                            </button>
                         </div>
                     )}
                 </div>
             </GlassPanel>
 
-            <div className="w-full max-w-xl mt-4">
-                <LuxuryActionTile 
-                    onClick={onBack!} 
-                    label="WITHDRAW TO HQ" 
-                    sublabel="Return to Main Menu" 
-                    variant="rose"
-                    className="w-full"
-                    icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
-                />
+            <div className="w-full max-w-xl mt-4 sm:mt-6">
+                <button
+                    onClick={onBack!}
+                    className="w-full py-4 sm:py-5 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 hover:border-white/20 hover:bg-white/10 text-white font-black uppercase tracking-wider text-xs sm:text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 shadow-lg"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    Back to Menu
+                </button>
             </div>
           </div>
         ) : (

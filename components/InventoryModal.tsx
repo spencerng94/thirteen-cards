@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { InventoryGrid } from './InventoryGrid';
 import { BoardSurface } from './UserHub';
-import { claimAdReward } from '../services/supabase';
+import { rewardUserForAd } from '../services/supabase';
+import { adService, AdPlacement } from '../services/adService';
 import { audioService } from '../services/audio';
 import { CurrencyIcon } from './Store';
+import { GemRain } from './GemRain';
 
 interface InventoryModalProps {
   onClose: () => void;
@@ -13,94 +15,116 @@ interface InventoryModalProps {
 }
 
 const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }> = ({ profile, onRefresh }) => {
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [adState, setAdState] = useState<'idle' | 'loading' | 'playing' | 'rewarded' | 'error'>('idle');
+  const [showGemRain, setShowGemRain] = useState(false);
+  const placement: AdPlacement = 'inventory';
 
   useEffect(() => {
-    const update = () => {
-      const last = profile.last_ad_claim ? new Date(profile.last_ad_claim).getTime() : 0;
-      const cooldown = 4 * 60 * 60 * 1000;
-      const remaining = Math.max(0, cooldown - (Date.now() - last));
-      setTimeLeft(remaining);
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [profile.last_ad_claim]);
+    const unsubscribe = adService.onStateChange(placement, setAdState);
+    return unsubscribe;
+  }, [placement]);
 
-  const handleClaim = async () => {
-    if (timeLeft > 0 || loading) return;
-    setLoading(true);
-    const res = await claimAdReward(profile.id);
-    if (res.success) {
-      audioService.playPurchase();
-      onRefresh();
+  const isAvailable = adService.isAdAvailable(placement);
+  const cooldownString = adService.getCooldownString(placement);
+
+  const handleWatchAd = async () => {
+    if (!isAvailable || adState !== 'idle') return;
+
+    try {
+      await adService.showRewardedAd(placement, async (amount) => {
+        const result = await rewardUserForAd(profile.id, amount);
+        if (result.success) {
+          audioService.playPurchase();
+          setShowGemRain(true);
+          onRefresh();
+        }
+      });
+    } catch (error: any) {
+      console.error('Ad error:', error);
     }
-    setLoading(false);
   };
 
-  const hours = Math.floor(timeLeft / (1000 * 60 * 60));
-  const mins = Math.floor((timeLeft / (1000 * 60)) % 60);
+  const getButtonText = () => {
+    if (adState === 'loading') return 'Loading Ad...';
+    if (adState === 'playing') return 'Playing...';
+    if (adState === 'rewarded') return 'Rewarded!';
+    if (!isAvailable) return `Next: ${cooldownString}`;
+    return 'Watch & Earn';
+  };
 
   return (
-    <button 
-      onClick={handleClaim} 
-      disabled={timeLeft > 0 || loading}
-      className={`group relative overflow-hidden px-6 py-2.5 rounded-full border-2 transition-all duration-300 active:scale-95
-        ${timeLeft > 0 ? 'bg-black/20 border-white/5 opacity-50 grayscale' : 'bg-gradient-to-br from-pink-600 to-pink-900 border-pink-400 shadow-[0_0_20px_rgba(236,72,153,0.3)] hover:scale-105'}`}
-    >
-      <div className="relative z-10 flex items-center gap-3">
-         <span className="text-[10px] font-black uppercase tracking-widest text-white drop-shadow-md">
-            {loading ? 'LOADING...' : timeLeft > 0 ? `NEXT: ${hours}H ${mins}M` : 'WATCH & EARN +250'}
-         </span>
-         <CurrencyIcon type="GOLD" size="sm" className="drop-shadow-[0_0_5px_rgba(255,215,0,0.4)]" />
-      </div>
-    </button>
+    <>
+      <button 
+        onClick={handleWatchAd} 
+        disabled={!isAvailable || adState !== 'idle'}
+        className={`group relative overflow-hidden px-5 py-3 sm:px-6 sm:py-3.5 rounded-2xl backdrop-blur-md border transition-all duration-300 active:scale-95 min-h-[48px] touch-manipulation
+          ${!isAvailable || adState !== 'idle'
+            ? 'bg-white/5 border-white/10 opacity-60 cursor-not-allowed' 
+            : 'bg-gradient-to-br from-pink-500/90 via-pink-600/90 to-rose-600/90 border-pink-400/30 shadow-[0_0_30px_rgba(236,72,153,0.4)] hover:shadow-[0_0_40px_rgba(236,72,153,0.6)] hover:scale-105 hover:border-pink-400/50'}`}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+        <div className="relative z-10 flex items-center gap-2.5">
+          <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
+            {getButtonText()}
+          </span>
+          {isAvailable && adState === 'idle' && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs sm:text-sm font-bold text-pink-200">+20</span>
+              <CurrencyIcon type="GEMS" size="sm" className="drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" />
+            </div>
+          )}
+        </div>
+      </button>
+      {showGemRain && (
+        <GemRain 
+          gemCount={20} 
+          onComplete={() => setShowGemRain(false)} 
+        />
+      )}
+    </>
   );
 };
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose, profile, onRefreshProfile }) => {
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-3xl p-4 animate-in fade-in duration-300" onClick={onClose}>
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-3xl p-4 sm:p-6 animate-in fade-in duration-300" onClick={onClose}>
       <BoardSurface themeId={profile.active_board as any || 'EMERALD'} isMini />
       
-      {/* Scanning lines for tech aesthetic */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-10" style={{ 
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.1) 1.5px, transparent 1.5px)`, 
-          backgroundSize: '80px 80px' 
-      }}></div>
+      {/* Subtle ambient glow */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.03),transparent_70%)] pointer-events-none"></div>
 
-      <div className="relative border border-white/10 w-full max-w-2xl max-h-[90vh] rounded-[3.5rem] overflow-hidden shadow-[0_0_150px_rgba(0,0,0,1)] flex flex-col bg-black/40 backdrop-blur-2xl" onClick={e => e.stopPropagation()}>
+      <div className="relative w-full max-w-3xl max-h-[92vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col bg-white/5 backdrop-blur-2xl border border-white/10" onClick={e => e.stopPropagation()}>
         
-        {/* Header */}
-        <div className="relative z-10 p-10 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent flex justify-between items-start">
-          <div className="flex flex-col">
-            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white/90 to-white/40 uppercase italic tracking-tighter leading-none font-serif">INVENTORY</h2>
-            <div className="flex items-center gap-3 mt-4">
-               <div className="w-1.5 h-1.5 rounded-full bg-pink-500 shadow-[0_0_10px_#ec4899] animate-pulse"></div>
-               <p className="text-[10px] font-black uppercase tracking-[0.5em] text-pink-400">Tactical Assets & Boosters</p>
+        {/* Premium Header - Apple Design Language */}
+        <div className="relative z-10 p-6 sm:p-8 border-b border-white/10 bg-gradient-to-b from-white/5 to-transparent">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            {/* Title Section */}
+            <div className="flex flex-col">
+              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-2 drop-shadow-lg">Inventory</h2>
+              <p className="text-sm text-white/60 font-medium">Manage your items and boosters</p>
             </div>
-          </div>
-          <div className="flex flex-col items-end gap-4">
-            <button 
-              onClick={onClose} 
-              className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-400 hover:text-white transition-all active:scale-90 shadow-xl"
-            >
-              <span className="text-[10px] font-black uppercase tracking-widest transition-transform group-hover:-translate-x-1">← Back</span>
-            </button>
-            <WatchEarnButton profile={profile} onRefresh={onRefreshProfile} />
+            
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <WatchEarnButton profile={profile} onRefresh={onRefreshProfile} />
+              <button 
+                onClick={onClose} 
+                className="group flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/80 hover:text-white transition-all duration-300 active:scale-95 backdrop-blur-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span className="text-sm font-semibold">Close</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="relative z-10 flex-1 overflow-y-auto p-10 space-y-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
-               <InventoryGrid profile={profile} onRefresh={onRefreshProfile} />
-            </div>
-        </div>
-
-        <div className="relative z-10 p-6 bg-black/60 border-t border-white/5 flex items-center justify-center">
-            <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.6em]">Encrypted Inventory Management System</span>
+        {/* Content - Premium Scrollable Area */}
+        <div className="relative z-10 flex-1 overflow-y-auto p-6 sm:p-8 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <InventoryGrid profile={profile} onRefresh={onRefreshProfile} />
+          </div>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
 
 /* Added ROYAL_CROSS to CardCoverStyle */
@@ -198,7 +198,7 @@ const getFaceTheming = (style: CardCoverStyle | undefined, suit: Suit, disableEf
   return { bg, border, textColor, symbolColor, innerGlow, fontClass };
 };
 
-export const Card: React.FC<CardProps> = ({ 
+const CardComponent: React.FC<CardProps> = ({ 
   card, 
   selected, 
   onClick, 
@@ -329,8 +329,8 @@ export const Card: React.FC<CardProps> = ({
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="relative group/dragon">
                         <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] fill-[#3d2b1f] opacity-80 filter grayscale-[0.2]">
-                             <path d="M50 10C55 10 60 15 60 20C60 25 55 30 50 30C45 30 40 25 40 20C40 15 45 10 50 10ZM50 80C30 80 15 65 15 45C15 25 30 10 50 10C70 10 85 25 85 45C85 65 70 80 50 80ZM50 35C50 35 30 50 30 65C30 80 50 90 50 90C50 90 70 80 70 65C70 50 50 35Z" opacity="0.3"/>
-                             <path d="M82,45 C82,20 60,15 50,15 C40,15 18,20 18,45 C18,65 35,85 50,85 C65,85 82,65 82,45 M50,25 C58,25 65,32 65,40 C65,48 58,55 50,55 C42,55 35,48 35,40 C35,32 42,25 50,25" />
+                             <path d="M50 10 C55 10 60 15 60 20 C60 25 55 30 50 30 C45 30 40 25 40 20 C40 15 45 10 50 10 Z M50 80 C30 80 15 65 15 45 C15 25 30 10 50 10 C70 10 85 25 85 45 C85 65 70 80 50 80 Z M50 35 C50 35 30 50 30 65 C30 80 50 90 50 90 C50 90 70 80 70 65 C70 50 50 35 Z" opacity="0.3"/>
+                             <path d="M82 45 C82 20 60 15 50 15 C40 15 18 20 18 45 C18 65 35 85 50 85 C65 85 82 65 82 45 M50 25 C58 25 65 32 65 40 C65 48 58 55 50 55 C42 55 35 48 35 40 C35 32 42 25 50 25" />
                              <circle cx="50" cy="40" r="5" />
                         </svg>
                         {activeTurn && !disableEffects && (
@@ -558,7 +558,7 @@ export const Card: React.FC<CardProps> = ({
             className={`
             relative rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] border-2 ${bgClass} ${borderClass}
             ${small ? 'w-10 h-14' : 'w-20 h-28 sm:w-24 sm:h-36'}
-            flex items-center justify-center overflow-hidden transition-all duration-200 transform-gpu
+            flex items-center justify-center overflow-hidden transition-all duration-200 transform-gpu will-change-transform
             hover:scale-110 hover:-translate-y-2 hover:rotate-1 group
             ${specialAnimation}
             ${className}
@@ -627,7 +627,7 @@ export const Card: React.FC<CardProps> = ({
     <div
       onClick={onClick}
       className={`
-        relative ${bg} border ${border} rounded-xl select-none cursor-pointer transform-gpu
+        relative ${bg} border ${border} rounded-xl select-none cursor-pointer transform-gpu will-change-transform
         ${small ? 'w-10 h-14 text-xs' : 'w-20 h-28 sm:w-24 sm:h-36 text-base'}
         ${selected 
           ? '-translate-y-16 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-40 scale-[1.05]' 
@@ -665,3 +665,19 @@ export const Card: React.FC<CardProps> = ({
     </div>
   );
 };
+
+// Memoize Card component to prevent unnecessary re-renders
+export const Card = memo(CardComponent, (prevProps, nextProps) => {
+  // Only re-render if these props change
+  return (
+    prevProps.card?.id === nextProps.card?.id &&
+    prevProps.selected === nextProps.selected &&
+    prevProps.faceDown === nextProps.faceDown &&
+    prevProps.coverStyle === nextProps.coverStyle &&
+    prevProps.disableEffects === nextProps.disableEffects &&
+    prevProps.activeTurn === nextProps.activeTurn &&
+    prevProps.small === nextProps.small &&
+    prevProps.className === nextProps.className &&
+    prevProps.onClick === nextProps.onClick
+  );
+});

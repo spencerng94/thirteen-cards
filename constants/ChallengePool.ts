@@ -3,8 +3,8 @@ export interface Challenge {
   title: string;
   description: string;
   target: number;
-  rewardType: 'GOLD' | 'XP' | 'GEMS';
-  rewardValue: number;
+  rewardType: 'GOLD' | 'XP' | 'BOOSTER';
+  rewardValue: number | string;
   metric: 'wins' | 'games' | 'bombs' | 'chops' | 'low_rank_win' | 'no_pass_win';
 }
 
@@ -13,12 +13,12 @@ export const CHALLENGE_POOL: Challenge[] = [
   { id: 'ch_firecracker', title: 'The Firecracker', description: 'Deploy 5 Bombs or Quads in total.', target: 5, rewardType: 'XP', rewardValue: 100, metric: 'bombs' },
   { id: 'ch_counter', title: 'The Counter-Punch', description: 'Perform 3 successful Chops on 2s.', target: 3, rewardType: 'GOLD', rewardValue: 500, metric: 'chops' },
   { id: 'ch_marathon', title: 'Arena Marathon', description: 'Complete 15 match deployments.', target: 15, rewardType: 'GOLD', rewardValue: 300, metric: 'games' },
-  { id: 'ch_clean_sweep', title: 'Clean Sweep', description: 'Win 5 matches without passing once in the final round.', target: 5, rewardType: 'GEMS', rewardValue: 50, metric: 'no_pass_win' },
+  { id: 'ch_clean_sweep', title: 'Clean Sweep', description: 'Win 5 matches without passing once in the final round.', target: 5, rewardType: 'BOOSTER', rewardValue: 'XP_2X_30M', metric: 'no_pass_win' },
   { id: 'ch_assassin', title: 'Quiet Assassin', description: 'Win a match where you never played a Triple or higher.', target: 3, rewardType: 'XP', rewardValue: 150, metric: 'wins' },
   { id: 'ch_dominance', title: 'Total Dominance', description: 'Win 10 matches in the arena.', target: 10, rewardType: 'GOLD', rewardValue: 1000, metric: 'wins' },
   { id: 'ch_demolition', title: 'Demolition Specialist', description: 'Play 10 Bombs or Quads.', target: 10, rewardType: 'XP', rewardValue: 250, metric: 'bombs' },
   { id: 'ch_heavy_hitter', title: 'Heavy Hitter', description: 'Win with a card rank of Ace or higher.', target: 8, rewardType: 'GOLD', rewardValue: 600, metric: 'wins' },
-  { id: 'ch_fast_track', title: 'Fast Track', description: 'Complete 25 games.', target: 25, rewardType: 'GEMS', rewardValue: 100, metric: 'games' },
+  { id: 'ch_fast_track', title: 'Fast Track', description: 'Complete 25 games.', target: 25, rewardType: 'BOOSTER', rewardValue: 'GOLD_2X_30M', metric: 'games' },
   { id: 'ch_sniper', title: 'The Sniper', description: 'Chop a single 2 using a Quad.', target: 2, rewardType: 'GOLD', rewardValue: 450, metric: 'chops' },
   { id: 'ch_resilience', title: 'Resilience', description: 'Play 50 games in total.', target: 50, rewardType: 'XP', rewardValue: 500, metric: 'games' },
   { id: 'ch_legend', title: 'Arena Legend', description: 'Secure 20 wins.', target: 20, rewardType: 'GOLD', rewardValue: 2000, metric: 'wins' },

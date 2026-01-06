@@ -1,8 +1,16 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Player, UserProfile, Emote } from '../types';
-import { calculateLevel, getXpForLevel, fetchEmotes } from '../services/supabase';
+import { calculateLevel, getXpForLevel, fetchEmotes, rewardUserForAd, updateProfileSettings } from '../services/supabase';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
+import { useFinisher } from '../hooks/useFinisher';
+import { ShibaSlamFinisher } from './ShibaSlamFinisher';
+import { EtherealBladeFinisher } from './EtherealBladeFinisher';
+import { SaltShakeFinisher } from './SaltShakeFinisher';
+import { SanctumSnapFinisher } from './SanctumSnapFinisher';
+import { adService, AdPlacement } from '../services/adService';
+import { GemRain } from './GemRain';
+import { CurrencyIcon } from './Store';
 
 interface VictoryScreenProps {
   players: Player[];
@@ -50,6 +58,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   const [displayLevel, setDisplayLevel] = useState(1);
   const [xpRemaining, setXpRemaining] = useState(0);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
+  const [finisherComplete, setFinisherComplete] = useState(false);
 
   const sortedPlayers = useMemo(() => [...players].sort((a, b) => {
     const rankA = a.finishedRank || 99;
@@ -61,9 +70,53 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   const myRank = me?.finishedRank || 4;
   const isWinner = myRank === 1;
 
+  // Finisher system
+  const { shouldShowFinisher, finisherData, loadEquippedFinisher } = useFinisher(myId, profile);
+  
+  useEffect(() => {
+    if (isWinner && profile) {
+      loadEquippedFinisher();
+    }
+  }, [isWinner, profile, loadEquippedFinisher]);
+
   useEffect(() => {
     fetchEmotes().then(setRemoteEmotes);
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = adService.onStateChange('victory', setAdState);
+    return unsubscribe;
+  }, []);
+
+  const handleAdReward = async (choice: 'gems' | 'gold') => {
+    if (!profile || adState !== 'idle') return;
+    
+    setAdRewardChoice(choice);
+    const placement: AdPlacement = 'victory';
+    
+    try {
+      await adService.showRewardedAd(placement, async (amount) => {
+        if (choice === 'gems') {
+          const result = await rewardUserForAd(profile.id, amount);
+          if (result.success) {
+            audioService.playPurchase();
+            setShowGemRain(true);
+          }
+        } else {
+          // Double gold
+          const updates: Partial<UserProfile> = {
+            coins: (profile.coins || 0) + coinsGained
+          };
+          await updateProfileSettings(profile.id, updates);
+          audioService.playPurchase();
+        }
+      });
+    } catch (error: any) {
+      console.error('Ad error:', error);
+    }
+  };
+
+  const isAdAvailable = adService.isAdAvailable('victory');
 
   useEffect(() => {
     audioService.playVictory();
@@ -143,7 +196,52 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   const config = getRankConfig(myRank);
 
   return (
-    <div className={`fixed inset-0 z-[200] flex flex-col items-center p-6 bg-black overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent select-none`}>
+    <>
+      {/* Finisher Animation - Show before main screen if winner has equipped finisher */}
+      {isWinner && shouldShowFinisher && finisherData && !finisherComplete && (
+        <>
+          {finisherData.animation_key === 'shiba_slam' && (
+            <ShibaSlamFinisher 
+              onComplete={() => setFinisherComplete(true)}
+              winnerName={me?.name || 'GUEST'}
+            />
+          )}
+          {finisherData.animation_key === 'ethereal_blade' && (
+            <EtherealBladeFinisher 
+              onComplete={() => setFinisherComplete(true)}
+              winnerName={me?.name || 'GUEST'}
+            />
+          )}
+          {finisherData.animation_key === 'salt_shaker' && (
+            <SaltShakeFinisher 
+              onComplete={() => setFinisherComplete(true)}
+              losingPlayers={sortedPlayers
+                .filter(p => p.finishedRank && p.finishedRank > 1)
+                .slice(0, 3)
+                .map((p, idx) => ({
+                  id: p.id,
+                  position: (['top', 'left', 'right'] as const)[idx] || 'top'
+                }))}
+              winnerName={me?.name || 'GUEST'}
+            />
+          )}
+          {finisherData.animation_key === 'sanctum_snap' && (
+            <SanctumSnapFinisher 
+              onComplete={() => setFinisherComplete(true)}
+              losingPlayers={sortedPlayers
+                .filter(p => p.finishedRank && p.finishedRank > 1)
+                .slice(0, 3)
+                .map((p, idx) => ({
+                  id: p.id,
+                  position: (['top', 'left', 'right'] as const)[idx] || 'top'
+                }))}
+              winnerName={me?.name || 'GUEST'}
+            />
+          )}
+        </>
+      )}
+      
+      <div className={`fixed inset-0 z-[200] flex flex-col items-center p-6 bg-black overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent select-none ${!finisherComplete && isWinner && shouldShowFinisher ? 'opacity-0 pointer-events-none' : ''}`}>
       {/* Background Layers */}
       <div className={`fixed inset-0 bg-gradient-to-b ${config.bg} to-black transition-all duration-1000`}></div>
       <div className="fixed inset-0 opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(circle at center, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
@@ -282,11 +380,53 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
             </div>
         </div>
 
+        {/* Ad Reward Button - Double Gold or Get Gems */}
+        {phase === 'ready' && isAdAvailable && (
+          <div className={`w-full mb-4 transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <div className="bg-gradient-to-br from-purple-500/20 via-pink-500/15 to-purple-600/20 backdrop-blur-xl border-2 border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-[0_0_40px_rgba(168,85,247,0.3)]">
+              <p className="text-xs sm:text-sm text-white/70 text-center mb-3 font-medium">Double your rewards!</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => handleAdReward('gold')}
+                  disabled={adState !== 'idle'}
+                  className={`group relative overflow-hidden py-3 sm:py-4 px-4 rounded-xl transition-all duration-300 min-h-[56px] touch-manipulation ${
+                    adState !== 'idle'
+                      ? 'bg-white/10 border border-white/20 text-white/50 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-bold shadow-lg hover:scale-105'
+                  }`}
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <CurrencyIcon type="GOLD" size="sm" />
+                    <span className="text-xs font-bold">Double Gold</span>
+                    <span className="text-[10px] opacity-80">+{coinsGained}</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleAdReward('gems')}
+                  disabled={adState !== 'idle'}
+                  className={`group relative overflow-hidden py-3 sm:py-4 px-4 rounded-xl transition-all duration-300 min-h-[56px] touch-manipulation ${
+                    adState !== 'idle'
+                      ? 'bg-white/10 border border-white/20 text-white/50 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold shadow-lg hover:scale-105'
+                  }`}
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <CurrencyIcon type="GEMS" size="sm" />
+                    <span className="text-xs font-bold">Get 5 Gems</span>
+                    <span className="text-[10px] opacity-80">+5</span>
+                  </div>
+                </button>
+              </div>
+              <p className="text-[10px] text-white/50 text-center mt-3">Watch a video to claim</p>
+            </div>
+          </div>
+        )}
+
         {/* Action Bar */}
         <div className={`w-full space-y-4 transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <button 
                 onClick={onPlayAgain}
-                className="group w-full relative overflow-hidden py-6 rounded-[2rem] transition-all duration-300 active:scale-95 shadow-[0_20px_50px_rgba(0,0,0,0.4)] border border-white/10"
+                className="group w-full relative overflow-hidden py-6 rounded-[2rem] transition-all duration-300 active:scale-95 shadow-[0_20px_50px_rgba(0,0,0,0.4)] border border-white/10 min-h-[56px] touch-manipulation"
             >
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-700 via-green-500 to-emerald-700 transition-transform duration-1000 group-hover:scale-110"></div>
                 <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.3)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
@@ -297,7 +437,7 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
             
             <button 
                 onClick={onGoHome}
-                className="w-full py-4 bg-white/[0.02] hover:bg-white/[0.08] border border-white/5 text-gray-500 hover:text-white font-black text-[10px] uppercase tracking-[0.6em] rounded-[2rem] transition-all active:scale-95"
+                className="w-full py-4 bg-white/[0.02] hover:bg-white/[0.08] border border-white/5 text-gray-500 hover:text-white font-black text-[10px] uppercase tracking-[0.6em] rounded-[2rem] transition-all active:scale-95 min-h-[48px] touch-manipulation"
             >
                 Withdraw to HQ
             </button>
@@ -332,6 +472,15 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
         .animate-victory-particle { animation: victoryParticle 4s ease-out infinite; }
         .animate-victory-pop { animation: victoryPop 0.5s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
       `}} />
+
+      {/* Gem Rain Effect */}
+      {showGemRain && (
+        <GemRain 
+          gemCount={5} 
+          onComplete={() => setShowGemRain(false)} 
+        />
+      )}
     </div>
+    </>
   );
 };

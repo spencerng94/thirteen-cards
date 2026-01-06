@@ -98,7 +98,8 @@ export interface UserInventory {
 
 export interface UserProfile {
   id: string;
-  username: string;
+  username: string; // Stored as "DisplayName#0000" format
+  discriminator?: string; // Optional: 4-digit discriminator (for future database migration)
   avatar_url?: string;
   wins: number;
   games_played: number;
@@ -111,8 +112,10 @@ export interface UserProfile {
   unlocked_avatars: string[];
   unlocked_boards: string[];
   unlocked_emotes?: string[];
+  unlocked_finishers?: string[];
   equipped_sleeve?: string;
   equipped_board?: string;
+  equipped_finisher?: string;
   active_board?: string;
   active_sleeve?: string;
   sfx_enabled?: boolean;
@@ -140,6 +143,8 @@ export interface UserProfile {
     weekly_challenge_progress?: Record<string, number>; // challengeId -> currentCount
     total_hands_played?: number;
     new_player_login_days: number;
+    online_games_played?: number;
+    gems_purchased?: number;
     claimed_events: string[]; 
     ready_to_claim?: string[];
   };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus, SocketEvents, UserProfile, Emote, HubTab } from '../types';
 import { Card, CardCoverStyle } from './Card';
 import { InstructionsModal } from './InstructionsModal';
@@ -8,6 +8,7 @@ import { sortCards, validateMove, getComboType, findAllValidCombos, canPlayAnyMo
 import { socket } from '../services/socket';
 import { DEFAULT_AVATARS, fetchEmotes } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
+import { PlayerProfileModal } from './PlayerProfileModal';
 
 interface ActiveEmote {
   id: string;
@@ -45,7 +46,7 @@ const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
   );
 };
 
-const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; turnDuration?: number; sleeveEffectsEnabled?: boolean; className?: string }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, turnDuration, sleeveEffectsEnabled, className = '' }) => {
+const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; turnDuration?: number; sleeveEffectsEnabled?: boolean; className?: string; onPlayerClick?: (player: Player) => void; isCurrentPlayer?: boolean }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, turnDuration, sleeveEffectsEnabled, className = '', onPlayerClick, isCurrentPlayer = false }) => {
   const isFinished = !!player.finishedRank;
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -80,7 +81,7 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
       ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 
         (position === 'left' ? 'flex-col landscape:flex-row items-center gap-6 sm:gap-8 landscape:gap-4' :
          position === 'right' ? 'flex-col landscape:flex-row-reverse items-center gap-6 sm:gap-8 landscape:gap-4' :
-         'flex-col items-center gap-6 sm:gap-8')} ${className}`}>
+         'flex-col items-center gap-6 sm:gap-8')} ${className} ${!isCurrentPlayer && !player.isBot && onPlayerClick ? 'pointer-events-auto' : ''}`}>
         
         <div className="relative flex flex-col items-center shrink-0">
             <div className="relative w-16 h-16 sm:w-24 sm:h-24 landscape:w-24 landscape:h-24">
@@ -91,7 +92,10 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
                   </div>
                 )}
                 
-                <div className={`w-full h-full aspect-square rounded-full border-2 transition-all duration-200 ease-out overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (showTimer && timeLeft <= 3 ? 'border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.4)]') + ' scale-110' : 'border-white/10'} ${getGlowClass()}`}>
+                <div 
+                  className={`w-full h-full aspect-square rounded-full border-2 transition-all duration-200 ease-out overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (showTimer && timeLeft <= 3 ? 'border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.4)]') + ' scale-110' : 'border-white/10'} ${getGlowClass()} ${!isCurrentPlayer && !player.isBot && onPlayerClick ? 'cursor-pointer hover:scale-105 hover:border-white/30' : ''}`}
+                  onClick={() => !isCurrentPlayer && !player.isBot && onPlayerClick && onPlayerClick(player)}
+                >
                     <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="lg" />
                     {showTimer && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -137,6 +141,23 @@ const PlayerSlot: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left'
     </div>
   );
 };
+
+// Memoize PlayerSlot to prevent unnecessary re-renders
+const PlayerSlot = memo(PlayerSlotComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.player.id === nextProps.player.id &&
+    prevProps.player.cardCount === nextProps.player.cardCount &&
+    prevProps.player.hasPassed === nextProps.player.hasPassed &&
+    prevProps.player.finishedRank === nextProps.player.finishedRank &&
+    prevProps.player.isOffline === nextProps.player.isOffline &&
+    prevProps.isTurn === nextProps.isTurn &&
+    prevProps.position === nextProps.position &&
+    prevProps.coverStyle === nextProps.coverStyle &&
+    prevProps.sleeveEffectsEnabled === nextProps.sleeveEffectsEnabled &&
+    prevProps.turnEndTime === nextProps.turnEndTime &&
+    prevProps.turnDuration === nextProps.turnDuration
+  );
+});
 
 const BombOverlay: React.FC<{ active: boolean }> = ({ active }) => {
   if (!active) return null;
@@ -236,6 +257,19 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [isShaking, setIsShaking] = useState(false);
   const lastEmoteSentAt = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [selectedPlayerProfile, setSelectedPlayerProfile] = useState<Player | null>(null);
+  
+  // Track emote usage for statistics
+  const trackEmoteUsage = useCallback((emote: string) => {
+    try {
+      const stored = localStorage.getItem('emote_usage_stats');
+      const stats: Record<string, number> = stored ? JSON.parse(stored) : {};
+      stats[emote] = (stats[emote] || 0) + 1;
+      localStorage.setItem('emote_usage_stats', JSON.stringify(stats));
+    } catch (e) {
+      console.error('Failed to track emote usage:', e);
+    }
+  }, []);
 
   const isMyTurn = gameState.currentPlayerId === myId;
   const me = gameState.players.find((p) => p.id === myId);
@@ -270,8 +304,14 @@ export const GameTable: React.FC<GameTableProps> = ({
   }, [lastMove?.cards?.length || 0, lastMove?.playerId, lastMove?.comboType]);
 
   const unlockedAvatars = useMemo(() => {
-    const unlocked = profile?.unlocked_avatars || [];
-    return Array.from(new Set([...DEFAULT_AVATARS, ...unlocked]));
+    const unlocked = (profile?.unlocked_avatars || []).filter(avatar => avatar !== ':smile:');
+    const defaultAvatarsFiltered = DEFAULT_AVATARS.filter(avatar => avatar !== ':smile:');
+    // Filter out problematic avatars that fail to load (400 errors)
+    const problematicTriggers = [':doge_focus:', ':game_over:', ':lunar_new_year:', ':the_mooner:'];
+    const allAvatars = Array.from(new Set([...defaultAvatarsFiltered, ...unlocked]))
+      .filter(avatar => avatar !== ':smile:')
+      .filter(avatar => !problematicTriggers.includes(avatar.toLowerCase()));
+    return allAvatars;
   }, [profile]);
 
   useEffect(() => { if (!isMyTurn) setSelectedCardIds(new Set()); }, [isMyTurn]);
@@ -327,33 +367,63 @@ export const GameTable: React.FC<GameTableProps> = ({
     return (Object.values(combosByGroup) as CardType[][][]).some(list => list.length > 0);
   }, [combosByGroup]);
 
-  const sendEmote = (triggerCode: string) => { if (Date.now() - lastEmoteSentAt.current < EMOTE_COOLDOWN) return; lastEmoteSentAt.current = Date.now(); socket.emit(SocketEvents.EMOTE_SENT, { roomId: gameState.roomId, emote: triggerCode }); setShowEmotePicker(false); const id = Math.random().toString(); setActiveEmotes(prev => [...prev, { id, playerId: myId, emote: triggerCode }]); audioService.playEmote(); setTimeout(() => setActiveEmotes(prev => prev.filter(e => e.id !== id)), 3000); };
+  const sendEmote = useCallback((triggerCode: string) => { 
+    if (Date.now() - lastEmoteSentAt.current < EMOTE_COOLDOWN) return; 
+    lastEmoteSentAt.current = Date.now(); 
+    socket.emit(SocketEvents.EMOTE_SENT, { roomId: gameState.roomId, emote: triggerCode }); 
+    setShowEmotePicker(false); 
+    const id = Math.random().toString(); 
+    setActiveEmotes(prev => [...prev, { id, playerId: myId, emote: triggerCode }]); 
+    audioService.playEmote(); 
+    // Track emote usage
+    trackEmoteUsage(triggerCode);
+    setTimeout(() => setActiveEmotes(prev => prev.filter(e => e.id !== id)), 3000); 
+  }, [gameState.roomId, myId, trackEmoteUsage]);
 
-  const getPlayerPosition = (index: number) => { const relativeIndex = (index - myIndex + gameState.players.length) % gameState.players.length; switch(relativeIndex) { case 0: return 'bottom'; case 1: return 'left'; case 2: return 'top'; case 3: return 'right'; default: return 'bottom'; } };
+  const getPlayerPosition = useCallback((index: number) => { 
+    const relativeIndex = (index - myIndex + gameState.players.length) % gameState.players.length; 
+    switch(relativeIndex) { 
+      case 0: return 'bottom'; 
+      case 1: return 'left'; 
+      case 2: return 'top'; 
+      case 3: return 'right'; 
+      default: return 'bottom'; 
+    } 
+  }, [myIndex, gameState.players.length]);
 
-  const opponents = useMemo(() => { return gameState.players.map((p, i: number) => ({ player: p, index: i, position: getPlayerPosition(i) })).filter((o) => o.position !== 'bottom'); }, [gameState.players, myId, myIndex]);
+  const opponents = useMemo(() => { 
+    return gameState.players.map((p, i: number) => ({ player: p, index: i, position: getPlayerPosition(i) })).filter((o) => o.position !== 'bottom'); 
+  }, [gameState.players, getPlayerPosition]);
 
-  const toggleCard = (id: string) => { if (!isMyTurn) return; const next = new Set(selectedCardIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedCardIds(next); };
+  const toggleCard = useCallback((id: string) => { 
+    if (!isMyTurn) return; 
+    setSelectedCardIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, [isMyTurn]);
 
-  const handlePlay = () => { 
+  const handlePlay = useCallback(() => { 
     if (selectedCardIds.size === 0 || !isMyTurn) return; 
     const cards = myHand.filter((c) => selectedCardIds.has(c.id)); 
     const res = validateMove(cards, playPile, !!gameState.isFirstTurnOfGame, myHand);
     if (res.isValid) { 
       onPlayCards(cards); 
     } 
-  };
+  }, [selectedCardIds, isMyTurn, myHand, playPile, gameState.isFirstTurnOfGame, onPlayCards]);
 
-  const handleDynamicAction = () => {
+  const handleDynamicAction = useCallback(() => {
     if (!isMyTurn) return;
     if (selectedCardIds.size === 0) {
       if (!isLeader) onPassTurn();
     } else {
       setSelectedCardIds(new Set());
     }
-  };
+  }, [isMyTurn, selectedCardIds.size, isLeader, onPassTurn]);
 
-  const cycleComboType = (type: string) => {
+  const cycleComboType = useCallback((type: string) => {
     const list = combosByGroup[type] || [];
     if (list.length === 0) return;
     
@@ -372,7 +442,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       setSelectedCardIds(new Set(nextCombo.map((c) => c.id)));
       audioService.playExpandHand(); 
     }
-  };
+  }, [combosByGroup, selectedCardIds]);
 
   const spacing = { 
     landscape: handRows >= 2 
@@ -474,6 +544,18 @@ export const GameTable: React.FC<GameTableProps> = ({
       <BombOverlay active={showBombEffect} />
       {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
 
+      {/* Player Profile Modal */}
+      {selectedPlayerProfile && profile && !selectedPlayerProfile.isBot && (
+        <PlayerProfileModal
+          playerId={selectedPlayerProfile.id}
+          playerName={selectedPlayerProfile.name}
+          playerAvatar={selectedPlayerProfile.avatar}
+          currentUserId={myId}
+          onClose={() => setSelectedPlayerProfile(null)}
+          onRefreshProfile={() => {}}
+        />
+      )}
+
       {activeEmotes.map(ae => { const playerIdx = gameState.players.findIndex((p) => p.id === ae.playerId); if (playerIdx === -1) return null; return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={getPlayerPosition(playerIdx) as any} />; })}
 
       <div className="fixed top-4 left-4 z-[250] hidden landscape:flex flex-col gap-4 pointer-events-none items-start">
@@ -568,14 +650,14 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 flex justify-center">
           <div className={`${isMyTurn ? 'opacity-100 translate-y-0' : (isFinished ? 'opacity-60 scale-90 translate-y-4' : 'opacity-0 translate-y-20')}`}>
             {me && (
-                <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
+                <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" isCurrentPlayer={true} />
             )}
           </div>
       </div>
 
-      <div className="fixed bottom-[180px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 flex justify-center">
+      <div className={`fixed bottom-[180px] left-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex justify-center ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {leftOpponent && (
-              <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
+              <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />
           )}
       </div>
 
@@ -587,9 +669,9 @@ export const GameTable: React.FC<GameTableProps> = ({
           {isMyTurn && expandButtonUI}
       </div>
 
-      <div className="fixed bottom-[180px] right-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 flex justify-center">
+      <div className={`fixed bottom-[180px] right-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex justify-center ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {rightOpponent && (
-              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />
+              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />
           )}
       </div>
 
@@ -621,16 +703,16 @@ export const GameTable: React.FC<GameTableProps> = ({
       </div>
 
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
-        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''}`}>
-          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" />)}
+        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''} ${topOpponent && !topOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />)}
         </div>
         
-        <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isMyTurn ? '-translate-y-32 z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16 z-[60]' : '')} landscape:hidden`}>
-          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
+        <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isMyTurn ? '-translate-y-32 z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16 z-[60]' : '')} landscape:hidden ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />)}
         </div>
         
-        <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} landscape:hidden`}>
-          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} />)}
+        <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} landscape:hidden ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />)}
         </div>
       </div>
 
@@ -649,7 +731,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                         transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})`,
                         animationDelay: playAnimationsEnabled ? `${i * 0.05}s` : '0s'
                     } as any}
-                    className={playAnimationsEnabled ? "animate-play-bounce" : ""}
+                    className={`transform-gpu will-change-transform ${playAnimationsEnabled ? "animate-play-bounce" : ""}`}
                   >
                     <Card 
                       card={c} 
@@ -679,7 +761,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-300 landscape:hidden
                 ${isMyTurn ? '-top-[95px]' : (isFinished ? '-top-[55px]' : 'top-20 opacity-0')}`}>
               {me && (
-                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} />
+                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} isCurrentPlayer={true} />
               )}
             </div>
 
@@ -703,16 +785,18 @@ export const GameTable: React.FC<GameTableProps> = ({
             {sortedHand.map((c) => {
               const is3Spades = c.rank === Rank.Three && c.suit === Suit.Spades;
               const showHint = isMyTurn && isLeader && gameState.isFirstTurnOfGame && is3Spades && !selectedCardIds.has(c.id);
+              const isSelected = selectedCardIds.has(c.id);
+              const handleCardClick = () => toggleCard(c.id);
               return (
                 <Card 
                   key={c.id} 
                   card={c} 
                   coverStyle={cardCoverStyle}
-                  selected={selectedCardIds.has(c.id)} 
-                  onClick={() => toggleCard(c.id)} 
+                  selected={isSelected} 
+                  onClick={handleCardClick} 
                   disableEffects={!sleeveEffectsEnabled}
                   activeTurn={isMyTurn}
-                  className={`transform transition-all duration-200 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''}`} 
+                  className={`transform-gpu will-change-transform transition-all duration-200 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''}`} 
                 />
               );
             })}
@@ -752,32 +836,32 @@ export const GameTable: React.FC<GameTableProps> = ({
         .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
         
         @keyframes playFromBottom {
-          0% { transform: translateY(50vh) rotate(15deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
+          0% { transform: translate3d(0, 50vh, 0) rotate(15deg) scale(0.5); opacity: 0; filter: blur(15px); }
+          100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
         }
         @keyframes playFromTop {
-          0% { transform: translateY(-50vh) rotate(-15deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
+          0% { transform: translate3d(0, -50vh, 0) rotate(-15deg) scale(0.5); opacity: 0; filter: blur(15px); }
+          100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
         }
         @keyframes playFromLeft {
-          0% { transform: translateX(-50vw) rotate(-90deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
+          0% { transform: translate3d(-50vw, 0, 0) rotate(-90deg) scale(0.5); opacity: 0; filter: blur(15px); }
+          100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
         }
         @keyframes playFromRight {
-          0% { transform: translateX(50vw) rotate(90deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
+          0% { transform: translate3d(50vw, 0, 0) rotate(90deg) scale(0.5); opacity: 0; filter: blur(15px); }
+          100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
         }
         @keyframes playBounce {
-          0% { transform: scale(0.8); }
-          50% { transform: scale(1.05); }
-          100% { transform: scale(1); }
+          0% { transform: scale3d(0.8, 0.8, 1); }
+          50% { transform: scale3d(1.05, 1.05, 1); }
+          100% { transform: scale3d(1, 1, 1); }
         }
 
-        .animate-play-from-bottom { animation: playFromBottom 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        .animate-play-from-top { animation: playFromTop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        .animate-play-from-left { animation: playFromLeft 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        .animate-play-from-right { animation: playFromRight 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        .animate-play-bounce { animation: playBounce 0.4s ease-out forwards; }
+        .animate-play-from-bottom { animation: playFromBottom 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
+        .animate-play-from-top { animation: playFromTop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
+        .animate-play-from-left { animation: playFromLeft 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
+        .animate-play-from-right { animation: playFromRight 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
+        .animate-play-bounce { animation: playBounce 0.4s ease-out forwards; will-change: transform; }
       `}} />
     </div>
   );

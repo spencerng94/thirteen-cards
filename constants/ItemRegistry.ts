@@ -14,6 +14,7 @@ export interface RegistryItem {
   isEventExclusive?: boolean;
   style?: CardCoverStyle;
   durationMs?: number;
+  gamesRemaining?: number; // For game-based boosters (instead of time-based)
   boosterType?: 'XP' | 'GOLD';
   multiplier?: number;
 }
@@ -48,10 +49,10 @@ export const ITEM_REGISTRY: Record<string, RegistryItem> = {
     name: 'XP Injection (S)',
     type: 'BOOSTER',
     rarity: 'COMMON',
-    description: 'Doubles all XP earned in matches for 10 minutes.',
+    description: 'Doubles all XP earned in your next 3 matches.',
     price: 200,
     currency: 'GOLD',
-    durationMs: 10 * 60 * 1000,
+    gamesRemaining: 3,
     boosterType: 'XP',
     multiplier: 2
   },
@@ -74,6 +75,42 @@ export const ITEM_REGISTRY: Record<string, RegistryItem> = {
     rarity: 'COMMON',
     description: 'Grants 10% off your next Store purchase.',
     price: 150,
+    currency: 'GOLD'
+  },
+  'BOOSTER_PACK_XP': {
+    id: 'BOOSTER_PACK_XP',
+    name: 'XP Booster Pack',
+    type: 'BOOSTER',
+    rarity: 'RARE',
+    description: 'Contains 1x XP Overclock (L) and 2x XP Injection (S).',
+    price: 800,
+    currency: 'GOLD'
+  },
+  'BOOSTER_PACK_GOLD': {
+    id: 'BOOSTER_PACK_GOLD',
+    name: 'Gold Booster Pack',
+    type: 'BOOSTER',
+    rarity: 'RARE',
+    description: 'Contains 1x Midas Protocol (L) and 2x Gold Injection (S).',
+    price: 800,
+    currency: 'GOLD'
+  },
+  'STREAK_PROTECTION': {
+    id: 'STREAK_PROTECTION',
+    name: 'Streak Shield',
+    type: 'VOUCHER',
+    rarity: 'EPIC',
+    description: 'Protects your win streak from one loss. One-time use.',
+    price: 300,
+    currency: 'GOLD'
+  },
+  'DAILY_BONUS_MULTIPLIER': {
+    id: 'DAILY_BONUS_MULTIPLIER',
+    name: 'Daily Bonus Boost',
+    type: 'BOOSTER',
+    rarity: 'COMMON',
+    description: 'Increases daily event rewards by 50% for today.',
+    price: 250,
     currency: 'GOLD'
   },
   'SOVEREIGN_SPADE': {
@@ -121,5 +158,14 @@ export const ITEM_REGISTRY: Record<string, RegistryItem> = {
     price: 5000,
     currency: 'GOLD',
     style: 'AMETHYST_ROYAL'
+  },
+  'EMOTE_CHEST': {
+    id: 'EMOTE_CHEST',
+    name: 'Emote Chest',
+    type: 'COSMETIC',
+    rarity: 'EPIC',
+    description: 'Contains a random exclusive emote. Event exclusive - cannot be purchased.',
+    isEventExclusive: true
+    // No price - not purchasable
   }
 };

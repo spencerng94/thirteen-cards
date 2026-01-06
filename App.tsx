@@ -3,6 +3,7 @@ import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player, HubTab } from './types';
 import { GameTable } from './components/GameTable';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import { FriendsLounge } from './components/FriendsLounge';
 import { Lobby } from './components/Lobby';
 import { VictoryScreen } from './components/VictoryScreen';
 import { TutorialMode } from './components/TutorialMode';
@@ -17,7 +18,9 @@ import { dealCards, validateMove, findBestMove, getComboType, sortCards } from '
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
 import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings } from './services/supabase';
+import { supabase as supabaseClient } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
+import { WelcomeToast } from './components/WelcomeToast';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
@@ -39,6 +42,7 @@ const App: React.FC = () => {
   const [storeOpen, setStoreOpen] = useState(false);
   const [gemPacksOpen, setGemPacksOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const [storeTab, setStoreTab] = useState<'SLEEVES' | 'AVATARS' | 'BOARDS'>('SLEEVES');
   
   const [playerName, setPlayerName] = useState('');
@@ -52,6 +56,8 @@ const App: React.FC = () => {
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('MEDIUM');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showWelcomeToast, setShowWelcomeToast] = useState(false);
+  const [welcomeUsername, setWelcomeUsername] = useState('');
   
   const [mpGameState, setMpGameState] = useState<GameState | null>(null);
   const [mpMyHand, setMpMyHand] = useState<Card[]>([]);
@@ -143,22 +149,33 @@ const App: React.FC = () => {
       if (session?.user) {
         setIsGuest(false);
         const meta = session.user.user_metadata || {};
-        const googleName = meta.full_name || meta.name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+        // Use Google metadata: full_name, name, or display_name
+        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
         if (!playerName) setPlayerName(googleName.toUpperCase());
         await transferGuestData(session.user.id);
-        loadProfile(session.user.id);
+        // Check if this is a new user (no profile exists yet)
+        const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
+        const isNewUser = !existingProfile;
+        loadProfile(session.user.id, isNewUser);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session?.user) {
         setIsGuest(false);
         const meta = session.user.user_metadata || {};
-        const googleName = meta.full_name || meta.name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+        // Use Google metadata: full_name, name, or display_name
+        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
         if (!playerName) setPlayerName(googleName.toUpperCase());
         await transferGuestData(session.user.id);
-        loadProfile(session.user.id);
+        // Check if this is a new user (SIGNED_IN event with no existing profile)
+        if (event === 'SIGNED_IN') {
+          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
+          loadProfile(session.user.id, !existingProfile);
+        } else {
+          loadProfile(session.user.id, false);
+        }
       } else if (!isGuest) {
         setProfile(null);
         initialSyncCompleteRef.current = false;
@@ -167,13 +184,28 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, [isGuest, playerName, playerAvatar]);
 
-  const loadProfile = async (uid: string) => {
+  const loadProfile = async (uid: string, isNewUser: boolean = false) => {
     loadingProfileInProgressRef.current = true;
     initialSyncCompleteRef.current = false;
-    const data = await fetchProfile(uid, playerAvatar);
+    const meta = session?.user?.user_metadata || {};
+    // Use Google metadata: full_name, name, or display_name
+    const baseUsername = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+    const data = await fetchProfile(uid, playerAvatar, baseUsername);
     if (data) {
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
-      if (data.avatar_url) setPlayerAvatar(data.avatar_url);
+      
+      // Show welcome toast for new users
+      if (isNewUser && data.username) {
+        setWelcomeUsername(data.username);
+        setShowWelcomeToast(true);
+      }
+      
+      if (data.avatar_url) {
+        console.log(`🖼️ Loading avatar from profile: ${data.avatar_url} (was: ${playerAvatar})`);
+        setPlayerAvatar(data.avatar_url);
+      } else {
+        console.log(`⚠️ No avatar_url in profile, keeping current: ${playerAvatar}`);
+      }
       if (data.active_sleeve || data.equipped_sleeve) setCardCoverStyle((data.active_sleeve || data.equipped_sleeve) as CardCoverStyle);
       if (data.active_board || data.equipped_board) setBackgroundTheme((data.active_board || data.equipped_board) as BackgroundTheme);
       if (data.sfx_enabled !== undefined) setSoundEnabled(data.sfx_enabled);
@@ -229,7 +261,7 @@ const App: React.FC = () => {
     isLoggingOutRef.current = true;
     initialSyncCompleteRef.current = false;
     if (session) await supabase.auth.signOut();
-    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar(':cool:'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setSleeveEffectsEnabled(true); setPlayAnimationsEnabled(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); setGemPacksOpen(false); setInventoryOpen(false); setGameMode(null);
+    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar(':cool:'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setSleeveEffectsEnabled(true); setPlayAnimationsEnabled(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); setGemPacksOpen(false); setInventoryOpen(false); setFriendsOpen(false); setGameMode(null);
     setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 
@@ -243,6 +275,7 @@ const App: React.FC = () => {
   };
 
   const handleOpenGemPacks = () => setGemPacksOpen(true);
+  const handleOpenFriends = () => setFriendsOpen(true);
 
   const handleRefreshProfile = () => {
     if (session?.user) {
@@ -438,7 +471,8 @@ const App: React.FC = () => {
 
   const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); setGameMode(null); setView('WELCOME'); setMpGameState(null); setSpGameState(null); localStorage.removeItem(SESSION_KEY); setGameSettingsOpen(false); };
 
-  if (!authChecked) return null;
+  // Allow guest mode even if auth check is still in progress
+  if (!authChecked && !isGuest) return null;
   if (!session && !isGuest) return <AuthScreen onPlayAsGuest={() => setIsGuest(true)} />;
 
   return (
@@ -459,6 +493,7 @@ const App: React.FC = () => {
           sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled}
           playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled}
           onOpenGemPacks={handleOpenGemPacks}
+          onOpenFriends={handleOpenFriends}
         />
       )}
       {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPersistentId} turnTimerSetting={turnTimerSetting} />}
@@ -468,8 +503,18 @@ const App: React.FC = () => {
       {hubState.open && <UserHub profile={profile} onClose={() => setHubState({ ...hubState, open: false })} playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} onSignOut={handleSignOut} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} initialTab={hubState.tab} />}
       {inventoryOpen && profile && <InventoryModal profile={profile} onClose={() => setInventoryOpen(false)} onRefreshProfile={handleRefreshProfile} />}
       {gameSettingsOpen && <GameSettings onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled} playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled} unlockedSleeves={profile?.unlocked_sleeves || []} unlockedBoards={profile?.unlocked_boards || []} />}
-      {storeOpen && <Store onClose={() => setStoreOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} onEquipSleeve={setCardCoverStyle} currentSleeve={cardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar} currentTheme={backgroundTheme} onEquipBoard={setBackgroundTheme} isGuest={isGuest} initialTab={storeTab} />}
+      {storeOpen && <Store onClose={() => setStoreOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} onEquipSleeve={setCardCoverStyle} currentSleeve={cardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar} currentTheme={backgroundTheme} onEquipBoard={setBackgroundTheme} isGuest={isGuest} initialTab={storeTab} onOpenGemPacks={handleOpenGemPacks} />}
       {gemPacksOpen && <GemPacks onClose={() => setGemPacksOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} />}
+      {friendsOpen && <FriendsLounge onClose={() => setFriendsOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} />}
+      {showWelcomeToast && welcomeUsername && (
+        <WelcomeToast 
+          username={welcomeUsername} 
+          onClose={() => {
+            setShowWelcomeToast(false);
+            setWelcomeUsername('');
+          }} 
+        />
+      )}
     </div>
   );
 };
