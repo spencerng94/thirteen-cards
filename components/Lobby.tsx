@@ -134,6 +134,11 @@ export const Lobby: React.FC<LobbyProps> = ({
     });
   }, []);
 
+  const refreshRooms = useCallback(() => {
+    setIsRefreshing(true);
+    socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+  }, []);
+
   // Register socket listener once on mount
   useEffect(() => {
     const handleRoomsList = (list: PublicRoom[]) => {
@@ -175,11 +180,6 @@ export const Lobby: React.FC<LobbyProps> = ({
     }
     return () => clearInterval(interval);
   }, [gameState, myId]);
-
-  const refreshRooms = useCallback(() => {
-    setIsRefreshing(true);
-    socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-  }, []);
 
   const forceResync = () => {
     socket.emit(SocketEvents.REQUEST_SYNC, { playerId: myId });
