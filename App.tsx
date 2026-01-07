@@ -853,52 +853,104 @@ const AppContent: React.FC = () => {
   }, [isGuest, session, playerName]);
 
   // BYPASS STRATEGY: Check for SESSION VERIFIED from global listener
+  // Poll frequently when processing OAuth to catch verification as soon as it happens
   useEffect(() => {
-    // Check if global listener verified the session
-    const sessionVerified = localStorage.getItem('thirteen_session_verified') === 'true';
-    const globalSession = globalAuthState.getSession();
+    if (!isProcessingOAuth && authChecked) return; // Only check when processing or not yet checked
     
-    if (sessionVerified && globalSession) {
-      console.log('App: BYPASS - SESSION VERIFIED detected, forcing state update');
+    const checkForVerification = async () => {
+      // Check if global listener verified the session
+      const sessionVerified = localStorage.getItem('thirteen_session_verified') === 'true';
+      const globalSession = globalAuthState.getSession();
       
-      // State Force: Manually set flags without waiting for onAuthStateChange
-      setSession(globalSession);
-      setHasSession(true);
-      setAuthChecked(true);
-      setIsGuest(false);
-      setIsProcessingOAuth(false);
+      // Also check Supabase directly in case global state is out of sync
+      const { data: sessionData } = await supabase.auth.getSession();
+      const activeSession = globalSession || sessionData?.session;
       
-      // URL Cleanup: Clear hash only after verification
-      window.history.replaceState({}, document.title, '/');
-      console.log('App: BYPASS - Hash cleared after verification');
-      
-      // Clear the verification flag
-      localStorage.removeItem('thirteen_session_verified');
-      localStorage.removeItem('thirteen_manual_recovery');
-      manualRecoveryInProgressRef.current = false;
-      
-      // Process the session
-      const meta = globalSession.user?.user_metadata || {};
-      const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-      if (!playerName) setPlayerName(googleName.toUpperCase());
-      
-      transferGuestData(globalSession.user.id).then(() => {
-        supabase.from('profiles').select('id').eq('id', globalSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
-          loadProfile(globalSession.user.id, !existingProfile);
+      if (sessionVerified && activeSession) {
+        console.log('App: BYPASS - SESSION VERIFIED detected, forcing state update');
+        
+        // State Force: Manually set flags without waiting for onAuthStateChange
+        setSession(activeSession);
+        setHasSession(true);
+        setAuthChecked(true);
+        setIsGuest(false);
+        setIsProcessingOAuth(false);
+        
+        // URL Cleanup: Clear hash only after verification
+        window.history.replaceState({}, document.title, '/');
+        console.log('App: BYPASS - Hash cleared after verification');
+        
+        // Clear the verification flag
+        localStorage.removeItem('thirteen_session_verified');
+        localStorage.removeItem('thirteen_manual_recovery');
+        manualRecoveryInProgressRef.current = false;
+        
+        // Process the session
+        const meta = activeSession.user?.user_metadata || {};
+        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+        if (!playerName) setPlayerName(googleName.toUpperCase());
+        
+        transferGuestData(activeSession.user.id).then(() => {
+          supabase.from('profiles').select('id').eq('id', activeSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
+            loadProfile(activeSession.user.id, !existingProfile);
+          });
         });
-      });
-      
-      isInitializingRef.current = false;
+        
+        isInitializingRef.current = false;
+        return true; // Verification found
+      } else if (sessionData?.session && !session && !isGuest && isProcessingOAuth) {
+        // Fallback: If Supabase has a session but we don't, use it (might be verified but flag not set)
+        console.log('App: BYPASS - Found session via getSession() fallback, using it');
+        setSession(sessionData.session);
+        setHasSession(true);
+        setAuthChecked(true);
+        setIsGuest(false);
+        setIsProcessingOAuth(false);
+        window.history.replaceState({}, document.title, '/');
+        localStorage.removeItem('thirteen_manual_recovery');
+        manualRecoveryInProgressRef.current = false;
+        return true; // Session found
+      }
+      return false; // No verification yet
+    };
+    
+    // Check immediately
+    checkForVerification();
+    
+    // If processing OAuth, poll every 500ms to catch verification quickly
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    if (isProcessingOAuth && !authChecked) {
+      pollInterval = setInterval(async () => {
+        const verified = await checkForVerification();
+        if (verified && pollInterval) {
+          clearInterval(pollInterval);
+        }
+      }, 500);
     }
-  }, [playerName, playerAvatar]); // Only depend on these, check on every render for verification flag
+    
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [isProcessingOAuth, authChecked, session, isGuest, playerName, playerAvatar]); // Check frequently when processing
   
-  // Emergency Timeout: If isProcessingOAuth is true for more than 4 seconds, force isGuest to true
+  // Emergency Timeout: If isProcessingOAuth is true for more than 4 seconds WITHOUT verification, force isGuest to true
   useEffect(() => {
     if (!isProcessingOAuth) return;
     
     const emergencyTimeout = setTimeout(() => {
+      // Only force guest mode if still processing AND no session was verified
       if (isProcessingOAuth) {
-        console.warn('App: EMERGENCY TIMEOUT - isProcessingOAuth stuck for 4+ seconds, forcing guest mode');
+        const sessionVerified = localStorage.getItem('thirteen_session_verified') === 'true';
+        const globalSession = globalAuthState.getSession();
+        const hasSession = session || globalSession;
+        
+        // If session was verified or exists, don't force guest mode
+        if (sessionVerified || hasSession) {
+          console.log('App: EMERGENCY TIMEOUT - Session exists, skipping guest mode force');
+          return;
+        }
+        
+        console.warn('App: EMERGENCY TIMEOUT - isProcessingOAuth stuck for 4+ seconds with no session, forcing guest mode');
         setIsProcessingOAuth(false);
         setAuthChecked(true);
         setIsGuest(true);
@@ -912,7 +964,7 @@ const AppContent: React.FC = () => {
     }, 4000);
     
     return () => clearTimeout(emergencyTimeout);
-  }, [isProcessingOAuth]);
+  }, [isProcessingOAuth, session]);
 
   useEffect(() => {
     const userId = session?.user?.id || (isGuest ? 'guest' : null);
