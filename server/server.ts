@@ -65,6 +65,7 @@ interface GameRoom {
   turnStartTime?: number; // When current turn started
   playerSpeedData: Record<string, PlayerSpeedData>; // playerId -> speed data
   playerMutedByAfk: Set<string>; // playerIds muted due to AFK
+  quickMoveRewardGiven: Set<string>; // playerIds who have received quick move reward this game
 }
 
 // All in-house emote trigger codes (excluding premium/remote-only emotes)
@@ -488,6 +489,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   }
   
   // Quick Move Detection (only for non-bot players, not skip turn spam)
+  // Cap: Only give quick move reward once per game per player for online games
   let quickMoveReward: { gold: number; xp: number; isStreak: boolean } | null = null;
   if (!currentPlayer.isBot && room.turnStartTime) {
     const timeTaken = Date.now() - room.turnStartTime;
@@ -500,28 +502,45 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
         room.playerSpeedData[playerId] = { quickMoveStreak: 0, totalSpeedGold: 0, totalSpeedXp: 0 };
       }
       
-      const speedData = room.playerSpeedData[playerId];
-      speedData.quickMoveStreak += 1;
-      
-      // Base rewards
-      let goldReward = 10;
-      let xpReward = 20;
-      let isStreak = false;
-      
-      // Streak bonus: 3 quick moves in a row = double gold
-      if (speedData.quickMoveStreak >= 3) {
-        goldReward *= 2; // Double gold for streak
-        isStreak = true;
+      // Initialize quick move reward tracking if needed
+      if (!room.quickMoveRewardGiven) {
+        room.quickMoveRewardGiven = new Set();
       }
       
-      speedData.totalSpeedGold += goldReward;
-      speedData.totalSpeedXp += xpReward;
+      // Check if player has already received a quick move reward this game
+      const hasReceivedReward = room.quickMoveRewardGiven.has(playerId);
       
-      quickMoveReward = { gold: goldReward, xp: xpReward, isStreak };
-      
-      // Emit quick move event to client
-      if (currentPlayer.socketId) {
-        io.to(currentPlayer.socketId).emit('quick_move_reward', { gold: goldReward, xp: xpReward, isStreak });
+      if (!hasReceivedReward) {
+        const speedData = room.playerSpeedData[playerId];
+        speedData.quickMoveStreak += 1;
+        
+        // Base rewards
+        let goldReward = 10;
+        let xpReward = 20;
+        let isStreak = false;
+        
+        // Streak bonus: 3 quick moves in a row = double gold
+        if (speedData.quickMoveStreak >= 3) {
+          goldReward *= 2; // Double gold for streak
+          isStreak = true;
+        }
+        
+        speedData.totalSpeedGold += goldReward;
+        speedData.totalSpeedXp += xpReward;
+        
+        quickMoveReward = { gold: goldReward, xp: xpReward, isStreak };
+        
+        // Mark that this player has received the reward
+        room.quickMoveRewardGiven.add(playerId);
+        
+        // Emit quick move event to client
+        if (currentPlayer.socketId) {
+          io.to(currentPlayer.socketId).emit('quick_move_reward', { gold: goldReward, xp: xpReward, isStreak });
+        }
+      } else {
+        // Still track streak for stats, but don't give reward
+        const speedData = room.playerSpeedData[playerId];
+        speedData.quickMoveStreak += 1;
       }
     } else {
       // Reset streak if move was not quick
@@ -766,14 +785,9 @@ io.on('connection', (socket: Socket) => {
     const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
     const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
     const sanitizedRoomName = roomName ? roomName.trim().substring(0, 24).replace(/[<>\"'&]/g, '') : `${sanitizedName.toUpperCase()}'S MATCH`;
-    // For public rooms, enforce 30s timer. For private, allow 15s/30s/60s (default to 30s)
-    let validTurnTimer: number;
-    if (isPublic === true) {
-      validTurnTimer = 30; // Public rooms always 30s
-    } else {
-      // Private rooms: allow 15, 30, or 60 seconds
-      validTurnTimer = typeof turnTimer === 'number' && [15, 30, 60].includes(turnTimer) ? turnTimer : 30;
-    }
+    // Allow users to select timer for both public and private rooms (default to 30s)
+    // Valid options: 0 (no timer), 15, 30, or 60 seconds
+    const validTurnTimer = typeof turnTimer === 'number' && [0, 15, 30, 60].includes(turnTimer) ? turnTimer : 30;
     
     const roomId = generateRoomCode();
     const pId = playerId || uuidv4();
@@ -784,12 +798,12 @@ io.on('connection', (socket: Socket) => {
       turnDuration: validTurnTimer * 1000,
       players: [{ id: pId, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }],
       playerSpeedData: {},
-      playerMutedByAfk: new Set()
+      playerMutedByAfk: new Set(),
+      quickMoveRewardGiven: new Set()
     };
     mapIdentity(socket, roomId, pId);
     socket.join(roomId);
-    // Auto-fill empty slots with CPU players
-    autoFillCPUPlayers(rooms[roomId]);
+    // Don't auto-fill CPUs - let users manually add them if needed
     broadcastState(roomId);
     broadcastPublicLobbies();
   });
@@ -887,10 +901,7 @@ io.on('connection', (socket: Socket) => {
     if (!requester || !requester.isHost) return;
     if (pId) mapIdentity(socket, roomId, pId);
 
-    // Auto-fill empty slots with CPU players before starting
-    if (room.status === 'LOBBY' && room.players.length < 4) {
-      autoFillCPUPlayers(room);
-    }
+    // Don't auto-fill CPUs - users should manually add them if needed
 
     const deck: Card[] = [];
     for (let s = 0; s < 4; s++) for (let r = 3; r <= 15; r++) deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
@@ -908,6 +919,8 @@ io.on('connection', (socket: Socket) => {
     });
     room.status = 'PLAYING'; room.currentPlayerIndex = starter; room.isFirstTurnOfGame = threeSpadesFound;
     room.currentPlayPile = []; room.roundHistory = []; room.finishedPlayers = [];
+    // Reset quick move reward tracking for new game
+    room.quickMoveRewardGiven = new Set();
     startTurnTimer(roomId);
     broadcastState(roomId);
     checkBotTurn(roomId);

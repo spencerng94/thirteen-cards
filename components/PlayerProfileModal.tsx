@@ -45,13 +45,23 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
       setPlayerProfile(null);
       
       try {
-        // Fetch remote emotes
-        const emotes = await fetchEmotes();
-        setRemoteEmotes(emotes || []);
+        // Add timeout to prevent hanging - wrap fetchProfile in a timeout
+        const fetchProfileWithTimeout = (): Promise<UserProfile | null> => {
+          return Promise.race([
+            fetchProfile(playerId, undefined, undefined),
+            new Promise<UserProfile | null>((resolve) => 
+              setTimeout(() => resolve(null), 8000)
+            )
+          ]);
+        };
 
-        // Fetch player profile
-        // fetchProfile returns null if profile doesn't exist (not an error)
-        const profile = await fetchProfile(playerId, undefined, undefined);
+        // Fetch remote emotes (don't block on this)
+        fetchEmotes()
+          .then(setRemoteEmotes)
+          .catch(() => setRemoteEmotes([]));
+
+        // Fetch player profile with timeout
+        const profile = await fetchProfileWithTimeout();
         
         if (profile) {
           setPlayerProfile(profile);
@@ -65,7 +75,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
             // Don't set error for friend check failure - it's not critical
           }
         } else {
-          // Profile doesn't exist - this is normal for bots or new players
+          // Profile doesn't exist or timed out - this is normal for bots, new players, or UUIDs that aren't in DB
           // Set a more helpful error message
           setError('Profile not found. This player may not have a profile yet.');
           setPlayerProfile(null);
@@ -73,7 +83,9 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
       } catch (e: any) {
         console.error('Error loading player profile:', e);
         // Provide more specific error messages
-        if (e?.message) {
+        if (e?.message === 'Request timeout') {
+          setError('Request timed out. The player may not have a profile, or there was a connection issue.');
+        } else if (e?.message) {
           setError(`Failed to load profile: ${e.message}`);
         } else if (e?.error?.message) {
           setError(`Failed to load profile: ${e.error.message}`);
@@ -140,6 +152,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-12 h-12 border-4 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin mb-4"></div>
             <p className="text-white/60 text-sm">Loading profile...</p>
+            <p className="text-white/40 text-xs mt-2">This may take a moment...</p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-12">

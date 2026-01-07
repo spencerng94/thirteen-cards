@@ -75,6 +75,26 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : createMockSupabase();
 
+// Log Supabase connection status on initialization (only in development or if there's an issue)
+if (typeof window !== 'undefined') {
+  const hasKey = !!supabaseAnonKey;
+  const hasUrl = !!supabaseUrl;
+  if (!hasKey || !hasUrl) {
+    console.warn('⚠️ Supabase configuration issue:', {
+      hasUrl,
+      hasKey,
+      url: supabaseUrl || 'MISSING',
+      keyLength: supabaseAnonKey ? supabaseAnonKey.length : 0,
+      envCheck: {
+        viteUrl: getEnv('VITE_SUPABASE_URL'),
+        viteKey: getEnv('VITE_SUPABASE_ANON_KEY') ? 'SET' : 'MISSING'
+      }
+    });
+  } else {
+    console.log('✅ Supabase client initialized successfully');
+  }
+}
+
 export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
   if (!supabaseAnonKey) {
     console.warn('No Supabase key, cannot fetch emotes');
@@ -286,25 +306,35 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     
     // Ensure unlocked_phrases exists and includes default quick chats for legacy accounts
     const defaultIds = getDefaultChatPresetIds();
-    if (!profile.unlocked_phrases || profile.unlocked_phrases.length === 0) {
-      // Legacy account with no unlocked phrases - initialize with defaults
-      profile.unlocked_phrases = defaultIds;
-      // Silently update in background (don't await to avoid blocking)
-      updateProfileSettings(userId, { unlocked_phrases: defaultIds }).catch(err => 
-        console.warn('Failed to initialize legacy user unlocked_phrases:', err)
-      );
-    } else {
-      // Check if any default IDs are missing and add them
-      const existingIds = new Set(profile.unlocked_phrases);
-      const missingDefaults = defaultIds.filter(id => !existingIds.has(id));
-      if (missingDefaults.length > 0) {
-        const updatedPhrases = [...profile.unlocked_phrases, ...missingDefaults];
-        profile.unlocked_phrases = updatedPhrases;
-        // Silently update in background (don't await to avoid blocking)
-        updateProfileSettings(userId, { unlocked_phrases: updatedPhrases }).catch(err => 
-          console.warn('Failed to add missing default phrases to legacy user:', err)
-        );
+    // Normalize unlocked_phrases - handle null, undefined, or non-array values
+    const currentPhrases = (profile.unlocked_phrases && Array.isArray(profile.unlocked_phrases)) 
+      ? profile.unlocked_phrases 
+      : [];
+    
+    // Check if any default IDs are missing
+    const existingIds = new Set(currentPhrases);
+    const missingDefaults = defaultIds.filter(id => !existingIds.has(id));
+    
+    if (missingDefaults.length > 0 || currentPhrases.length === 0) {
+      // Add missing defaults or initialize if empty
+      const updatedPhrases = currentPhrases.length === 0 
+        ? defaultIds 
+        : [...currentPhrases, ...missingDefaults];
+      
+      // Set in profile immediately so user sees it right away
+      profile.unlocked_phrases = updatedPhrases;
+      
+      // Update database synchronously to ensure it's saved
+      try {
+        await updateProfileSettings(userId, { unlocked_phrases: updatedPhrases });
+        console.log(`Updated legacy account ${userId} with default quick chats`);
+      } catch (err) {
+        console.warn('Failed to update legacy user unlocked_phrases:', err);
+        // Profile already has the phrases set, so user can still use them
       }
+    } else {
+      // Ensure profile has the phrases array set (in case it was null/undefined)
+      profile.unlocked_phrases = currentPhrases;
     }
     
     return profile;
@@ -347,14 +377,20 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
   
   // SECURITY: Block direct updates to sensitive fields like currency, XP, wins, etc.
   // These should only be updated through specific functions (buyItem, recordGameResult, etc.)
+  // Note: event_stats is allowed to be updated (used by recordGameResult and buyItem)
   const blockedFields = ['coins', 'gems', 'currency', 'xp', 'level', 'wins', 'games_played', 
     'total_chops', 'current_streak', 'longest_streak', 'finish_dist', 'undo_count',
-    'event_stats', 'username', 'id'];
+    'username', 'id'];
   for (const key of blockedFields) {
     if (key in updates) {
       console.warn(`Attempted to update blocked field: ${key}. This update was ignored.`);
       delete (safeUpdates as any)[key];
     }
+  }
+  
+  // Allow event_stats to be updated (used by recordGameResult and buyItem)
+  if ('event_stats' in updates) {
+    (safeUpdates as any).event_stats = (updates as any).event_stats;
   }
   
   if (!supabaseAnonKey || userId === 'guest') {
@@ -1055,7 +1091,17 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
     }
   };
 
-  await updateProfileSettings(currentProfile.id, updates);
+  // Direct database update for game results (bypasses updateProfileSettings security restrictions)
+  if (!supabaseAnonKey || isGuest) {
+    // For guest users, update local storage
+    const local = fetchGuestProfile();
+    const updatedLocal = { ...local, ...updates };
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(updatedLocal));
+  } else {
+    // Direct database update for authenticated users
+    await supabase.from('profiles').upsert({ id: currentProfile.id, ...updates });
+  }
+  
   return { xpGained, coinsGained, newTotalXp: newXp, xpBonusApplied, updatedStats };
 };
 
@@ -1271,23 +1317,43 @@ export interface Finisher {
 
 export const fetchFinishers = async (): Promise<Finisher[]> => {
   if (!supabaseAnonKey) {
-    console.warn('No Supabase key, cannot fetch finishers');
+    console.warn('⚠️ No Supabase key, cannot fetch finishers. Check VITE_SUPABASE_ANON_KEY environment variable.');
     return [];
   }
+  
+  if (!supabaseUrl) {
+    console.warn('⚠️ No Supabase URL, cannot fetch finishers. Check VITE_SUPABASE_URL environment variable.');
+    return [];
+  }
+  
   try {
+    console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey });
     const { data, error } = await supabase
       .from('finishers')
       .select('*')
       .order('price', { ascending: true });
     
     if (error) {
-      console.error('Error fetching finishers:', error);
+      console.error('❌ Error fetching finishers:', error);
+      console.error('Error details:', { 
+        message: error.message, 
+        code: error.code, 
+        details: error.details,
+        hint: error.hint 
+      });
       return [];
     }
     
+    if (!data || data.length === 0) {
+      console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
+      return [];
+    }
+    
+    console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
     return (data || []) as Finisher[];
-  } catch (e) {
-    console.error('Exception fetching finishers:', e);
+  } catch (e: any) {
+    console.error('❌ Exception fetching finishers:', e);
+    console.error('Exception details:', { message: e?.message, stack: e?.stack });
     return [];
   }
 };

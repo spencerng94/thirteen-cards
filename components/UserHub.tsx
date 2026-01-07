@@ -6,6 +6,7 @@ import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 import { LevelRewards } from './LevelRewards';
 import { InventoryGrid } from './InventoryGrid';
+import { CopyUsername } from './CopyUsername';
 
 export interface ThemeConfig {
   id: string;
@@ -3994,7 +3995,7 @@ interface UserHubProps {
 }
 
 export const UserHub: React.FC<UserHubProps> = ({ 
-    profile, onClose, playerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, initialTab = 'PROFILE'
+    profile, onClose, playerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, initialTab = 'PROFILE'
 }) => {
     const [activeTab, setActiveTab] = useState<HubTab>(initialTab || 'PROFILE');
     const [showLevelRewards, setShowLevelRewards] = useState(false);
@@ -4208,9 +4209,20 @@ export const UserHub: React.FC<UserHubProps> = ({
                                         <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
                                             {/* Name and Level */}
                                             <div className="flex-1 text-center sm:text-left">
-                                                <h2 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">
-                                                    {playerName}
-                                                </h2>
+                                                <div className="flex items-center gap-3 mb-2 justify-center sm:justify-start flex-wrap">
+                                                    {profile && !isGuest && profile.username ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <CopyUsername 
+                                                                username={profile.username} 
+                                                                className="[&>span]:text-3xl [&>span]:sm:text-4xl [&>span]:font-bold [&>span]:tracking-tight" 
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                                                            {playerName}
+                                                        </h2>
+                                                    )}
+                                                </div>
                                                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.08] border border-white/10 rounded-xl">
                                                     <span className="text-xs font-semibold text-white/90">Level {currentLevel}</span>
                                                 </div>

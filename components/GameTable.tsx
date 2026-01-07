@@ -357,6 +357,8 @@ export const GameTable: React.FC<GameTableProps> = ({
   const lastChatSentAt = useRef<number>(0);
   const [friendsList, setFriendsList] = useState<string[]>([]);
   const [quickMoveRewards, setQuickMoveRewards] = useState<QuickMoveRewardData[]>([]);
+  const lastPlayPileLengthRef = useRef<number>(0);
+  const lastPlayPlayerIdRef = useRef<string | null>(null);
   
   // Track emote usage for statistics
   const trackEmoteUsage = useCallback((emote: string) => {
@@ -401,6 +403,33 @@ export const GameTable: React.FC<GameTableProps> = ({
       setShowBombEffect(false);
     }
   }, [lastMove?.cards?.length || 0, lastMove?.playerId, lastMove?.comboType]);
+
+  // Play sound when other players play cards in online games
+  useEffect(() => {
+    const currentPlayPileLength = playPile.length;
+    const currentLastPlayerId = lastMove?.playerId || null;
+    
+    // Detect when a new card play happens (playPile length increases)
+    // and it's not the local player who just played (we already played sound for that)
+    if (
+      currentPlayPileLength > lastPlayPileLengthRef.current &&
+      currentLastPlayerId &&
+      currentLastPlayerId !== myId
+    ) {
+      // Only play sound if it's not a bomb/quad (those have their own sound)
+      // Also check that this is a new play (different player or playPile was reset)
+      const isNewPlay = currentLastPlayerId !== lastPlayPlayerIdRef.current || 
+                        lastPlayPileLengthRef.current === 0;
+      
+      if (isNewPlay && (!lastMove || !['QUAD', 'BOMB', '4_PAIRS'].includes(lastMove.comboType))) {
+        audioService.playPlay();
+      }
+    }
+    
+    // Update refs
+    lastPlayPileLengthRef.current = currentPlayPileLength;
+    lastPlayPlayerIdRef.current = currentLastPlayerId;
+  }, [playPile.length, lastMove?.playerId, myId, lastMove]);
 
   const unlockedAvatars = useMemo(() => {
     const unlocked = (profile?.unlocked_avatars || []).filter(avatar => avatar !== ':smile:');

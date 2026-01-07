@@ -107,17 +107,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(`${playerName.toUpperCase()}'S MATCH`);
   const [isPublic, setIsPublic] = useState(true);
-  // For public rooms, default to 30s. For private, use setting or default to 30s (0 means no timer)
-  const [localTurnTimer, setLocalTurnTimer] = useState(isPublic ? 30 : (turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30));
-  
-  // Update timer when isPublic changes
-  useEffect(() => {
-    if (isPublic) {
-      setLocalTurnTimer(30); // Public rooms always 30s
-    } else {
-      setLocalTurnTimer(turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30);
-    }
-  }, [isPublic, turnTimerSetting]);
+  // Use user's setting or default to 30s (0 means no timer)
+  const [localTurnTimer, setLocalTurnTimer] = useState(turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
@@ -431,16 +422,12 @@ export const Lobby: React.FC<LobbyProps> = ({
                                             <button 
                                                 key={val} 
                                                 onClick={() => setLocalTurnTimer(val)}
-                                                disabled={isPublic} // Disable for public rooms (always 30s)
-                                                className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'} ${isPublic && val !== 30 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                                className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'}`}
                                             >
                                                 {val === 0 ? 'OFF' : `${val}S`}
                                             </button>
                                         ))}
                                     </div>
-                                    {isPublic && (
-                                        <span className="text-[9px] text-yellow-400/70 uppercase tracking-tight">Public matches use 30s timer</span>
-                                    )}
                                 </div>
                             </div>
 

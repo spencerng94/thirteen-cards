@@ -13,6 +13,7 @@ import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 import { EventsModal } from './EventsModal';
 import { ITEM_REGISTRY } from '../constants/ItemRegistry';
+import { CopyUsername } from './CopyUsername';
 
 export type WelcomeTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
 
@@ -477,9 +478,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           
           {/* Username and Level */}
           <div className="shrink-0 flex flex-col gap-1.5">
-            <span className="text-base sm:text-lg font-bold text-white truncate drop-shadow-md">
-              {playerName || 'CALLSIGN REQUIRED'}
-            </span>
+            {profile && !isGuest && profile.username ? (
+              <div className="flex items-center gap-2">
+                <CopyUsername 
+                  username={profile.username} 
+                  className="[&>span]:text-base [&>span]:sm:text-lg [&>span]:font-bold [&>span]:drop-shadow-md" 
+                />
+              </div>
+            ) : (
+              <span className="text-base sm:text-lg font-bold text-white truncate drop-shadow-md">
+                {playerName || 'CALLSIGN REQUIRED'}
+              </span>
+            )}
             <div className="flex items-center gap-2">
               <div className="px-2.5 py-1 bg-white/[0.08] border border-white/10 rounded-lg">
                 <span className="text-xs font-semibold text-white/80 tracking-tight">Lv {currentLevel}</span>
@@ -717,7 +727,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                       : 'No finishers available'}
                 </p>
                 {(finishers || []).length === 0 && (
-                  <p className="text-white/30 text-xs">Please wait while we load the finishers</p>
+                  <>
+                    <p className="text-white/30 text-xs mb-2">Please wait while we load the finishers</p>
+                    <p className="text-yellow-400/60 text-[10px] mt-4 px-4">
+                      If finishers don't load, check the browser console for errors. 
+                      Make sure VITE_SUPABASE_ANON_KEY is set in your deployment environment.
+                    </p>
+                  </>
                 )}
                 {hideUnowned && (finishers || []).length > 0 && (
                   <p className="text-white/30 text-xs mt-2">Turn off "OWNED" filter to see all finishers</p>

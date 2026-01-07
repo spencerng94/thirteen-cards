@@ -24,6 +24,7 @@ import { supabase as supabaseClient } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeToast } from './components/WelcomeToast';
 import { adService } from './services/adService';
+import { LoadingScreen } from './components/LoadingScreen';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
@@ -157,6 +158,8 @@ const App: React.FC = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showWelcomeToast, setShowWelcomeToast] = useState(false);
   const [welcomeUsername, setWelcomeUsername] = useState('');
+  const [loadingStatus, setLoadingStatus] = useState('Shuffling deck...');
+  const [showGuestHint, setShowGuestHint] = useState(false);
   
   const [mpGameState, setMpGameState] = useState<GameState | null>(null);
   const [mpMyHand, setMpMyHand] = useState<Card[]>([]);
@@ -262,6 +265,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     console.log('App: Step 9 - Starting auth check...');
+    setLoadingStatus('Checking credentials...');
     
     // Immediate session check before setting up listener
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
@@ -269,8 +273,10 @@ const App: React.FC = () => {
         console.error('App: ERROR - Failed to get session:', error);
         console.log('App: Step 10b - No session found (error), forcing guest mode');
         setSession(null);
-        setAuthChecked(true);
-        setIsGuest(true);
+        // Keep user on loading until they choose guest; show hint instead
+        setLoadingStatus('Network hiccup. You can enter as Guest.');
+        setAuthChecked(false);
+        setIsGuest(false);
         return;
       }
       
@@ -281,6 +287,7 @@ const App: React.FC = () => {
         setIsGuest(false);
         console.log('App: Step 11 - Auth checked, session set');
         console.log('App: Step 12 - User found, processing user data...');
+        setLoadingStatus('Syncing profile...');
         const meta = session.user.user_metadata || {};
         // Use Google metadata: full_name, name, or display_name
         const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
@@ -295,6 +302,7 @@ const App: React.FC = () => {
         loadProfile(session.user.id, isNewUser);
       } else {
         console.log('App: Step 10b - No session found, forcing guest mode');
+        setLoadingStatus('Preparing guest profile...');
         setSession(null);
         setAuthChecked(true);
         setIsGuest(true);
@@ -303,22 +311,19 @@ const App: React.FC = () => {
     }).catch((error) => {
       console.error('App: ERROR - Failed to get session:', error);
       console.log('App: Step 10b - No session found (catch), forcing guest mode');
+      setLoadingStatus('Network hiccup. You can enter as Guest.');
       setSession(null);
-      setAuthChecked(true);
-      setIsGuest(true);
+      setAuthChecked(false);
+      setIsGuest(false);
     });
 
-    // Timeout safety: Force authChecked to true after 5 seconds if still false
-    const timeoutId = setTimeout(() => {
-      setAuthChecked((current) => {
-        if (!current) {
-          console.warn('App: Auth Timeout - authChecked still false after 5 seconds, forcing to true');
-          setIsGuest(true);
-          return true;
-        }
-        return current;
-      });
-    }, 5000);
+    // Timeout safety: after 6s, reveal guest entry hint (do not auto-switch)
+    const hintTimeoutId = setTimeout(() => {
+      if (!authChecked && !isGuest) {
+        console.warn('App: Auth Timeout - still loading after 6s; showing guest entry hint');
+        setShowGuestHint(true);
+      }
+    }, 6000);
 
     console.log('App: Step 16 - Setting up auth state change listener...');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -326,6 +331,7 @@ const App: React.FC = () => {
       setSession(session);
       if (session?.user) {
         setIsGuest(false);
+        setLoadingStatus('Syncing profile...');
         const meta = session.user.user_metadata || {};
         // Use Google metadata: full_name, name, or display_name
         const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
@@ -345,10 +351,10 @@ const App: React.FC = () => {
     });
     return () => {
       console.log('App: Step 18 - Cleaning up auth state change listener');
-      clearTimeout(timeoutId);
+      clearTimeout(hintTimeoutId);
       subscription.unsubscribe();
     };
-  }, [isGuest, playerName, playerAvatar]);
+  }, [isGuest, playerName, playerAvatar, authChecked]);
 
   const loadProfile = async (uid: string, isNewUser: boolean = false) => {
     console.log('App: Step 19 - Loading profile for user:', uid, 'isNewUser:', isNewUser);
@@ -678,9 +684,11 @@ const App: React.FC = () => {
   if (!authChecked && !isGuest) {
     console.log('App: Step 27 - Waiting for auth check, showing loading...');
     return (
-      <div className="min-h-screen bg-black text-white font-sans flex items-center justify-center">
-        <div className="text-yellow-400 text-lg">Loading...</div>
-      </div>
+      <LoadingScreen
+        status={loadingStatus}
+        showGuestButton={!authChecked && !isGuest && showGuestHint}
+        onEnterGuest={() => { setAuthChecked(true); setIsGuest(true); }}
+      />
     );
   }
   
