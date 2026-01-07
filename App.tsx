@@ -291,6 +291,35 @@ const AppContent: React.FC = () => {
     authStatusRef.current = { hasSession, authChecked };
   }, [hasSession, authChecked]);
 
+  // STORAGE-FIRST CHECK: Check localStorage for auth token immediately
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const authTokenKey = 'sb-spaxxexmyiczdrbikdjp-auth-token';
+    const storedToken = localStorage.getItem(authTokenKey);
+    
+    if (storedToken) {
+      try {
+        const parsed = JSON.parse(storedToken);
+        if (parsed?.currentSession?.access_token) {
+          console.log('App: STORAGE-FIRST - Found auth token in localStorage, setting flags immediately');
+          setHasSession(true);
+          setAuthChecked(true);
+          setIsProcessingOAuth(false);
+          // Try to get session from Supabase
+          supabase.auth.getSession().then(({ data }) => {
+            if (data?.session) {
+              setSession(data.session);
+              setIsGuest(false);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('App: STORAGE-FIRST - Failed to parse stored token:', e);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -386,51 +415,42 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
-  // URL Guard: Prevent redirects when OAuth hash is present
+  // URL Guard: Wait max 1 second, then clear hash and reload if needed
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.includes('access_token')) {
       console.log('App: Step 17 - OAuth redirect detected in URL hash');
-      console.log('App: Step 17b - URL Guard active - preventing redirects while Supabase processes hash');
+      console.log('App: URL Guard - Waiting max 1 second for Supabase to process...');
       setLoadingStatus('Completing sign in...');
       
-      // Store original location to prevent navigation away
-      const originalLocation = window.location.href;
+      let hashCleared = false;
       
-      // Monitor for any navigation attempts
-      const checkNavigation = () => {
-        // If hash still contains access_token, don't allow navigation
-        if (window.location.hash.includes('access_token')) {
-          // If someone tries to navigate away, log it
-          if (window.location.href !== originalLocation && !window.location.href.includes('access_token')) {
-            console.warn('App: URL Guard - Navigation attempt detected while processing OAuth, blocking');
-            // Don't actually block, but log for debugging
-          }
+      // Wait max 1 second, then force clear hash and reload
+      const forceTimeout = setTimeout(() => {
+        if (!hashCleared && window.location.hash.includes('access_token')) {
+          console.warn('App: URL Guard - Timeout after 1s, clearing hash and reloading');
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          hashCleared = true;
+          // Force reload to break any loops
+          window.location.reload();
         }
-      };
+      }, 1000);
       
-      // Clean up hash after Supabase processes it (but don't redirect)
-      const cleanupHash = () => {
-        // Only clean hash if auth is complete, not during processing
-        if (authChecked && hasSession) {
-          if (window.location.hash.includes('access_token')) {
-            console.log('App: Cleaning up OAuth hash after successful auth');
-            // Use replaceState to clean hash without navigation
-            window.history.replaceState(null, '', window.location.pathname + window.location.search);
-          }
-        }
-      };
-      
-      // Check periodically if auth is complete
+      // Check if auth completes before timeout
       const checkInterval = setInterval(() => {
-        checkNavigation();
         if (authChecked && hasSession) {
-          cleanupHash();
-          clearInterval(checkInterval);
+          if (window.location.hash.includes('access_token') && !hashCleared) {
+            console.log('App: URL Guard - Auth complete, cleaning up hash');
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            hashCleared = true;
+            clearTimeout(forceTimeout);
+            clearInterval(checkInterval);
+          }
         }
       }, 100);
       
       return () => {
+        clearTimeout(forceTimeout);
         clearInterval(checkInterval);
       };
     } else {
@@ -740,6 +760,132 @@ const AppContent: React.FC = () => {
     };
   }, []); // Empty dependency array - only run once on mount
 
+  // Memoize auth handler to prevent re-mount loops
+  const authStateChangeHandler = useCallback(async (event: string, session: any) => {
+    // Debug logging as requested
+    console.log('SUPABASE AUTH EVENT:', event, session);
+    
+    console.log('App: Auth Event Received:', event, session ? 'Session exists' : 'No session');
+    console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
+    
+    // CRITICAL: For SIGNED_IN event, immediately set flags before doing anything else
+    if (event === 'SIGNED_IN' && session) {
+      console.log('App: SIGNED_IN event detected - immediately setting auth flags');
+      setAuthChecked(true);
+      setHasSession(true);
+      setSession(session);
+      setIsGuest(false);
+      console.log('App: Auth flags set immediately, now processing profile...');
+    } else {
+      setSession(session);
+    }
+    
+    if (session?.user) {
+      // If not SIGNED_IN, still set flags but after session check
+      if (event !== 'SIGNED_IN') {
+        setIsGuest(false);
+        setAuthChecked(true);
+        setHasSession(true);
+      }
+      
+      setLoadingStatus('Syncing profile...');
+      const meta = session.user.user_metadata || {};
+      const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+      if (!playerName) setPlayerName(googleName.toUpperCase());
+      
+      // Only do async operations after flags are set
+      await transferGuestData(session.user.id);
+      
+      // Guest-to-Permanent Migration: Check for guest progress and migrate
+      // Only migrate if isMigrating flag is set (user clicked "Link Account")
+      const isMigrating = localStorage.getItem('thirteen_is_migrating') === 'true';
+      if ((event === 'SIGNED_UP' || event === 'SIGNED_IN') && isMigrating) {
+        const guestProgress = getGuestProgress();
+        if (guestProgress && (guestProgress.gems > 0 || guestProgress.xp > 0 || guestProgress.coins > 0)) {
+          console.log('Guest migration: Found guest progress:', guestProgress);
+          setLoadingStatus('Migrating your progress...');
+          
+          const migrationResult = await migrateGuestData(
+            session.user.id,
+            guestProgress.gems,
+            guestProgress.xp,
+            guestProgress.coins
+          );
+          
+          // Clear migration flag
+          localStorage.removeItem('thirteen_is_migrating');
+          
+          if (migrationResult.success) {
+            console.log('Guest migration: Successfully migrated progress');
+            clearGuestProgress();
+            
+            // Show success modal with breakdown
+            if (migrationResult.migratedGems !== undefined || migrationResult.bonusGems !== undefined) {
+              setMigrationSuccessData({
+                show: true,
+                migratedGems: migrationResult.migratedGems || 0,
+                bonusGems: migrationResult.bonusGems || 0,
+                migratedXp: migrationResult.migratedXp || 0,
+                migratedCoins: migrationResult.migratedCoins || 0,
+                newGemBalance: migrationResult.newGemBalance || 0,
+              });
+            } else {
+              // Fallback to toast if breakdown data not available
+              setMigrationToast({
+                show: true,
+                message: 'Progress successfully synced to your new account!',
+                type: 'success'
+              });
+              setTimeout(() => {
+                setMigrationToast({ show: false, message: '', type: 'success' });
+              }, 4000);
+            }
+          } else {
+            console.warn('Guest migration: Failed to migrate:', migrationResult.error);
+            // Don't show error toast for expected failures (account too old)
+            if (migrationResult.error?.includes('not new')) {
+              // Account is older than 5 minutes, clear guest data silently
+              clearGuestProgress();
+            } else {
+              setMigrationToast({
+                show: true,
+                message: 'Could not migrate progress. Your account may be too old.',
+                type: 'error'
+              });
+              setTimeout(() => {
+                setMigrationToast({ show: false, message: '', type: 'error' });
+              }, 4000);
+            }
+          }
+        } else {
+          // No guest progress to migrate, just clear the flag
+          localStorage.removeItem('thirteen_is_migrating');
+        }
+      }
+      
+      if (event === 'SIGNED_IN') {
+        const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
+        loadProfile(session.user.id, !existingProfile);
+      } else {
+        loadProfile(session.user.id, false);
+      }
+    } else {
+      // Force a Result: If the event is INITIAL_SESSION and no session is found, 
+      // call setAuthChecked(true) immediately so the app doesn't hang
+      if (event === 'INITIAL_SESSION') {
+        console.log('App: INITIAL_SESSION with no session - forcing authChecked to true');
+        setAuthChecked(true);
+        setHasSession(false);
+        setIsGuest(true);
+        setLoadingStatus('Ready to play');
+      } else if (!isGuest) {
+        setHasSession(false);
+        setProfile(null);
+        initialSyncCompleteRef.current = false;
+      }
+    }
+  }, [playerName, playerAvatar]);
+
   // Set up auth state change listener with useLayoutEffect to catch session before first paint
   useLayoutEffect(() => {
     // Guard: Only set up listener once
@@ -751,137 +897,14 @@ const AppContent: React.FC = () => {
     console.log('App: Step 16 - Setting up auth state change listener (useLayoutEffect)...');
     authListenerSetupRef.current = true;
     
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Debug logging as requested
-      console.log('SUPABASE AUTH EVENT:', event, session);
-      
-      console.log('App: Auth Event Received:', event, session ? 'Session exists' : 'No session');
-      console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
-      
-      // CRITICAL: For SIGNED_IN event, immediately set flags before doing anything else
-      if (event === 'SIGNED_IN' && session) {
-        console.log('App: SIGNED_IN event detected - immediately setting auth flags');
-        setAuthChecked(true);
-        setHasSession(true);
-        setSession(session);
-        setIsGuest(false);
-        console.log('App: Auth flags set immediately, now processing profile...');
-      } else {
-        setSession(session);
-      }
-      
-      if (session?.user) {
-        // If not SIGNED_IN, still set flags but after session check
-        if (event !== 'SIGNED_IN') {
-          setIsGuest(false);
-          setAuthChecked(true);
-          setHasSession(true);
-        }
-        
-        setLoadingStatus('Syncing profile...');
-        const meta = session.user.user_metadata || {};
-        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-        if (!playerName) setPlayerName(googleName.toUpperCase());
-        
-        // Only do async operations after flags are set
-        await transferGuestData(session.user.id);
-        
-        // Guest-to-Permanent Migration: Check for guest progress and migrate
-        // Only migrate if isMigrating flag is set (user clicked "Link Account")
-        const isMigrating = localStorage.getItem('thirteen_is_migrating') === 'true';
-        if ((event === 'SIGNED_UP' || event === 'SIGNED_IN') && isMigrating) {
-          const guestProgress = getGuestProgress();
-          if (guestProgress && (guestProgress.gems > 0 || guestProgress.xp > 0 || guestProgress.coins > 0)) {
-            console.log('Guest migration: Found guest progress:', guestProgress);
-            setLoadingStatus('Migrating your progress...');
-            
-            const migrationResult = await migrateGuestData(
-              session.user.id,
-              guestProgress.gems,
-              guestProgress.xp,
-              guestProgress.coins
-            );
-            
-            // Clear migration flag
-            localStorage.removeItem('thirteen_is_migrating');
-            
-            if (migrationResult.success) {
-              console.log('Guest migration: Successfully migrated progress');
-              clearGuestProgress();
-              
-              // Show success modal with breakdown
-              if (migrationResult.migratedGems !== undefined || migrationResult.bonusGems !== undefined) {
-                setMigrationSuccessData({
-                  show: true,
-                  migratedGems: migrationResult.migratedGems || 0,
-                  bonusGems: migrationResult.bonusGems || 0,
-                  migratedXp: migrationResult.migratedXp || 0,
-                  migratedCoins: migrationResult.migratedCoins || 0,
-                  newGemBalance: migrationResult.newGemBalance || 0,
-                });
-              } else {
-                // Fallback to toast if breakdown data not available
-                setMigrationToast({
-                  show: true,
-                  message: 'Progress successfully synced to your new account!',
-                  type: 'success'
-                });
-                setTimeout(() => {
-                  setMigrationToast({ show: false, message: '', type: 'success' });
-                }, 4000);
-              }
-            } else {
-              console.warn('Guest migration: Failed to migrate:', migrationResult.error);
-              // Don't show error toast for expected failures (account too old)
-              if (migrationResult.error?.includes('not new')) {
-                // Account is older than 5 minutes, clear guest data silently
-                clearGuestProgress();
-              } else {
-                setMigrationToast({
-                  show: true,
-                  message: 'Could not migrate progress. Your account may be too old.',
-                  type: 'error'
-                });
-                setTimeout(() => {
-                  setMigrationToast({ show: false, message: '', type: 'error' });
-                }, 4000);
-              }
-            }
-          } else {
-            // No guest progress to migrate, just clear the flag
-            localStorage.removeItem('thirteen_is_migrating');
-          }
-        }
-        
-        if (event === 'SIGNED_IN') {
-          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
-          loadProfile(session.user.id, !existingProfile);
-        } else {
-          loadProfile(session.user.id, false);
-        }
-      } else {
-        // Force a Result: If the event is INITIAL_SESSION and no session is found, 
-        // call setAuthChecked(true) immediately so the app doesn't hang
-        if (event === 'INITIAL_SESSION') {
-          console.log('App: INITIAL_SESSION with no session - forcing authChecked to true');
-          setAuthChecked(true);
-          setHasSession(false);
-          setIsGuest(true);
-          setLoadingStatus('Ready to play');
-        } else if (!isGuest) {
-          setHasSession(false);
-          setProfile(null);
-          initialSyncCompleteRef.current = false;
-        }
-      }
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(authStateChangeHandler);
     
     return () => {
       console.log('App: Step 18 - Cleaning up auth state change listener');
       subscription.unsubscribe();
       authListenerSetupRef.current = false;
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, [authStateChangeHandler]); // Use memoized handler
 
   const loadProfile = async (uid: string, isNewUser: boolean = false) => {
     console.log('App: Step 19 - Loading profile for user:', uid, 'isNewUser:', isNewUser);
@@ -1377,6 +1400,22 @@ const AppContent: React.FC = () => {
       setIsGuest(false);
     }
   }, [session, authChecked]);
+  
+  // EMERGENCY BYPASS: If authChecked is still false after 5 seconds, force it to true and default to guest
+  useEffect(() => {
+    const emergencyTimeout = setTimeout(() => {
+      if (!authChecked) {
+        console.warn('App: EMERGENCY BYPASS - authChecked still false after 5s, forcing guest mode');
+        setAuthChecked(true);
+        setIsGuest(true);
+        setHasSession(false);
+        setIsProcessingOAuth(false);
+        setLoadingStatus('Ready to play');
+      }
+    }, 5000);
+    
+    return () => clearTimeout(emergencyTimeout);
+  }, [authChecked]);
   
   // Allow guest mode even if auth check is still in progress
   // APP-LEVEL BYPASS: Force loading screen during OAuth processing
