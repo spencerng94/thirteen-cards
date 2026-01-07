@@ -484,11 +484,21 @@ const AppContent: React.FC = () => {
     }
     
     // Check if manual recovery is in progress from previous mount
+    // Only set processing if there's actually a hash to process
     if (localStorage.getItem('thirteen_manual_recovery') === 'true') {
-      console.log('MANUAL RECOVERY: Detected in-progress recovery from previous mount');
-      manualRecoveryInProgressRef.current = true;
-      setIsProcessingOAuth(true);
-      setLoadingStatus('Completing sign in...');
+      const hasHash = hash.includes('access_token') || hash.includes('id_token') || hash.includes('code=');
+      if (hasHash) {
+        console.log('MANUAL RECOVERY: Detected in-progress recovery from previous mount, hash present');
+        manualRecoveryInProgressRef.current = true;
+        setIsProcessingOAuth(true);
+        setLoadingStatus('Completing sign in...');
+      } else {
+        // No hash means recovery already completed or failed - clear the flag
+        console.log('MANUAL RECOVERY: Detected stale recovery flag (no hash), clearing...');
+        localStorage.removeItem('thirteen_manual_recovery');
+        manualRecoveryInProgressRef.current = false;
+        setIsProcessingOAuth(false);
+      }
     }
     
     // APP-LEVEL BYPASS: If OAuth hash/code is present, force loading screen and block state updates
