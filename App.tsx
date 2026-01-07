@@ -333,6 +333,20 @@ const App: React.FC = () => {
       setIsProcessingOAuth(true);
       setLoadingStatus('Completing sign in...');
       
+      // ESCAPE HATCH: 10-second timeout to prevent infinite loop
+      const escapeHatchTimeout = setTimeout(() => {
+        if (isProcessingOAuth) {
+          console.error('App: ESCAPE HATCH - Auth service timeout after 10 seconds');
+          setError('Auth Service Timeout. Please try refreshing or check your internet.');
+          setIsProcessingOAuth(false);
+          setAuthChecked(true);
+          setHasSession(false);
+          setIsGuest(true);
+          setLoadingStatus('Auth Service Timeout. Please try refreshing or check your internet.');
+          isInitializingRef.current = false;
+        }
+      }, 10000);
+      
       // Wait for session with timeout
       const waitForSession = async () => {
         const maxWaitTime = 10000; // 10 seconds max
@@ -344,6 +358,7 @@ const App: React.FC = () => {
           
           if (!error && data?.session) {
             console.log('App: OAuth bypass - Session confirmed!');
+            clearTimeout(escapeHatchTimeout);
             globalAuthState.setSession(data.session);
             globalAuthState.setAuthChecked(true);
             globalAuthState.setHasSession(true);
@@ -372,6 +387,7 @@ const App: React.FC = () => {
           const globalSession = globalAuthState.getSession();
           if (globalSession) {
             console.log('App: OAuth bypass - Global session found!');
+            clearTimeout(escapeHatchTimeout);
             setSession(globalSession);
             setAuthChecked(true);
             setHasSession(true);
@@ -398,11 +414,13 @@ const App: React.FC = () => {
         
         // Timeout - session not found
         console.warn('App: OAuth bypass - Timeout waiting for session');
+        clearTimeout(escapeHatchTimeout);
         setIsProcessingOAuth(false);
         setAuthChecked(true);
         setHasSession(false);
         setIsGuest(true);
-        setLoadingStatus('Sign in timed out. You can enter as Guest.');
+        setError('Auth Service Timeout. Please try refreshing or check your internet.');
+        setLoadingStatus('Auth Service Timeout. Please try refreshing or check your internet.');
         isInitializingRef.current = false;
       };
       

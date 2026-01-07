@@ -61,6 +61,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
+          flowType: 'implicit', // Force implicit flow (no PKCE code exchange)
           queryParams: {
             prompt: 'select_account',
             access_type: 'offline'

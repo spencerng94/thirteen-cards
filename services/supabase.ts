@@ -71,9 +71,28 @@ const createMockSupabase = () => {
   } as any;
 };
 
+// Create Supabase client with implicit flow (no PKCE) to avoid code exchange issues
 export const supabase = (supabaseUrl && supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        flowType: 'implicit', // Disable PKCE - tokens come directly in hash
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+      }
+    })
   : createMockSupabase();
+
+// Log Supabase config to verify flow type
+if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey) {
+  console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
+  console.log('SUPABASE CONFIG: Auth options:', {
+    flowType: (supabase as any).auth?.flowType,
+    autoRefreshToken: (supabase as any).auth?.autoRefreshToken,
+    persistSession: (supabase as any).auth?.persistSession,
+    detectSessionInUrl: (supabase as any).auth?.detectSessionInUrl
+  });
+}
 
 // ============================================================================
 // GLOBAL AUTH LISTENER - Runs outside React lifecycle to catch OAuth redirects
@@ -177,6 +196,60 @@ const sanitizeUrl = (url: string): string => {
   }
 };
 
+// Manual Hash Parsing: Extract tokens from URL hash and set session manually
+const parseHashAndSetSession = async (): Promise<boolean> => {
+  const hash = window.location.hash;
+  if (!hash) {
+    console.log('GLOBAL: Manual Hash Parsing - No hash found');
+    return false;
+  }
+  
+  console.log('GLOBAL: Manual Hash Parsing - Parsing hash for tokens...');
+  
+  try {
+    // Parse hash parameters
+    const hashParams = new URLSearchParams(hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    const expiresIn = hashParams.get('expires_in');
+    const tokenType = hashParams.get('token_type') || 'bearer';
+    
+    if (accessToken) {
+      console.log('GLOBAL: Manual Hash Parsing - Found access_token in hash');
+      console.log('GLOBAL: Manual Hash Parsing - Token type:', tokenType);
+      console.log('GLOBAL: Manual Hash Parsing - Expires in:', expiresIn, 'seconds');
+      
+      // Use setSession to manually set the session (bypasses automatic listener)
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || ''
+      });
+      
+      if (error) {
+        console.error('GLOBAL: Manual Hash Parsing - Error setting session:', error);
+        return false;
+      }
+      
+      if (data?.session) {
+        console.log('GLOBAL: Manual Hash Parsing SUCCESS - Session set manually');
+        globalAuthState.setSession(data.session);
+        globalAuthState.setAuthChecked(true);
+        globalAuthState.setHasSession(true);
+        return true;
+      }
+      
+      console.warn('GLOBAL: Manual Hash Parsing - setSession returned no session');
+      return false;
+    } else {
+      console.log('GLOBAL: Manual Hash Parsing - No access_token in hash');
+      return false;
+    }
+  } catch (error: any) {
+    console.error('GLOBAL: Manual Hash Parsing - Error parsing hash:', error);
+    return false;
+  }
+};
+
 // Hard Recovery: Force session refresh with PKCE retry loop
 const forceSessionRecovery = async (maxRetries = 3, delayMs = 500): Promise<any> => {
   console.log('GLOBAL: Hard Recovery - Forcing session refresh...');
@@ -259,18 +332,26 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
     console.log('GLOBAL: Processing OAuth, preventing App restart from interrupting...');
     isProcessingAuth = true;
     
-    // HARD RECOVERY: Force session refresh immediately with retry loop
-    forceSessionRecovery().then((session) => {
-      if (session) {
-        console.log('GLOBAL: Hard Recovery SUCCESS - Session recovered from OAuth redirect');
-        globalAuthState.setSession(session);
-        globalAuthState.setAuthChecked(true);
-        globalAuthState.setHasSession(true);
-        isProcessingAuth = false;
-      } else {
-        console.warn('GLOBAL: Hard Recovery - No session recovered, will wait for onAuthStateChange');
-      }
-    });
+    // MANUAL HASH PARSING: Try to parse hash and set session manually first
+    const manualSuccess = await parseHashAndSetSession();
+    if (manualSuccess) {
+      console.log('GLOBAL: Manual Hash Parsing SUCCESS - Session set, skipping hard recovery');
+      isProcessingAuth = false;
+    } else {
+      console.log('GLOBAL: Manual Hash Parsing failed, trying Hard Recovery...');
+      // HARD RECOVERY: Force session refresh immediately with retry loop
+      forceSessionRecovery().then((session) => {
+        if (session) {
+          console.log('GLOBAL: Hard Recovery SUCCESS - Session recovered from OAuth redirect');
+          globalAuthState.setSession(session);
+          globalAuthState.setAuthChecked(true);
+          globalAuthState.setHasSession(true);
+          isProcessingAuth = false;
+        } else {
+          console.warn('GLOBAL: Hard Recovery - No session recovered, will wait for onAuthStateChange');
+        }
+      });
+    }
   }
   
   // Set up listener that runs outside React lifecycle
