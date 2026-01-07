@@ -183,6 +183,7 @@ const App: React.FC = () => {
   const isInitializingRef = useRef(false);
   const authListenerSetupRef = useRef(false);
   const didInitRef = useRef(false); // Guard to ensure auth check only runs once
+  const manualRecoveryInProgressRef = useRef(false); // Guard to prevent multiple manual recovery attempts
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -323,6 +324,32 @@ const App: React.FC = () => {
   useEffect(() => {
     // IMMEDIATE HASH EXTRACTION: Manual session recovery at the very top (Step 6)
     // This bypasses the onAuthStateChange listener which is hanging
+    
+    // Guard: Prevent multiple manual recovery attempts
+    if (manualRecoveryInProgressRef.current) {
+      console.log('MANUAL RECOVERY: Already in progress, skipping...');
+      return;
+    }
+    
+    // Guard: If we already have a session, skip manual recovery
+    if (session && hasSession) {
+      console.log('MANUAL RECOVERY: Session already exists, skipping...');
+      return;
+    }
+    
+    // Guard: Check global auth state - if session was already set there, use it
+    const globalSession = globalAuthState.getSession();
+    if (globalSession) {
+      console.log('MANUAL RECOVERY: Global session found, using it instead of parsing hash');
+      setSession(globalSession);
+      setAuthChecked(true);
+      setHasSession(true);
+      setIsGuest(false);
+      setIsProcessingOAuth(false);
+      window.history.replaceState({}, document.title, '/');
+      return;
+    }
+    
     const hash = window.location.hash;
     const hasAccessToken = hash.includes('access_token');
     const hasIdToken = hash.includes('id_token');
@@ -330,6 +357,12 @@ const App: React.FC = () => {
     if (hasAccessToken || hasIdToken) {
       console.log('MANUAL RECOVERY: Attempting to force session from hash...');
       console.log('App: Step 6 - Immediate hash extraction detected');
+      
+      // Set processing flag immediately to block UI (persist in localStorage for remounts)
+      manualRecoveryInProgressRef.current = true;
+      localStorage.setItem('thirteen_manual_recovery', 'true');
+      setIsProcessingOAuth(true);
+      setLoadingStatus('Completing sign in...');
       
       // Parse hash parameters manually
       try {
@@ -342,10 +375,27 @@ const App: React.FC = () => {
           console.log('MANUAL RECOVERY: Found tokens in hash, setting session manually...');
           
           // Manual setSession - bypasses automatic listener
+          console.log('MANUAL RECOVERY: Calling setSession with tokens...', {
+            hasAccessToken: !!accessToken,
+            hasIdToken: !!idToken,
+            hasRefreshToken: !!refreshToken
+          });
+          
           supabase.auth.setSession({
             access_token: accessToken || idToken || '',
             refresh_token: refreshToken || ''
           }).then(({ data, error }) => {
+            console.log('MANUAL RECOVERY: setSession response:', {
+              hasError: !!error,
+              errorMessage: error?.message,
+              hasData: !!data,
+              hasSession: !!data?.session,
+              sessionUserId: data?.session?.user?.id
+            });
+            
+            manualRecoveryInProgressRef.current = false;
+            localStorage.removeItem('thirteen_manual_recovery');
+            
             if (!error && data?.session) {
               console.log('MANUAL RECOVERY: SUCCESS - Session set manually from hash');
               
@@ -374,20 +424,39 @@ const App: React.FC = () => {
               isInitializingRef.current = false;
             } else {
               console.warn('MANUAL RECOVERY: setSession failed:', error);
-              // Fallback to normal OAuth bypass logic below
+              setIsProcessingOAuth(false);
+              // Fallback to normal OAuth bypass logic will run on next render
             }
           }).catch((err) => {
             console.error('MANUAL RECOVERY: Error setting session:', err);
-            // Fallback to normal OAuth bypass logic below
+            manualRecoveryInProgressRef.current = false;
+            localStorage.removeItem('thirteen_manual_recovery');
+            setIsProcessingOAuth(false);
+            // Fallback to normal OAuth bypass logic will run on next render
           });
           
           // Exit early - don't run fallback logic while manual recovery is processing
           return;
+        } else {
+          manualRecoveryInProgressRef.current = false;
+          localStorage.removeItem('thirteen_manual_recovery');
+          setIsProcessingOAuth(false);
         }
       } catch (error) {
         console.error('MANUAL RECOVERY: Error parsing hash:', error);
+        manualRecoveryInProgressRef.current = false;
+        localStorage.removeItem('thirteen_manual_recovery');
+        setIsProcessingOAuth(false);
         // Continue to fallback logic below
       }
+    }
+    
+    // Check if manual recovery is in progress from previous mount
+    if (localStorage.getItem('thirteen_manual_recovery') === 'true') {
+      console.log('MANUAL RECOVERY: Detected in-progress recovery from previous mount');
+      manualRecoveryInProgressRef.current = true;
+      setIsProcessingOAuth(true);
+      setLoadingStatus('Completing sign in...');
     }
     
     // APP-LEVEL BYPASS: If OAuth hash/code is present, force loading screen and block state updates
