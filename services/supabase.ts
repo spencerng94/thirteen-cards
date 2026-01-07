@@ -333,25 +333,28 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
     isProcessingAuth = true;
     
     // MANUAL HASH PARSING: Try to parse hash and set session manually first
-    const manualSuccess = await parseHashAndSetSession();
-    if (manualSuccess) {
-      console.log('GLOBAL: Manual Hash Parsing SUCCESS - Session set, skipping hard recovery');
-      isProcessingAuth = false;
-    } else {
-      console.log('GLOBAL: Manual Hash Parsing failed, trying Hard Recovery...');
-      // HARD RECOVERY: Force session refresh immediately with retry loop
-      forceSessionRecovery().then((session) => {
-        if (session) {
-          console.log('GLOBAL: Hard Recovery SUCCESS - Session recovered from OAuth redirect');
-          globalAuthState.setSession(session);
-          globalAuthState.setAuthChecked(true);
-          globalAuthState.setHasSession(true);
-          isProcessingAuth = false;
-        } else {
-          console.warn('GLOBAL: Hard Recovery - No session recovered, will wait for onAuthStateChange');
-        }
-      });
-    }
+    // Wrap in async IIFE to avoid top-level await build error
+    (async () => {
+      const manualSuccess = await parseHashAndSetSession();
+      if (manualSuccess) {
+        console.log('GLOBAL: Manual Hash Parsing SUCCESS - Session set, skipping hard recovery');
+        isProcessingAuth = false;
+      } else {
+        console.log('GLOBAL: Manual Hash Parsing failed, trying Hard Recovery...');
+        // HARD RECOVERY: Force session refresh immediately with retry loop
+        forceSessionRecovery().then((session) => {
+          if (session) {
+            console.log('GLOBAL: Hard Recovery SUCCESS - Session recovered from OAuth redirect');
+            globalAuthState.setSession(session);
+            globalAuthState.setAuthChecked(true);
+            globalAuthState.setHasSession(true);
+            isProcessingAuth = false;
+          } else {
+            console.warn('GLOBAL: Hard Recovery - No session recovered, will wait for onAuthStateChange');
+          }
+        });
+      }
+    })();
   }
   
   // Set up listener that runs outside React lifecycle
