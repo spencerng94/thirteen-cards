@@ -1237,32 +1237,27 @@ export const claimAdRewardGems = async (): Promise<{
   error?: string; 
   cooldownRemaining?: number 
 }> => {
-  if (!supabaseAnonKey) {
-    // For guest users, update local storage
-    const guestProfile = fetchGuestProfile();
-    const newGems = (guestProfile.gems || 0) + 20;
-    guestProfile.gems = newGems;
-    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestProfile));
-    // Save guest progress for migration
-    saveGuestProgress({ gems: newGems });
-    return { 
-      success: true, 
-      newGemBalance: newGems,
-      weeklyGems: 20,
-      rewardType: 'gems',
-      rewardAmount: 20,
-      hitCap: false
-    };
-  }
-
   try {
     // Check if we have a valid session first
     const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData?.session?.user?.id) {
-      console.error('claimAdRewardGems: No valid session found');
+    const userId = sessionData?.session?.user?.id;
+    
+    // If no session or user is guest, handle as guest (ads are allowed for guests)
+    if (!userId || userId === 'guest') {
+      console.log('claimAdRewardGems: Handling as guest user');
+      const guestProfile = fetchGuestProfile();
+      const newGems = (guestProfile.gems || 0) + 20;
+      guestProfile.gems = newGems;
+      localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestProfile));
+      // Save guest progress for migration
+      saveGuestProgress({ gems: newGems });
       return { 
-        success: false, 
-        error: 'No valid session. Please sign in again.' 
+        success: true, 
+        newGemBalance: newGems,
+        weeklyGems: 20,
+        rewardType: 'gems',
+        rewardAmount: 20,
+        hitCap: false
       };
     }
     
@@ -1436,8 +1431,16 @@ export const processGemTransaction = async (
   source: 'ad_reward' | 'iap_purchase' | 'shop_buy' | string,
   itemId?: string
 ): Promise<{ success: boolean; newGemBalance?: number; error?: string }> => {
+  // Block guest users from purchasing gems (iap_purchase, shop_buy), but allow ad rewards
+  if (userId === 'guest' && source !== 'ad_reward') {
+    return { 
+      success: false, 
+      error: 'Guest accounts cannot purchase gems. Please sign in to make purchases.' 
+    };
+  }
+  
+  // For guest users with ad_reward source, update local storage
   if (!supabaseAnonKey || userId === 'guest') {
-    // For guest users, update local storage
     const guestProfile = fetchGuestProfile();
     const newGems = (guestProfile.gems || 0) + amount;
     if (newGems < 0) {
