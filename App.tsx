@@ -321,8 +321,77 @@ const App: React.FC = () => {
   }, [authChecked, hasSession]);
 
   useEffect(() => {
-    // APP-LEVEL BYPASS: If OAuth hash/code is present, force loading screen and block state updates
+    // IMMEDIATE HASH EXTRACTION: Manual session recovery at the very top (Step 6)
+    // This bypasses the onAuthStateChange listener which is hanging
     const hash = window.location.hash;
+    const hasAccessToken = hash.includes('access_token');
+    const hasIdToken = hash.includes('id_token');
+    
+    if (hasAccessToken || hasIdToken) {
+      console.log('MANUAL RECOVERY: Attempting to force session from hash...');
+      console.log('App: Step 6 - Immediate hash extraction detected');
+      
+      // Parse hash parameters manually
+      try {
+        const hashParams = new URLSearchParams(hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const idToken = hashParams.get('id_token');
+        
+        if (accessToken || idToken) {
+          console.log('MANUAL RECOVERY: Found tokens in hash, setting session manually...');
+          
+          // Manual setSession - bypasses automatic listener
+          supabase.auth.setSession({
+            access_token: accessToken || idToken || '',
+            refresh_token: refreshToken || ''
+          }).then(({ data, error }) => {
+            if (!error && data?.session) {
+              console.log('MANUAL RECOVERY: SUCCESS - Session set manually from hash');
+              
+              // NUCLEAR STATE FLIP: Immediately set flags
+              setSession(data.session);
+              setAuthChecked(true);
+              setHasSession(true);
+              setIsGuest(false);
+              setIsProcessingOAuth(false);
+              
+              // Cleanup URL: Remove hash to prevent reprocessing
+              window.history.replaceState({}, document.title, '/');
+              console.log('MANUAL RECOVERY: URL hash cleaned up');
+              
+              // Process the session
+              const meta = data.session.user?.user_metadata || {};
+              const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+              if (!playerName) setPlayerName(googleName.toUpperCase());
+              
+              transferGuestData(data.session.user.id).then(() => {
+                supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle().then(({ data: existingProfile }) => {
+                  loadProfile(data.session.user.id, !existingProfile);
+                });
+              });
+              
+              isInitializingRef.current = false;
+            } else {
+              console.warn('MANUAL RECOVERY: setSession failed:', error);
+              // Fallback to normal OAuth bypass logic below
+            }
+          }).catch((err) => {
+            console.error('MANUAL RECOVERY: Error setting session:', err);
+            // Fallback to normal OAuth bypass logic below
+          });
+          
+          // Exit early - don't run fallback logic while manual recovery is processing
+          return;
+        }
+      } catch (error) {
+        console.error('MANUAL RECOVERY: Error parsing hash:', error);
+        // Continue to fallback logic below
+      }
+    }
+    
+    // APP-LEVEL BYPASS: If OAuth hash/code is present, force loading screen and block state updates
+    
     const search = window.location.search;
     const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
     const hasOAuthCode = search.includes('code=');
