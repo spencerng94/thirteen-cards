@@ -305,8 +305,8 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
         // Even if setSession times out, try getSession with retries - Supabase might have processed it internally
         console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession timeout (with retries)...');
         
-        // Retry getSession up to 5 times with 500ms delay (total 2.5s wait)
-        for (let retry = 0; retry < 5; retry++) {
+        // Retry getSession up to 10 times with 500ms delay (total 5s wait)
+        for (let retry = 0; retry < 10; retry++) {
           await new Promise(resolve => setTimeout(resolve, 500));
           const { data: fallbackData } = await supabase.auth.getSession();
           if (fallbackData?.session) {
@@ -319,10 +319,38 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
             console.log('SESSION VERIFIED'); // This log is checked by App.tsx
             return true;
           }
-          console.log(`GLOBAL: BYPASS - Retry ${retry + 1}/5: No session yet, waiting...`);
+          console.log(`GLOBAL: BYPASS - Retry ${retry + 1}/10: No session yet, waiting...`);
         }
         
-        console.warn('GLOBAL: BYPASS - Fallback failed: No session found after 5 retries');
+        // Last resort: Try setSession one more time (Supabase might have initialized by now)
+        console.log('GLOBAL: BYPASS - Last resort: Trying setSession one more time...');
+        try {
+          const manualSessionResult = await Promise.race([
+            supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || ''
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Last resort setSession timeout')), 2000))
+          ]).catch(() => null);
+          
+          if (manualSessionResult) {
+            const { data: finalSessionData } = await supabase.auth.getSession();
+            if (finalSessionData?.session) {
+              console.log('GLOBAL: BYPASS - Last resort setSession SUCCESS');
+              globalAuthState.setSession(finalSessionData.session);
+              globalAuthState.setAuthChecked(true);
+              globalAuthState.setHasSession(true);
+              localStorage.setItem('thirteen_session_verified', 'true');
+              console.log('GLOBAL: BYPASS - SESSION VERIFIED (via last resort)');
+              console.log('SESSION VERIFIED');
+              return true;
+            }
+          }
+        } catch (lastResortError) {
+          console.warn('GLOBAL: BYPASS - Last resort setSession failed:', lastResortError);
+        }
+        
+        console.warn('GLOBAL: BYPASS - Fallback failed: No session found after all retries');
         return false;
       }
       
@@ -333,8 +361,8 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
         // Try getSession as fallback even on error (with retries)
         console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession error (with retries)...');
         
-        // Retry getSession up to 5 times with 500ms delay (total 2.5s wait)
-        for (let retry = 0; retry < 5; retry++) {
+        // Retry getSession up to 10 times with 500ms delay (total 5s wait)
+        for (let retry = 0; retry < 10; retry++) {
           await new Promise(resolve => setTimeout(resolve, 500));
           const { data: fallbackData } = await supabase.auth.getSession();
           if (fallbackData?.session) {
@@ -347,10 +375,38 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
             console.log('SESSION VERIFIED'); // This log is checked by App.tsx
             return true;
           }
-          console.log(`GLOBAL: BYPASS - Retry ${retry + 1}/5: No session yet, waiting...`);
+          console.log(`GLOBAL: BYPASS - Retry ${retry + 1}/10: No session yet, waiting...`);
         }
         
-        console.warn('GLOBAL: BYPASS - Fallback failed: No session found after 5 retries');
+        // Last resort: Try setSession one more time (Supabase might have initialized by now)
+        console.log('GLOBAL: BYPASS - Last resort: Trying setSession one more time...');
+        try {
+          const manualSessionResult = await Promise.race([
+            supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || ''
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Last resort setSession timeout')), 2000))
+          ]).catch(() => null);
+          
+          if (manualSessionResult) {
+            const { data: finalSessionData } = await supabase.auth.getSession();
+            if (finalSessionData?.session) {
+              console.log('GLOBAL: BYPASS - Last resort setSession SUCCESS');
+              globalAuthState.setSession(finalSessionData.session);
+              globalAuthState.setAuthChecked(true);
+              globalAuthState.setHasSession(true);
+              localStorage.setItem('thirteen_session_verified', 'true');
+              console.log('GLOBAL: BYPASS - SESSION VERIFIED (via last resort)');
+              console.log('SESSION VERIFIED');
+              return true;
+            }
+          }
+        } catch (lastResortError) {
+          console.warn('GLOBAL: BYPASS - Last resort setSession failed:', lastResortError);
+        }
+        
+        console.warn('GLOBAL: BYPASS - Fallback failed: No session found after all retries');
         return false;
       }
       

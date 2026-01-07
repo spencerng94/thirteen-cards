@@ -316,39 +316,50 @@ const AppContent: React.FC = () => {
       forceTimeout = setTimeout(async () => {
         if (authStatusRef.current.hasSession) return;
         
-        // Try to get session from Supabase first (might have been set by brute force localStorage)
-        console.warn('App: Fake auth fallback - checking for session before forcing flags...');
-        const { data: sessionData } = await supabase.auth.getSession();
-        const globalSession = globalAuthState.getSession();
-        const foundSession = sessionData?.session || globalSession;
+        // Try to get session from Supabase with retries (might have been set by brute force localStorage)
+        console.warn('App: Fake auth fallback - checking for session before forcing flags (with retries)...');
         
-        if (foundSession) {
-          console.warn('App: Fake auth fallback - Found session! Using it:', foundSession.user?.id);
-          setSession(foundSession);
-          setAuthChecked(true);
-          setHasSession(true);
-          setIsGuest(false);
-          setIsProcessingOAuth(false);
-          setLoadingStatus('Syncing profile...');
+        // Retry up to 10 times with 500ms delay (total 5s wait)
+        for (let retry = 0; retry < 10; retry++) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const globalSession = globalAuthState.getSession();
+          const foundSession = sessionData?.session || globalSession;
           
-          // Process the session
-          const meta = foundSession.user?.user_metadata || {};
-          const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-          if (!playerName) setPlayerName(googleName.toUpperCase());
-          
-          transferGuestData(foundSession.user.id).then(() => {
-            supabase.from('profiles').select('id').eq('id', foundSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
-              loadProfile(foundSession.user.id, !existingProfile);
+          if (foundSession) {
+            console.warn(`App: Fake auth fallback - Found session on retry ${retry + 1}! Using it:`, foundSession.user?.id);
+            setSession(foundSession);
+            setAuthChecked(true);
+            setHasSession(true);
+            setIsGuest(false);
+            setIsProcessingOAuth(false);
+            setLoadingStatus('Syncing profile...');
+            
+            // Process the session
+            const meta = foundSession.user?.user_metadata || {};
+            const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+            if (!playerName) setPlayerName(googleName.toUpperCase());
+            
+            transferGuestData(foundSession.user.id).then(() => {
+              supabase.from('profiles').select('id').eq('id', foundSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
+                loadProfile(foundSession.user.id, !existingProfile);
+              });
             });
-          });
-        } else {
-          console.warn('App: Fake auth fallback - No session found, but setting flags anyway (brute force)');
-          setAuthChecked(true);
-          setHasSession(true);
-          setIsGuest(false);
-          setIsProcessingOAuth(false);
-          setLoadingStatus('Completing sign in...');
+            return; // Exit early if session found
+          }
+          
+          if (retry < 9) {
+            console.log(`App: Fake auth fallback - Retry ${retry + 1}/10: No session yet, waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
         }
+        
+        // Last resort: Set flags anyway (brute force)
+        console.warn('App: Fake auth fallback - No session found after 10 retries, but setting flags anyway (brute force)');
+        setAuthChecked(true);
+        setHasSession(true);
+        setIsGuest(false);
+        setIsProcessingOAuth(false);
+        setLoadingStatus('Completing sign in...');
       }, 2000);
     };
 
