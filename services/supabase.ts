@@ -723,6 +723,65 @@ export const processGemTransaction = async (
 };
 
 /**
+ * Handle gem purchase with first-time 2x bonus support
+ * Calls the handle_gem_purchase RPC function which applies the 2x bonus if eligible
+ * 
+ * @param userId - The user's ID
+ * @param packId - The gem pack ID (e.g., 'gem_1', 'gem_2')
+ * @param baseGems - The base number of gems in the pack (before bonus)
+ * @param price - The price string (e.g., '$1.99')
+ * @returns Object with success status, new gem balance, and whether bonus was applied
+ */
+export const handleGemPurchase = async (
+  userId: string,
+  packId: string,
+  baseGems: number,
+  price: string
+): Promise<{ 
+  success: boolean; 
+  newGemBalance?: number; 
+  bonusApplied?: boolean;
+  first_purchase_eligible?: boolean;
+  error?: string 
+}> => {
+  // Block guest users from purchasing gems
+  if (!supabaseAnonKey || userId === 'guest') {
+    return { 
+      success: false, 
+      error: 'Guest accounts cannot purchase gems. Please sign in to make purchases.' 
+    };
+  }
+
+  try {
+    // Call the handle_gem_purchase RPC function
+    const { data, error } = await supabase.rpc('handle_gem_purchase', {
+      user_id: userId,
+      pack_id: packId,
+      base_gems: baseGems,
+      price: price
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    if (!data) {
+      return { success: false, error: 'No data returned from purchase' };
+    }
+
+    return {
+      success: data.success || false,
+      newGemBalance: data.new_balance,
+      bonusApplied: data.bonus_applied || false,
+      first_purchase_eligible: data.first_purchase_eligible !== undefined ? data.first_purchase_eligible : true,
+      error: data.error
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Unknown error occurred' };
+  }
+};
+
+/**
  * Simple handleWatchAd function with mock 30-second delay
  * Simulates watching an ad, then increments gems by 25
  * 

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { CurrencyIcon } from './Store';
 import { GemPurchaseCelebration } from './GemPurchaseCelebration';
-import { processGemTransaction, fetchGemTransactions, GemTransaction } from '../services/supabase';
+import { processGemTransaction, fetchGemTransactions, GemTransaction, handleGemPurchase } from '../services/supabase';
 import { Toast } from './Toast';
 import { audioService } from '../services/audio';
 
@@ -231,7 +231,8 @@ export const GemPacks: React.FC<{
   onClose: () => void;
   profile: UserProfile | null;
   onRefreshProfile: () => void;
-}> = ({ onClose, profile, onRefreshProfile }) => {
+  isGuest?: boolean;
+}> = ({ onClose, profile, onRefreshProfile, isGuest = false }) => {
   const [showCelebration, setShowCelebration] = useState(false);
   const [purchasedGems, setPurchasedGems] = useState(0);
   const [showToast, setShowToast] = useState(false);
@@ -241,6 +242,14 @@ export const GemPacks: React.FC<{
   const [showHistory, setShowHistory] = useState(false);
   const [gemTransactions, setGemTransactions] = useState<GemTransaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [firstPurchaseEligible, setFirstPurchaseEligible] = useState(profile?.first_purchase_eligible ?? true);
+
+  // Sync first_purchase_eligible from profile
+  useEffect(() => {
+    if (profile) {
+      setFirstPurchaseEligible(profile.first_purchase_eligible ?? true);
+    }
+  }, [profile]);
 
   // Fetch gem transaction history
   useEffect(() => {
@@ -271,6 +280,15 @@ export const GemPacks: React.FC<{
 
   const handlePurchase = async (pack: GemPack) => {
     if (!profile || isProcessing) return;
+    
+    // Block guest users from purchasing gems
+    if (isGuest) {
+      setToastMessage('Please sign in to purchase gems. Guest accounts cannot make purchases.');
+      setToastType('error');
+      setShowToast(true);
+      audioService.playError();
+      return;
+    }
     
     setIsProcessing(true);
     
@@ -304,23 +322,32 @@ export const GemPacks: React.FC<{
         // Simulate payment processing delay
         await new Promise(resolve => setTimeout(resolve, 1500));
         
-        // Process gem transaction with iap_purchase source
-        const result = await processGemTransaction(profile.id, pack.totalGems, 'iap_purchase');
+        // Call handle_gem_purchase RPC which applies 2x bonus if eligible
+        const result = await handleGemPurchase(profile.id, pack.id, pack.totalGems, pack.price);
         
         if (result.success && result.newGemBalance !== undefined) {
+          // Update local state to hide badges immediately
+          if (result.first_purchase_eligible !== undefined) {
+            setFirstPurchaseEligible(result.first_purchase_eligible);
+          }
+          
           // Play success sound
           audioService.playPurchase();
           
+          // Calculate actual gems received (with bonus if applied)
+          const actualGems = result.bonusApplied ? pack.totalGems * 2 : pack.totalGems;
+          
           // Show celebration
-          setPurchasedGems(pack.totalGems);
+          setPurchasedGems(actualGems);
           setShowCelebration(true);
           
           // Refresh profile immediately to update gem counter in header
           // This ensures the gem count is fetched fresh from database
           await onRefreshProfile();
           
-          // Show success toast
-          setToastMessage(`Successfully purchased ${pack.totalGems.toLocaleString()} gems!`);
+          // Show success toast with bonus info
+          const bonusText = result.bonusApplied ? ' (2x BONUS applied!)' : '';
+          setToastMessage(`Successfully purchased ${actualGems.toLocaleString()} gems!${bonusText}`);
           setToastType('success');
           setShowToast(true);
         } else {
@@ -351,23 +378,32 @@ export const GemPacks: React.FC<{
         // Simulate payment processing delay
         await new Promise(resolve => setTimeout(resolve, 1500));
         
-        // Process gem transaction with iap_purchase source
-        const result = await processGemTransaction(profile.id, pack.totalGems, 'iap_purchase');
+        // Call handle_gem_purchase RPC which applies 2x bonus if eligible
+        const result = await handleGemPurchase(profile.id, pack.id, pack.totalGems, pack.price);
         
         if (result.success && result.newGemBalance !== undefined) {
+          // Update local state to hide badges immediately
+          if (result.first_purchase_eligible !== undefined) {
+            setFirstPurchaseEligible(result.first_purchase_eligible);
+          }
+          
           // Play success sound
           audioService.playPurchase();
           
+          // Calculate actual gems received (with bonus if applied)
+          const actualGems = result.bonusApplied ? pack.totalGems * 2 : pack.totalGems;
+          
           // Show celebration
-          setPurchasedGems(pack.totalGems);
+          setPurchasedGems(actualGems);
           setShowCelebration(true);
           
           // Refresh profile immediately to update gem counter in header
           // This ensures the gem count is fetched fresh from database
           await onRefreshProfile();
           
-          // Show success toast
-          setToastMessage(`Successfully purchased ${pack.totalGems.toLocaleString()} gems!`);
+          // Show success toast with bonus info
+          const bonusText = result.bonusApplied ? ' (2x BONUS applied!)' : '';
+          setToastMessage(`Successfully purchased ${actualGems.toLocaleString()} gems!${bonusText}`);
           setToastType('success');
           setShowToast(true);
         } else {
@@ -475,6 +511,13 @@ export const GemPacks: React.FC<{
                 >
                   {/* Badges */}
                   <div className="absolute top-1.5 right-1.5 z-20 flex flex-col gap-1.5 items-end">
+                    {firstPurchaseEligible && profile && (
+                      <div className="relative bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 text-black text-[7px] sm:text-[8px] font-black px-2 py-0.5 rounded-full shadow-lg border border-yellow-300 uppercase tracking-wider overflow-hidden">
+                        {/* Shimmer effect */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+                        <span className="relative z-10">2x BONUS</span>
+                      </div>
+                    )}
                     {isMostPopular && (
                       <div className="bg-gradient-to-br from-pink-400 to-pink-600 text-white text-[7px] sm:text-[8px] font-black px-2 py-0.5 rounded-full shadow-lg border border-pink-300 uppercase tracking-wider">
                         🔥 POPULAR
@@ -534,10 +577,10 @@ export const GemPacks: React.FC<{
                            e.stopPropagation();
                            handlePurchase(pack);
                          }}
-                         disabled={isProcessing || !profile}
+                         disabled={isProcessing || !profile || isGuest}
                          className="w-full px-3 py-1.5 sm:py-2 rounded-lg border-2 bg-gradient-to-br from-pink-500/20 to-pink-600/20 border-pink-500/40 text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider hover:from-pink-500/30 hover:to-pink-600/30 hover:border-pink-500/60 hover:shadow-[0_0_15px_rgba(236,72,153,0.4)] transition-all duration-300 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:from-pink-500/20 disabled:hover:to-pink-600/20"
                        >
-                          {isProcessing ? 'Processing...' : 'Purchase'}
+                          {isProcessing ? 'Processing...' : isGuest ? 'Sign In Required' : 'Purchase'}
                        </button>
                     </div>
 
@@ -558,13 +601,22 @@ export const GemPacks: React.FC<{
 
           {/* Compact Footer Message */}
           <div className="pt-3 sm:pt-4 pb-2 flex flex-col items-center text-center space-y-1.5">
-             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse shadow-[0_0_6px_#ef4444]"></span>
-                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-red-400">Payment Offline</p>
-             </div>
-             <p className="text-[8px] sm:text-[9px] font-medium max-w-md uppercase tracking-wider leading-relaxed text-white/50 px-3">
-               Payment integration in progress. Coming soon.
-             </p>
+             {isGuest ? (
+               <div className="flex items-center gap-1.5 px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                 <span className="w-1 h-1 rounded-full bg-yellow-500 animate-pulse shadow-[0_0_6px_#eab308]"></span>
+                 <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-yellow-400">Sign In Required</p>
+               </div>
+             ) : (
+               <>
+                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
+                   <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse shadow-[0_0_6px_#ef4444]"></span>
+                   <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-red-400">Payment Offline</p>
+                 </div>
+                 <p className="text-[8px] sm:text-[9px] font-medium max-w-md uppercase tracking-wider leading-relaxed text-white/50 px-3">
+                   Payment integration in progress. Coming soon.
+                 </p>
+               </>
+             )}
           </div>
         </div>
 
@@ -663,6 +715,10 @@ export const GemPacks: React.FC<{
           20% { opacity: 0.5; }
           80% { opacity: 0.5; }
           100% { transform: translateY(-60px) translateX(20px); opacity: 0; }
+        }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(200%); }
         }
       `}} />
 

@@ -178,6 +178,8 @@ const App: React.FC = () => {
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
   const aiThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitializingRef = useRef(false);
+  const authListenerSetupRef = useRef(false);
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -263,59 +265,92 @@ const App: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [gameMode, myPersistentId, view]);
 
+  // Check for OAuth redirect hash (access_token) in URL
   useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('access_token')) {
+      console.log('App: Step 17 - Session detected from URL hash');
+      // Wait for Supabase to process the hash before proceeding
+      setTimeout(() => {
+        if (!authChecked) {
+          console.log('App: Step 17b - Processing OAuth redirect, waiting for session...');
+          setLoadingStatus('Completing sign in...');
+        }
+      }, 500);
+    } else {
+      console.log('App: Step 18 - No session found in URL hash');
+    }
+  }, []);
+
+  useEffect(() => {
+    // Prevent multiple initializations
+    if (isInitializingRef.current) {
+      console.log('App: Already initializing, skipping duplicate init');
+      return;
+    }
+    
+    isInitializingRef.current = true;
     console.log('App: Step 9 - Starting auth check...');
     setLoadingStatus('Checking credentials...');
     
-    // Immediate session check before setting up listener
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      if (error) {
+    // Explicit session recovery: Check for session immediately
+    const checkSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('App: ERROR - Failed to get session:', error);
+          console.log('App: Step 10b - No session found (error), forcing guest mode');
+          setSession(null);
+          setLoadingStatus('Network hiccup. You can enter as Guest.');
+          setAuthChecked(false);
+          setIsGuest(false);
+          isInitializingRef.current = false;
+          return;
+        }
+        
+        if (data?.session) {
+          console.log('App: Step 10a - Session found, user:', data.session.user.id);
+          console.log('App: Step 17 - Session detected from URL');
+          setSession(data.session);
+          setAuthChecked(true);
+          setIsGuest(false);
+          console.log('App: Step 11 - Auth checked, session set');
+          console.log('App: Step 12 - User found, processing user data...');
+          setLoadingStatus('Syncing profile...');
+          const meta = data.session.user.user_metadata || {};
+          const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+          if (!playerName) setPlayerName(googleName.toUpperCase());
+          console.log('App: Step 13 - Transferring guest data...');
+          await transferGuestData(data.session.user.id);
+          console.log('App: Step 14 - Checking if user is new...');
+          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle();
+          const isNewUser = !existingProfile;
+          console.log('App: Step 15 - Loading profile, isNewUser:', isNewUser);
+          loadProfile(data.session.user.id, isNewUser);
+          isInitializingRef.current = false;
+        } else {
+          console.log('App: Step 10b - No session found, forcing guest mode');
+          console.log('App: Step 18 - No session found in URL');
+          setLoadingStatus('Preparing guest profile...');
+          setSession(null);
+          setAuthChecked(true);
+          setIsGuest(true);
+          console.log('App: Step 12 - No user session, will show auth screen or guest mode');
+          isInitializingRef.current = false;
+        }
+      } catch (error: any) {
         console.error('App: ERROR - Failed to get session:', error);
-        console.log('App: Step 10b - No session found (error), forcing guest mode');
-        setSession(null);
-        // Keep user on loading until they choose guest; show hint instead
+        console.log('App: Step 10b - No session found (catch), forcing guest mode');
         setLoadingStatus('Network hiccup. You can enter as Guest.');
+        setSession(null);
         setAuthChecked(false);
         setIsGuest(false);
-        return;
+        isInitializingRef.current = false;
       }
-      
-      if (session?.user) {
-        console.log('App: Step 10a - Session found, user:', session.user.id);
-        setSession(session);
-        setAuthChecked(true);
-        setIsGuest(false);
-        console.log('App: Step 11 - Auth checked, session set');
-        console.log('App: Step 12 - User found, processing user data...');
-        setLoadingStatus('Syncing profile...');
-        const meta = session.user.user_metadata || {};
-        // Use Google metadata: full_name, name, or display_name
-        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-        if (!playerName) setPlayerName(googleName.toUpperCase());
-        console.log('App: Step 13 - Transferring guest data...');
-        await transferGuestData(session.user.id);
-        // Check if this is a new user (no profile exists yet)
-        console.log('App: Step 14 - Checking if user is new...');
-        const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
-        const isNewUser = !existingProfile;
-        console.log('App: Step 15 - Loading profile, isNewUser:', isNewUser);
-        loadProfile(session.user.id, isNewUser);
-      } else {
-        console.log('App: Step 10b - No session found, forcing guest mode');
-        setLoadingStatus('Preparing guest profile...');
-        setSession(null);
-        setAuthChecked(true);
-        setIsGuest(true);
-        console.log('App: Step 12 - No user session, will show auth screen or guest mode');
-      }
-    }).catch((error) => {
-      console.error('App: ERROR - Failed to get session:', error);
-      console.log('App: Step 10b - No session found (catch), forcing guest mode');
-      setLoadingStatus('Network hiccup. You can enter as Guest.');
-      setSession(null);
-      setAuthChecked(false);
-      setIsGuest(false);
-    });
+    };
+    
+    checkSession();
 
     // Timeout safety: after 6s, reveal guest entry hint (do not auto-switch)
     const hintTimeoutId = setTimeout(() => {
@@ -325,36 +360,47 @@ const App: React.FC = () => {
       }
     }, 6000);
 
-    console.log('App: Step 16 - Setting up auth state change listener...');
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
-      setSession(session);
-      if (session?.user) {
-        setIsGuest(false);
-        setLoadingStatus('Syncing profile...');
-        const meta = session.user.user_metadata || {};
-        // Use Google metadata: full_name, name, or display_name
-        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-        if (!playerName) setPlayerName(googleName.toUpperCase());
-        await transferGuestData(session.user.id);
-        // Check if this is a new user (SIGNED_IN event with no existing profile)
-        if (event === 'SIGNED_IN') {
-          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
-          loadProfile(session.user.id, !existingProfile);
-        } else {
-          loadProfile(session.user.id, false);
+    // Set up auth state change listener only once
+    if (!authListenerSetupRef.current) {
+      console.log('App: Step 16 - Setting up auth state change listener...');
+      authListenerSetupRef.current = true;
+      
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
+        setSession(session);
+        if (session?.user) {
+          setIsGuest(false);
+          setAuthChecked(true); // Explicitly set authChecked when session is detected
+          setLoadingStatus('Syncing profile...');
+          const meta = session.user.user_metadata || {};
+          const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+          if (!playerName) setPlayerName(googleName.toUpperCase());
+          await transferGuestData(session.user.id);
+          if (event === 'SIGNED_IN') {
+            const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
+            loadProfile(session.user.id, !existingProfile);
+          } else {
+            loadProfile(session.user.id, false);
+          }
+        } else if (!isGuest) {
+          setProfile(null);
+          initialSyncCompleteRef.current = false;
         }
-      } else if (!isGuest) {
-        setProfile(null);
-        initialSyncCompleteRef.current = false;
-      }
-    });
-    return () => {
-      console.log('App: Step 18 - Cleaning up auth state change listener');
-      clearTimeout(hintTimeoutId);
-      subscription.unsubscribe();
-    };
-  }, [isGuest, playerName, playerAvatar, authChecked]);
+      });
+      
+      return () => {
+        console.log('App: Step 18 - Cleaning up auth state change listener');
+        clearTimeout(hintTimeoutId);
+        subscription.unsubscribe();
+        authListenerSetupRef.current = false;
+        isInitializingRef.current = false;
+      };
+    } else {
+      return () => {
+        clearTimeout(hintTimeoutId);
+      };
+    }
+  }, []); // Empty dependency array - only run once on mount
 
   const loadProfile = async (uid: string, isNewUser: boolean = false) => {
     console.log('App: Step 19 - Loading profile for user:', uid, 'isNewUser:', isNewUser);
@@ -680,6 +726,15 @@ const App: React.FC = () => {
 
   console.log('App: Step 26 - Rendering decision:', { authChecked, isGuest, hasSession: !!session, hasProfile: !!profile });
   
+  // Force render fallback: If session exists but authChecked is false, force it to true
+  useEffect(() => {
+    if (session?.user && !authChecked) {
+      console.log('App: Step 27b - Force render: Session detected but authChecked is false, fixing...');
+      setAuthChecked(true);
+      setIsGuest(false);
+    }
+  }, [session, authChecked]);
+  
   // Allow guest mode even if auth check is still in progress
   if (!authChecked && !isGuest) {
     console.log('App: Step 27 - Waiting for auth check, showing loading...');
@@ -750,7 +805,7 @@ const App: React.FC = () => {
       )}
       {gemPacksOpen && (
         <Suspense fallback={<div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"><div className="text-yellow-400 text-lg">Loading gem packs...</div></div>}>
-          <GemPacks onClose={() => setGemPacksOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} />
+          <GemPacks onClose={() => setGemPacksOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} />
         </Suspense>
       )}
       {friendsOpen && <FriendsLounge onClose={() => setFriendsOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} />}
