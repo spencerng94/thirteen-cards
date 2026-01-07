@@ -302,19 +302,27 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
         } else {
           console.error('GLOBAL: BYPASS - setSession failed or timed out:', error?.message || error);
         }
-        // Even if setSession times out, try getSession - Supabase might have processed it internally
-        console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession timeout...');
-        const { data: fallbackData } = await supabase.auth.getSession();
-        if (fallbackData?.session) {
-          console.log('GLOBAL: BYPASS - Fallback SUCCESS: getSession found session despite setSession timeout');
-          globalAuthState.setSession(fallbackData.session);
-          globalAuthState.setAuthChecked(true);
-          globalAuthState.setHasSession(true);
-          localStorage.setItem('thirteen_session_verified', 'true');
-          console.log('GLOBAL: BYPASS - SESSION VERIFIED (via fallback)');
-          console.log('SESSION VERIFIED'); // This log is checked by App.tsx
-          return true;
+        // Even if setSession times out, try getSession with retries - Supabase might have processed it internally
+        console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession timeout (with retries)...');
+        
+        // Retry getSession up to 5 times with 500ms delay (total 2.5s wait)
+        for (let retry = 0; retry < 5; retry++) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { data: fallbackData } = await supabase.auth.getSession();
+          if (fallbackData?.session) {
+            console.log(`GLOBAL: BYPASS - Fallback SUCCESS: getSession found session on retry ${retry + 1}`);
+            globalAuthState.setSession(fallbackData.session);
+            globalAuthState.setAuthChecked(true);
+            globalAuthState.setHasSession(true);
+            localStorage.setItem('thirteen_session_verified', 'true');
+            console.log('GLOBAL: BYPASS - SESSION VERIFIED (via fallback)');
+            console.log('SESSION VERIFIED'); // This log is checked by App.tsx
+            return true;
+          }
+          console.log(`GLOBAL: BYPASS - Retry ${retry + 1}/5: No session yet, waiting...`);
         }
+        
+        console.warn('GLOBAL: BYPASS - Fallback failed: No session found after 5 retries');
         return false;
       }
       
@@ -322,19 +330,27 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
       
       if (setSessionError) {
         console.error('GLOBAL: BYPASS - Error setting session:', setSessionError);
-        // Try getSession as fallback even on error
-        console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession error...');
-        const { data: fallbackData } = await supabase.auth.getSession();
-        if (fallbackData?.session) {
-          console.log('GLOBAL: BYPASS - Fallback SUCCESS: getSession found session despite setSession error');
-          globalAuthState.setSession(fallbackData.session);
-          globalAuthState.setAuthChecked(true);
-          globalAuthState.setHasSession(true);
-          localStorage.setItem('thirteen_session_verified', 'true');
-          console.log('GLOBAL: BYPASS - SESSION VERIFIED (via fallback)');
-          console.log('SESSION VERIFIED'); // This log is checked by App.tsx
-          return true;
+        // Try getSession as fallback even on error (with retries)
+        console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession error (with retries)...');
+        
+        // Retry getSession up to 5 times with 500ms delay (total 2.5s wait)
+        for (let retry = 0; retry < 5; retry++) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { data: fallbackData } = await supabase.auth.getSession();
+          if (fallbackData?.session) {
+            console.log(`GLOBAL: BYPASS - Fallback SUCCESS: getSession found session on retry ${retry + 1}`);
+            globalAuthState.setSession(fallbackData.session);
+            globalAuthState.setAuthChecked(true);
+            globalAuthState.setHasSession(true);
+            localStorage.setItem('thirteen_session_verified', 'true');
+            console.log('GLOBAL: BYPASS - SESSION VERIFIED (via fallback)');
+            console.log('SESSION VERIFIED'); // This log is checked by App.tsx
+            return true;
+          }
+          console.log(`GLOBAL: BYPASS - Retry ${retry + 1}/5: No session yet, waiting...`);
         }
+        
+        console.warn('GLOBAL: BYPASS - Fallback failed: No session found after 5 retries');
         return false;
       }
       

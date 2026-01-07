@@ -310,17 +310,45 @@ const AppContent: React.FC = () => {
       persistSupabaseAuthTokenBruteforce(accessToken, refreshToken, expiresIn, tokenType);
     };
 
-    const triggerFakeAuth = () => {
+    const triggerFakeAuth = async () => {
       if (forceTimeout) return;
       console.warn('App: Fake auth fallback detected - forcing auth flags after 2s');
-      forceTimeout = setTimeout(() => {
+      forceTimeout = setTimeout(async () => {
         if (authStatusRef.current.hasSession) return;
-        console.warn('App: Fake auth fallback - setting authChecked/hasSession despite null session');
-        setAuthChecked(true);
-        setHasSession(true);
-        setIsGuest(false);
-        setIsProcessingOAuth(false);
-        setLoadingStatus('Completing sign in...');
+        
+        // Try to get session from Supabase first (might have been set by brute force localStorage)
+        console.warn('App: Fake auth fallback - checking for session before forcing flags...');
+        const { data: sessionData } = await supabase.auth.getSession();
+        const globalSession = globalAuthState.getSession();
+        const foundSession = sessionData?.session || globalSession;
+        
+        if (foundSession) {
+          console.warn('App: Fake auth fallback - Found session! Using it:', foundSession.user?.id);
+          setSession(foundSession);
+          setAuthChecked(true);
+          setHasSession(true);
+          setIsGuest(false);
+          setIsProcessingOAuth(false);
+          setLoadingStatus('Syncing profile...');
+          
+          // Process the session
+          const meta = foundSession.user?.user_metadata || {};
+          const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+          if (!playerName) setPlayerName(googleName.toUpperCase());
+          
+          transferGuestData(foundSession.user.id).then(() => {
+            supabase.from('profiles').select('id').eq('id', foundSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
+              loadProfile(foundSession.user.id, !existingProfile);
+            });
+          });
+        } else {
+          console.warn('App: Fake auth fallback - No session found, but setting flags anyway (brute force)');
+          setAuthChecked(true);
+          setHasSession(true);
+          setIsGuest(false);
+          setIsProcessingOAuth(false);
+          setLoadingStatus('Completing sign in...');
+        }
       }, 2000);
     };
 
@@ -1361,9 +1389,22 @@ const AppContent: React.FC = () => {
     );
   }
   
-  if (!session && !isGuest) {
+  // Only show auth screen if we're sure there's no session AND not a guest
+  // If hasSession is true (from brute force), keep waiting for session to load
+  if (!session && !isGuest && !hasSession) {
     console.log('App: Step 28 - No session and not guest, showing auth screen');
     return <AuthScreen onPlayAsGuest={() => setIsGuest(true)} />;
+  }
+  
+  // If hasSession is true but session is null, we're still loading (brute force recovery)
+  if (hasSession && !session && !isGuest) {
+    console.log('App: Step 28b - hasSession true but session null, waiting for session to load...');
+    return (
+      <LoadingScreen
+        status={loadingStatus || 'Completing sign in...'}
+        showGuestButton={false}
+      />
+    );
   }
   
   console.log('App: Step 29 - Rendering main app content');
