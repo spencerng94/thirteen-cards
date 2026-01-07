@@ -81,6 +81,7 @@ export class AdService {
   private rewardEarned: boolean = false;
   private isWeb: boolean = false;
   private eventListenersSetup: boolean = false;
+  private rewardCallbackInProgress: boolean = false;
 
   private constructor() {
     // Detect platform immediately
@@ -303,20 +304,35 @@ export class AdService {
     // We MUST wait for this callback before calling Supabase - never award gems locally
     this.onUserEarnedRewardCallback = (reward: { amount: number; type: string }) => {
       console.log('User earned reward:', reward);
+      
+      // Prevent duplicate reward processing
+      if (this.rewardCallbackInProgress) {
+        console.warn('AdService: Reward callback already in progress, ignoring duplicate call');
+        return;
+      }
+      
       this.rewardEarned = true;
+      this.rewardCallbackInProgress = true;
       this.setState('rewarded', this.currentPlacement!);
       
       // SECURITY: Only process reward AFTER AdMob confirms via onUserEarnedReward event
       // This ensures server-side verification - the Supabase function is only called here
       if (this.currentRewardCallback) {
         const rewardAmount = this.getRewardAmount(this.currentPlacement!);
+        console.log('AdService: Calling reward callback with amount:', rewardAmount);
         this.currentRewardCallback(rewardAmount)
           .then(() => {
+            console.log('AdService: Reward callback completed successfully');
             this.setCooldown(this.currentPlacement!);
+            this.rewardCallbackInProgress = false;
           })
           .catch((error) => {
-            console.error('Failed to process reward:', error);
+            console.error('AdService: Failed to process reward:', error);
+            this.rewardCallbackInProgress = false;
           });
+      } else {
+        console.warn('AdService: No reward callback set, cannot process reward');
+        this.rewardCallbackInProgress = false;
       }
     };
 
@@ -332,6 +348,7 @@ export class AdService {
 
       // Reset state
       this.rewardEarned = false;
+      this.rewardCallbackInProgress = false;
       this.setState('idle', this.currentPlacement!);
       this.isAdLoaded = false;
       this.currentPlacement = null;

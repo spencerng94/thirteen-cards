@@ -891,14 +891,21 @@ const FreeGemsCard: React.FC<{
   const progressPercent = Math.min((weeklyGems / 500) * 100, 100);
 
   const handleWatchAd = async () => {
-    if (!isAvailable || adState !== 'idle' || !profile || !isAdLoaded) return;
+    if (!isAvailable || adState !== 'idle' || !profile || !isAdLoaded) {
+      console.warn('Store: Ad button clicked but not available. State:', { isAvailable, adState, hasProfile: !!profile, isAdLoaded });
+      return;
+    }
 
     try {
-      await adService.showRewardedAd(placement, async (amount) => {
+      console.log('Store: Starting to show ad, placement:', placement);
+      const adShown = await adService.showRewardedAd(placement, async (amount) => {
         // Call secure RPC function that uses auth.uid() server-side
-        const result = await claimAdRewardGems();
-        
-        if (result.success) {
+        console.log('Store: Reward callback triggered, amount:', amount);
+        try {
+          const result = await claimAdRewardGems();
+          console.log('Store: claimAdRewardGems result:', result);
+          
+          if (result.success) {
           // Play success sound
           audioService.playPurchase();
           
@@ -944,6 +951,7 @@ const FreeGemsCard: React.FC<{
           }, 2000);
         } else {
           // Handle cooldown or other errors
+          console.error('Store: claimAdRewardGems failed:', result.error);
           if (result.error === 'Cooldown active' && result.cooldownRemaining) {
             setToastMessage(`Please wait ${result.cooldownRemaining}s before claiming again`);
           } else {
@@ -956,16 +964,35 @@ const FreeGemsCard: React.FC<{
             setAdState('idle');
           }, 1000);
         }
+        } catch (rewardError: any) {
+          console.error('Store: Error in reward callback:', rewardError);
+          setToastMessage('Failed to process reward. Please try again.');
+          setToastType('error');
+          setShowToast(true);
+          setAdState('error');
+          setTimeout(() => {
+            setAdState('idle');
+          }, 1000);
+        }
       }, () => {
         // Early close callback - user closed ad early
+        console.log('Store: Ad closed early');
         setToastMessage('Watch the full video to claim your reward!');
         setToastType('error');
         setShowWarningToast(true);
         setAdState('idle');
       });
+      
+      console.log('Store: showRewardedAd returned:', adShown);
+      if (!adShown) {
+        console.warn('Store: Ad was not shown successfully');
+        setToastMessage('No ads available right now. Take a boba break and try again later!');
+        setToastType('error');
+        setShowToast(true);
+      }
     } catch (error: any) {
-      console.error('Ad error:', error);
-      setToastMessage('Failed to process ad reward. Please try again.');
+      console.error('Store: Ad error:', error);
+      setToastMessage(error.message || 'Failed to process ad reward. Please try again.');
       setToastType('error');
       setShowToast(true);
       setAdState('error');
