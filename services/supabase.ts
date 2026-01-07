@@ -20,6 +20,14 @@ const getEnv = (key: string): string | undefined => {
 
 const supabaseUrl = getEnv('VITE_SUPABASE_URL') || "https://spaxxexmyiczdrbikdjp.supabase.co";
 const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
+export const supabaseProjectId = (() => {
+  try {
+    const hostname = new URL(supabaseUrl).hostname;
+    return hostname.split('.')[0];
+  } catch {
+    return null;
+  }
+})();
 const GUEST_STORAGE_KEY = 'thirteen_stats';
 const GUEST_MIGRATION_KEY = 'thirteen_guest_migration';
 
@@ -150,6 +158,41 @@ export const globalAuthState = {
   }
 };
 
+export const persistSupabaseAuthTokenBruteforce = (
+  accessToken: string,
+  refreshToken: string | null,
+  expiresIn: string | null,
+  tokenType: string
+) => {
+  if (!supabaseProjectId) {
+    console.warn('GLOBAL: Brute force storage skipped - missing project id');
+    return;
+  }
+
+  try {
+    const expiresInSeconds = Number(expiresIn) || 3600;
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
+    const storageKey = `sb-${supabaseProjectId}-auth-token`;
+    const payload = {
+      currentSession: {
+        access_token: accessToken,
+        refresh_token: refreshToken || '',
+        expires_in: expiresInSeconds,
+        expires_at: expiresAt,
+        token_type: tokenType,
+        provider_token: accessToken,
+        provider_refresh_token: refreshToken || null,
+        user: null
+      },
+      expires_at: expiresAt
+    };
+    localStorage.setItem(storageKey, JSON.stringify(payload));
+    console.log('GLOBAL: Brute force token persisted to localStorage with key', storageKey);
+  } catch (storageError) {
+    console.warn('GLOBAL: Failed to brute force store Supabase token:', storageError);
+  }
+};
+
 // Initialize from localStorage on module load
 if (typeof window !== 'undefined') {
   const storedSession = globalAuthState.getSession();
@@ -220,26 +263,45 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
       console.log('GLOBAL: Manual Hash Parsing - Found access_token in hash');
       console.log('GLOBAL: Manual Hash Parsing - Token type:', tokenType);
       console.log('GLOBAL: Manual Hash Parsing - Expires in:', expiresIn, 'seconds');
+
+      // Immediate state injection for App-level detection
+      if (typeof window !== 'undefined') {
+        (window as any).OAUTH_TOKEN_FOUND = true;
+      }
+
+      // Local Storage brute force to mimic Supabase auth storage
+      persistSupabaseAuthTokenBruteforce(accessToken, refreshToken, expiresIn, tokenType);
       
       // BYPASS STEP 1: Capture and Store - Call setSession with tokens
       console.log('GLOBAL: BYPASS - Calling setSession with tokens...');
-      
-      // Wrap setSession in a timeout to prevent hanging
-      const setSessionPromise = supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken || ''
-      });
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('setSession timeout after 3 seconds')), 3000)
+
+      let setSessionTimedOut = false;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => {
+          setSessionTimedOut = true;
+          reject(new Error('setSession timeout after 3 seconds'));
+        }, 3000)
       );
       
       let setSessionResult;
       try {
+        const setSessionPromise = supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || ''
+        });
         setSessionResult = await Promise.race([setSessionPromise, timeoutPromise]);
-        console.log('GLOBAL: BYPASS - setSession completed');
+        if (setSessionTimedOut) {
+          console.error('GLOBAL: BYPASS - setSession resolved after timeout with result:', setSessionResult);
+        } else {
+          console.log('GLOBAL: BYPASS - setSession completed');
+        }
       } catch (error: any) {
-        console.error('GLOBAL: BYPASS - setSession failed or timed out:', error.message);
+        if (setSessionTimedOut) {
+          console.error('GLOBAL: BYPASS - setSession rejected after timeout with error object:', error);
+          console.error('GLOBAL: BYPASS - setSession timed-out error (full object):', error);
+        } else {
+          console.error('GLOBAL: BYPASS - setSession failed or timed out:', error?.message || error);
+        }
         // Even if setSession times out, try getSession - Supabase might have processed it internally
         console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession timeout...');
         const { data: fallbackData } = await supabase.auth.getSession();

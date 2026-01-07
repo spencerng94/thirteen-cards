@@ -27,6 +27,8 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
 }) => {
   const [imageError, setImageError] = React.useState(false);
   const [imageLoaded, setImageLoaded] = React.useState(false);
+  // If the primary URL fails, allow a one-time retry with a manually constructed URL
+  const [overrideUrl, setOverrideUrl] = React.useState<string | null>(null);
   
   const emoteData = remoteEmotes.find(e => e.trigger_code === trigger);
   
@@ -43,6 +45,7 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
   React.useEffect(() => {
     setImageError(false);
     setImageLoaded(false);
+    setOverrideUrl(null);
   }, [trigger, emoteData?.file_path]);
 
   // If it's not a trigger code, render as centered emoji text (legacy/bot fallback)
@@ -57,6 +60,7 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
   // Determine the URL using Supabase's getPublicUrl to properly handle nested folders
   // file_path should include folder structure if in subfolder (e.g., "round_3/filename.png")
   const url = React.useMemo(() => {
+    if (overrideUrl) return overrideUrl;
     if (emoteData?.file_path && emoteData.file_path.trim() !== '') {
       // Use Supabase's getPublicUrl method which properly handles nested folders
       try {
@@ -111,7 +115,7 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
       }
     }
     return getEmoteUrl(trigger);
-  }, [emoteData?.file_path, trigger]);
+  }, [emoteData?.file_path, trigger, overrideUrl]);
 
   // Debug logging for missing emotes (only log once per trigger to avoid spam)
   React.useEffect(() => {
@@ -230,6 +234,17 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
           const errorTarget = e.target as HTMLImageElement;
           const problematicTriggers = [':game_over:', ':doge_focus:', ':lunar_new_year:', ':the_mooner:'];
           const isProblematic = problematicTriggers.includes(trigger.toLowerCase());
+          // One-time manual retry with encoded path and cache-bust to avoid showing Apple emoji fallback
+          if (!overrideUrl && emoteData?.file_path) {
+            const cleanPath = emoteData.file_path.replace(/^\//, '').trim();
+            const encodedPath = cleanPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+            const retryUrl = `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${encodedPath}?v=10&retry=${Date.now()}`;
+            console.warn(`⚠️ VisualEmote: Retrying with manual URL for "${trigger}" after load error`, { retryUrl, originalUrl: url });
+            setOverrideUrl(retryUrl);
+            setImageError(false);
+            setImageLoaded(false);
+            return;
+          }
           
           if (isProblematic) {
             console.error(`❌ VisualEmote: CRITICAL - Failed to load image for "${trigger}"`, {

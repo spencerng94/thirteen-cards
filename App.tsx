@@ -21,7 +21,7 @@ const InventoryModal = lazy(() => import('./components/InventoryModal').then(m =
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState, getGuestProgress, migrateGuestData, clearGuestProgress } from './services/supabase';
+import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState, getGuestProgress, migrateGuestData, clearGuestProgress, persistSupabaseAuthTokenBruteforce } from './services/supabase';
 import { supabase as supabaseClient } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeToast } from './components/WelcomeToast';
@@ -201,6 +201,7 @@ const AppContent: React.FC = () => {
   const authListenerSetupRef = useRef(false);
   const didInitRef = useRef(false); // Guard to ensure auth check only runs once
   const manualRecoveryInProgressRef = useRef(false); // Guard to prevent multiple manual recovery attempts
+  const authStatusRef = useRef({ hasSession: false, authChecked: false });
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -285,6 +286,66 @@ const AppContent: React.FC = () => {
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [gameMode, myPersistentId, view]);
+
+  useEffect(() => {
+    authStatusRef.current = { hasSession, authChecked };
+  }, [hasSession, authChecked]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let detectionInterval: ReturnType<typeof setInterval> | null = null;
+    let forceTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const persistTokensFromHash = () => {
+      const hash = window.location.hash;
+      if (!hash || !hash.includes('access_token')) return;
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get('access_token');
+      if (!accessToken) return;
+      const refreshToken = params.get('refresh_token');
+      const expiresIn = params.get('expires_in');
+      const tokenType = params.get('token_type') || 'bearer';
+      (window as any).OAUTH_TOKEN_FOUND = true;
+      persistSupabaseAuthTokenBruteforce(accessToken, refreshToken, expiresIn, tokenType);
+    };
+
+    const triggerFakeAuth = () => {
+      if (forceTimeout) return;
+      console.warn('App: Fake auth fallback detected - forcing auth flags after 2s');
+      forceTimeout = setTimeout(() => {
+        if (authStatusRef.current.hasSession) return;
+        console.warn('App: Fake auth fallback - setting authChecked/hasSession despite null session');
+        setAuthChecked(true);
+        setHasSession(true);
+        setIsGuest(false);
+        setIsProcessingOAuth(false);
+        setLoadingStatus('Completing sign in...');
+      }, 2000);
+    };
+
+    persistTokensFromHash();
+
+    if ((window as any).OAUTH_TOKEN_FOUND) {
+      triggerFakeAuth();
+    } else {
+      detectionInterval = setInterval(() => {
+        if ((window as any).OAUTH_TOKEN_FOUND) {
+          persistTokensFromHash();
+          triggerFakeAuth();
+          if (detectionInterval) {
+            clearInterval(detectionInterval);
+            detectionInterval = null;
+          }
+        }
+      }, 250);
+    }
+
+    return () => {
+      if (detectionInterval) clearInterval(detectionInterval);
+      if (forceTimeout) clearTimeout(forceTimeout);
+    };
+  }, []);
 
   // URL Guard: Prevent redirects when OAuth hash is present
   useEffect(() => {
