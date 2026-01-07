@@ -131,6 +131,7 @@ const App: React.FC = () => {
   const [isGuest, setIsGuest] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [isProcessingOAuth, setIsProcessingOAuth] = useState(false); // Block state updates during OAuth
   
   console.log('App: Step 8 - State initialized');
 
@@ -320,6 +321,95 @@ const App: React.FC = () => {
   }, [authChecked, hasSession]);
 
   useEffect(() => {
+    // APP-LEVEL BYPASS: If OAuth hash/code is present, force loading screen and block state updates
+    const hash = window.location.hash;
+    const search = window.location.search;
+    const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
+    const hasOAuthCode = search.includes('code=');
+    
+    if (hasOAuthHash || hasOAuthCode) {
+      console.log('App: OAuth bypass active - URL contains access_token or code');
+      console.log('App: Forcing loading screen, blocking state updates until session confirmed');
+      setIsProcessingOAuth(true);
+      setLoadingStatus('Completing sign in...');
+      
+      // Wait for session with timeout
+      const waitForSession = async () => {
+        const maxWaitTime = 10000; // 10 seconds max
+        const checkInterval = 500; // Check every 500ms
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < maxWaitTime) {
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (!error && data?.session) {
+            console.log('App: OAuth bypass - Session confirmed!');
+            globalAuthState.setSession(data.session);
+            globalAuthState.setAuthChecked(true);
+            globalAuthState.setHasSession(true);
+            setSession(data.session);
+            setAuthChecked(true);
+            setHasSession(true);
+            setIsGuest(false);
+            setIsProcessingOAuth(false);
+            
+            // Process the session
+            const meta = data.session.user.user_metadata || {};
+            const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+            if (!playerName) setPlayerName(googleName.toUpperCase());
+            
+            transferGuestData(data.session.user.id).then(() => {
+              supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle().then(({ data: existingProfile }) => {
+                loadProfile(data.session.user.id, !existingProfile);
+              });
+            });
+            
+            isInitializingRef.current = false;
+            return;
+          }
+          
+          // Check if global session was set by the global listener
+          const globalSession = globalAuthState.getSession();
+          if (globalSession) {
+            console.log('App: OAuth bypass - Global session found!');
+            setSession(globalSession);
+            setAuthChecked(true);
+            setHasSession(true);
+            setIsGuest(false);
+            setIsProcessingOAuth(false);
+            
+            const meta = globalSession.user?.user_metadata || {};
+            const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+            if (!playerName) setPlayerName(googleName.toUpperCase());
+            
+            transferGuestData(globalSession.user.id).then(() => {
+              supabase.from('profiles').select('id').eq('id', globalSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
+                loadProfile(globalSession.user.id, !existingProfile);
+              });
+            });
+            
+            isInitializingRef.current = false;
+            return;
+          }
+          
+          // Wait before next check
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+        }
+        
+        // Timeout - session not found
+        console.warn('App: OAuth bypass - Timeout waiting for session');
+        setIsProcessingOAuth(false);
+        setAuthChecked(true);
+        setHasSession(false);
+        setIsGuest(true);
+        setLoadingStatus('Sign in timed out. You can enter as Guest.');
+        isInitializingRef.current = false;
+      };
+      
+      waitForSession();
+      return; // Exit early, don't proceed with normal auth flow
+    }
+    
     // CRITICAL: Check global auth state FIRST (before any React lifecycle)
     // This catches sessions that were processed outside React
     const globalSession = globalAuthState.getSession();
@@ -864,13 +954,23 @@ const App: React.FC = () => {
   }, [session, authChecked]);
   
   // Allow guest mode even if auth check is still in progress
-  if (!authChecked && !isGuest) {
-    console.log('App: Step 27 - Waiting for auth check, showing loading...');
+  // APP-LEVEL BYPASS: Force loading screen during OAuth processing
+  if ((!authChecked && !isGuest) || isProcessingOAuth) {
+    console.log('App: Step 27 - Waiting for auth check, showing loading...', { 
+      authChecked, 
+      isGuest, 
+      isProcessingOAuth 
+    });
     return (
       <LoadingScreen
         status={loadingStatus}
-        showGuestButton={!authChecked && !isGuest && showGuestHint}
-        onEnterGuest={() => { setAuthChecked(true); setIsGuest(true); }}
+        showGuestButton={!authChecked && !isGuest && showGuestHint && !isProcessingOAuth}
+        onEnterGuest={() => { 
+          if (!isProcessingOAuth) {
+            setAuthChecked(true); 
+            setIsGuest(true); 
+          }
+        }}
       />
     );
   }

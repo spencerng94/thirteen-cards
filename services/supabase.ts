@@ -142,23 +142,140 @@ if (typeof window !== 'undefined') {
   globalAuthState.hasSession = localStorage.getItem(GLOBAL_HAS_SESSION_KEY) === 'true';
 }
 
+// Helper to sanitize URL for logging (removes sensitive tokens)
+const sanitizeUrl = (url: string): string => {
+  try {
+    const urlObj = new URL(url);
+    // Remove access_token, refresh_token, and code from hash
+    const hash = urlObj.hash;
+    if (hash) {
+      const params = new URLSearchParams(hash.substring(1));
+      if (params.has('access_token')) {
+        params.set('access_token', '[REDACTED]');
+      }
+      if (params.has('refresh_token')) {
+        params.set('refresh_token', '[REDACTED]');
+      }
+      if (params.has('code')) {
+        params.set('code', '[REDACTED]');
+      }
+      urlObj.hash = params.toString();
+    }
+    // Remove code from search params
+    const searchParams = urlObj.searchParams;
+    if (searchParams.has('code')) {
+      searchParams.set('code', '[REDACTED]');
+    }
+    urlObj.search = searchParams.toString();
+    return urlObj.toString();
+  } catch {
+    // Fallback: just replace tokens in string
+    return url
+      .replace(/access_token=[^&]*/g, 'access_token=[REDACTED]')
+      .replace(/refresh_token=[^&]*/g, 'refresh_token=[REDACTED]')
+      .replace(/code=[^&]*/g, 'code=[REDACTED]');
+  }
+};
+
+// Hard Recovery: Force session refresh with PKCE retry loop
+const forceSessionRecovery = async (maxRetries = 3, delayMs = 500): Promise<any> => {
+  console.log('GLOBAL: Hard Recovery - Forcing session refresh...');
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`GLOBAL: Hard Recovery attempt ${attempt}/${maxRetries}`);
+    
+    // Force session refresh
+    const { data, error } = await supabase.auth.getSession();
+    
+    if (!error && data?.session) {
+      console.log('GLOBAL: Hard Recovery SUCCESS - Session found on attempt', attempt);
+      return data.session;
+    }
+    
+    if (error) {
+      console.warn('GLOBAL: Hard Recovery - Error on attempt', attempt, ':', error.message);
+    } else {
+      console.log('GLOBAL: Hard Recovery - No session yet on attempt', attempt);
+    }
+    
+    // Check localStorage for PKCE session (Supabase stores it there)
+    const supabaseSessionKey = Object.keys(localStorage).find(key => 
+      key.includes('supabase') && key.includes('auth-token')
+    );
+    if (supabaseSessionKey) {
+      console.log('GLOBAL: Hard Recovery - Found Supabase session key in localStorage:', supabaseSessionKey);
+      try {
+        const stored = localStorage.getItem(supabaseSessionKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          console.log('GLOBAL: Hard Recovery - Parsed session from localStorage:', !!parsed);
+          // Try to get session again after finding the key
+          const { data: retryData } = await supabase.auth.getSession();
+          if (retryData?.session) {
+            console.log('GLOBAL: Hard Recovery SUCCESS - Session found after localStorage check');
+            return retryData.session;
+          }
+        }
+      } catch (e) {
+        console.warn('GLOBAL: Hard Recovery - Failed to parse localStorage session:', e);
+      }
+    }
+    
+    // Wait before next attempt (except on last attempt)
+    if (attempt < maxRetries) {
+      console.log(`GLOBAL: Hard Recovery - Waiting ${delayMs}ms before next attempt...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  
+  console.warn('GLOBAL: Hard Recovery FAILED - No session after', maxRetries, 'attempts');
+  return null;
+};
+
 // Set up global auth listener immediately (outside React)
 if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAuthListenerSetup) {
   globalAuthListenerSetup = true;
   
   console.log('GLOBAL: Setting up auth listener BEFORE React mount...');
   
-  // Check for OAuth hash immediately
+  // DIAGNOSTIC: Log full URL (sanitized) to see what Google is sending back
+  const fullUrl = window.location.href;
+  const sanitizedUrl = sanitizeUrl(fullUrl);
+  console.log('GLOBAL: DIAGNOSTIC - Full URL (sanitized):', sanitizedUrl);
+  console.log('GLOBAL: DIAGNOSTIC - Hash:', window.location.hash ? 'Present' : 'Missing');
+  console.log('GLOBAL: DIAGNOSTIC - Search:', window.location.search ? 'Present' : 'Missing');
+  
+  // Check for OAuth hash/code immediately
   const hash = window.location.hash;
-  if (hash.includes('access_token')) {
-    console.log('GLOBAL: OAuth redirect detected in hash BEFORE React mount');
-    console.log('GLOBAL: Processing hash, preventing App restart from interrupting...');
+  const search = window.location.search;
+  const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
+  const hasOAuthCode = search.includes('code=');
+  
+  if (hasOAuthHash || hasOAuthCode) {
+    console.log('GLOBAL: OAuth redirect detected BEFORE React mount');
+    console.log('GLOBAL: Hash contains access_token:', hash.includes('access_token'));
+    console.log('GLOBAL: Hash contains code:', hash.includes('code='));
+    console.log('GLOBAL: Search contains code:', search.includes('code='));
+    console.log('GLOBAL: Processing OAuth, preventing App restart from interrupting...');
     isProcessingAuth = true;
+    
+    // HARD RECOVERY: Force session refresh immediately with retry loop
+    forceSessionRecovery().then((session) => {
+      if (session) {
+        console.log('GLOBAL: Hard Recovery SUCCESS - Session recovered from OAuth redirect');
+        globalAuthState.setSession(session);
+        globalAuthState.setAuthChecked(true);
+        globalAuthState.setHasSession(true);
+        isProcessingAuth = false;
+      } else {
+        console.warn('GLOBAL: Hard Recovery - No session recovered, will wait for onAuthStateChange');
+      }
+    });
   }
   
   // Set up listener that runs outside React lifecycle
   const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
-    console.log('GLOBAL: SUPABASE AUTH EVENT (outside React):', event, session);
+    console.log('GLOBAL: SUPABASE AUTH EVENT (outside React):', event, session ? 'Session exists' : 'No session');
     
     // CRITICAL: Save session immediately to global state and localStorage
     if (event === 'SIGNED_IN' && session) {
@@ -177,25 +294,31 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
       globalAuthState.clear();
       console.log('GLOBAL: Session cleared (SIGNED_OUT)');
     } else if (event === 'INITIAL_SESSION' && !session) {
-      globalAuthState.setAuthChecked(true);
-      globalAuthState.setHasSession(false);
-      console.log('GLOBAL: INITIAL_SESSION with no session - auth checked');
+      // If we're processing OAuth, don't set authChecked yet
+      if (!isProcessingAuth) {
+        globalAuthState.setAuthChecked(true);
+        globalAuthState.setHasSession(false);
+        console.log('GLOBAL: INITIAL_SESSION with no session - auth checked');
+      } else {
+        console.log('GLOBAL: INITIAL_SESSION while processing OAuth - waiting for session...');
+      }
     }
   });
   
-  // Also check for existing session immediately
-  supabase.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
-    if (!error && data?.session) {
-      console.log('GLOBAL: Existing session found before mount');
-      globalAuthState.setSession(data.session);
-      globalAuthState.setAuthChecked(true);
-      globalAuthState.setHasSession(true);
-    } else if (!isProcessingAuth) {
-      // Only set authChecked if we're not processing OAuth
-      globalAuthState.setAuthChecked(true);
-      globalAuthState.setHasSession(false);
-    }
-  });
+  // Also check for existing session immediately (but don't block if processing OAuth)
+  if (!isProcessingAuth) {
+    supabase.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
+      if (!error && data?.session) {
+        console.log('GLOBAL: Existing session found before mount');
+        globalAuthState.setSession(data.session);
+        globalAuthState.setAuthChecked(true);
+        globalAuthState.setHasSession(true);
+      } else {
+        globalAuthState.setAuthChecked(true);
+        globalAuthState.setHasSession(false);
+      }
+    });
+  }
   
   // Keep subscription alive (don't unsubscribe)
   // This ensures the listener persists even if React components unmount
