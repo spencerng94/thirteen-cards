@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -9,250 +9,51 @@ interface ShibaSlamFinisherProps {
   winnerName?: string;
 }
 
-// Cute Chibi Shiba Component - Now actually used!
-interface ChibiShibaProps {
-  color: 'orange' | 'black' | 'tan';
-  startDelay: number;
-  duration: number;
-  path: 'curved' | 'reverse' | 'vertical';
-  style?: React.CSSProperties;
-}
-
-const ChibiShiba: React.FC<ChibiShibaProps> = ({ color, startDelay, duration, path, style }) => {
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [facing, setFacing] = useState<'left' | 'right'>('right');
-  const animationRef = useRef<number>();
-  const startTimeRef = useRef<number>(0);
-  const lastXRef = useRef<number>(0);
-
-  const colorStyles = {
-    orange: { 
-      body: '#F97316', 
-      face: '#EA580C', 
-      highlight: '#FB923C',
-      white: '#FFFFFF',
-      cream: '#FFF8DC'
-    },
-    black: { 
-      body: '#1F2937', 
-      face: '#111827', 
-      highlight: '#374151',
-      white: '#FFFFFF',
-      cream: '#F5F5F5'
-    },
-    tan: { 
-      body: '#D97706', 
-      face: '#B45309', 
-      highlight: '#F59E0B',
-      white: '#FFFFFF',
-      cream: '#FFF8DC'
-    }
-  };
-
-  const colors = colorStyles[color];
-
-  useEffect(() => {
-    const animate = (currentTime: number) => {
-      if (startTimeRef.current === 0) {
-        startTimeRef.current = currentTime + startDelay;
-      }
-
-      const elapsed = (currentTime - startTimeRef.current) / 1000;
-      if (elapsed < 0) {
-        animationRef.current = requestAnimationFrame(animate);
-        return;
-      }
-
-      if (elapsed > duration) {
-        return; // Stop after duration
-      }
-
-      const progress = elapsed / duration;
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      
-      // Create varied walking paths for each shiba
-      let x: number, y: number;
-      
-      if (path === 'curved') {
-        // Curved path - top area
-        const baseY = viewportHeight * 0.15;
-        x = progress * viewportWidth * 1.1 - viewportWidth * 0.05;
-        y = baseY + Math.sin(progress * Math.PI * 3) * 40;
-      } else if (path === 'reverse') {
-        // Reverse path - bottom area, going left to right
-        const baseY = viewportHeight * 0.75;
-        x = (1 - progress) * viewportWidth * 1.1 - viewportWidth * 0.05;
-        y = baseY + Math.sin((1 - progress) * Math.PI * 3) * 30;
-      } else if (path === 'vertical') {
-        // Vertical path - middle area
-        const baseX = viewportWidth * 0.5;
-        x = baseX + Math.sin(progress * Math.PI * 2) * (viewportWidth * 0.2);
-        y = progress * viewportHeight * 0.8 + viewportHeight * 0.1;
-      } else {
-        // Default curved path
-        const baseY = viewportHeight * 0.85;
-        x = progress * viewportWidth * 1.1 - viewportWidth * 0.05;
-        y = baseY + Math.sin(progress * Math.PI * 2) * 25;
-      }
-
-      setPosition({ x, y });
-      
-      // Determine facing direction based on movement
-      if (x > lastXRef.current) {
-        setFacing('right');
-      } else if (x < lastXRef.current) {
-        setFacing('left');
-      }
-      lastXRef.current = x;
-
-      animationRef.current = requestAnimationFrame(animate);
-    };
-
-    animationRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [duration, startDelay, path]);
-
-  return (
-    <motion.div
-      style={{
-        ...style,
-        transform: `translate3d(${position.x}px, ${position.y}px, 0) scaleX(${facing === 'right' ? 1 : -1})`,
-        willChange: 'transform',
-        backfaceVisibility: 'hidden',
-        perspective: 1000
-      }}
-      className="pointer-events-none transform-gpu"
-      animate={{
-        y: [0, -3, 0, -2, 0],
-      }}
-      transition={{
-        duration: 0.4,
-        repeat: Infinity,
-        ease: 'easeInOut',
-      }}
-    >
-      <svg
-        width="60"
-        height="60"
-        viewBox="0 0 60 60"
-        style={{
-          filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
-        }}
-      >
-        <defs>
-          <linearGradient id={`shibaBody-${color}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor={colors.highlight} />
-            <stop offset="100%" stopColor={colors.body} />
-          </linearGradient>
-          <linearGradient id={`shibaWhite-${color}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor={colors.white} />
-            <stop offset="100%" stopColor={colors.cream} />
-          </linearGradient>
-        </defs>
-        
-        {/* Body - More Shiba-like shape */}
-        <path d="M 15 38 Q 12 45 15 52 Q 20 55 25 52 Q 30 50 30 48 Q 30 50 35 52 Q 40 55 45 52 Q 48 45 45 38 Q 42 35 30 35 Q 18 35 15 38 Z" 
-              fill={`url(#shibaBody-${color})`} />
-        
-        {/* White chest marking */}
-        <path d="M 20 38 Q 25 40 30 38 Q 35 40 40 38 Q 38 42 35 45 Q 30 48 30 48 Q 30 48 25 45 Q 22 42 20 38 Z" 
-              fill={`url(#shibaWhite-${color})`} opacity="0.95" />
-        
-        {/* Head */}
-        <circle cx="30" cy="18" r="11" fill={`url(#shibaBody-${color})`} />
-        
-        {/* White muzzle marking */}
-        <ellipse cx="30" cy="22" rx="7" ry="5" fill={`url(#shibaWhite-${color})`} opacity="0.95" />
-        <ellipse cx="30" cy="20" rx="5" ry="3" fill={`url(#shibaWhite-${color})`} opacity="0.98" />
-        
-        {/* Pointed triangular ears */}
-        <path d="M 20 12 L 18 6 L 22 10 L 20 12 Z" fill={colors.face} stroke={colors.body} strokeWidth="0.5" />
-        <path d="M 40 12 L 42 6 L 38 10 L 40 12 Z" fill={colors.face} stroke={colors.body} strokeWidth="0.5" />
-        
-        {/* Inner ear highlights */}
-        <path d="M 20 12 L 19 8 L 21 10 Z" fill={colors.highlight} opacity="0.6" />
-        <path d="M 40 12 L 41 8 L 39 10 Z" fill={colors.highlight} opacity="0.6" />
-        
-        {/* Large expressive eyes */}
-        <ellipse cx="26" cy="18" rx="3.5" ry="4" fill="#000000" />
-        <ellipse cx="34" cy="18" rx="3.5" ry="4" fill="#000000" />
-        {/* Eye reflections */}
-        <ellipse cx="27" cy="17" rx="1.2" ry="1.5" fill="#FFFFFF" />
-        <ellipse cx="35" cy="17" rx="1.2" ry="1.5" fill="#FFFFFF" />
-        
-        {/* Small black nose */}
-        <ellipse cx="30" cy="23" rx="1.2" ry="0.8" fill="#000000" />
-        
-        {/* Simple curved mouth */}
-        <path d="M 28 25 Q 30 26 32 25" stroke="#000000" strokeWidth="1" fill="none" strokeLinecap="round" />
-        
-        {/* Legs */}
-        <ellipse cx="22" cy="50" rx="2.5" ry="3.5" fill={colors.face} />
-        <ellipse cx="30" cy="52" rx="2.5" ry="3.5" fill={colors.face} />
-        <ellipse cx="38" cy="50" rx="2.5" ry="3.5" fill={colors.face} />
-        
-        {/* Curled tail over back */}
-        <path d="M 42 32 Q 48 28 50 22 Q 48 18 45 20 Q 46 24 44 26 Q 42 30 42 32 Z" 
-              fill={`url(#shibaBody-${color})`} />
-        {/* White underside of tail */}
-        <path d="M 44 28 Q 46 24 45 22 Q 44 24 44 26 Z" 
-              fill={`url(#shibaWhite-${color})`} opacity="0.7" />
-      </svg>
-    </motion.div>
-  );
-};
-
 export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({ 
   onComplete, 
   onReplay,
   isPreview = false,
   winnerName = 'GUEST'
 }) => {
-  const [phase, setPhase] = useState<'running' | 'shadow' | 'slam' | 'impact' | 'victory' | 'lingering'>('running');
+  const [phase, setPhase] = useState<'charge' | 'shadow' | 'slam' | 'impact' | 'victory' | 'lingering'>('charge');
   const [showReplay, setShowReplay] = useState(false);
 
   useEffect(() => {
-    // Phase 1: Shibas running around (1.5s)
-    const runningTimer = setTimeout(() => {
-    setPhase('shadow');
-    }, 1500);
+    // Phase 1: Power charge/build-up (1s) - dramatic energy gathering
+    const chargeTimer = setTimeout(() => {
+      setPhase('shadow');
+    }, 1000);
     
-    // Phase 2: Shadow buildup (0.8s)
+    // Phase 2: Shadow buildup - massive paw shadow forming (1s)
     const shadowTimer = setTimeout(() => {
       setPhase('slam');
-    }, 2300);
+    }, 2000);
 
-    // Phase 3: Slam down (0.4s)
+    // Phase 3: Slam down (0.3s) - fast and impactful
     const slamTimer = setTimeout(() => {
       setPhase('impact');
-    }, 2700);
+    }, 2300);
 
-    // Phase 4: Impact effects (1s)
+    // Phase 4: Impact effects (1.2s)
     const impactTimer = setTimeout(() => {
       setPhase('victory');
-    }, 3700);
+    }, 3500);
 
-    // Phase 5: Victory text (2s)
+    // Phase 5: Victory text (2.5s)
     const victoryTimer = setTimeout(() => {
       setPhase('lingering');
       if (isPreview) {
         setShowReplay(true);
       }
-    }, 5700);
+    }, 6000);
 
     // Complete (only if not preview)
     if (!isPreview) {
       const completeTimer = setTimeout(() => {
         onComplete();
-      }, 8000);
+      }, 7500);
       return () => {
-        clearTimeout(runningTimer);
+        clearTimeout(chargeTimer);
         clearTimeout(shadowTimer);
         clearTimeout(slamTimer);
         clearTimeout(impactTimer);
@@ -262,7 +63,7 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
     }
 
     return () => {
-      clearTimeout(runningTimer);
+      clearTimeout(chargeTimer);
       clearTimeout(shadowTimer);
       clearTimeout(slamTimer);
       clearTimeout(impactTimer);
@@ -272,7 +73,7 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
 
   const handleReplay = () => {
     if (onReplay) {
-      setPhase('running');
+      setPhase('charge');
       setShowReplay(false);
       onReplay();
     }
@@ -287,179 +88,305 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
         willChange: 'contents'
       }}
     >
-      {/* Dimmed Background */}
+      {/* Dimmed Background with Dynamic Lighting */}
       <motion.div 
         className="absolute inset-0 bg-black"
         initial={{ opacity: 0 }}
         animate={{ 
-          opacity: phase === 'running' 
-            ? (isPreview ? 0.3 : 0.4)
+          opacity: phase === 'charge'
+            ? (isPreview ? 0.4 : 0.5)
             : phase === 'shadow' || phase === 'slam'
-            ? (isPreview ? 0.5 : 0.6)
-            : (isPreview ? 0.6 : 0.75)
+            ? (isPreview ? 0.6 : 0.7)
+            : (isPreview ? 0.7 : 0.8)
         }}
         transition={{ duration: 0.3 }}
       />
 
-      {/* Phase 1: Chibi Shibas Running Around */}
-      {phase === 'running' && (
-        <div className="absolute inset-0 overflow-hidden">
-          <ChibiShiba color="orange" startDelay={0} duration={1.5} path="curved" />
-          <ChibiShiba color="black" startDelay={0.2} duration={1.5} path="reverse" />
-          <ChibiShiba color="tan" startDelay={0.4} duration={1.5} path="vertical" />
-          <ChibiShiba color="orange" startDelay={0.6} duration={1.5} path="curved" />
-          <ChibiShiba color="black" startDelay={0.8} duration={1.5} path="reverse" />
+      {/* Phase 1: Energy Charge Build-up - Dramatic Power Gathering */}
+      {phase === 'charge' && (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          {/* Pulsing energy orbs */}
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={`energy-${i}`}
+              className="absolute w-32 h-32 rounded-full"
+              style={{
+                background: `radial-gradient(circle, rgba(251,191,36,${0.8 - i * 0.2}) 0%, transparent 70%)`,
+                filter: 'blur(20px)',
+              }}
+              animate={{
+                scale: [1, 1.5 + i * 0.3, 1],
+                opacity: [0.3, 0.7, 0.3],
+                x: Math.cos(i * 2 * Math.PI / 3) * 150,
+                y: Math.sin(i * 2 * Math.PI / 3) * 150,
+              }}
+              transition={{
+                duration: 1,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: i * 0.2,
+              }}
+            />
+          ))}
+          
+          {/* Central pulsing glow */}
+          <motion.div
+            className="absolute w-96 h-96 rounded-full"
+            style={{
+              background: 'radial-gradient(circle, rgba(251,191,36,0.6) 0%, rgba(251,191,36,0.2) 50%, transparent 100%)',
+              filter: 'blur(60px)',
+            }}
+            animate={{
+              scale: [0.8, 1.2, 0.8],
+              opacity: [0.4, 0.8, 0.4],
+            }}
+            transition={{
+              duration: 1,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+          />
         </div>
       )}
       
-      {/* Phase 2 & 3: Shadow Buildup */}
+      {/* Phase 2 & 3: Massive Shadow Buildup - Premium Shadow Effect */}
       {(phase === 'shadow' || phase === 'slam' || phase === 'impact' || phase === 'victory' || phase === 'lingering') && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
+          {/* Multiple shadow layers for depth */}
           <motion.div 
-            className="w-[600px] h-[600px] rounded-full bg-gray-900 blur-[100px]"
-            initial={{ scale: 0.3, opacity: 0.4 }}
+            className="absolute w-[800px] h-[800px] rounded-full"
+            style={{
+              background: 'radial-gradient(circle, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 40%, transparent 100%)',
+              filter: 'blur(120px)',
+            }}
+            initial={{ scale: 0.2, opacity: 0 }}
             animate={{ 
               scale: phase === 'shadow' 
-                ? [0.3, 1.2, 1.5]
+                ? [0.2, 1.3, 1.6]
                 : phase === 'slam' || phase === 'impact'
-                ? [1.5, 1.8, 1.6]
-                : 1.6,
+                ? [1.6, 2, 1.8]
+                : 1.8,
               opacity: phase === 'shadow'
-                ? [0.4, 0.8, 0.9]
+                ? [0, 0.9, 1]
                 : phase === 'slam' || phase === 'impact'
-                ? [0.9, 1, 0.95]
+                ? [1, 1, 0.95]
                 : 0.9
             }}
             transition={{ 
-              duration: phase === 'shadow' ? 0.8 : 0.4,
+              duration: phase === 'shadow' ? 1 : 0.3,
               ease: 'easeOut'
             }}
+          />
+          
+          {/* Golden energy aura around shadow */}
+          <motion.div 
+            className="absolute w-[700px] h-[700px] rounded-full"
             style={{
-              boxShadow: '0 0 200px rgba(251,191,36,0.8)',
+              background: 'radial-gradient(circle, rgba(251,191,36,0.5) 0%, rgba(251,191,36,0.2) 30%, transparent 70%)',
+              filter: 'blur(80px)',
+            }}
+            animate={{ 
+              scale: phase === 'shadow' 
+                ? [0.3, 1.1, 1.4]
+                : phase === 'slam' || phase === 'impact'
+                ? [1.4, 1.7, 1.5]
+                : 1.5,
+              opacity: phase === 'shadow'
+                ? [0.2, 0.8, 0.9]
+                : [0.9, 1, 0.8]
+            }}
+            transition={{ 
+              duration: phase === 'shadow' ? 1 : 0.3,
+              ease: 'easeOut'
             }}
           />
         </div>
       )}
 
-      {/* Phase 3 & 4: Dramatic Paw Slam */}
+      {/* Phase 3 & 4: Premium Dramatic Paw Slam */}
       {(phase === 'shadow' || phase === 'slam' || phase === 'impact' || phase === 'victory' || phase === 'lingering') && (
         <motion.div 
           className="absolute inset-0 flex items-center justify-center z-20"
           animate={phase === 'slam' || phase === 'impact' ? {
-            x: [0, -8, 6, -5, 4, -3, 2, -1, 0],
-            y: [0, -4, 3, -2, 2, -1, 1, 0, 0],
-            rotate: [0, -1, 1, -0.5, 0.5, -0.3, 0.3, 0, 0],
+            x: [0, -10, 8, -6, 4, -3, 2, -1, 0],
+            y: [0, -5, 4, -3, 2, -1, 1, 0, 0],
+            rotate: [0, -1.5, 1.5, -0.8, 0.8, -0.4, 0.4, 0, 0],
           } : {}}
           transition={{
-            duration: phase === 'slam' ? 0.4 : 1,
+            duration: phase === 'slam' ? 0.3 : 1.2,
             ease: 'easeOut',
             times: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 1],
           }}
         >
           <motion.div 
-              className="relative transform-gpu"
+            className="relative transform-gpu"
             initial={phase === 'shadow' ? {
-              y: '-80vh',
-              scale: 0.8,
-              opacity: 0.6,
+              y: '-90vh',
+              scale: 0.6,
+              opacity: 0.4,
             } : {}}
             animate={{
               y: phase === 'shadow'
-                ? '-80vh'
+                ? '-90vh'
                 : phase === 'slam'
-                ? ['-80vh', '0vh', '-10px']
-                  : phase === 'impact' 
-                ? ['-10px', '0px', '-5px', '0px']
-                : '-20px',
+                ? ['-90vh', '0vh', '-15px']
+                : phase === 'impact' 
+                ? ['-15px', '0px', '-8px', '0px']
+                : '-25px',
               scale: phase === 'shadow'
-                ? 0.8
+                ? [0.6, 0.7, 0.8]
                 : phase === 'slam'
-                ? [0.8, 1.2, 1]
-                  : phase === 'impact' 
-                ? [1, 1.1, 1]
-                : 0.95,
-                opacity: phase === 'shadow' ? 0.6 : 1,
+                ? [0.8, 1.3, 1]
+                : phase === 'impact' 
+                ? [1, 1.15, 1.05, 1]
+                : 0.98,
+              opacity: phase === 'shadow' 
+                ? [0.4, 0.7, 0.8]
+                : 1,
+              rotate: phase === 'impact' ? [0, -2, 1, -1, 0] : 0,
             }}
             transition={{
-              duration: phase === 'slam' ? 0.4 : phase === 'impact' ? 1 : 0.3,
+              duration: phase === 'shadow' ? 1 : phase === 'slam' ? 0.3 : phase === 'impact' ? 1.2 : 0.3,
               ease: phase === 'slam' ? [0.16, 1, 0.3, 1] : 'easeOut',
+            }}
+          >
+            {/* Premium Enhanced Shiba Paw SVG with Multiple Glow Layers */}
+            <svg 
+              width="600" 
+              height="600" 
+              viewBox="0 0 200 200" 
+              style={{ 
+                filter: phase === 'slam' || phase === 'impact'
+                  ? 'drop-shadow(0 0 100px rgba(251,191,36,1)) drop-shadow(0 0 180px rgba(251,191,36,0.95)) drop-shadow(0 0 260px rgba(251,191,36,0.8)) drop-shadow(0 0 340px rgba(251,191,36,0.6))'
+                  : 'drop-shadow(0 0 60px rgba(251,191,36,0.95)) drop-shadow(0 0 120px rgba(251,191,36,0.8)) drop-shadow(0 0 180px rgba(251,191,36,0.6))',
+                transition: 'filter 0.4s ease-out'
               }}
             >
-            {/* Premium Shiba Paw SVG */}
-              <svg 
-                width="500" 
-                height="500" 
-                viewBox="0 0 200 200" 
-                style={{ 
-                filter: phase === 'slam' || phase === 'impact'
-                  ? 'drop-shadow(0 0 80px rgba(251,191,36,1)) drop-shadow(0 0 150px rgba(251,191,36,0.9)) drop-shadow(0 0 220px rgba(251,191,36,0.7))'
-                    : 'drop-shadow(0 0 50px rgba(251,191,36,0.9)) drop-shadow(0 0 100px rgba(251,191,36,0.7))',
-                transition: 'filter 0.3s ease-out'
-                }}
-              >
-                <defs>
-                  <radialGradient id="pawGradient" cx="50%" cy="50%">
-                    <stop offset="0%" stopColor="#FFE4B5" stopOpacity="1" />
-                    <stop offset="70%" stopColor="#DEB887" stopOpacity="1" />
-                    <stop offset="100%" stopColor="#CD853F" stopOpacity="1" />
-                  </radialGradient>
-                  <filter id="pawGlowFilter">
-                    <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-                    <feMerge>
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
-                    </feMerge>
-                  </filter>
-                </defs>
+              <defs>
+                {/* Enhanced Premium Gradients */}
+                <radialGradient id="pawGradientPremium" cx="50%" cy="50%">
+                  <stop offset="0%" stopColor="#FFF8DC" stopOpacity="1" />
+                  <stop offset="30%" stopColor="#FFE4B5" stopOpacity="1" />
+                  <stop offset="60%" stopColor="#DEB887" stopOpacity="1" />
+                  <stop offset="85%" stopColor="#CD853F" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#A0522D" stopOpacity="1" />
+                </radialGradient>
                 
-                {/* Outer glow ring */}
-                <circle cx="100" cy="100" r="95" fill="url(#pawGradient)" opacity="0.2" filter="url(#pawGlowFilter)" />
+                <radialGradient id="pawHighlight" cx="50%" cy="40%">
+                  <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.9" />
+                  <stop offset="50%" stopColor="#FFF8DC" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+                </radialGradient>
                 
-              {/* Main paw pad */}
-                <ellipse cx="100" cy="145" rx="45" ry="35" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
-                <ellipse cx="100" cy="145" rx="40" ry="30" fill="#FFE4B5" opacity="0.6" />
+                <radialGradient id="pawShadow" cx="50%" cy="60%">
+                  <stop offset="0%" stopColor="transparent" stopOpacity="0" />
+                  <stop offset="100%" stopColor="#654321" stopOpacity="0.4" />
+                </radialGradient>
                 
-              {/* Top toe pads */}
-                <ellipse cx="75" cy="75" rx="18" ry="22" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
-                <ellipse cx="100" cy="65" rx="20" ry="25" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
-                <ellipse cx="125" cy="75" rx="18" ry="22" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
+                {/* Premium Glow Filters */}
+                <filter id="pawGlowFilterPremium" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
                 
-              {/* Inner highlights */}
-                <ellipse cx="75" cy="75" rx="12" ry="15" fill="#FFE4B5" opacity="0.7" />
-                <ellipse cx="100" cy="65" rx="14" ry="18" fill="#FFE4B5" opacity="0.7" />
-                <ellipse cx="125" cy="75" rx="12" ry="15" fill="#FFE4B5" opacity="0.7" />
+                <filter id="pawInnerGlow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="3" result="innerBlur"/>
+                  <feMerge>
+                    <feMergeNode in="innerBlur"/>
+                  </feMerge>
+                </filter>
                 
+                {/* Golden energy aura */}
+                <radialGradient id="goldenAura" cx="50%" cy="50%">
+                  <stop offset="0%" stopColor="#FEF3C7" stopOpacity="0.8" />
+                  <stop offset="40%" stopColor="#FDE68A" stopOpacity="0.5" />
+                  <stop offset="80%" stopColor="#FCD34D" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+                </radialGradient>
+              </defs>
+              
+              {/* Outer golden energy aura */}
+              <circle 
+                cx="100" 
+                cy="100" 
+                r="98" 
+                fill="url(#goldenAura)" 
+                opacity={phase === 'slam' || phase === 'impact' ? 0.9 : 0.6}
+              />
+              
+              {/* Outer glow ring - multiple layers for depth */}
+              <circle cx="100" cy="100" r="96" fill="url(#pawGradientPremium)" opacity="0.25" filter="url(#pawGlowFilterPremium)" />
+              <circle cx="100" cy="100" r="94" fill="url(#pawGradientPremium)" opacity="0.15" filter="url(#pawGlowFilterPremium)" />
+              
+              {/* Main paw pad - with enhanced depth */}
+              <ellipse cx="100" cy="145" rx="48" ry="38" fill="url(#pawShadow)" opacity="0.3" />
+              <ellipse cx="100" cy="145" rx="46" ry="36" fill="url(#pawGradientPremium)" filter="url(#pawGlowFilterPremium)" />
+              <ellipse cx="100" cy="142" rx="42" ry="32" fill="url(#pawGradientPremium)" />
+              <ellipse cx="100" cy="140" rx="38" ry="28" fill="url(#pawHighlight)" opacity="0.4" />
+              
+              {/* Top toe pads - enhanced with better gradients */}
+              <ellipse cx="75" cy="75" rx="20" ry="24" fill="url(#pawShadow)" opacity="0.25" />
+              <ellipse cx="100" cy="65" rx="22" ry="27" fill="url(#pawShadow)" opacity="0.25" />
+              <ellipse cx="125" cy="75" rx="20" ry="24" fill="url(#pawShadow)" opacity="0.25" />
+              
+              <ellipse cx="75" cy="75" rx="19" ry="23" fill="url(#pawGradientPremium)" filter="url(#pawGlowFilterPremium)" />
+              <ellipse cx="100" cy="65" rx="21" ry="26" fill="url(#pawGradientPremium)" filter="url(#pawGlowFilterPremium)" />
+              <ellipse cx="125" cy="75" rx="19" ry="23" fill="url(#pawGradientPremium)" filter="url(#pawGlowFilterPremium)" />
+              
+              {/* Inner highlights - premium shine effect */}
+              <ellipse cx="75" cy="73" rx="13" ry="16" fill="url(#pawHighlight)" opacity="0.8" />
+              <ellipse cx="100" cy="63" rx="15" ry="19" fill="url(#pawHighlight)" opacity="0.8" />
+              <ellipse cx="125" cy="73" rx="13" ry="16" fill="url(#pawHighlight)" opacity="0.8" />
+              
               {/* Smaller toe pads */}
-                <ellipse cx="88" cy="105" rx="15" ry="18" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
-                <ellipse cx="112" cy="105" rx="15" ry="18" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
-                <ellipse cx="88" cy="105" rx="10" ry="12" fill="#FFE4B5" opacity="0.7" />
-                <ellipse cx="112" cy="105" rx="10" ry="12" fill="#FFE4B5" opacity="0.7" />
-                
-              {/* Claws */}
-                <path d="M 65 70 Q 60 55 58 45" stroke="#8B4513" strokeWidth="3.5" strokeLinecap="round" fill="none" />
-                <path d="M 80 60 Q 75 45 73 35" stroke="#8B4513" strokeWidth="3.5" strokeLinecap="round" fill="none" />
-                <path d="M 100 55 Q 100 40 100 30" stroke="#8B4513" strokeWidth="4" strokeLinecap="round" fill="none" />
-                <path d="M 120 60 Q 125 45 127 35" stroke="#8B4513" strokeWidth="3.5" strokeLinecap="round" fill="none" />
-                <path d="M 135 70 Q 140 55 142 45" stroke="#8B4513" strokeWidth="3.5" strokeLinecap="round" fill="none" />
-              </svg>
+              <ellipse cx="88" cy="105" rx="16" ry="19" fill="url(#pawShadow)" opacity="0.2" />
+              <ellipse cx="112" cy="105" rx="16" ry="19" fill="url(#pawShadow)" opacity="0.2" />
+              
+              <ellipse cx="88" cy="105" rx="16" ry="19" fill="url(#pawGradientPremium)" filter="url(#pawGlowFilterPremium)" />
+              <ellipse cx="112" cy="105" rx="16" ry="19" fill="url(#pawGradientPremium)" filter="url(#pawGlowFilterPremium)" />
+              
+              <ellipse cx="88" cy="103" rx="11" ry="13" fill="url(#pawHighlight)" opacity="0.75" />
+              <ellipse cx="112" cy="103" rx="11" ry="13" fill="url(#pawHighlight)" opacity="0.75" />
+              
+              {/* Premium Claws - sharper and more defined */}
+              <path d="M 65 70 Q 60 55 58 45" stroke="#654321" strokeWidth="4" strokeLinecap="round" fill="none" filter="url(#pawGlowFilterPremium)" />
+              <path d="M 80 60 Q 75 45 73 35" stroke="#654321" strokeWidth="4" strokeLinecap="round" fill="none" filter="url(#pawGlowFilterPremium)" />
+              <path d="M 100 55 Q 100 40 100 30" stroke="#654321" strokeWidth="4.5" strokeLinecap="round" fill="none" filter="url(#pawGlowFilterPremium)" />
+              <path d="M 120 60 Q 125 45 127 35" stroke="#654321" strokeWidth="4" strokeLinecap="round" fill="none" filter="url(#pawGlowFilterPremium)" />
+              <path d="M 135 70 Q 140 55 142 45" stroke="#654321" strokeWidth="4" strokeLinecap="round" fill="none" filter="url(#pawGlowFilterPremium)" />
+              
+              {/* Claw highlights */}
+              <path d="M 66 70 Q 61 56 59 46" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.6" />
+              <path d="M 81 60 Q 76 46 74 36" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.6" />
+              <path d="M 100 56 Q 100 41 100 31" stroke="#D4AF37" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.6" />
+              <path d="M 119 60 Q 124 46 126 36" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.6" />
+              <path d="M 134 70 Q 139 56 141 46" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.6" />
+            </svg>
           </motion.div>
 
-          {/* Impact Particle Effects */}
-            {phase === 'impact' && (
-              <>
-              {/* Radial dust burst */}
+          {/* Premium Impact Particle Effects */}
+          {phase === 'impact' && (
+            <>
+              {/* Enhanced Radial Energy Burst */}
               <div className="absolute inset-0 flex items-center justify-center">
-                {Array.from({ length: 40 }).map((_, i) => {
-                  const angle = (i * 360) / 40;
-                  const distance = 200 + Math.random() * 150;
+                {Array.from({ length: 60 }).map((_, i) => {
+                  const angle = (i * 360) / 60;
+                  const distance = 250 + Math.random() * 200;
+                  const size = 4 + Math.random() * 4;
                   return (
                     <motion.div
-                      key={`dust-${i}`}
-                      className="absolute w-3 h-3 bg-amber-300 rounded-full"
+                      key={`energy-${i}`}
+                      className="absolute rounded-full"
                       style={{
+                        width: `${size}px`,
+                        height: `${size}px`,
                         left: '50%',
                         top: '50%',
-                        boxShadow: '0 0 12px rgba(251,191,36,0.9), 0 0 20px rgba(251,191,36,0.6)',
+                        background: `radial-gradient(circle, rgba(251,191,36,1) 0%, rgba(251,191,36,0.7) 50%, transparent 100%)`,
+                        boxShadow: '0 0 15px rgba(251,191,36,1), 0 0 25px rgba(251,191,36,0.8), 0 0 35px rgba(251,191,36,0.6)',
                       }}
                       initial={{ 
                         x: 0, 
@@ -470,80 +397,166 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
                       animate={{ 
                         x: Math.cos((angle * Math.PI) / 180) * distance,
                         y: Math.sin((angle * Math.PI) / 180) * distance,
-                        scale: [1, 1.5, 0],
-                        opacity: [1, 0.8, 0],
+                        scale: [1, 2, 0],
+                        opacity: [1, 1, 0],
                       }}
                       transition={{
-                        duration: 1,
-                        delay: i * 0.02,
+                        duration: 1.2,
+                        delay: i * 0.015,
                         ease: 'easeOut',
                       }}
                     />
                   );
                 })}
-                </div>
-                
-              {/* Impact shockwave rings */}
-                  {[0, 1, 2].map((ring) => (
-                <motion.div
-                      key={`ring-${ring}`}
-                  className="absolute border-4 border-yellow-400 rounded-full"
+              </div>
+              
+              {/* Premium Multi-Layer Shockwave Rings */}
+              {[0, 1, 2, 3].map((ring) => (
+                <>
+                  <motion.div
+                    key={`ring-outer-${ring}`}
+                    className="absolute border-4 border-yellow-400 rounded-full"
+                    style={{
+                      left: '50%',
+                      top: '50%',
+                      width: 0,
+                      height: 0,
+                      borderColor: 'rgba(251,191,36,0.9)',
+                      boxShadow: '0 0 30px rgba(251,191,36,1), 0 0 50px rgba(251,191,36,0.8), 0 0 70px rgba(251,191,36,0.6)',
+                    }}
+                    initial={{ 
+                      width: 0, 
+                      height: 0, 
+                      x: '-50%', 
+                      y: '-50%',
+                      opacity: 1,
+                      borderWidth: '6px',
+                    }}
+                    animate={{ 
+                      width: 900 + ring * 100,
+                      height: 900 + ring * 100,
+                      opacity: 0,
+                      borderWidth: '2px',
+                    }}
+                    transition={{
+                      duration: 1.8,
+                      delay: ring * 0.25,
+                      ease: 'easeOut',
+                    }}
+                  />
+                  <motion.div
+                    key={`ring-inner-${ring}`}
+                    className="absolute border-2 border-yellow-300 rounded-full"
+                    style={{
+                      left: '50%',
+                      top: '50%',
+                      width: 0,
+                      height: 0,
+                      borderColor: 'rgba(254,243,199,0.8)',
+                      boxShadow: '0 0 20px rgba(254,243,199,0.9)',
+                    }}
+                    initial={{ 
+                      width: 0, 
+                      height: 0, 
+                      x: '-50%', 
+                      y: '-50%',
+                      opacity: 0.9,
+                      borderWidth: '4px',
+                    }}
+                    animate={{ 
+                      width: 700 + ring * 80,
+                      height: 700 + ring * 80,
+                      opacity: 0,
+                      borderWidth: '1px',
+                    }}
+                    transition={{
+                      duration: 1.6,
+                      delay: ring * 0.25 + 0.1,
+                      ease: 'easeOut',
+                    }}
+                  />
+                </>
+              ))}
+              
+              {/* Premium Golden Sparkles with Varied Sizes */}
+              {Array.from({ length: 50 }).map((_, i) => {
+                const sparkleSize = 2 + Math.random() * 6;
+                const sparkleType = Math.floor(Math.random() * 3);
+                return (
+                  <motion.div
+                    key={`sparkle-${i}`}
+                    className="absolute"
+                    style={{
+                      width: `${sparkleSize}px`,
+                      height: sparkleType === 0 ? `${sparkleSize * 4}px` : `${sparkleSize}px`,
+                      left: `${50 + (Math.random() - 0.5) * 50}%`,
+                      top: `${50 + (Math.random() - 0.5) * 50}%`,
+                      background: sparkleType === 0 
+                        ? 'linear-gradient(to bottom, rgba(254,243,199,1) 0%, rgba(251,191,36,0.8) 50%, transparent 100%)'
+                        : 'radial-gradient(circle, rgba(254,243,199,1) 0%, rgba(251,191,36,0.8) 50%, transparent 100%)',
+                      borderRadius: sparkleType === 0 ? '50%' : '50%',
+                      boxShadow: '0 0 12px rgba(251,191,36,1), 0 0 20px rgba(251,191,36,0.8), 0 0 30px rgba(251,191,36,0.6)',
+                    }}
+                    initial={{ 
+                      opacity: 0, 
+                      scale: 0, 
+                      rotate: Math.random() * 360 
+                    }}
+                    animate={{ 
+                      opacity: [0, 1, 1, 0],
+                      scale: [0, 1.8, 1.5, 0],
+                      y: -150 - Math.random() * 50,
+                      x: (Math.random() - 0.5) * 100,
+                      rotate: (Math.random() - 0.5) * 720,
+                    }}
+                    transition={{
+                      duration: 1.8,
+                      delay: Math.random() * 0.5,
+                      ease: 'easeOut',
+                    }}
+                  />
+                );
+              })}
+              
+              {/* Ground Cracks Effect */}
+              <div className="absolute bottom-0 left-0 right-0 h-[40%] overflow-hidden">
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const startX = 50 + (Math.random() - 0.5) * 30;
+                  const angle = (Math.random() - 0.5) * 60;
+                  const length = 100 + Math.random() * 150;
+                  return (
+                    <motion.div
+                      key={`crack-${i}`}
+                      className="absolute"
                       style={{
-                    left: '50%',
-                    top: '50%',
-                    width: 0,
-                    height: 0,
-                        boxShadow: '0 0 20px rgba(251,191,36,0.8)',
-                  }}
-                  initial={{ 
-                    width: 0, 
-                    height: 0, 
-                    x: '-50%', 
-                    y: '-50%',
-                    opacity: 0.8 
-                  }}
-                  animate={{ 
-                    width: 800,
-                    height: 800,
-                    opacity: 0,
-                  }}
-                  transition={{
-                    duration: 1.5,
-                    delay: ring * 0.3,
-                    ease: 'easeOut',
+                        left: `${startX}%`,
+                        bottom: '0%',
+                        width: '3px',
+                        height: `${length}px`,
+                        background: 'linear-gradient(to top, rgba(251,191,36,0.8) 0%, rgba(251,191,36,0.5) 50%, transparent 100%)',
+                        transformOrigin: 'bottom center',
+                        boxShadow: '0 0 8px rgba(251,191,36,0.9)',
+                      }}
+                      initial={{ 
+                        height: 0,
+                        opacity: 0,
+                        rotate: angle,
+                      }}
+                      animate={{ 
+                        height: length,
+                        opacity: [0, 1, 0.8, 0],
+                      }}
+                      transition={{
+                        duration: 0.8,
+                        delay: 0.2 + i * 0.05,
+                        ease: 'easeOut',
                       }}
                     />
-                  ))}
-              
-              {/* Golden sparkles */}
-              {Array.from({ length: 30 }).map((_, i) => (
-                <motion.div
-                        key={`sparkle-${i}`}
-                  className="absolute w-1 h-8 bg-gradient-to-b from-yellow-300 to-transparent"
-                        style={{
-                    left: `${50 + (Math.random() - 0.5) * 40}%`,
-                    top: `${50 + (Math.random() - 0.5) * 40}%`,
-                          boxShadow: '0 0 10px rgba(251,191,36,1), 0 0 15px rgba(251,191,36,0.7)',
-                  }}
-                  initial={{ 
-                    opacity: 0, 
-                    scale: 0, 
-                    rotate: Math.random() * 360 
-                  }}
-                  animate={{ 
-                    opacity: [0, 1, 0],
-                    scale: [0, 1.5, 0],
-                    y: -100,
-                  }}
-                  transition={{
-                    duration: 1.5,
-                    delay: Math.random() * 0.4,
-                    ease: 'easeOut',
-                  }}
-                />
-              ))}
-              </>
-            )}
+                  );
+                })}
+              </div>
+            </>
+          )}
         </motion.div>
       )}
 
