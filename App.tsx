@@ -262,14 +262,25 @@ const App: React.FC = () => {
 
   useEffect(() => {
     console.log('App: Step 9 - Starting auth check...');
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      console.log('App: Step 10 - Session retrieved:', session ? 'Session exists' : 'No session');
-      setSession(session);
-      setAuthChecked(true);
-      console.log('App: Step 11 - Auth checked, session set');
+    
+    // Immediate session check before setting up listener
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error) {
+        console.error('App: ERROR - Failed to get session:', error);
+        console.log('App: Step 10b - No session found (error), forcing guest mode');
+        setSession(null);
+        setAuthChecked(true);
+        setIsGuest(true);
+        return;
+      }
+      
       if (session?.user) {
-        console.log('App: Step 12 - User found, processing user data...');
+        console.log('App: Step 10a - Session found, user:', session.user.id);
+        setSession(session);
+        setAuthChecked(true);
         setIsGuest(false);
+        console.log('App: Step 11 - Auth checked, session set');
+        console.log('App: Step 12 - User found, processing user data...');
         const meta = session.user.user_metadata || {};
         // Use Google metadata: full_name, name, or display_name
         const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
@@ -283,12 +294,31 @@ const App: React.FC = () => {
         console.log('App: Step 15 - Loading profile, isNewUser:', isNewUser);
         loadProfile(session.user.id, isNewUser);
       } else {
+        console.log('App: Step 10b - No session found, forcing guest mode');
+        setSession(null);
+        setAuthChecked(true);
+        setIsGuest(true);
         console.log('App: Step 12 - No user session, will show auth screen or guest mode');
       }
     }).catch((error) => {
       console.error('App: ERROR - Failed to get session:', error);
+      console.log('App: Step 10b - No session found (catch), forcing guest mode');
+      setSession(null);
       setAuthChecked(true);
+      setIsGuest(true);
     });
+
+    // Timeout safety: Force authChecked to true after 5 seconds if still false
+    const timeoutId = setTimeout(() => {
+      setAuthChecked((current) => {
+        if (!current) {
+          console.warn('App: Auth Timeout - authChecked still false after 5 seconds, forcing to true');
+          setIsGuest(true);
+          return true;
+        }
+        return current;
+      });
+    }, 5000);
 
     console.log('App: Step 16 - Setting up auth state change listener...');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -315,6 +345,7 @@ const App: React.FC = () => {
     });
     return () => {
       console.log('App: Step 18 - Cleaning up auth state change listener');
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, [isGuest, playerName, playerAvatar]);
