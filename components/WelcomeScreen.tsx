@@ -69,39 +69,8 @@ const GridIcon4 = () => (
 );
 
 // Finisher Icons
-const ShibaSlamIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg viewBox="0 0 120 120" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="shibaPawGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FFD700" stopOpacity="1" />
-        <stop offset="50%" stopColor="#FFA500" stopOpacity="1" />
-        <stop offset="100%" stopColor="#FF6B00" stopOpacity="1" />
-      </linearGradient>
-      <radialGradient id="shibaImpactGlow" cx="50%" cy="50%">
-        <stop offset="0%" stopColor="#FFD700" stopOpacity="0.8" />
-        <stop offset="70%" stopColor="#FFA500" stopOpacity="0.4" />
-        <stop offset="100%" stopColor="#FF6B00" stopOpacity="0" />
-      </radialGradient>
-      <filter id="shibaGlow">
-        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-        <feMerge>
-          <feMergeNode in="coloredBlur"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
-    </defs>
-    <circle cx="60" cy="60" r="50" fill="url(#shibaImpactGlow)" opacity="0.6" />
-    <g filter="url(#shibaGlow)">
-      <ellipse cx="60" cy="75" rx="20" ry="15" fill="url(#shibaPawGradient)" />
-      <ellipse cx="45" cy="50" rx="8" ry="8" fill="url(#shibaPawGradient)" />
-      <ellipse cx="60" cy="45" rx="10" ry="10" fill="url(#shibaPawGradient)" />
-      <ellipse cx="75" cy="50" rx="8" ry="8" fill="url(#shibaPawGradient)" />
-      <line x1="30" y1="60" x2="50" y2="60" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
-      <line x1="70" y1="60" x2="90" y2="60" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
-      <line x1="60" y1="30" x2="60" y2="50" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
-      <line x1="60" y1="70" x2="60" y2="90" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
-    </g>
-  </svg>
+const ShibaSlamIcon: React.FC<{ className?: string; remoteEmotes?: Emote[] }> = ({ className = '', remoteEmotes = [] }) => (
+  <VisualEmote trigger=":shiba:" remoteEmotes={remoteEmotes} size="xl" className={className} />
 );
 
 const EtherealBladeIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -778,7 +747,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                           : 'bg-gradient-to-br from-blue-500/20 via-indigo-500/15 to-blue-500/20 border-blue-500/30'
                       }`}>
                         {f.animation_key === 'shiba_slam' ? (
-                          <ShibaSlamIcon className="w-full h-full p-3 sm:p-4" />
+                          <ShibaSlamIcon className="w-full h-full p-3 sm:p-4" remoteEmotes={remoteEmotes} />
                         ) : f.animation_key === 'ethereal_blade' ? (
                           <EtherealBladeIcon className="w-full h-full p-3 sm:p-4" />
                         ) : f.animation_key === 'kiss_my_shiba' ? (
@@ -991,7 +960,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 ) : pendingPurchase.type === 'FINISHER' ? (
                     <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
                       {pendingPurchase.animation_key === 'shiba_slam' ? (
-                        <ShibaSlamIcon className="w-full h-full p-4" />
+                        <ShibaSlamIcon className="w-full h-full p-4" remoteEmotes={remoteEmotes} />
                       ) : pendingPurchase.animation_key === 'ethereal_blade' ? (
                         <EtherealBladeIcon className="w-full h-full p-4" />
                       ) : pendingPurchase.animation_key === 'sanctum_snap' ? (

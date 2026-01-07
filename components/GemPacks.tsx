@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { CurrencyIcon } from './Store';
 import { GemPurchaseCelebration } from './GemPurchaseCelebration';
-import { processGemTransaction } from '../services/supabase';
+import { processGemTransaction, fetchGemTransactions, GemTransaction } from '../services/supabase';
 import { Toast } from './Toast';
 import { audioService } from '../services/audio';
 
@@ -215,6 +215,18 @@ const CinematicNode: React.FC<{ tier: number; compact?: boolean }> = ({ tier, co
   );
 };
 
+// Helper function to format time ago
+const getTimeAgo = (date: Date): string => {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  
+  return date.toLocaleDateString();
+};
+
 export const GemPacks: React.FC<{
   onClose: () => void;
   profile: UserProfile | null;
@@ -226,6 +238,27 @@ export const GemPacks: React.FC<{
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [gemTransactions, setGemTransactions] = useState<GemTransaction[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Fetch gem transaction history
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (showHistory && profile) {
+        setLoadingHistory(true);
+        try {
+          const transactions = await fetchGemTransactions(profile.id, 5);
+          setGemTransactions(transactions);
+        } catch (error) {
+          console.error('Error loading gem history:', error);
+        } finally {
+          setLoadingHistory(false);
+        }
+      }
+    };
+    loadHistory();
+  }, [showHistory, profile]);
 
   // Calculate best value (gems per dollar)
   const bestValue = useMemo(() => {
@@ -392,6 +425,21 @@ export const GemPacks: React.FC<{
                   {(profile?.gems || 0).toLocaleString()}
                 </span>
               </div>
+              
+              {/* History Button */}
+              {profile && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowHistory(!showHistory);
+                  }}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-90 group shrink-0"
+                  title="Gem Purchase History"
+                >
+                  <span className="text-base sm:text-lg group-hover:scale-110 transition-transform duration-300">📜</span>
+                </button>
+              )}
+              
               <button 
                 onClick={onClose} 
                 className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-90 group shrink-0"
@@ -519,6 +567,85 @@ export const GemPacks: React.FC<{
              </p>
           </div>
         </div>
+
+        {/* History Modal */}
+        {showHistory && (
+          <div 
+            className="absolute inset-0 bg-black/95 backdrop-blur-3xl z-50 flex flex-col p-4 sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                <span>📜</span>
+                <span>Gem Activity History</span>
+              </h2>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-90 group"
+              >
+                <span className="text-lg group-hover:rotate-90 transition-transform duration-300">✕</span>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                </div>
+              ) : gemTransactions.length === 0 ? (
+                <div className="text-center py-8 text-white/50">
+                  <p className="text-sm">No gem transactions yet</p>
+                  <p className="text-xs mt-2">Watch ads or make purchases to see activity here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {gemTransactions.map((transaction) => {
+                    const isPositive = transaction.amount > 0;
+                    const amount = Math.abs(transaction.amount);
+                    const sourceNames: Record<string, string> = {
+                      'ad_reward': 'Ad Reward',
+                      'iap_purchase': 'IAP Purchase',
+                      'shop_buy': 'Shop Purchase'
+                    };
+                    const sourceName = sourceNames[transaction.source] || transaction.source;
+                    const date = new Date(transaction.created_at);
+                    const timeAgo = getTimeAgo(date);
+                    
+                    return (
+                      <div
+                        key={transaction.id}
+                        className="flex items-center justify-between p-3 sm:p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all duration-300"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            isPositive ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-pink-500/20 border border-pink-500/30'
+                          }`}>
+                            <span className="text-lg">{isPositive ? '+' : '-'}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-base sm:text-lg font-bold ${isPositive ? 'text-emerald-400' : 'text-pink-400'}`}>
+                                {isPositive ? '+' : '-'}{amount}
+                              </span>
+                              <CurrencyIcon type="GEMS" size="xs" />
+                            </div>
+                            <p className="text-xs sm:text-sm text-white/70 truncate">{sourceName}</p>
+                            {transaction.item_id && (
+                              <p className="text-xs text-white/50 truncate">Item: {transaction.item_id}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs text-white/50">{timeAgo}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Gradient Fade Bottom */}
         <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none z-20"></div>

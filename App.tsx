@@ -146,16 +146,22 @@ const App: React.FC = () => {
   }, [spGameState?.currentPlayerId, spGameState?.status, spGameState?.currentPlayPile?.length, gameMode, spOpponentHands, aiDifficulty]);
 
   // Initialize AdMob and pre-load ads on app start
+  // CRITICAL: This is completely non-blocking - app renders regardless of AdMob status
   useEffect(() => {
-    const initializeAds = async () => {
-      try {
-        await adService.initialize();
-        await adService.load();
-      } catch (error) {
-        console.error('Failed to initialize ads:', error);
-      }
-    };
-    initializeAds();
+    // Use setTimeout to ensure this doesn't block initial render
+    setTimeout(() => {
+      const initializeAds = async () => {
+        try {
+          // These calls are now guaranteed to never throw or block
+          await adService.initialize();
+          await adService.load();
+        } catch (error) {
+          // This should never happen now, but just in case
+          console.error('Failed to initialize ads (non-blocking):', error);
+        }
+      };
+      initializeAds();
+    }, 0);
   }, []);
 
   useEffect(() => {

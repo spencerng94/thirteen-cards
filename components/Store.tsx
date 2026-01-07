@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme, Emote, Card as CardType, Rank, Suit } from '../types';
-import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, buyFinisherPack, buyPack, equipFinisher, Finisher, processAdReward, fetchChatPresets, ChatPreset, purchasePhrase, incrementGems, processGemTransaction, fetchGemTransactions, GemTransaction } from '../services/supabase';
+import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, buyFinisherPack, buyPack, equipFinisher, Finisher, processAdReward, fetchChatPresets, ChatPreset, purchasePhrase, incrementGems, processGemTransaction } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
@@ -34,56 +34,8 @@ const getTimeAgo = (date: Date): string => {
 };
 
 // Premium Finisher Icons
-const ShibaSlamIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg viewBox="0 0 120 120" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="shibaPawGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FFD700" stopOpacity="1" />
-        <stop offset="50%" stopColor="#FFA500" stopOpacity="1" />
-        <stop offset="100%" stopColor="#FF6B00" stopOpacity="1" />
-      </linearGradient>
-      <radialGradient id="shibaImpactGlow" cx="50%" cy="50%">
-        <stop offset="0%" stopColor="#FFD700" stopOpacity="0.8" />
-        <stop offset="70%" stopColor="#FFA500" stopOpacity="0.4" />
-        <stop offset="100%" stopColor="#FF6B00" stopOpacity="0" />
-      </radialGradient>
-      <filter id="shibaGlow">
-        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-        <feMerge>
-          <feMergeNode in="coloredBlur"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
-    </defs>
-    {/* Impact Glow */}
-    <circle cx="60" cy="60" r="50" fill="url(#shibaImpactGlow)" opacity="0.6" />
-    {/* Shiba Paw - Main Shape */}
-    <g filter="url(#shibaGlow)">
-      {/* Paw Pads */}
-      <ellipse cx="60" cy="75" rx="20" ry="15" fill="url(#shibaPawGradient)" />
-      <ellipse cx="45" cy="50" rx="8" ry="8" fill="url(#shibaPawGradient)" />
-      <ellipse cx="60" cy="45" rx="10" ry="10" fill="url(#shibaPawGradient)" />
-      <ellipse cx="75" cy="50" rx="8" ry="8" fill="url(#shibaPawGradient)" />
-      {/* Impact Lines */}
-      <line x1="30" y1="60" x2="50" y2="60" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
-      <line x1="70" y1="60" x2="90" y2="60" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
-      <line x1="60" y1="30" x2="60" y2="50" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
-      <line x1="60" y1="70" x2="60" y2="90" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
-    </g>
-    {/* Energy Particles */}
-    <circle cx="40" cy="40" r="2" fill="#FFD700" opacity="0.9">
-      <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.5s" repeatCount="indefinite" />
-    </circle>
-    <circle cx="80" cy="40" r="2" fill="#FFD700" opacity="0.9">
-      <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.2s" repeatCount="indefinite" />
-    </circle>
-    <circle cx="40" cy="80" r="2" fill="#FFD700" opacity="0.9">
-      <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.8s" repeatCount="indefinite" />
-    </circle>
-    <circle cx="80" cy="80" r="2" fill="#FFD700" opacity="0.9">
-      <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.4s" repeatCount="indefinite" />
-    </circle>
-  </svg>
+const ShibaSlamIcon: React.FC<{ className?: string; remoteEmotes?: Emote[] }> = ({ className = '', remoteEmotes = [] }) => (
+  <VisualEmote trigger=":shiba:" remoteEmotes={remoteEmotes} size="xl" className={className} />
 );
 
 const EtherealBladeIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -947,11 +899,6 @@ const FreeGemsCard: React.FC<{
         // Refresh profile to get updated gem count
         onRefresh();
         
-        // Refresh history if HISTORY tab is active
-        if (activeTab === 'HISTORY' && profile) {
-          const transactions = await fetchGemTransactions(profile.id, 5);
-          setGemTransactions(transactions);
-        }
         
         // Set state to rewarded
         setAdState('rewarded');
@@ -1299,7 +1246,7 @@ const PackPurchaseSuccessModal: React.FC<PackPurchaseSuccessModalProps> = ({
                   className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center border-2 border-pink-500/50 bg-pink-500/10"
                 >
                   {finisher?.animation_key === 'shiba_slam' ? (
-                    <ShibaSlamIcon className="w-full h-full p-2" />
+                    <ShibaSlamIcon className="w-full h-full p-2" remoteEmotes={remoteEmotes} />
                   ) : finisher?.animation_key === 'ethereal_blade' ? (
                     <EtherealBladeIcon className="w-full h-full p-2" />
                   ) : finisher?.animation_key === 'seductive_finish' ? (
@@ -1449,9 +1396,7 @@ export const Store: React.FC<{
     }
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'SLEEVES' | 'EMOTES' | 'BOARDS' | 'ITEMS' | 'FINISHERS' | 'DEALS' | 'QUICK_CHATS' | 'HISTORY'>(initialTab as any);
-  const [gemTransactions, setGemTransactions] = useState<GemTransaction[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState<'SLEEVES' | 'EMOTES' | 'BOARDS' | 'ITEMS' | 'FINISHERS' | 'DEALS' | 'QUICK_CHATS'>(initialTab as any);
   const [chatPresets, setChatPresets] = useState<ChatPreset[]>([]);
   const [previewingChat, setPreviewingChat] = useState<ChatPreset | null>(null);
   const [pendingPurchase, setPendingPurchase] = useState<any>(null);
@@ -1518,23 +1463,6 @@ export const Store: React.FC<{
     }
   }, []); // Run once when Store opens
 
-  // Fetch gem transaction history when HISTORY tab is active
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (activeTab === 'HISTORY' && profile && !isGuest) {
-        setLoadingHistory(true);
-        try {
-          const transactions = await fetchGemTransactions(profile.id, 5);
-          setGemTransactions(transactions);
-        } catch (error) {
-          console.error('Error loading gem history:', error);
-        } finally {
-          setLoadingHistory(false);
-        }
-      }
-    };
-    loadHistory();
-  }, [activeTab, profile, isGuest]);
 
   useEffect(() => { 
     // Fetch emotes when component mounts - force refresh to bypass cache
@@ -1679,12 +1607,6 @@ export const Store: React.FC<{
             // Refresh profile immediately to update gem counter in header
             // This ensures the gem count is fetched fresh from database
             await onRefreshProfile();
-            
-            // Refresh history if HISTORY tab is active
-            if (activeTab === 'HISTORY' && profile) {
-              const transactions = await fetchGemTransactions(profile.id, 5);
-              setGemTransactions(transactions);
-            }
             
             setPendingPurchase(null);
             setShowSuccessModal(false);
@@ -1932,7 +1854,7 @@ export const Store: React.FC<{
             {/* Custom Icon */}
             <div className="relative z-10 w-full h-full flex items-center justify-center">
               {finisher.animation_key === 'shiba_slam' ? (
-                <ShibaSlamIcon className="w-full h-full p-3 sm:p-4" />
+                <ShibaSlamIcon className="w-full h-full p-3 sm:p-4" remoteEmotes={remoteEmotes} />
               ) : finisher.animation_key === 'ethereal_blade' ? (
                 <EtherealBladeIcon className="w-full h-full p-3 sm:p-4" />
               ) : finisher.animation_key === 'sanctum_snap' ? (
@@ -2269,7 +2191,7 @@ export const Store: React.FC<{
 
   // Memoize items list for all tabs (must be called unconditionally to avoid hook order issues)
   const tabItems = useMemo(() => {
-    if (activeTab === 'DEALS' || activeTab === 'HISTORY') return []; // DEALS and HISTORY tabs have their own rendering
+    if (activeTab === 'DEALS') return []; // DEALS tab has its own rendering
     
     let items: any[] = [];
     if (activeTab === 'SLEEVES') {
@@ -2465,7 +2387,7 @@ export const Store: React.FC<{
                 ) : pendingPurchase.type === 'FINISHER' ? (
                   <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
                     {pendingPurchase.animation_key === 'shiba_slam' ? (
-                      <ShibaSlamIcon className="w-full h-full p-4" />
+                      <ShibaSlamIcon className="w-full h-full p-4" remoteEmotes={remoteEmotes} />
                     ) : pendingPurchase.animation_key === 'ethereal_blade' ? (
                       <EtherealBladeIcon className="w-full h-full p-4" />
                     ) : pendingPurchase.animation_key === 'sanctum_snap' ? (
@@ -2662,7 +2584,7 @@ export const Store: React.FC<{
           {/* Premium Navigation Tabs - Wraps on Mobile, Single Row on Desktop */}
           <div className="w-full px-2 sm:px-4 md:px-6">
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-wrap sm:flex-nowrap justify-center">
-            {(['SLEEVES', 'EMOTES', 'BOARDS', 'ITEMS', 'FINISHERS', 'QUICK_CHATS', 'HISTORY'] as const).map(tab => {
+            {(['SLEEVES', 'EMOTES', 'BOARDS', 'ITEMS', 'FINISHERS', 'QUICK_CHATS'] as const).map(tab => {
               const displayName = tab.replace(/_/g, ' ');
               return (
               <button 
@@ -2816,73 +2738,7 @@ export const Store: React.FC<{
             </div>
           </div>
 
-          {/* HISTORY Tab Content */}
-          {activeTab === 'HISTORY' ? (
-            <div className="space-y-4">
-              <div className="bg-gradient-to-br from-white/5 via-white/3 to-white/5 backdrop-blur-xl border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
-                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                  <span>📜</span>
-                  <span>Gem Activity History</span>
-                </h3>
-                
-                {loadingHistory ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  </div>
-                ) : gemTransactions.length === 0 ? (
-                  <div className="text-center py-8 text-white/50">
-                    <p className="text-sm">No gem transactions yet</p>
-                    <p className="text-xs mt-2">Watch ads or make purchases to see activity here</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {gemTransactions.map((transaction) => {
-                      const isPositive = transaction.amount > 0;
-                      const amount = Math.abs(transaction.amount);
-                      const sourceNames: Record<string, string> = {
-                        'ad_reward': 'Ad Reward',
-                        'iap_purchase': 'IAP Purchase',
-                        'shop_buy': 'Shop Purchase'
-                      };
-                      const sourceName = sourceNames[transaction.source] || transaction.source;
-                      const date = new Date(transaction.created_at);
-                      const timeAgo = getTimeAgo(date);
-                      
-                      return (
-                        <div
-                          key={transaction.id}
-                          className="flex items-center justify-between p-3 sm:p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all duration-300"
-                        >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              isPositive ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-pink-500/20 border border-pink-500/30'
-                            }`}>
-                              <span className="text-lg">{isPositive ? '+' : '-'}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-base sm:text-lg font-bold ${isPositive ? 'text-emerald-400' : 'text-pink-400'}`}>
-                                  {isPositive ? '+' : '-'}{amount}
-                                </span>
-                                <CurrencyIcon type="GEMS" size="xs" />
-                              </div>
-                              <p className="text-xs sm:text-sm text-white/70 truncate">{sourceName}</p>
-                              {transaction.item_id && (
-                                <p className="text-xs text-white/50 truncate">Item: {transaction.item_id}</p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-xs text-white/50">{timeAgo}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : activeTab === 'DEALS' ? (
+          {activeTab === 'DEALS' ? (
             <div className="grid gap-6 sm:gap-8 md:gap-10 pb-8 grid-cols-1 lg:grid-cols-2">
               {DEAL_PACKS.map(pack => {
                 // Check if user already owns all items in pack
@@ -2973,7 +2829,7 @@ export const Store: React.FC<{
                                   {item.type === 'FINISHER' ? (
                                     (() => {
                                       if (item.id === 'shiba_slam') {
-                                        return <ShibaSlamIcon className="w-full h-full" />;
+                                        return <ShibaSlamIcon className="w-full h-full" remoteEmotes={remoteEmotes} />;
                                       } else if (item.id === 'ethereal_blade') {
                                         return <EtherealBladeIcon className="w-full h-full" />;
                                       } else if (item.id === 'seductive_finish') {
@@ -3297,7 +3153,7 @@ export const Store: React.FC<{
                           {item.type === 'FINISHER' ? (
                             (() => {
                               if (item.id === 'shiba_slam') {
-                                return <ShibaSlamIcon className="w-full h-full p-2" />;
+                                return <ShibaSlamIcon className="w-full h-full p-2" remoteEmotes={remoteEmotes} />;
                               } else if (item.id === 'ethereal_blade') {
                                 return <EtherealBladeIcon className="w-full h-full p-2" />;
                               } else if (item.id === 'seductive_finish') {
