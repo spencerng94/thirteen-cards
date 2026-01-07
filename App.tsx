@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player, HubTab } from './types';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -8,6 +9,7 @@ import { TutorialMode } from './components/TutorialMode';
 import { GameEndTransition } from './components/GameEndTransition';
 import { AuthScreen } from './components/AuthScreen';
 import { GameSettings, SocialFilter } from './components/GameSettings';
+import { LegalView } from './components/LegalView';
 
 // Lazy load heavy components for better initial load performance
 const GameTable = lazy(() => import('./components/GameTable').then(m => ({ default: m.GameTable })));
@@ -19,10 +21,12 @@ const InventoryModal = lazy(() => import('./components/InventoryModal').then(m =
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState } from './services/supabase';
+import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState, getGuestProgress, migrateGuestData, clearGuestProgress } from './services/supabase';
 import { supabase as supabaseClient } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeToast } from './components/WelcomeToast';
+import { Toast } from './components/Toast';
+import { AccountMigrationSuccessModal } from './components/AccountMigrationSuccessModal';
 import { adService } from './services/adService';
 import { LoadingScreen } from './components/LoadingScreen';
 
@@ -88,7 +92,7 @@ const checkSupabaseEnv = (): { isValid: boolean; missing: string[] } => {
   };
 };
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   console.log('App: Step 6 - App component initializing...');
   
   // Check Supabase environment variables early
@@ -152,6 +156,10 @@ const App: React.FC = () => {
   const [spQuickFinish, setSpQuickFinish] = useState(true);
   const [sleeveEffectsEnabled, setSleeveEffectsEnabled] = useState(true);
   const [playAnimationsEnabled, setPlayAnimationsEnabled] = useState(true);
+  const [autoPassEnabled, setAutoPassEnabled] = useState(() => {
+    const saved = localStorage.getItem('thirteen_auto_pass_enabled');
+    return saved === 'true';
+  });
   const [turnTimerSetting, setTurnTimerSetting] = useState(0);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('MEDIUM');
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -162,6 +170,15 @@ const App: React.FC = () => {
   const [welcomeUsername, setWelcomeUsername] = useState('');
   const [loadingStatus, setLoadingStatus] = useState('Shuffling deck...');
   const [showGuestHint, setShowGuestHint] = useState(false);
+  const [migrationToast, setMigrationToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
+  const [migrationSuccessData, setMigrationSuccessData] = useState<{
+    show: boolean;
+    migratedGems: number;
+    bonusGems: number;
+    migratedXp: number;
+    migratedCoins: number;
+    newGemBalance: number;
+  } | null>(null);
   
   const [mpGameState, setMpGameState] = useState<GameState | null>(null);
   const [mpMyHand, setMpMyHand] = useState<Card[]>([]);
@@ -338,10 +355,10 @@ const App: React.FC = () => {
     }
     
     // Guard: Check global auth state - if session was already set there, use it
-    const globalSession = globalAuthState.getSession();
-    if (globalSession) {
+    const manualRecoverySession = globalAuthState.getSession();
+    if (manualRecoverySession) {
       console.log('MANUAL RECOVERY: Global session found, using it instead of parsing hash');
-      setSession(globalSession);
+      setSession(manualRecoverySession);
       setAuthChecked(true);
       setHasSession(true);
       setIsGuest(false);
@@ -522,23 +539,23 @@ const App: React.FC = () => {
           }
           
           // Check if global session was set by the global listener
-          const globalSession = globalAuthState.getSession();
-          if (globalSession) {
+          const sessionFromGlobal = globalAuthState.getSession();
+          if (sessionFromGlobal) {
             console.log('App: OAuth bypass - Global session found!');
             clearTimeout(escapeHatchTimeout);
-            setSession(globalSession);
+            setSession(sessionFromGlobal);
             setAuthChecked(true);
             setHasSession(true);
             setIsGuest(false);
             setIsProcessingOAuth(false);
             
-            const meta = globalSession.user?.user_metadata || {};
+            const meta = sessionFromGlobal.user?.user_metadata || {};
             const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
             if (!playerName) setPlayerName(googleName.toUpperCase());
             
-            transferGuestData(globalSession.user.id).then(() => {
-              supabase.from('profiles').select('id').eq('id', globalSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
-                loadProfile(globalSession.user.id, !existingProfile);
+            transferGuestData(sessionFromGlobal.user.id).then(() => {
+              supabase.from('profiles').select('id').eq('id', sessionFromGlobal.user.id).maybeSingle().then(({ data: existingProfile }) => {
+                loadProfile(sessionFromGlobal.user.id, !existingProfile);
               });
             });
             
@@ -746,6 +763,74 @@ const App: React.FC = () => {
         
         // Only do async operations after flags are set
         await transferGuestData(session.user.id);
+        
+        // Guest-to-Permanent Migration: Check for guest progress and migrate
+        // Only migrate if isMigrating flag is set (user clicked "Link Account")
+        const isMigrating = localStorage.getItem('thirteen_is_migrating') === 'true';
+        if ((event === 'SIGNED_UP' || event === 'SIGNED_IN') && isMigrating) {
+          const guestProgress = getGuestProgress();
+          if (guestProgress && (guestProgress.gems > 0 || guestProgress.xp > 0 || guestProgress.coins > 0)) {
+            console.log('Guest migration: Found guest progress:', guestProgress);
+            setLoadingStatus('Migrating your progress...');
+            
+            const migrationResult = await migrateGuestData(
+              session.user.id,
+              guestProgress.gems,
+              guestProgress.xp,
+              guestProgress.coins
+            );
+            
+            // Clear migration flag
+            localStorage.removeItem('thirteen_is_migrating');
+            
+            if (migrationResult.success) {
+              console.log('Guest migration: Successfully migrated progress');
+              clearGuestProgress();
+              
+              // Show success modal with breakdown
+              if (migrationResult.migratedGems !== undefined || migrationResult.bonusGems !== undefined) {
+                setMigrationSuccessData({
+                  show: true,
+                  migratedGems: migrationResult.migratedGems || 0,
+                  bonusGems: migrationResult.bonusGems || 0,
+                  migratedXp: migrationResult.migratedXp || 0,
+                  migratedCoins: migrationResult.migratedCoins || 0,
+                  newGemBalance: migrationResult.newGemBalance || 0,
+                });
+              } else {
+                // Fallback to toast if breakdown data not available
+                setMigrationToast({
+                  show: true,
+                  message: 'Progress successfully synced to your new account!',
+                  type: 'success'
+                });
+                setTimeout(() => {
+                  setMigrationToast({ show: false, message: '', type: 'success' });
+                }, 4000);
+              }
+            } else {
+              console.warn('Guest migration: Failed to migrate:', migrationResult.error);
+              // Don't show error toast for expected failures (account too old)
+              if (migrationResult.error?.includes('not new')) {
+                // Account is older than 5 minutes, clear guest data silently
+                clearGuestProgress();
+              } else {
+                setMigrationToast({
+                  show: true,
+                  message: 'Could not migrate progress. Your account may be too old.',
+                  type: 'error'
+                });
+                setTimeout(() => {
+                  setMigrationToast({ show: false, message: '', type: 'error' });
+                }, 4000);
+              }
+            }
+          } else {
+            // No guest progress to migrate, just clear the flag
+            localStorage.removeItem('thirteen_is_migrating');
+          }
+        }
+        
         if (event === 'SIGNED_IN') {
           const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
           loadProfile(session.user.id, !existingProfile);
@@ -807,6 +892,10 @@ const App: React.FC = () => {
       if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
       if (data.sleeve_effects_enabled !== undefined) setSleeveEffectsEnabled(data.sleeve_effects_enabled);
       if (data.play_animations_enabled !== undefined) setPlayAnimationsEnabled(data.play_animations_enabled);
+      if (data.auto_pass_enabled !== undefined) {
+        setAutoPassEnabled(data.auto_pass_enabled);
+        localStorage.setItem('thirteen_auto_pass_enabled', data.auto_pass_enabled ? 'true' : 'false');
+      }
       if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
       setProfile(data);
       console.log('App: Step 22 - Profile set in state');
@@ -831,6 +920,10 @@ const App: React.FC = () => {
       if (data.turbo_enabled !== undefined) setSpQuickFinish(data.turbo_enabled);
       if (data.sleeve_effects_enabled !== undefined) setSleeveEffectsEnabled(data.sleeve_effects_enabled);
       if (data.play_animations_enabled !== undefined) setPlayAnimationsEnabled(data.play_animations_enabled);
+      if (data.auto_pass_enabled !== undefined) {
+        setAutoPassEnabled(data.auto_pass_enabled);
+        localStorage.setItem('thirteen_auto_pass_enabled', data.auto_pass_enabled ? 'true' : 'false');
+      }
       if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
       initialSyncCompleteRef.current = true;
       console.log('App: Step 25 - Guest profile loaded');
@@ -848,12 +941,16 @@ const App: React.FC = () => {
     if (spQuickFinish !== profile.turbo_enabled) updates.turbo_enabled = spQuickFinish;
     if (sleeveEffectsEnabled !== profile.sleeve_effects_enabled) updates.sleeve_effects_enabled = sleeveEffectsEnabled;
     if (playAnimationsEnabled !== profile.play_animations_enabled) updates.play_animations_enabled = playAnimationsEnabled;
+    if (autoPassEnabled !== profile.auto_pass_enabled) {
+      updates.auto_pass_enabled = autoPassEnabled;
+      localStorage.setItem('thirteen_auto_pass_enabled', autoPassEnabled ? 'true' : 'false');
+    }
     if (turnTimerSetting !== profile.turn_timer_setting) updates.turn_timer_setting = turnTimerSetting;
     if (Object.keys(updates).length > 0) {
       updateProfileSettings(userId, updates);
       setProfile(prev => prev ? { ...prev, ...updates } : null);
     }
-  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, turnTimerSetting, session, authChecked, profile, isGuest]);
+  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, autoPassEnabled, turnTimerSetting, session, authChecked, profile, isGuest]);
 
   const handleSignOut = async () => {
     localStorage.removeItem(SESSION_KEY);
@@ -1098,6 +1195,35 @@ const App: React.FC = () => {
 
   const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); setGameMode(null); setView('WELCOME'); setMpGameState(null); setSpGameState(null); localStorage.removeItem(SESSION_KEY); setGameSettingsOpen(false); };
 
+  // Handle guest account linking with migration flag
+  const handleLinkAccount = async () => {
+    try {
+      // Set migration flag in localStorage so auth listener knows to migrate
+      localStorage.setItem('thirteen_is_migrating', 'true');
+      
+      // Trigger Google OAuth
+      const { error } = await supabase.auth.signInWithOAuth({ 
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          flowType: 'implicit',
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'offline'
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('OAuth error:', error);
+        localStorage.removeItem('thirteen_is_migrating');
+      }
+    } catch (err: any) {
+      console.error('Failed to initiate OAuth:', err);
+      localStorage.removeItem('thirteen_is_migrating');
+    }
+  };
+
   console.log('App: Step 26 - Rendering decision:', { authChecked, isGuest, hasSession: !!session, hasProfile: !!profile });
   
   // Force render fallback: If session exists but authChecked is false, force it to true
@@ -1155,14 +1281,16 @@ const App: React.FC = () => {
           backgroundTheme={backgroundTheme} setBackgroundTheme={setBackgroundTheme} isGuest={isGuest}
           sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled}
           playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled}
+          autoPassEnabled={autoPassEnabled} setAutoPassEnabled={setAutoPassEnabled}
           onOpenGemPacks={handleOpenGemPacks}
           onOpenFriends={handleOpenFriends}
+          onLinkAccount={handleLinkAccount}
         />
       )}
-      {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPersistentId} turnTimerSetting={turnTimerSetting} />}
+      {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPersistentId} turnTimerSetting={turnTimerSetting} selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} />}
       {view === 'GAME_TABLE' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
-          <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPersistentId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} onOpenSettings={() => setGameSettingsOpen(true)} socialFilter={socialFilter} sessionMuted={sessionMuted} setSessionMuted={setSessionMuted} />
+          <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPersistentId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} autoPassEnabled={autoPassEnabled} onOpenSettings={() => setGameSettingsOpen(true)} socialFilter={socialFilter} sessionMuted={sessionMuted} setSessionMuted={setSessionMuted} />
         </Suspense>
       )}
       {view === 'VICTORY' && (
@@ -1173,7 +1301,7 @@ const App: React.FC = () => {
       {view === 'TUTORIAL' && <TutorialMode onExit={() => setView('WELCOME')} />}
       {hubState.open && (
         <Suspense fallback={<div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"><div className="text-yellow-400 text-lg">Loading profile...</div></div>}>
-          <UserHub profile={profile} onClose={() => setHubState({ ...hubState, open: false })} playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} onSignOut={handleSignOut} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} initialTab={hubState.tab} />
+          <UserHub profile={profile} onClose={() => setHubState({ ...hubState, open: false })} playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} onSignOut={handleSignOut} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} onLinkAccount={handleLinkAccount} initialTab={hubState.tab} />
         </Suspense>
       )}
       {inventoryOpen && profile && (
@@ -1181,7 +1309,7 @@ const App: React.FC = () => {
           <InventoryModal profile={profile} onClose={() => setInventoryOpen(false)} onRefreshProfile={handleRefreshProfile} />
         </Suspense>
       )}
-      {gameSettingsOpen && <GameSettings onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled} playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled} unlockedSleeves={profile?.unlocked_sleeves || []} unlockedBoards={profile?.unlocked_boards || []} socialFilter={socialFilter} setSocialFilter={setSocialFilter} />}
+      {gameSettingsOpen && <GameSettings onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled} playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled} autoPassEnabled={autoPassEnabled} setAutoPassEnabled={setAutoPassEnabled} unlockedSleeves={profile?.unlocked_sleeves || []} unlockedBoards={profile?.unlocked_boards || []} socialFilter={socialFilter} setSocialFilter={setSocialFilter} />}
       {storeOpen && (
         <Suspense fallback={<div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"><div className="text-yellow-400 text-lg">Loading store...</div></div>}>
           <Store onClose={() => setStoreOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} onEquipSleeve={setCardCoverStyle} currentSleeve={cardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar} currentTheme={backgroundTheme} onEquipBoard={setBackgroundTheme} isGuest={isGuest} initialTab={storeTab} onOpenGemPacks={handleOpenGemPacks} />
@@ -1202,8 +1330,45 @@ const App: React.FC = () => {
           }} 
         />
       )}
+      {migrationToast.show && (
+        <Toast
+          message={migrationToast.message}
+          type={migrationToast.type}
+          onClose={() => {
+            setMigrationToast({ show: false, message: '', type: 'success' });
+          }}
+        />
+      )}
+      {migrationSuccessData?.show && (
+        <AccountMigrationSuccessModal
+          migratedGems={migrationSuccessData.migratedGems}
+          bonusGems={migrationSuccessData.bonusGems}
+          migratedXp={migrationSuccessData.migratedXp}
+          migratedCoins={migrationSuccessData.migratedCoins}
+          newGemBalance={migrationSuccessData.newGemBalance}
+          onClose={() => {
+            setMigrationSuccessData(null);
+            // Refresh profile after closing modal
+            if (profile?.id) {
+              handleRefreshProfile();
+            }
+          }}
+        />
+      )}
     </div>
   );
+};
+
+const App: React.FC = () => {
+  const location = useLocation();
+  
+  // If we're on a legal route, render LegalView directly
+  if (location.pathname === '/terms' || location.pathname === '/privacy') {
+    return <LegalView />;
+  }
+  
+  // Otherwise, render the main app
+  return <AppContent />;
 };
 
 export default App;

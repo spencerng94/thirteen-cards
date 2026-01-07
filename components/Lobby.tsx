@@ -24,6 +24,7 @@ interface LobbyProps {
   onSignOut: () => void;
   myId?: string; // Persistent UUID
   turnTimerSetting: number;
+  selected_sleeve_id?: string; // Card sleeve ID for this player
 }
 
 const MAX_PLAYERS = 4;
@@ -98,6 +99,7 @@ export const Lobby: React.FC<LobbyProps> = ({
   error, 
   playerAvatar, 
   initialRoomCode,
+  selected_sleeve_id,
   backgroundTheme,
   onBack,
   onSignOut,
@@ -193,7 +195,8 @@ export const Lobby: React.FC<LobbyProps> = ({
       playerId: myId,
       isPublic,
       roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
-      turnTimer: localTurnTimer
+      turnTimer: localTurnTimer,
+      selected_sleeve_id: selected_sleeve_id
     });
   };
 
@@ -204,7 +207,8 @@ export const Lobby: React.FC<LobbyProps> = ({
       roomId: targetCode, 
       name: playerName, 
       avatar: playerAvatar, 
-      playerId: myId 
+      playerId: myId,
+      selected_sleeve_id: selected_sleeve_id
     });
   };
 

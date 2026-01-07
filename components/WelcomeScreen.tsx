@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
 import { AiDifficulty, UserProfile, BackgroundTheme, Emote, Rank, Suit, HubTab } from '../types';
@@ -14,6 +15,7 @@ import { VisualEmote } from './VisualEmote';
 import { EventsModal } from './EventsModal';
 import { ITEM_REGISTRY } from '../constants/ItemRegistry';
 import { CopyUsername } from './CopyUsername';
+import { GuestBanner } from './GuestBanner';
 
 export type WelcomeTab = 'PROFILE' | 'CUSTOMIZE' | 'SETTINGS';
 
@@ -45,6 +47,9 @@ interface WelcomeScreenProps {
   setSleeveEffectsEnabled: (v: boolean) => void;
   playAnimationsEnabled: boolean;
   setPlayAnimationsEnabled: (v: boolean) => void;
+  autoPassEnabled?: boolean;
+  setAutoPassEnabled?: (v: boolean) => void;
+  onLinkAccount?: () => void;
 }
 
 const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -330,8 +335,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   quickFinish, setQuickFinish, soundEnabled, setSoundEnabled,
   backgroundTheme, setBackgroundTheme, isGuest,
   sleeveEffectsEnabled, setSleeveEffectsEnabled,
-  playAnimationsEnabled, setPlayAnimationsEnabled
+  playAnimationsEnabled, setPlayAnimationsEnabled,
+  autoPassEnabled = false, setAutoPassEnabled,
+  onLinkAccount
 }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<WelcomeTab>('PROFILE');
   const [customizeSubTab, setCustomizeSubTab] = useState<'SLEEVES' | 'BOARDS' | 'FINISHERS'>('SLEEVES');
   const [hideUnowned, setHideUnowned] = useState(false);
@@ -855,6 +863,70 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </button>
         </div>
         
+        <div className="relative flex items-center justify-between bg-gradient-to-br from-white/5 via-white/[0.02] to-white/5 backdrop-blur-xl p-5 rounded-2xl border border-white/20 hover:border-white/30 transition-all duration-300 group overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="relative z-10 flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-white uppercase tracking-wider">Sleeve Face Effects</span>
+            <span className="text-[8px] font-medium text-white/40 uppercase tracking-tight">Visual flair and glows on active card faces</span>
+          </div>
+          <button 
+            onClick={() => setSleeveEffectsEnabled(!sleeveEffectsEnabled)} 
+            className={`relative z-10 w-14 h-7 rounded-full transition-all duration-300 ${
+              sleeveEffectsEnabled 
+                ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 shadow-[0_0_20px_rgba(234,179,8,0.5)]' 
+                : 'bg-white/10 hover:bg-white/15'
+            }`}
+          >
+            <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full transition-transform duration-300 shadow-lg ${
+              sleeveEffectsEnabled ? 'translate-x-7' : 'translate-x-0.5'
+            }`} />
+          </button>
+        </div>
+        
+        {setAutoPassEnabled && (
+          <div className="relative flex items-center justify-between bg-gradient-to-br from-white/5 via-white/[0.02] to-white/5 backdrop-blur-xl p-5 rounded-2xl border border-white/20 hover:border-white/30 transition-all duration-300 group overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-rose-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative z-10 flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-white uppercase tracking-wider">Auto-Pass</span>
+              <span className="text-[8px] font-medium text-white/40 uppercase tracking-tight">Automatically pass when no moves are possible</span>
+            </div>
+            <button 
+              onClick={() => setAutoPassEnabled(!autoPassEnabled)} 
+              className={`relative z-10 w-14 h-7 rounded-full transition-all duration-300 ${
+                autoPassEnabled 
+                  ? 'bg-gradient-to-r from-rose-500 to-rose-600 shadow-[0_0_20px_rgba(244,63,94,0.5)]' 
+                  : 'bg-white/10 hover:bg-white/15'
+              }`}
+            >
+              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full transition-transform duration-300 shadow-lg ${
+                autoPassEnabled ? 'translate-x-7' : 'translate-x-0.5'
+              }`} />
+            </button>
+          </div>
+        )}
+        
+        {setQuickFinish && (
+          <div className="relative flex items-center justify-between bg-gradient-to-br from-white/5 via-white/[0.02] to-white/5 backdrop-blur-xl p-5 rounded-2xl border border-white/20 hover:border-white/30 transition-all duration-300 group overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative z-10 flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-white uppercase tracking-wider">Turbo Finish</span>
+              <span className="text-[8px] font-medium text-white/40 uppercase tracking-tight">End AI matches instantly upon your victory</span>
+            </div>
+            <button 
+              onClick={() => setQuickFinish(!quickFinish)} 
+              className={`relative z-10 w-14 h-7 rounded-full transition-all duration-300 ${
+                quickFinish 
+                  ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 shadow-[0_0_20px_rgba(234,179,8,0.5)]' 
+                  : 'bg-white/10 hover:bg-white/15'
+              }`}
+            >
+              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full transition-transform duration-300 shadow-lg ${
+                quickFinish ? 'translate-x-7' : 'translate-x-0.5'
+              }`} />
+            </button>
+          </div>
+        )}
+        
         {/* Premium AI Difficulty Selector */}
         <div className="space-y-3">
           <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider text-center">AI Difficulty</p>
@@ -887,7 +959,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <SectionLabel>Legal</SectionLabel>
           <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={() => window.open('https://gist.github.com/spencerng94/35f0e5503071f7a85ecf84a01a059f58', '_blank', 'noopener,noreferrer')}
+              onClick={() => navigate('/privacy')}
               className="relative flex items-center justify-center bg-gradient-to-br from-white/5 via-white/[0.02] to-white/5 backdrop-blur-xl p-3 rounded-xl border border-white/20 hover:border-white/30 transition-all duration-300 group overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -899,7 +971,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </div>
             </button>
             <button
-              onClick={() => window.open('https://gist.github.com/spencerng94/7f797f735d94fe7ae5272574392e35ae', '_blank', 'noopener,noreferrer')}
+              onClick={() => navigate('/terms')}
               className="relative flex items-center justify-center bg-gradient-to-br from-white/5 via-white/[0.02] to-white/5 backdrop-blur-xl p-3 rounded-xl border border-white/20 hover:border-white/30 transition-all duration-300 group overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -1136,6 +1208,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <UserBar profile={profile} isGuest={isGuest} avatar={playerAvatar} remoteEmotes={remoteEmotes} onClick={(tab) => onOpenHub(tab)} onOpenStore={onOpenStore} onOpenGemPacks={onOpenGemPacks} className="pointer-events-auto" />
       </div>
       <div className="max-w-3xl w-full z-10 flex flex-col items-center gap-6 mt-10 md:mt-0">
+        {/* Guest Banner - Only show if guest */}
+        {isGuest && profile && onLinkAccount && (
+          <div className="w-full animate-in fade-in slide-in-from-top-4 duration-500">
+            <GuestBanner profile={profile} onLinkAccount={onLinkAccount} />
+          </div>
+        )}
+        
         {/* Premium Logo Section */}
         <div className="animate-in fade-in duration-700 mb-2 flex flex-col items-center gap-4">
           <div className="relative">

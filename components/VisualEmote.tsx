@@ -164,21 +164,51 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
       );
     }
     // Only show emoji fallback if we don't have emote data at all
+    // Always use hardcoded fallback, never database fallback (which might be apple emoji)
+    const safeFallback = EMOJI_FALLBACK[trigger] || '👤';
     return (
       <div className={`${className} ${dimClass} flex items-center justify-center overflow-hidden aspect-square bg-white/5 rounded-full border border-white/10`}>
         <span className={`${textClass} leading-none select-none flex items-center justify-center`}>
-          {EMOJI_FALLBACK[trigger] || '👤'}
+          {safeFallback}
         </span>
       </div>
     );
   }
 
+  // Get the proper fallback emoji - prefer hardcoded fallback over database fallback
+  const getFallbackEmoji = () => {
+    // First check hardcoded fallbacks (these are reliable and never Apple emojis)
+    if (EMOJI_FALLBACK[trigger]) {
+      return EMOJI_FALLBACK[trigger];
+    }
+    // Only use database fallback if it's safe (not an apple emoji)
+    const dbFallback = emoteData?.fallback_emoji?.trim();
+    if (dbFallback) {
+      // Check for Apple emoji characters - be very strict
+      // Apple emoji (🍎) is U+1F34E, but we should check for any suspicious single-character emojis
+      // that might be Apple-specific renderings
+      const hasAppleEmoji = dbFallback.includes('🍎') || 
+                           dbFallback.includes('🍏') ||
+                           // If it's a single emoji character and not in our safe list, be cautious
+                           (dbFallback.length <= 2 && !EMOJI_FALLBACK[trigger]);
+      
+      if (!hasAppleEmoji) {
+        return dbFallback;
+      }
+      // If database fallback is Apple emoji, log it and use default
+      console.warn(`⚠️ VisualEmote: Database fallback_emoji for "${trigger}" contains Apple emoji, using safe fallback instead`);
+    }
+    // Default fallback - never use Apple emojis
+    return '👤';
+  };
+
   return (
     <div className={`${className} ${dimClass} flex items-center justify-center relative overflow-hidden rounded-full p-0 bg-transparent aspect-square`}>
-      {!imageLoaded && (
+      {!imageLoaded && !imageError && url && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/5 rounded-full border border-white/10">
           <span className={`${textClass} leading-none select-none opacity-50`}>
-            {EMOJI_FALLBACK[trigger] || emoteData?.fallback_emoji || '👤'}
+            {/* During loading, only use hardcoded safe fallbacks, never database fallback */}
+            {EMOJI_FALLBACK[trigger] || '👤'}
           </span>
         </div>
       )}

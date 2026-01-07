@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme, Emote, Card as CardType, Rank, Suit } from '../types';
-import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, buyFinisherPack, buyPack, equipFinisher, Finisher, processAdReward, fetchChatPresets, ChatPreset, purchasePhrase, incrementGems, processGemTransaction } from '../services/supabase';
+import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, buyFinisherPack, buyPack, equipFinisher, Finisher, processAdReward, fetchChatPresets, ChatPreset, purchasePhrase, incrementGems, processGemTransaction, claimAdRewardGems, fetchWeeklyRewardStatus } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
@@ -796,8 +796,11 @@ const FreeGemsCard: React.FC<{
   const [showToast, setShowToast] = useState(false);
   const [showWarningToast, setShowWarningToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [rewardAmount, setRewardAmount] = useState(50);
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [rewardAmount, setRewardAmount] = useState(20);
+  const [rewardType, setRewardType] = useState<'gems' | 'coins'>('gems');
   const [buttonPulse, setButtonPulse] = useState(false);
+  const [previousWeeklyGems, setPreviousWeeklyGems] = useState<number>(0);
   const placement: AdPlacement = 'shop';
 
   useEffect(() => {
@@ -805,20 +808,32 @@ const FreeGemsCard: React.FC<{
     return unsubscribe;
   }, [placement]);
 
-  // Update weekly progress from profile
+  // Fetch weekly reward status from reward_tracking table
   useEffect(() => {
-    if (profile) {
-      setWeeklyGems(profile.ad_weekly_gems || 0);
-      // Calculate reset timestamp (7 days from first claim, or default to 7 days from now)
-      if (profile.first_ad_claim_week) {
-        const firstClaim = new Date(profile.first_ad_claim_week).getTime();
-        const resetTime = firstClaim + (7 * 24 * 60 * 60 * 1000);
-        setResetTimestamp(new Date(resetTime).toISOString());
-      } else {
-        // Default: 7 days from now
-        const defaultReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-        setResetTimestamp(defaultReset);
-      }
+    if (profile && profile.id && profile.id !== 'guest') {
+      fetchWeeklyRewardStatus(profile.id).then((status) => {
+        if (status) {
+          setWeeklyGems(status.weeklyGemTotal);
+          setPreviousWeeklyGems(status.weeklyGemTotal);
+          
+          // Calculate reset timestamp (next Sunday at midnight UTC)
+          if (status.lastResetDate) {
+            const lastReset = new Date(status.lastResetDate);
+            const nextSunday = new Date(lastReset);
+            nextSunday.setDate(nextSunday.getDate() + 7);
+            setResetTimestamp(nextSunday.toISOString());
+          } else {
+            // Calculate next Sunday at midnight UTC
+            const now = new Date();
+            const dayOfWeek = now.getUTCDay();
+            const daysUntilSunday = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
+            const nextSunday = new Date(now);
+            nextSunday.setUTCDate(now.getUTCDate() + daysUntilSunday);
+            nextSunday.setUTCHours(0, 0, 0, 0);
+            setResetTimestamp(nextSunday.toISOString());
+          }
+        }
+      });
     }
   }, [profile]);
 
@@ -870,55 +885,88 @@ const FreeGemsCard: React.FC<{
   }, [weeklyGems]);
 
   const isLimitReached = weeklyGems >= 500;
-  const isAvailable = adService.isAdAvailable(placement) && !isLimitReached;
+  const isAvailable = adService.isAdAvailable(placement);
   const isAdLoaded = adService.isLoaded();
   const cooldownString = adService.getCooldownString(placement);
   const progressPercent = Math.min((weeklyGems / 500) * 100, 100);
 
   const handleWatchAd = async () => {
-    if (!isAvailable || adState !== 'idle' || !profile || isLimitReached || !isAdLoaded) return;
+    if (!isAvailable || adState !== 'idle' || !profile || !isAdLoaded) return;
 
     try {
-      // Simulate 30-second ad delay
-      setAdState('playing');
-      
-      // Wait for 30 seconds (simulated ad)
-      await new Promise(resolve => setTimeout(resolve, 30000));
-      
-      // After ad completes, process gem transaction with ad_reward source
-      const result = await processGemTransaction(profile.id, 25, 'ad_reward');
-      
-      if (result.success && result.newGemBalance !== undefined) {
-        // Play success sound
-        audioService.playPurchase();
+      await adService.showRewardedAd(placement, async (amount) => {
+        // Call secure RPC function that uses auth.uid() server-side
+        const result = await claimAdRewardGems();
         
-        // Show success modal
-        setRewardAmount(25);
-        setShowSuccessModal(true);
-        
-        // Refresh profile to get updated gem count
-        onRefresh();
-        
-        
-        // Set state to rewarded
-        setAdState('rewarded');
-        
-        // Reset to idle after a moment
-        setTimeout(() => {
-          setAdState('idle');
-        }, 2000);
-      } else {
-        // Show error toast
-        setToastMessage(result.error || 'Failed to process reward');
-        setShowToast(true);
-        setAdState('error');
-        setTimeout(() => {
-          setAdState('idle');
-        }, 1000);
-      }
+        if (result.success) {
+          // Play success sound
+          audioService.playPurchase();
+          
+          // Update weekly gem total
+          if (result.weeklyGems !== undefined) {
+            const wasUnderCap = previousWeeklyGems < 500;
+            const nowAtCap = result.weeklyGems >= 500;
+            
+            setWeeklyGems(result.weeklyGems);
+            setPreviousWeeklyGems(result.weeklyGems);
+            
+            // Show cap transition toast if user just hit the cap
+            if (wasUnderCap && nowAtCap && result.hitCap) {
+              setToastMessage('Gem Limit Reached - Earning Gold Now!');
+              setToastType('success');
+              setShowToast(true);
+            }
+          }
+          
+          // Handle reward display based on type
+          if (result.rewardType === 'gems' && result.newGemBalance !== undefined) {
+            setRewardAmount(result.rewardAmount || 20);
+            setRewardType('gems');
+            setShowSuccessModal(true);
+            onGemRain();
+          } else if (result.rewardType === 'coins' && result.newCoinBalance !== undefined) {
+            setRewardAmount(result.rewardAmount || 50);
+            setRewardType('coins');
+            setToastMessage(`Gold secured! +${result.rewardAmount || 50} Coins`);
+            setToastType('success');
+            setShowToast(true);
+          }
+          
+          // Refresh profile to get updated balances
+          onRefresh();
+          
+          // Set state to rewarded
+          setAdState('rewarded');
+          
+          // Reset to idle after a moment
+          setTimeout(() => {
+            setAdState('idle');
+          }, 2000);
+        } else {
+          // Handle cooldown or other errors
+          if (result.error === 'Cooldown active' && result.cooldownRemaining) {
+            setToastMessage(`Please wait ${result.cooldownRemaining}s before claiming again`);
+          } else {
+            setToastMessage(result.error || 'Failed to process reward');
+          }
+          setToastType('error');
+          setShowToast(true);
+          setAdState('error');
+          setTimeout(() => {
+            setAdState('idle');
+          }, 1000);
+        }
+      }, () => {
+        // Early close callback - user closed ad early
+        setToastMessage('Watch the full video to claim your reward!');
+        setToastType('error');
+        setShowWarningToast(true);
+        setAdState('idle');
+      });
     } catch (error: any) {
       console.error('Ad error:', error);
       setToastMessage('Failed to process ad reward. Please try again.');
+      setToastType('error');
       setShowToast(true);
       setAdState('error');
       setTimeout(() => {
@@ -947,34 +995,40 @@ const FreeGemsCard: React.FC<{
                 <h3 className="text-base sm:text-lg font-bold text-white mb-1">Free Gems Allowance</h3>
                 <p className="text-xs sm:text-sm text-white/70">
                   {!isAdLoaded ? 'Loading ad...' : 
-                   isLimitReached ? 'Weekly limit reached' : 
-                   'Watch a video to earn 25 Gems'}
+                   isLimitReached ? 'Weekly gem limit reached - earning Gold now!' : 
+                   'Watch a video to earn rewards'}
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleWatchAd}
-              disabled={!isAvailable || adState !== 'idle' || isLimitReached || !isAdLoaded}
-              className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base transition-all duration-300 min-h-[48px] touch-manipulation ${
-                !isAvailable || adState !== 'idle' || isLimitReached || !isAdLoaded
-                  ? 'bg-white/10 border border-white/20 text-white/50 cursor-not-allowed'
-                  : `bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg hover:scale-105 hover:shadow-xl ${
-                      buttonPulse ? 'animate-pulse' : ''
-                    }`
-              }`}
-            >
-              {!isAdLoaded ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Loading...
+            <div className="flex flex-col items-end gap-1.5">
+              <button
+                onClick={handleWatchAd}
+                disabled={!isAvailable || adState !== 'idle' || !isAdLoaded}
+                className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base transition-all duration-300 min-h-[48px] touch-manipulation ${
+                  !isAvailable || adState !== 'idle' || !isAdLoaded
+                    ? 'bg-white/10 border border-white/20 text-white/50 cursor-not-allowed'
+                    : `bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg hover:scale-105 hover:shadow-xl ${
+                        buttonPulse ? 'animate-pulse' : ''
+                      }`
+                }`}
+              >
+                {!isAdLoaded ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Loading...
+                  </span>
+                ) : adState === 'loading' ? 'Loading...' : 
+                   adState === 'playing' ? 'Watching Ad...' : 
+                   adState === 'rewarded' ? 'Rewarded!' :
+                   !isAvailable ? cooldownString : 
+                   isLimitReached ? 'Watch for 50 Coins' : 'Watch for 20 Gems'}
+              </button>
+              {isAvailable && adState === 'idle' && (
+                <span className="text-[10px] sm:text-xs text-white/60 font-medium">
+                  Weekly Gem Limit: {weeklyGems}/500
                 </span>
-              ) : adState === 'loading' ? 'Loading...' : 
-                 adState === 'playing' ? 'Watching Ad...' : 
-                 adState === 'rewarded' ? 'Rewarded!' :
-                 isLimitReached ? 'Limit Reached' :
-                 !isAvailable ? cooldownString : 
-                 '+25 Gems'}
-            </button>
+              )}
+            </div>
           </div>
 
           {/* Progress Bar */}
@@ -1006,7 +1060,7 @@ const FreeGemsCard: React.FC<{
       </div>
 
       {/* Success Modal */}
-      {showSuccessModal && (
+      {showSuccessModal && rewardType === 'gems' && (
         <AdRewardSuccessModal
           gemAmount={rewardAmount}
           onClose={() => setShowSuccessModal(false)}
@@ -1019,7 +1073,7 @@ const FreeGemsCard: React.FC<{
         <Toast
           message={toastMessage}
           onClose={() => setShowToast(false)}
-          type="error"
+          type={toastType}
         />
       )}
 

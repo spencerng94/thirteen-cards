@@ -33,6 +33,7 @@ interface Player {
   reconnectionTimeout?: any;
   isAfk?: boolean;
   consecutiveTimeouts?: number;
+  selected_sleeve_id?: string; // Card sleeve ID for this player
 }
 
 interface PlayTurn {
@@ -343,7 +344,8 @@ const getGameStateData = (room: GameRoom) => ({
     difficulty: p.difficulty,
     isOffline: p.isOffline,
     isAfk: p.isAfk || false,
-    mutedByAfk: room.playerMutedByAfk ? room.playerMutedByAfk.has(p.id) : false
+    mutedByAfk: room.playerMutedByAfk ? room.playerMutedByAfk.has(p.id) : false,
+    selected_sleeve_id: p.selected_sleeve_id
   })),
   currentPlayerId: room.status === 'PLAYING' ? room.players[room.currentPlayerIndex]?.id : null,
   currentPlayPile: room.currentPlayPile,
@@ -780,7 +782,7 @@ const mapIdentity = (socket: Socket, roomId: string, playerId: string) => {
 io.on('connection', (socket: Socket) => {
   socket.emit('public_rooms_list', getPublicRoomsList());
 
-  socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName, turnTimer }) => {
+  socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName, turnTimer, selected_sleeve_id }) => {
     // SECURITY: Sanitize and validate input
     const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
     const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
@@ -788,6 +790,8 @@ io.on('connection', (socket: Socket) => {
     // Allow users to select timer for both public and private rooms (default to 30s)
     // Valid options: 0 (no timer), 15, 30, or 60 seconds
     const validTurnTimer = typeof turnTimer === 'number' && [0, 15, 30, 60].includes(turnTimer) ? turnTimer : 30;
+    // Validate and sanitize sleeve_id
+    const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
     const roomId = generateRoomCode();
     const pId = playerId || uuidv4();
@@ -796,7 +800,7 @@ io.on('connection', (socket: Socket) => {
       isPublic: isPublic === true,
       roomName: sanitizedRoomName,
       turnDuration: validTurnTimer * 1000,
-      players: [{ id: pId, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }],
+      players: [{ id: pId, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null, selected_sleeve_id: sanitizedSleeveId }],
       playerSpeedData: {},
       playerMutedByAfk: new Set(),
       quickMoveRewardGiven: new Set()
@@ -808,7 +812,7 @@ io.on('connection', (socket: Socket) => {
     broadcastPublicLobbies();
   });
 
-  socket.on('join_room', ({ roomId, name, avatar, playerId }) => {
+  socket.on('join_room', ({ roomId, name, avatar, playerId, selected_sleeve_id }) => {
     // SECURITY: Validate roomId format (should be 4 alphanumeric characters)
     if (!roomId || typeof roomId !== 'string' || roomId.length !== 4 || !/^[A-Z0-9]{4}$/i.test(roomId)) {
       socket.emit('error', 'Invalid room code.');
@@ -824,6 +828,8 @@ io.on('connection', (socket: Socket) => {
     // SECURITY: Sanitize input
     const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
     const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
+    // Validate and sanitize sleeve_id
+    const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
     const pid = playerId || uuidv4();
     const existingPlayerIndex = room.players.findIndex(p => p.id === pid);
@@ -832,8 +838,12 @@ io.on('connection', (socket: Socket) => {
        player.socketId = socket.id;
        player.isOffline = false;
        if (player.reconnectionTimeout) clearTimeout(player.reconnectionTimeout);
+       // Update sleeve_id on reconnection
+       if (sanitizedSleeveId !== undefined) {
+         player.selected_sleeve_id = sanitizedSleeveId;
+       }
     } else {
-       room.players.push({ id: pid, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
+       room.players.push({ id: pid, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null, selected_sleeve_id: sanitizedSleeveId });
     }
     mapIdentity(socket, roomId, pid);
     socket.join(roomId);

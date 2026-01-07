@@ -109,10 +109,10 @@ const BoosterTimer: React.FC<{ expiration: number, type: string }> = ({ expirati
   const seconds = Math.floor((timeLeft % 60000) / 1000);
 
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/20 via-emerald-600/15 to-emerald-700/20 backdrop-blur-sm border border-emerald-400/30 px-4 py-2 rounded-full flex items-center gap-2.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] group">
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-      <div className="relative w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse"></div>
-      <span className="relative text-[10px] font-bold text-white/90 uppercase tracking-wide font-mono drop-shadow-md">
+    <div className="relative overflow-hidden bg-gradient-to-br from-yellow-600/30 via-yellow-500/25 to-yellow-600/30 backdrop-blur-sm border-2 border-yellow-400/40 px-5 py-2.5 rounded-full flex items-center gap-3 shadow-[0_0_25px_rgba(234,179,8,0.4)] group">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+      <div className="relative w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-[0_0_12px_rgba(234,179,8,0.9)] animate-pulse"></div>
+      <span className="relative text-xs font-black text-black uppercase tracking-wide font-mono drop-shadow-md">
         {isGameBased 
           ? `${type}: ${gamesRemaining} game${gamesRemaining !== 1 ? 's' : ''}`
           : `${type}: ${minutes}:${seconds.toString().padStart(2, '0')}`
@@ -152,37 +152,54 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({ profile, onRefresh
   };
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      {/* Active Boosters - Premium Display */}
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      {/* Section Header */}
+      <div className="mb-4">
+        <h2 className="text-lg sm:text-xl font-black text-white uppercase tracking-wider">Inventory</h2>
+      </div>
+
+      {/* Active Boosters - Premium Display with Gold Theme */}
       {activeBoosters.length > 0 && (
-        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-950/30 via-emerald-900/20 to-emerald-950/30 backdrop-blur-md border border-emerald-500/20 rounded-3xl p-5 shadow-[0_0_40px_rgba(16,185,129,0.15)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_70%)]"></div>
-          <div className="relative flex flex-wrap gap-3">
-            <div className="flex items-center gap-2 mb-2 w-full">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></div>
-              <span className="text-[11px] font-bold text-emerald-300/90 uppercase tracking-wider">Active Boosters</span>
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-900/20 via-yellow-800/10 to-yellow-900/20 rounded-3xl blur-2xl"></div>
+          
+          <div className="relative bg-gradient-to-br from-yellow-950/40 via-yellow-900/30 to-yellow-950/40 backdrop-blur-xl border-2 border-yellow-500/30 rounded-3xl p-6 sm:p-8 overflow-hidden shadow-[0_0_60px_rgba(234,179,8,0.2)]">
+            {/* Decorative glow */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-yellow-500/20 to-transparent rounded-full blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-yellow-600/20 to-transparent rounded-full blur-2xl"></div>
+            
+            <div className="relative flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)] animate-pulse"></div>
+                <h3 className="text-base sm:text-lg font-black text-yellow-300 uppercase tracking-wider">
+                  Active Boosters
+                </h3>
+              </div>
+              
+              <div className="flex flex-wrap gap-3">
+                {activeBoosters.map(([type, exp]) => (
+                  <BoosterTimer key={type} type={type} expiration={exp} />
+                ))}
+              </div>
             </div>
-            {activeBoosters.map(([type, exp]) => (
-              <BoosterTimer key={type} type={type} expiration={exp} />
-            ))}
           </div>
         </div>
       )}
 
-      {/* Empty State - Premium */}
+      {/* Empty State - Premium Dark Theme */}
       {items.length === 0 ? (
-        <div className="relative flex flex-col items-center justify-center py-16 sm:py-20 opacity-30 select-none border-2 border-dashed border-white/10 rounded-3xl bg-gradient-to-br from-white/[0.02] to-transparent backdrop-blur-sm overflow-hidden group">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.05),transparent_70%)]"></div>
-          <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-3xl border border-white/10 flex items-center justify-center mb-5 bg-gradient-to-br from-white/[0.05] to-transparent backdrop-blur-sm shadow-lg group-hover:scale-110 transition-transform duration-500">
-            <span className="text-3xl sm:text-4xl italic font-serif text-white/40">!</span>
+        <div className="relative flex flex-col items-center justify-center py-20 sm:py-24 opacity-40 select-none border-2 border-dashed border-white/10 rounded-3xl bg-gradient-to-br from-black/40 via-black/30 to-black/40 backdrop-blur-sm overflow-hidden group">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(234,179,8,0.05),transparent_70%)]"></div>
+          <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl border-2 border-white/10 flex items-center justify-center mb-6 bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-sm shadow-lg group-hover:scale-110 group-hover:border-yellow-500/30 transition-all duration-500">
+            <span className="text-4xl sm:text-5xl text-yellow-500/40">📦</span>
           </div>
-          <p className="relative text-[10px] sm:text-[11px] font-semibold text-white/50 text-center max-w-xs leading-relaxed px-6">
+          <p className="relative text-xs sm:text-sm font-semibold text-white/60 text-center max-w-xs leading-relaxed px-6">
             Your inventory is currently empty.<br />
-            Acquire items via Level Rewards or Events.
+            <span className="text-yellow-400/60">Acquire items via Level Rewards or Events.</span>
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           {items.map(([id, qty], idx) => {
             const item = ITEM_REGISTRY[id];
             if (!item) return null;
@@ -193,30 +210,35 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({ profile, onRefresh
             return (
               <div 
                 key={id} 
-                className="group relative overflow-hidden bg-gradient-to-br from-white/[0.03] via-white/[0.02] to-white/[0.01] backdrop-blur-md border border-white/10 rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:border-white/20 hover:bg-white/[0.05] hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:scale-[1.02] active:scale-[0.98]"
+                className="group relative overflow-hidden bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] backdrop-blur-xl border-2 border-white/20 rounded-3xl p-6 sm:p-7 transition-all duration-500 hover:border-yellow-500/40 hover:bg-gradient-to-br hover:from-white/[0.12] hover:via-white/[0.06] hover:to-white/[0.12] hover:shadow-[0_0_40px_rgba(234,179,8,0.2)] hover:scale-[1.02] active:scale-[0.98]"
                 style={{ animationDelay: `${idx * 50}ms` }}
               >
-                {/* Dramatic Background Effects */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.05),transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/[0.02] to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                {/* Premium Background Effects */}
+                <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 via-transparent to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(234,179,8,0.1)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="absolute -inset-10 bg-gradient-to-br from-yellow-500/10 via-transparent to-pink-500/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
 
                 {/* Content */}
                 <div className="relative z-10">
                   {/* Header with Icon and Quantity */}
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-br from-black/40 to-black/60 border border-white/10 flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.5)] group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 group-hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]">
-                      {getItemIcon(id, item.type)}
+                  <div className="flex justify-between items-start mb-5">
+                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-black/60 via-black/50 to-black/60 border-2 border-white/10 flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.6)] group-hover:scale-110 group-hover:rotate-3 group-hover:border-yellow-500/30 transition-all duration-500 group-hover:shadow-[0_12px_40px_rgba(234,179,8,0.3)]">
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent rounded-2xl"></div>
+                      <div className="relative z-10">
+                        {getItemIcon(id, item.type)}
+                      </div>
                     </div>
-                    <div className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 text-black px-3 py-1.5 rounded-full text-[11px] font-black tracking-tight shadow-[0_0_15px_rgba(250,204,21,0.5)] border border-yellow-300/30">
+                    <div className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 text-black px-4 py-2 rounded-full text-xs font-black tracking-tight shadow-[0_0_20px_rgba(234,179,8,0.5)] border-2 border-yellow-300/40">
                       <span className="relative z-10">×{qty}</span>
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-full"></div>
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-full"></div>
                     </div>
                   </div>
 
                   {/* Item Info */}
-                  <div className="space-y-1.5 mb-5">
-                    <h4 className="text-sm sm:text-base font-bold text-white/95 uppercase tracking-wide drop-shadow-md">{item.name}</h4>
-                    <p className="text-[10px] sm:text-[11px] text-white/50 leading-relaxed font-medium">{item.description}</p>
+                  <div className="space-y-2 mb-6">
+                    <h4 className="text-base sm:text-lg font-black text-white uppercase tracking-wide drop-shadow-md">{item.name}</h4>
+                    <p className="text-xs sm:text-sm text-white/60 leading-relaxed font-medium">{item.description}</p>
                   </div>
 
                   {/* Action Button */}
@@ -224,19 +246,24 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({ profile, onRefresh
                     <button
                       onClick={() => handleActivate(id)}
                       disabled={activating === id}
-                      className="relative w-full overflow-hidden py-3.5 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 text-white rounded-2xl text-[11px] font-bold uppercase tracking-wide transition-all duration-300 active:scale-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] hover:shadow-[0_0_35px_rgba(16,185,129,0.6)] disabled:opacity-50 disabled:cursor-not-allowed group/btn"
+                      className="relative w-full overflow-hidden py-4 bg-gradient-to-br from-yellow-600 via-yellow-500 to-yellow-600 hover:from-yellow-500 hover:via-yellow-400 hover:to-yellow-500 text-black rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-[0_0_30px_rgba(234,179,8,0.4)] hover:shadow-[0_0_40px_rgba(234,179,8,0.6)] disabled:opacity-50 disabled:cursor-not-allowed group/btn border-2 border-yellow-400/50"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000"></div>
                       <span className="relative z-10 drop-shadow-md">
-                        {activating === id ? 'Activating...' : 'Activate'}
+                        {activating === id ? 'Activating...' : 'Activate Booster'}
                       </span>
                     </button>
                   )}
 
                   {isVoucher && (
-                    <div className="relative w-full overflow-hidden py-3.5 bg-gradient-to-br from-white/5 via-white/[0.03] to-white/5 border border-white/10 rounded-2xl text-white/40 text-[10px] font-semibold uppercase tracking-wide text-center backdrop-blur-sm">
+                    <div className="relative w-full overflow-hidden py-4 bg-gradient-to-br from-white/5 via-white/[0.03] to-white/5 border-2 border-white/10 rounded-2xl text-white/50 text-xs font-bold uppercase tracking-wide text-center backdrop-blur-sm">
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-                      <span className="relative z-10">Auto-Applied in Store</span>
+                      <span className="relative z-10 flex items-center justify-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Auto-Applied in Store
+                      </span>
                     </div>
                   )}
                 </div>

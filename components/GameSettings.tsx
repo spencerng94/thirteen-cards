@@ -25,6 +25,8 @@ interface GameSettingsProps {
   setSleeveEffectsEnabled: (val: boolean) => void;
   playAnimationsEnabled: boolean;
   setPlayAnimationsEnabled: (val: boolean) => void;
+  autoPassEnabled?: boolean;
+  setAutoPassEnabled?: (val: boolean) => void;
   unlockedSleeves?: string[];
   unlockedBoards?: string[];
   socialFilter?: SocialFilter;
@@ -63,6 +65,8 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   setSleeveEffectsEnabled,
   playAnimationsEnabled,
   setPlayAnimationsEnabled,
+  autoPassEnabled = false,
+  setAutoPassEnabled,
   unlockedSleeves = [],
   unlockedBoards = [],
   socialFilter = 'UNMUTED',
@@ -190,6 +194,34 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                 </div>
               </button>
             </div>
+
+            {setAutoPassEnabled && (
+              <div className="relative flex items-center justify-between bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] backdrop-blur-xl p-5 sm:p-6 rounded-2xl sm:rounded-3xl border-2 border-white/20 hover:border-rose-500/40 hover:shadow-[0_0_30px_rgba(244,63,94,0.2)] transition-all duration-300 group overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="relative z-10 flex flex-col gap-1.5 flex-1">
+                  <span className="text-sm sm:text-base font-bold text-white uppercase tracking-wide">Auto-Pass</span>
+                  <span className="text-xs sm:text-sm font-medium text-white/50 uppercase tracking-tight">Automatically pass when no moves are possible</span>
+                </div>
+                <button 
+                  onClick={() => setAutoPassEnabled(!autoPassEnabled)}
+                  className={`relative z-10 w-14 h-7 sm:w-16 sm:h-8 rounded-full transition-all duration-300 touch-manipulation ${
+                    autoPassEnabled 
+                      ? 'bg-gradient-to-r from-rose-500 to-rose-600 shadow-[0_0_25px_rgba(244,63,94,0.5)]' 
+                      : 'bg-white/10 hover:bg-white/15 border-2 border-white/20'
+                  }`}
+                >
+                  <div className={`absolute top-0.5 sm:top-1 left-0.5 sm:left-1 w-6 h-6 sm:w-6 sm:h-6 bg-white rounded-full transition-transform duration-300 shadow-lg flex items-center justify-center ${
+                    autoPassEnabled ? 'translate-x-7 sm:translate-x-8' : 'translate-x-0'
+                  }`}>
+                    {autoPassEnabled && (
+                      <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </button>
+              </div>
+            )}
 
             {isSinglePlayer && spQuickFinish !== undefined && setSpQuickFinish && (
               <div className="relative flex items-center justify-between bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] backdrop-blur-xl p-5 sm:p-6 rounded-2xl sm:rounded-3xl border-2 border-white/20 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(251,191,36,0.2)] transition-all duration-300 group overflow-hidden">

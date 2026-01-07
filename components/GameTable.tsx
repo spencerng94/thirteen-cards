@@ -64,7 +64,7 @@ const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
   );
 };
 
-const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; turnDuration?: number; sleeveEffectsEnabled?: boolean; className?: string; onPlayerClick?: (player: Player) => void; isCurrentPlayer?: boolean; onCurrentPlayerClick?: () => void; isMuted?: boolean }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, turnDuration, sleeveEffectsEnabled, className = '', onPlayerClick, isCurrentPlayer = false, onCurrentPlayerClick, isMuted = false }) => {
+const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; turnDuration?: number; sleeveEffectsEnabled?: boolean; className?: string; onPlayerClick?: (player: Player) => void; isCurrentPlayer?: boolean; onCurrentPlayerClick?: () => void; isMuted?: boolean; getValidatedSleeve?: (player: Player | undefined) => CardCoverStyle }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, turnDuration, sleeveEffectsEnabled, className = '', onPlayerClick, isCurrentPlayer = false, onCurrentPlayerClick, isMuted = false, getValidatedSleeve }) => {
   const isFinished = !!player.finishedRank;
   const [timeLeft, setTimeLeft] = useState(0);
   const [progress, setProgress] = useState(100);
@@ -223,7 +223,7 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
 
         {!isFinished && position !== 'bottom' && (
             <div className={`relative animate-in slide-in-from-bottom-2 duration-400 shrink-0 transition-transform landscape:scale-[0.7]`}>
-                <Card faceDown coverStyle={coverStyle} activeTurn={isTurn} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" disableEffects={!sleeveEffectsEnabled} />
+                <Card faceDown coverStyle={getValidatedSleeve ? getValidatedSleeve(player) : coverStyle} activeTurn={isTurn} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" disableEffects={!sleeveEffectsEnabled} />
                 <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ring-1 ring-yellow-400/50">
                     {player.cardCount}
                 </div>
@@ -333,13 +333,14 @@ interface GameTableProps {
   onOpenSettings: () => void;
   profile: UserProfile | null;
   playAnimationsEnabled?: boolean;
+  autoPassEnabled?: boolean;
   socialFilter?: SocialFilter;
   sessionMuted?: string[];
   setSessionMuted?: (muted: string[]) => void;
 }
 
 export const GameTable: React.FC<GameTableProps> = ({ 
-  gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true, socialFilter = 'UNMUTED', sessionMuted = [], setSessionMuted
+  gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true, autoPassEnabled = false, socialFilter = 'UNMUTED', sessionMuted = [], setSessionMuted
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showEmotePicker, setShowEmotePicker] = useState(false);
@@ -359,6 +360,8 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [quickMoveRewards, setQuickMoveRewards] = useState<QuickMoveRewardData[]>([]);
   const lastPlayPileLengthRef = useRef<number>(0);
   const lastPlayPlayerIdRef = useRef<string | null>(null);
+  const [showNoMovesPopup, setShowNoMovesPopup] = useState(false);
+  const autoPassTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Track emote usage for statistics
   const trackEmoteUsage = useCallback((emote: string) => {
@@ -381,6 +384,36 @@ export const GameTable: React.FC<GameTableProps> = ({
   
   const lastMove: PlayTurn | null = playPile.length > 0 ? playPile[playPile.length - 1] : null;
   const sleeveEffectsEnabled = profile?.sleeve_effects_enabled !== false;
+
+  // Helper function to get validated sleeve for a player
+  // Validates that the player owns the sleeve in their inventory, defaults to 'RED' if invalid
+  const getValidatedSleeveForPlayer = useCallback((player: Player | undefined): CardCoverStyle => {
+    if (!player || !player.selected_sleeve_id) {
+      return 'RED'; // Default to Standard Red
+    }
+
+    // For the current player, validate against their own profile
+    if (player.id === myId && profile) {
+      const unlockedSleeves = profile.unlocked_sleeves || [];
+      // Check if the sleeve is in unlocked_sleeves (inventory check)
+      if (unlockedSleeves.includes(player.selected_sleeve_id)) {
+        return player.selected_sleeve_id as CardCoverStyle;
+      }
+      // If not owned, fallback to RED
+      return 'RED';
+    }
+
+    // For other players, we trust the server data but still validate format
+    // In a production system, the server would validate ownership, but for now we accept it
+    // and only validate that it's a valid CardCoverStyle
+    const validSleeves: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'WITS_END', 'SOVEREIGN_SPADE', 'SOVEREIGN_CLUB', 'SOVEREIGN_DIAMOND', 'SOVEREIGN_HEART', 'ROYAL_CROSS'];
+    if (validSleeves.includes(player.selected_sleeve_id as CardCoverStyle)) {
+      return player.selected_sleeve_id as CardCoverStyle;
+    }
+
+    // Invalid sleeve ID, default to RED
+    return 'RED';
+  }, [myId, profile]);
 
   useEffect(() => {
     if (!isMyTurn) {
@@ -570,6 +603,41 @@ export const GameTable: React.FC<GameTableProps> = ({
     return !canPlayAnyMove(myHand, playPile, !!gameState.isFirstTurnOfGame); 
   }, [isMyTurn, myHand, playPile, gameState.isFirstTurnOfGame]);
 
+  // Auto-Pass logic: Check at the start of every turn
+  useEffect(() => {
+    // Clear any existing timeout
+    if (autoPassTimeoutRef.current) {
+      clearTimeout(autoPassTimeoutRef.current);
+      autoPassTimeoutRef.current = null;
+    }
+    setShowNoMovesPopup(false);
+
+    // Only auto-pass if:
+    // - It's my turn
+    // - Auto-pass is enabled
+    // - No moves are possible
+    // - Not the leader (can't pass when leading)
+    // - Not finished
+    if (isMyTurn && autoPassEnabled && noMovesPossible && !isLeader && !isFinished) {
+      // Show "No Moves!" popup
+      setShowNoMovesPopup(true);
+      
+      // Auto-pass after 800ms delay
+      autoPassTimeoutRef.current = setTimeout(() => {
+        setShowNoMovesPopup(false);
+        audioService.playPass();
+        onPassTurn();
+      }, 800);
+    }
+
+    return () => {
+      if (autoPassTimeoutRef.current) {
+        clearTimeout(autoPassTimeoutRef.current);
+        autoPassTimeoutRef.current = null;
+      }
+    };
+  }, [isMyTurn, autoPassEnabled, noMovesPossible, isLeader, isFinished, onPassTurn]);
+
   const validationResult = useMemo(() => { 
     if (selectedCardIds.size === 0) return { isValid: false, reason: '' }; 
     const cards = myHand.filter((c) => selectedCardIds.has(c.id)); 
@@ -654,6 +722,12 @@ export const GameTable: React.FC<GameTableProps> = ({
     const cards = myHand.filter((c) => selectedCardIds.has(c.id)); 
     const res = validateMove(cards, playPile, !!gameState.isFirstTurnOfGame, myHand);
     if (res.isValid) { 
+      // Cancel auto-pass if user manually plays
+      if (autoPassTimeoutRef.current) {
+        clearTimeout(autoPassTimeoutRef.current);
+        autoPassTimeoutRef.current = null;
+      }
+      setShowNoMovesPopup(false);
       audioService.playPlay();
       onPlayCards(cards); 
     } 
@@ -663,6 +737,12 @@ export const GameTable: React.FC<GameTableProps> = ({
     if (!isMyTurn) return;
     if (selectedCardIds.size === 0) {
       if (!isLeader) {
+        // Cancel auto-pass if user manually passes
+        if (autoPassTimeoutRef.current) {
+          clearTimeout(autoPassTimeoutRef.current);
+          autoPassTimeoutRef.current = null;
+        }
+        setShowNoMovesPopup(false);
         audioService.playPass();
         onPassTurn();
       }
@@ -739,7 +819,12 @@ export const GameTable: React.FC<GameTableProps> = ({
             </span>
             {showMyTimer && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${isMyWarningPhase ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
         </div>
-        {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
+        {noMovesPossible && selectedCardIds.size === 0 && !showNoMovesPopup && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
+        {showNoMovesPopup && (
+          <div className="bg-rose-600/95 text-white px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(225,29,72,0.5)] animate-pulse border-2 border-rose-400/40 backdrop-blur-md">
+            No Moves!
+          </div>
+        )}
     </div>
   );
 
@@ -956,14 +1041,14 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 flex justify-center">
           <div className={`${isMyTurn ? 'opacity-100 translate-y-0' : (isFinished ? 'opacity-60 scale-90 translate-y-4' : 'opacity-0 translate-y-20')}`}>
             {me && (
-                <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} />
+                <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} getValidatedSleeve={getValidatedSleeveForPlayer} />
             )}
           </div>
       </div>
 
       <div className={`fixed bottom-[180px] left-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex justify-center ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {leftOpponent && (
-              <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} />
+              <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />
           )}
       </div>
 
@@ -977,7 +1062,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       <div className={`fixed bottom-[180px] right-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex justify-center ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {rightOpponent && (
-              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} />
+              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />
           )}
       </div>
 
@@ -1039,15 +1124,15 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
         <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''} ${topOpponent && !topOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
-          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(topOpponent.player.id)} />)}
+          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(topOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
         
         <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isMyTurn ? '-translate-y-32 z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16 z-[60]' : '')} landscape:hidden ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
-          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} />)}
+          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
         
         <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} landscape:hidden ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
-          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} />)}
+          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
       </div>
 
@@ -1059,24 +1144,28 @@ export const GameTable: React.FC<GameTableProps> = ({
               className={`flex flex-col items-center gap-4 scale-90 sm:scale-125 landscape:scale-[0.4] ${arrivalAnimationClass}`}
             >
                <div className="flex -space-x-12">
-                {lastMove.cards.map((c, i: number) => (
-                  <div 
-                    key={c.id} 
-                    style={{ 
-                        transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})`,
-                        animationDelay: playAnimationsEnabled ? `${i * 0.05}s` : '0s'
-                    } as any}
-                    className={`transform-gpu will-change-transform ${playAnimationsEnabled ? "animate-play-bounce" : ""}`}
-                  >
-                    <Card 
-                      card={c} 
-                      coverStyle={lastMove!.playerId === myId ? cardCoverStyle : 'BLUE'} 
-                      className="shadow-2xl ring-1 ring-white/10" 
-                      disableEffects={!sleeveEffectsEnabled}
-                      activeTurn={gameState.currentPlayerId === lastMove!.playerId}
-                    />
-                  </div>
-                ))}
+                {lastMove.cards.map((c, i: number) => {
+                  const movePlayer = gameState.players.find((p) => p.id === lastMove!.playerId);
+                  const playerSleeve = getValidatedSleeveForPlayer(movePlayer);
+                  return (
+                    <div 
+                      key={c.id} 
+                      style={{ 
+                          transform: `rotate(${(i - 1) * 8}deg) translateY(${i % 2 === 0 ? '-15px' : '0px'})`,
+                          animationDelay: playAnimationsEnabled ? `${i * 0.05}s` : '0s'
+                      } as any}
+                      className={`transform-gpu will-change-transform ${playAnimationsEnabled ? "animate-play-bounce" : ""}`}
+                    >
+                      <Card 
+                        card={c} 
+                        coverStyle={playerSleeve} 
+                        className="shadow-2xl ring-1 ring-white/10" 
+                        disableEffects={!sleeveEffectsEnabled}
+                        activeTurn={gameState.currentPlayerId === lastMove!.playerId}
+                      />
+                    </div>
+                  );
+                })}
                </div>
                <div className="mt-3 flex flex-col items-center opacity-0 animate-[fadeInLabel_0.3s_0.2s_forwards] pointer-events-none z-[100] portrait:scale-x-90 landscape:hidden">
                   <span className="text-[12px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] whitespace-nowrap">{gameState.players.find((p) => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE</span>
@@ -1096,7 +1185,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-300 landscape:hidden
                 ${isMyTurn ? '-top-[95px]' : (isFinished ? '-top-[55px]' : 'top-20 opacity-0')}`}>
               {me && (
-                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} />
+                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} getValidatedSleeve={getValidatedSleeveForPlayer} />
               )}
             </div>
 

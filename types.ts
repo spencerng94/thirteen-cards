@@ -40,6 +40,7 @@ export interface Player {
   isOffline?: boolean;
   isAfk?: boolean;
   mutedByAfk?: boolean;
+  selected_sleeve_id?: string; // Card sleeve ID for this player
 }
 
 export enum GameStatus {

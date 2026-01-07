@@ -7,6 +7,7 @@ import { VisualEmote } from './VisualEmote';
 import { LevelRewards } from './LevelRewards';
 import { InventoryGrid } from './InventoryGrid';
 import { CopyUsername } from './CopyUsername';
+import { CurrencyIcon } from './Store';
 
 export interface ThemeConfig {
   id: string;
@@ -3991,11 +3992,12 @@ interface UserHubProps {
   onSignOut: () => void;
   onRefreshProfile: () => void;
   isGuest?: boolean;
+  onLinkAccount?: () => void;
   initialTab?: HubTab;
 }
 
 export const UserHub: React.FC<UserHubProps> = ({ 
-    profile, onClose, playerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, initialTab = 'PROFILE'
+    profile, onClose, playerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, onLinkAccount, initialTab = 'PROFILE'
 }) => {
     const [activeTab, setActiveTab] = useState<HubTab>(initialTab || 'PROFILE');
     const [showLevelRewards, setShowLevelRewards] = useState(false);
@@ -4262,6 +4264,70 @@ export const UserHub: React.FC<UserHubProps> = ({
                                     </div>
                                 </div>
                             </div>
+                            
+                            {/* Save Progress Section - Only for Guests */}
+                            {isGuest && onLinkAccount && (
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-gradient-to-br from-amber-900/20 via-amber-800/10 to-amber-900/20 rounded-3xl blur-2xl"></div>
+                                    
+                                    <div className="relative bg-gradient-to-br from-amber-900/30 via-amber-800/20 to-amber-900/30 backdrop-blur-xl border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 overflow-hidden">
+                                        {/* Decorative glow */}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-500/20 to-transparent rounded-full blur-3xl"></div>
+                                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-amber-600/20 to-transparent rounded-full blur-2xl"></div>
+                                        
+                                        <div className="relative flex flex-col gap-4">
+                                            {/* Header */}
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                                                <h3 className="text-base sm:text-lg font-black text-amber-300 uppercase tracking-wider">
+                                                    Save Progress
+                                                </h3>
+                                            </div>
+                                            
+                                            {/* Description */}
+                                            <p className="text-xs sm:text-sm text-amber-200/80 leading-relaxed">
+                                                Your progress is saved locally. Link your account to sync across devices and never lose your progress.
+                                            </p>
+                                            
+                                            {/* Stats Grid */}
+                                            <div className="grid grid-cols-3 gap-3 mt-2">
+                                                {profile && (profile.gems || 0) > 0 && (
+                                                    <div className="flex flex-col items-center gap-1.5 p-3 bg-black/20 rounded-xl border border-amber-500/20">
+                                                        <CurrencyIcon type="GEMS" size="sm" />
+                                                        <span className="text-xs font-bold text-amber-200">{profile.gems || 0}</span>
+                                                    </div>
+                                                )}
+                                                {profile && (profile.xp || 0) > 0 && (
+                                                    <div className="flex flex-col items-center gap-1.5 p-3 bg-black/20 rounded-xl border border-amber-500/20">
+                                                        <span className="text-lg">⭐</span>
+                                                        <span className="text-xs font-bold text-amber-200">{profile.xp || 0}</span>
+                                                    </div>
+                                                )}
+                                                {profile && (profile.coins || 0) > 0 && (
+                                                    <div className="flex flex-col items-center gap-1.5 p-3 bg-black/20 rounded-xl border border-amber-500/20">
+                                                        <CurrencyIcon type="GOLD" size="sm" />
+                                                        <span className="text-xs font-bold text-amber-200">{profile.coins || 0}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Link Account Button */}
+                                            <button
+                                                onClick={onLinkAccount}
+                                                className="group relative mt-2 w-full px-6 py-3.5 bg-gradient-to-br from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:via-amber-400 hover:to-amber-500 border-2 border-amber-400/50 rounded-2xl text-black font-black text-sm uppercase tracking-wider transition-all duration-300 hover:scale-105 hover:border-amber-300/70 active:scale-95 shadow-[0_8px_30px_rgba(217,119,6,0.4)] hover:shadow-[0_12px_40px_rgba(217,119,6,0.6)]"
+                                            >
+                                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                                                <span className="relative z-10 flex items-center justify-center gap-2">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                                    </svg>
+                                                    Link Account
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             
                             {/* Premium Stats Grid */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

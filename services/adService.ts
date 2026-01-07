@@ -152,7 +152,9 @@ export class AdService {
     }
 
     // Global Guard: If web platform, bypass all native SDK calls immediately
+    // But still set up callbacks for simulation/mock mode
     if (this.isWeb) {
+      this.setupRewardCallbacks();
       this.isAdMobReady = true;
       this.isInitialized = true;
       this.isAdLoaded = true;
@@ -160,7 +162,9 @@ export class AdService {
     }
 
     // Early Exit: Check for window.admob - if undefined, immediately set ready and return
+    // But still set up callbacks for simulation/mock mode
     if (typeof window === 'undefined' || !window.admob) {
+      this.setupRewardCallbacks();
       this.isAdMobReady = true;
       this.isInitialized = true;
       this.isAdLoaded = true;
@@ -168,8 +172,10 @@ export class AdService {
     }
 
     // Mock mode: Skip SDK initialization for fast development testing
+    // But still set up callbacks so mock rewards work
     if (ENABLE_MOCK_ADS) {
       console.log('🎭 Mock Ad Mode Enabled - Ads will instantly reward for testing');
+      this.setupRewardCallbacks();
       this.isAdMobReady = true;
       this.isInitialized = true;
       this.isAdLoaded = true;
@@ -180,6 +186,7 @@ export class AdService {
     try {
       // Null Pointer Fix: Check window.admob exists before any calls
       if (!window.admob) {
+        this.setupRewardCallbacks();
         this.isAdMobReady = true;
         this.isInitialized = true;
         this.isAdLoaded = true;
@@ -192,6 +199,7 @@ export class AdService {
         if (!document.querySelector('script[src*="admob"]')) {
           await this.loadAdMobScript().catch(() => {
             // If script loading fails, continue with simulation mode
+            this.setupRewardCallbacks();
             this.isAdMobReady = true;
             this.isInitialized = true;
             this.isAdLoaded = true;
@@ -205,6 +213,7 @@ export class AdService {
             appId: ADMOB_APP_ID,
           }).catch(() => {
             // If initialization fails, continue with simulation mode
+            this.setupRewardCallbacks();
             this.isAdMobReady = true;
             this.isInitialized = true;
             this.isAdLoaded = true;
@@ -227,12 +236,16 @@ export class AdService {
       }
 
       // Fallback: Use simulation if AdMob SDK not available
+      // Set up callbacks so simulation mode works
+      this.setupRewardCallbacks();
       this.isAdMobReady = true;
       this.isInitialized = true;
       this.isAdLoaded = true;
     } catch (error) {
       // CRITICAL: Never throw - always set ready state
       console.error('Failed to initialize AdMob (non-blocking):', error);
+      // Set up callbacks even on error so simulation mode works
+      this.setupRewardCallbacks();
       this.isAdMobReady = true;
       this.isInitialized = true;
       this.isAdLoaded = true;
@@ -280,20 +293,10 @@ export class AdService {
   }
 
   /**
-   * Setup event listeners for rewarded ad
-   * Null Pointer Fix: All calls wrapped in null checks
+   * Setup reward callbacks (used for both real ads and simulation/mock mode)
+   * This must be called even on web/simulation mode so the callbacks are available
    */
-  private setupAdEventListeners(): void {
-    // Null Pointer Fix: Check rewardedAd exists
-    if (!this.rewardedAd) {
-      return;
-    }
-
-    // Null Pointer Fix: Check rewardedAd.addEventListener exists
-    if (!this.rewardedAd.addEventListener) {
-      return;
-    }
-
+  private setupRewardCallbacks(): void {
     // SECURITY: User earned reward - This is the ONLY place where we process the reward
     // This callback is ONLY fired by AdMob when the user successfully completes the ad
     // We MUST wait for this callback before calling Supabase - never award gems locally
@@ -356,6 +359,25 @@ export class AdService {
         this.setState('idle', this.currentPlacement!);
       }, 1000);
     };
+  }
+
+  /**
+   * Setup event listeners for rewarded ad
+   * Null Pointer Fix: All calls wrapped in null checks
+   */
+  private setupAdEventListeners(): void {
+    // Always set up callbacks first (needed for mock/simulation mode)
+    this.setupRewardCallbacks();
+
+    // Null Pointer Fix: Check rewardedAd exists
+    if (!this.rewardedAd) {
+      return;
+    }
+
+    // Null Pointer Fix: Check rewardedAd.addEventListener exists
+    if (!this.rewardedAd.addEventListener) {
+      return;
+    }
 
     // Null Pointer Fix: Wrap all addEventListener calls
     if (this.rewardedAd && this.rewardedAd.addEventListener) {

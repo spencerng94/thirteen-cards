@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { InventoryGrid } from './InventoryGrid';
 import { BoardSurface } from './UserHub';
-import { claimAdRewardGems } from '../services/supabase';
+import { claimAdRewardGems, fetchWeeklyRewardStatus } from '../services/supabase';
 import { adService, AdPlacement } from '../services/adService';
 import { audioService } from '../services/audio';
 import { CurrencyIcon } from './Store';
@@ -21,12 +21,28 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [weeklyGemTotal, setWeeklyGemTotal] = useState<number>(0);
+  const [isCapReached, setIsCapReached] = useState<boolean>(false);
+  const [previousWeeklyGems, setPreviousWeeklyGems] = useState<number>(0);
   const placement: AdPlacement = 'inventory';
 
   useEffect(() => {
     const unsubscribe = adService.onStateChange(placement, setAdState);
     return unsubscribe;
   }, [placement]);
+
+  // Fetch weekly reward status on mount and when profile changes
+  useEffect(() => {
+    if (profile.id && profile.id !== 'guest') {
+      fetchWeeklyRewardStatus(profile.id).then((status) => {
+        if (status) {
+          setWeeklyGemTotal(status.weeklyGemTotal);
+          setIsCapReached(status.isCapReached);
+          setPreviousWeeklyGems(status.weeklyGemTotal);
+        }
+      });
+    }
+  }, [profile.id]);
 
   const isAvailable = adService.isAdAvailable(placement);
   const cooldownString = adService.getCooldownString(placement);
@@ -44,12 +60,37 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
         // This ensures server-side verification - we never award gems without AdMob confirming the reward
         // Call secure RPC function that uses auth.uid() server-side to prevent spoofing
         const result = await claimAdRewardGems();
-        if (result.success && result.newGemBalance !== undefined) {
+        if (result.success) {
           audioService.playPurchase();
-          setShowGemRain(true);
-          setToastMessage('Boba secured! +20 Gems');
-          setToastType('success');
-          setShowToast(true);
+          
+          // Update weekly gem total
+          if (result.weeklyGems !== undefined) {
+            const wasUnderCap = previousWeeklyGems < 500;
+            const nowAtCap = result.weeklyGems >= 500;
+            
+            setWeeklyGemTotal(result.weeklyGems);
+            setIsCapReached(result.hitCap || false);
+            
+            // Show cap transition toast if user just hit the cap
+            if (wasUnderCap && nowAtCap && result.hitCap) {
+              setToastMessage('Gem Limit Reached - Earning Gold Now!');
+              setToastType('success');
+              setShowToast(true);
+            }
+          }
+          
+          // Handle reward display based on type
+          if (result.rewardType === 'gems' && result.newGemBalance !== undefined) {
+            setShowGemRain(true);
+            setToastMessage(`Boba secured! +${result.rewardAmount || 20} Gems`);
+            setToastType('success');
+            setShowToast(true);
+          } else if (result.rewardType === 'coins' && result.newCoinBalance !== undefined) {
+            setToastMessage(`Gold secured! +${result.rewardAmount || 50} Coins`);
+            setToastType('success');
+            setShowToast(true);
+          }
+          
           onRefresh();
         } else {
           // Handle cooldown or other errors
@@ -85,7 +126,7 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
     if (adState === 'playing') return 'Playing...';
     if (adState === 'rewarded') return 'Rewarded!';
     if (!isAvailable) return `Next: ${cooldownString}`;
-    return 'Watch & Earn';
+    return isCapReached ? 'Watch for 50 Coins' : 'Watch for 20 Gems';
   };
 
   return (
@@ -100,15 +141,28 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
             : 'bg-gradient-to-br from-pink-500/90 via-pink-600/90 to-rose-600/90 border-pink-400/30 shadow-[0_0_30px_rgba(236,72,153,0.4)] hover:shadow-[0_0_40px_rgba(236,72,153,0.6)] hover:scale-105 hover:border-pink-400/50'}`}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-        <div className="relative z-10 flex items-center gap-2.5">
-          <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
-            {getButtonText()}
-          </span>
+        <div className="relative z-10 flex flex-col items-center gap-1.5">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
+              {getButtonText()}
+            </span>
+            {isAvailable && adState === 'idle' && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs sm:text-sm font-bold text-pink-200">
+                  +{isCapReached ? '50' : '20'}
+                </span>
+                <CurrencyIcon 
+                  type={isCapReached ? "GOLD" : "GEMS"} 
+                  size="sm" 
+                  className="drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" 
+                />
+              </div>
+            )}
+          </div>
           {isAvailable && adState === 'idle' && (
-            <div className="flex items-center gap-1">
-              <span className="text-xs sm:text-sm font-bold text-pink-200">+20</span>
-              <CurrencyIcon type="GEMS" size="sm" className="drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" />
-            </div>
+            <span className="text-[10px] sm:text-xs text-white/60 font-medium">
+              Weekly Gem Limit: {weeklyGemTotal}/500
+            </span>
           )}
         </div>
       </button>

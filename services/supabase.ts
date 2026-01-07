@@ -21,6 +21,7 @@ const getEnv = (key: string): string | undefined => {
 const supabaseUrl = getEnv('VITE_SUPABASE_URL') || "https://spaxxexmyiczdrbikdjp.supabase.co";
 const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 const GUEST_STORAGE_KEY = 'thirteen_stats';
+const GUEST_MIGRATION_KEY = 'thirteen_guest_migration';
 
 export const EMOTE_FILE_MAP: Record<string, string> = {
   ':smile:': 'shiba_card.png', ':blush:': 'blushing_card.png', ':cool:': 'sunglasses_card.png',
@@ -621,6 +622,134 @@ export const fetchGuestProfile = (): UserProfile => {
   return profile;
 };
 
+/**
+ * Save guest progress (XP, Gems, Coins) to localStorage for migration
+ * This is called whenever guest data changes (gems earned, XP gained, coins earned)
+ */
+export const saveGuestProgress = (data: { gems?: number; xp?: number; coins?: number }): void => {
+  try {
+    const current = localStorage.getItem(GUEST_MIGRATION_KEY);
+    const existing = current ? JSON.parse(current) : { gems: 0, xp: 0, coins: 0 };
+    
+    // Merge with existing data (take maximum to preserve highest values)
+    const merged = {
+      gems: Math.max(existing.gems || 0, data.gems || 0),
+      xp: Math.max(existing.xp || 0, data.xp || 0),
+      coins: Math.max(existing.coins || 0, data.coins || 0),
+    };
+    
+    localStorage.setItem(GUEST_MIGRATION_KEY, JSON.stringify(merged));
+    console.log('Guest progress saved for migration:', merged);
+  } catch (error) {
+    console.error('Failed to save guest progress:', error);
+  }
+};
+
+/**
+ * Get guest progress from localStorage
+ */
+export const getGuestProgress = (): { gems: number; xp: number; coins: number } | null => {
+  try {
+    const data = localStorage.getItem(GUEST_MIGRATION_KEY);
+    if (!data) return null;
+    const parsed = JSON.parse(data);
+    // Only return if at least one value is non-zero
+    if ((parsed.gems || 0) > 0 || (parsed.xp || 0) > 0 || (parsed.coins || 0) > 0) {
+      return {
+        gems: parsed.gems || 0,
+        xp: parsed.xp || 0,
+        coins: parsed.coins || 0,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to get guest progress:', error);
+    return null;
+  }
+};
+
+/**
+ * Clear guest migration data from localStorage
+ */
+export const clearGuestProgress = (): void => {
+  try {
+    localStorage.removeItem(GUEST_MIGRATION_KEY);
+    console.log('Guest migration data cleared');
+  } catch (error) {
+    console.error('Failed to clear guest progress:', error);
+  }
+};
+
+/**
+ * Migrate guest data to permanent account
+ * Calls Supabase RPC function that checks if account is new (created in last 5 minutes)
+ */
+export const migrateGuestData = async (
+  userId: string,
+  gems: number,
+  xp: number,
+  coins: number
+): Promise<{ 
+  success: boolean; 
+  error?: string;
+  migratedGems?: number;
+  bonusGems?: number;
+  migratedXp?: number;
+  migratedCoins?: number;
+  newGemBalance?: number;
+}> => {
+  if (!supabaseAnonKey) {
+    return { success: false, error: 'Supabase not configured' };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('migrate_guest_data', {
+      user_id: userId,
+      guest_gems: gems,
+      guest_xp: xp,
+      guest_coins: coins,
+    });
+
+    if (error) {
+      console.error('Migration error:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Handle JSON response from updated function
+    if (typeof data === 'object' && data !== null) {
+      if (data.success === false) {
+        return { 
+          success: false, 
+          error: data.error || 'Migration failed' 
+        };
+      }
+      
+      // Return success with breakdown data
+      return {
+        success: true,
+        migratedGems: data.migrated_gems || 0,
+        bonusGems: data.bonus_gems || 0,
+        migratedXp: data.migrated_xp || 0,
+        migratedCoins: data.migrated_coins || 0,
+        newGemBalance: data.new_gem_balance || 0,
+      };
+    }
+
+    // Fallback for old boolean response (shouldn't happen with updated function)
+    if (data === false) {
+      return { 
+        success: false, 
+        error: 'Account is not new. Migration only allowed for accounts created in the last 5 minutes.' 
+      };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Migration exception:', error);
+    return { success: false, error: error.message || 'Migration failed' };
+  }
+};
+
 export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:', baseUsername?: string): Promise<UserProfile | null> => {
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
@@ -897,14 +1026,33 @@ export const claimPassiveRevenue = async (userId: string) => {
  * 
  * @returns Result with success status and new gem balance
  */
-export const claimAdRewardGems = async (): Promise<{ success: boolean; newGemBalance?: number; error?: string; cooldownRemaining?: number }> => {
+export const claimAdRewardGems = async (): Promise<{ 
+  success: boolean; 
+  newGemBalance?: number; 
+  newCoinBalance?: number;
+  weeklyGems?: number;
+  rewardType?: 'gems' | 'coins';
+  rewardAmount?: number;
+  hitCap?: boolean;
+  error?: string; 
+  cooldownRemaining?: number 
+}> => {
   if (!supabaseAnonKey) {
     // For guest users, update local storage
     const guestProfile = fetchGuestProfile();
     const newGems = (guestProfile.gems || 0) + 20;
     guestProfile.gems = newGems;
     localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestProfile));
-    return { success: true, newGemBalance: newGems };
+    // Save guest progress for migration
+    saveGuestProgress({ gems: newGems });
+    return { 
+      success: true, 
+      newGemBalance: newGems,
+      weeklyGems: 20,
+      rewardType: 'gems',
+      rewardAmount: 20,
+      hitCap: false
+    };
   }
 
   try {
@@ -931,14 +1079,20 @@ export const claimAdRewardGems = async (): Promise<{ success: boolean; newGemBal
         success: false,
         error: data.error,
         cooldownRemaining: data.cooldown_remaining,
-        newGemBalance: data.current_balance
+        newGemBalance: data.current_balance,
+        weeklyGems: data.weekly_gem_total
       };
     }
 
-    // Return success with new balance
+    // Return success with new balance and reward info
     return {
       success: data.success || false,
       newGemBalance: data.new_balance,
+      newCoinBalance: data.new_coin_balance,
+      weeklyGems: data.weekly_gem_total,
+      rewardType: data.reward_type,
+      rewardAmount: data.reward_amount,
+      hitCap: data.hit_cap || false,
       error: data.error
     };
   } catch (error: any) {
@@ -946,6 +1100,55 @@ export const claimAdRewardGems = async (): Promise<{ success: boolean; newGemBal
       success: false, 
       error: error.message || 'Unknown error occurred' 
     };
+  }
+};
+
+/**
+ * Fetch weekly reward status for the current user
+ * Returns weekly_gem_total and whether the cap has been reached
+ */
+export const fetchWeeklyRewardStatus = async (userId: string): Promise<{
+  weeklyGemTotal: number;
+  isCapReached: boolean;
+  lastResetDate: string | null;
+} | null> => {
+  if (!supabaseAnonKey || userId === 'guest') {
+    return {
+      weeklyGemTotal: 0,
+      isCapReached: false,
+      lastResetDate: null
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('reward_tracking')
+      .select('weekly_gem_total, last_reset_date')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching weekly reward status:', error);
+      return null;
+    }
+
+    if (!data) {
+      // No record exists yet, return default
+      return {
+        weeklyGemTotal: 0,
+        isCapReached: false,
+        lastResetDate: null
+      };
+    }
+
+    return {
+      weeklyGemTotal: data.weekly_gem_total || 0,
+      isCapReached: (data.weekly_gem_total || 0) >= 500,
+      lastResetDate: data.last_reset_date
+    };
+  } catch (error: any) {
+    console.error('Exception fetching weekly reward status:', error);
+    return null;
   }
 };
 
@@ -1491,6 +1694,12 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
     const local = fetchGuestProfile();
     const updatedLocal = { ...local, ...updates };
     localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(updatedLocal));
+    // Save guest progress for migration
+    saveGuestProgress({ 
+      xp: updatedLocal.xp || 0, 
+      coins: updatedLocal.coins || 0,
+      gems: updatedLocal.gems || 0
+    });
   } else {
     // Direct database update for authenticated users
     await supabase.from('profiles').upsert({ id: currentProfile.id, ...updates });
