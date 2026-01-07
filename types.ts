@@ -38,6 +38,8 @@ export interface Player {
   isBot?: boolean;
   difficulty?: AiDifficulty;
   isOffline?: boolean;
+  isAfk?: boolean;
+  mutedByAfk?: boolean;
 }
 
 export enum GameStatus {
@@ -67,6 +69,7 @@ export interface GameState {
   turnDuration?: number; 
   isPublic?: boolean;
   roomName?: string;
+  speedBonuses?: Record<string, { gold: number; xp: number }>; // playerId -> speed bonus data
 }
 
 export enum SocketEvents {
@@ -84,9 +87,12 @@ export enum SocketEvents {
   UPDATE_BOT_DIFFICULTY = 'update_bot_difficulty',
   EMOTE_SENT = 'emote_sent',
   RECEIVE_EMOTE = 'receive_emote',
+  SEND_CHAT = 'send_chat',
+  RECEIVE_CHAT = 'receive_chat',
   GET_PUBLIC_ROOMS = 'get_public_rooms',
   PUBLIC_ROOMS_LIST = 'public_rooms_list',
-  ERROR = 'error'
+  ERROR = 'error',
+  QUICK_MOVE_REWARD = 'quick_move_reward'
 }
 
 export type BackgroundTheme = 'CLASSIC_GREEN' | 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'OBSIDIAN_MADNESS' | 'GOLD_FLUX' | 'ZEN_POND' | 'LAS_VEGAS' | 'SHIBA' | 'JUST_A_GIRL';
@@ -113,6 +119,7 @@ export interface UserProfile {
   unlocked_boards: string[];
   unlocked_emotes?: string[];
   unlocked_finishers?: string[];
+  unlocked_phrases?: string[];
   equipped_sleeve?: string;
   equipped_board?: string;
   equipped_finisher?: string;
@@ -132,6 +139,8 @@ export interface UserProfile {
   created_at?: string;
   last_daily_claim?: string;
   last_ad_claim?: string; // 4-hour cooldown tracking
+  ad_weekly_gems?: number; // Weekly ad reward gems (max 500)
+  first_ad_claim_week?: string; // Timestamp of first claim this week
   inventory?: UserInventory;
   event_stats?: {
     daily_games_played: number;

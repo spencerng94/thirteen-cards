@@ -4,6 +4,7 @@ import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { PREMIUM_BOARDS } from './UserHub';
+import { FeedbackModal } from './FeedbackModal';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -20,6 +21,8 @@ interface SettingsModalProps {
   onChangeDifficulty?: (d: AiDifficulty) => void;
   soundEnabled: boolean;
   setSoundEnabled: (val: boolean) => void;
+  userId?: string;
+  gameVersion?: string;
 }
 
 const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -44,9 +47,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   currentDifficulty,
   onChangeDifficulty,
   soundEnabled,
-  setSoundEnabled
+  setSoundEnabled,
+  userId = 'guest',
+  gameVersion = '1.0.0'
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const getDifficultyStyles = (d: AiDifficulty, active: boolean) => {
     if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
@@ -277,6 +283,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
              )}
 
+             {/* Feedback Button */}
+             <button
+               onClick={() => setShowFeedbackModal(true)}
+               className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-all duration-300 active:scale-95"
+             >
+               <span className="relative z-10 flex items-center justify-center gap-3 text-gray-500 group-hover:text-white font-black text-[11px] uppercase tracking-[0.4em] transition-colors">
+                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                   <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                 </svg>
+                 Feedback
+               </span>
+             </button>
+
              <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={onExitGame}
@@ -292,6 +311,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <SignOutButton onSignOut={onSignOut} className="py-5" />
              </div>
           </div>
+        </div>
+        
+        {/* Feedback Modal */}
+        {showFeedbackModal && (
+          <FeedbackModal
+            onClose={() => setShowFeedbackModal(false)}
+            userId={userId}
+            gameVersion={gameVersion}
+          />
+        )}
         </div>
         
         <style dangerouslySetInnerHTML={{ __html: `

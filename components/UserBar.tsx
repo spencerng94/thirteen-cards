@@ -11,7 +11,7 @@ interface UserBarProps {
   isGuest?: boolean;
   onPromptAuth?: () => void;
   onClick?: (tab: HubTab) => void;
-  onOpenStore?: (tab: 'SLEEVES' | 'AVATARS' | 'BOARDS' | 'GEMS') => void;
+  onOpenStore?: (tab: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => void;
   onOpenGemPacks?: () => void;
   avatar?: string;
   remoteEmotes?: Emote[];

@@ -4,6 +4,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
+import { checkRateLimit, clearRateLimit } from './rateLimiter';
 
 // Types Mirroring Client
 enum Suit { Spades = 0, Clubs = 1, Diamonds = 2, Hearts = 3 }
@@ -30,12 +31,20 @@ interface Player {
   difficulty?: AiDifficulty;
   isOffline?: boolean;
   reconnectionTimeout?: any;
+  isAfk?: boolean;
+  consecutiveTimeouts?: number;
 }
 
 interface PlayTurn {
   playerId: string;
   cards: Card[];
   comboType: string;
+}
+
+interface PlayerSpeedData {
+  quickMoveStreak: number;
+  totalSpeedGold: number;
+  totalSpeedXp: number;
 }
 
 interface GameRoom {
@@ -53,6 +62,9 @@ interface GameRoom {
   isPublic: boolean;
   roomName: string;
   turnDuration: number; // In ms
+  turnStartTime?: number; // When current turn started
+  playerSpeedData: Record<string, PlayerSpeedData>; // playerId -> speed data
+  playerMutedByAfk: Set<string>; // playerIds muted due to AFK
 }
 
 // All in-house emote trigger codes (excluding premium/remote-only emotes)
@@ -74,7 +86,55 @@ const getRandomEmote = (): string => {
   return shuffled[Math.floor(Math.random() * shuffled.length)];
 };
 
+// Get a random CPU name that hasn't been used in the room
+const getRandomCPUName = (usedNames: Set<string>): string => {
+  const availableNames = CPU_NAMES.filter(name => !usedNames.has(name));
+  if (availableNames.length === 0) {
+    // If all names are used, fallback to adding a number
+    const baseName = CPU_NAMES[Math.floor(Math.random() * CPU_NAMES.length)];
+    let counter = 1;
+    let candidate = `${baseName} ${counter}`;
+    while (usedNames.has(candidate)) {
+      counter++;
+      candidate = `${baseName} ${counter}`;
+    }
+    return candidate;
+  }
+  return availableNames[Math.floor(Math.random() * availableNames.length)];
+};
+
+// Auto-fill empty slots with CPU players
+const autoFillCPUPlayers = (room: GameRoom) => {
+  if (room.status !== 'LOBBY' || room.players.length >= 4) return;
+  
+  const usedNames = new Set(room.players.map(p => p.name));
+  const slotsToFill = 4 - room.players.length;
+  
+  for (let i = 0; i < slotsToFill; i++) {
+    const cpuName = getRandomCPUName(usedNames);
+    usedNames.add(cpuName);
+    const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
+    room.players.push({
+      id: botId,
+      name: cpuName,
+      avatar: getRandomEmote(),
+      socketId: 'BOT',
+      hand: [],
+      isHost: false,
+      hasPassed: false,
+      finishedRank: null,
+      isBot: true,
+      difficulty: 'MEDIUM'
+    });
+  }
+  
+  broadcastState(room.id);
+  broadcastPublicLobbies();
+};
+
 const BOT_NAMES = ['TSUBU', 'MUNCHIE', 'KUMA', 'VALKYRIE', 'SABER', 'LANCE', 'PHANTOM', 'GHOST', 'REAPER', 'VOID', 'SPECTRE'];
+// CPU names from fun_bot_names table (fallback to local array)
+const CPU_NAMES = ['Skibidi Shiba', 'Six 7', 'Chill Guy', 'Tragic', 'Bet', 'Fr fr', 'Hyphy', 'Rice Guy', '1v3', 'Hi'];
 const RECONNECTION_GRACE_PERIOD = 30000; 
 const DEFAULT_TURN_DURATION_MS = 60000; 
 
@@ -280,7 +340,9 @@ const getGameStateData = (room: GameRoom) => ({
     finishedRank: p.finishedRank,
     isBot: p.isBot,
     difficulty: p.difficulty,
-    isOffline: p.isOffline
+    isOffline: p.isOffline,
+    isAfk: p.isAfk || false,
+    mutedByAfk: room.playerMutedByAfk ? room.playerMutedByAfk.has(p.id) : false
   })),
   currentPlayerId: room.status === 'PLAYING' ? room.players[room.currentPlayerIndex]?.id : null,
   currentPlayPile: room.currentPlayPile,
@@ -288,7 +350,13 @@ const getGameStateData = (room: GameRoom) => ({
   lastPlayerToPlayId: room.lastPlayerToPlayId,
   finishedPlayers: room.finishedPlayers,
   isFirstTurnOfGame: room.isFirstTurnOfGame,
-  turnEndTime: room.turnEndTime
+  turnEndTime: room.turnEndTime,
+  // Include speed bonuses when game is finished
+  speedBonuses: room.status === 'FINISHED' && room.playerSpeedData ? 
+    Object.entries(room.playerSpeedData).reduce((acc, [playerId, data]) => {
+      acc[playerId] = { gold: data.totalSpeedGold, xp: data.totalSpeedXp };
+      return acc;
+    }, {} as Record<string, { gold: number; xp: number }>) : undefined
 });
 
 const broadcastState = (roomId: string) => {
@@ -332,6 +400,9 @@ const startTurnTimer = (roomId: string) => {
   if (!room || room.status !== 'PLAYING') return;
   if (room.turnTimer) clearTimeout(room.turnTimer);
   
+  // Track when turn starts for quick move detection
+  room.turnStartTime = Date.now();
+  
   if (room.turnDuration === 0) {
     room.turnEndTime = undefined;
     return;
@@ -345,12 +416,28 @@ const handleTurnTimeout = (roomId: string) => {
   const room = rooms[roomId];
   if (!room || room.status !== 'PLAYING') return;
   const currentPlayer = room.players[room.currentPlayerIndex];
-  if (!currentPlayer || currentPlayer.finishedRank) {
+  if (!currentPlayer || currentPlayer.finishedRank || currentPlayer.isBot) {
     room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
     startTurnTimer(roomId);
     broadcastState(roomId);
     return;
   }
+  
+  // Track consecutive timeouts for AFK penalty
+  if (!currentPlayer.consecutiveTimeouts) {
+    currentPlayer.consecutiveTimeouts = 0;
+  }
+  currentPlayer.consecutiveTimeouts += 1;
+  
+  // AFK Penalty: 3 consecutive timeouts = mute + flag as AFK
+  if (currentPlayer.consecutiveTimeouts >= 3) {
+    currentPlayer.isAfk = true;
+    if (!room.playerMutedByAfk) {
+      room.playerMutedByAfk = new Set();
+    }
+    room.playerMutedByAfk.add(currentPlayer.id);
+  }
+  
   if (room.currentPlayPile.length === 0) {
     const sortedHand = sortCards(currentPlayer.hand);
     let cardToPlay = [sortedHand[0]];
@@ -371,13 +458,86 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
   if (!currentPlayer || currentPlayer.id !== playerId || currentPlayer.finishedRank) {
     return;
   }
+  
+  // SECURITY: Validate card ownership - ensure all cards exist in player's hand
+  if (!cards || cards.length === 0) {
+    if (!currentPlayer.isBot && currentPlayer.socketId) io.to(currentPlayer.socketId).emit('error', 'No cards provided.');
+    return;
+  }
+  
+  // Verify all cards are in the player's hand
+  const handCardIds = new Set(currentPlayer.hand.map(c => c.id));
+  const invalidCards = cards.filter(c => !handCardIds.has(c.id));
+  if (invalidCards.length > 0) {
+    if (!currentPlayer.isBot && currentPlayer.socketId) io.to(currentPlayer.socketId).emit('error', 'Invalid cards: you do not own these cards.');
+    return;
+  }
+  
+  // Verify no duplicate cards
+  const cardIdSet = new Set(cards.map(c => c.id));
+  if (cardIdSet.size !== cards.length) {
+    if (!currentPlayer.isBot && currentPlayer.socketId) io.to(currentPlayer.socketId).emit('error', 'Duplicate cards detected.');
+    return;
+  }
+  
   const sortedCards = sortCards(cards); // Ensure cards are sorted before further processing
   const validation = validateMove(sortedCards, room.currentPlayPile, room.isFirstTurnOfGame);
   if (!validation.isValid) {
     if (!currentPlayer.isBot && currentPlayer.socketId) io.to(currentPlayer.socketId).emit('error', validation.reason);
     return;
   }
+  
+  // Quick Move Detection (only for non-bot players, not skip turn spam)
+  let quickMoveReward: { gold: number; xp: number; isStreak: boolean } | null = null;
+  if (!currentPlayer.isBot && room.turnStartTime) {
+    const timeTaken = Date.now() - room.turnStartTime;
+    const QUICK_MOVE_THRESHOLD = 5000; // 5 seconds
+    
+    if (timeTaken < QUICK_MOVE_THRESHOLD) {
+      // Initialize speed data if needed
+      if (!room.playerSpeedData) room.playerSpeedData = {};
+      if (!room.playerSpeedData[playerId]) {
+        room.playerSpeedData[playerId] = { quickMoveStreak: 0, totalSpeedGold: 0, totalSpeedXp: 0 };
+      }
+      
+      const speedData = room.playerSpeedData[playerId];
+      speedData.quickMoveStreak += 1;
+      
+      // Base rewards
+      let goldReward = 10;
+      let xpReward = 20;
+      let isStreak = false;
+      
+      // Streak bonus: 3 quick moves in a row = double gold
+      if (speedData.quickMoveStreak >= 3) {
+        goldReward *= 2; // Double gold for streak
+        isStreak = true;
+      }
+      
+      speedData.totalSpeedGold += goldReward;
+      speedData.totalSpeedXp += xpReward;
+      
+      quickMoveReward = { gold: goldReward, xp: xpReward, isStreak };
+      
+      // Emit quick move event to client
+      if (currentPlayer.socketId) {
+        io.to(currentPlayer.socketId).emit('quick_move_reward', { gold: goldReward, xp: xpReward, isStreak });
+      }
+    } else {
+      // Reset streak if move was not quick
+      if (room.playerSpeedData && room.playerSpeedData[playerId]) {
+        room.playerSpeedData[playerId].quickMoveStreak = 0;
+      }
+    }
+  }
+  
   if (room.turnTimer) clearTimeout(room.turnTimer);
+  
+  // Reset consecutive timeouts when player successfully plays
+  if (currentPlayer.consecutiveTimeouts) {
+    currentPlayer.consecutiveTimeouts = 0;
+  }
+  
   currentPlayer.hand = currentPlayer.hand.filter(c => !sortedCards.some(pc => pc.id === c.id));
   room.currentPlayPile.push({ playerId, cards: sortedCards, comboType: getComboType(sortedCards) });
   room.lastPlayerToPlayId = playerId;
@@ -433,6 +593,16 @@ const handlePass = (roomId: string, playerId: string) => {
     return;
   }
 
+  // Reset consecutive timeouts when player successfully passes
+  if (currentPlayer.consecutiveTimeouts) {
+    currentPlayer.consecutiveTimeouts = 0;
+  }
+
+  // Reset quick move streak on pass (passing doesn't count as quick move)
+  if (!currentPlayer.isBot && room.playerSpeedData && room.playerSpeedData[playerId]) {
+    room.playerSpeedData[playerId].quickMoveStreak = 0;
+  }
+
   if (room.turnTimer) clearTimeout(room.turnTimer);
   currentPlayer.hasPassed = true;
   
@@ -467,12 +637,67 @@ const checkBotTurn = (roomId: string) => {
   if (!room || room.status !== 'PLAYING') return;
   const curPlayer = room.players[room.currentPlayerIndex];
   if (curPlayer?.isBot && !curPlayer.finishedRank) {
+    // Random delay between 2-4 seconds
+    const delay = 2000 + Math.random() * 2000;
+    
     setTimeout(() => {
         const roomRef = rooms[roomId];
         if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
-        const move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame);
-        if (move) handlePlay(roomId, curPlayer.id, move);
-        else {
+        
+        // Weighted random: 80% smart move, 20% mistake
+        const shouldMakeMistake = Math.random() < 0.2;
+        
+        let move: Card[] | null = null;
+        if (shouldMakeMistake) {
+          // 20% chance: Make a mistake (play a random card or suboptimal move)
+          const sortedHand = sortCards(curPlayer.hand);
+          if (room.currentPlayPile.length === 0) {
+            // Leading: play a random card (might not be optimal)
+            move = [sortedHand[Math.floor(Math.random() * sortedHand.length)]];
+          } else {
+            // Try to find a valid move, but pick a random one instead of best
+            const lastTurn = room.currentPlayPile[room.currentPlayPile.length - 1];
+            const lastCards = lastTurn.cards;
+            const lType = getComboType(lastCards);
+            const lHigh = getHighestCard(lastCards);
+            
+            // Try random valid moves
+            const shuffled = [...sortedHand].sort(() => Math.random() - 0.5);
+            for (const card of shuffled) {
+              if (lType === 'SINGLE') {
+                if (getCardScore(card) > getCardScore(lHigh)) {
+                  move = [card];
+                  break;
+                }
+              } else if (lType === 'PAIR') {
+                const pairs = getAllPairs(sortedHand);
+                if (pairs.length > 0) {
+                  const randomPair = pairs[Math.floor(Math.random() * pairs.length)];
+                  if (getCardScore(getHighestCard(randomPair)) > getCardScore(lHigh)) {
+                    move = randomPair;
+                    break;
+                  }
+                }
+              } else if (lType === 'TRIPLE') {
+                const triples = getAllTriples(sortedHand);
+                if (triples.length > 0) {
+                  const randomTriple = triples[Math.floor(Math.random() * triples.length)];
+                  if (getCardScore(getHighestCard(randomTriple)) > getCardScore(lHigh)) {
+                    move = randomTriple;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } else {
+          // 80% chance: Make a smart move
+          move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame);
+        }
+        
+        if (move) {
+          handlePlay(roomId, curPlayer.id, move);
+        } else {
           if (room.currentPlayPile.length === 0) {
             // Hard Fail-safe: leader must play.
             const sortedHand = sortCards(curPlayer.hand);
@@ -481,7 +706,7 @@ const checkBotTurn = (roomId: string) => {
             handlePass(roomId, curPlayer.id);
           }
         }
-    }, 1500);
+    }, delay);
   }
 };
 
@@ -537,27 +762,55 @@ io.on('connection', (socket: Socket) => {
   socket.emit('public_rooms_list', getPublicRoomsList());
 
   socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName, turnTimer }) => {
+    // SECURITY: Sanitize and validate input
+    const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
+    const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
+    const sanitizedRoomName = roomName ? roomName.trim().substring(0, 24).replace(/[<>\"'&]/g, '') : `${sanitizedName.toUpperCase()}'S MATCH`;
+    // For public rooms, enforce 30s timer. For private, allow 15s/30s/60s (default to 30s)
+    let validTurnTimer: number;
+    if (isPublic === true) {
+      validTurnTimer = 30; // Public rooms always 30s
+    } else {
+      // Private rooms: allow 15, 30, or 60 seconds
+      validTurnTimer = typeof turnTimer === 'number' && [15, 30, 60].includes(turnTimer) ? turnTimer : 30;
+    }
+    
     const roomId = generateRoomCode();
     const pId = playerId || uuidv4();
     rooms[roomId] = {
       id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
       isPublic: isPublic === true,
-      roomName: roomName || `${name.toUpperCase()}'S MATCH`,
-      turnDuration: turnTimer ? turnTimer * 1000 : 0,
-      players: [{ id: pId, name, avatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }]
+      roomName: sanitizedRoomName,
+      turnDuration: validTurnTimer * 1000,
+      players: [{ id: pId, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null }],
+      playerSpeedData: {},
+      playerMutedByAfk: new Set()
     };
     mapIdentity(socket, roomId, pId);
     socket.join(roomId);
+    // Auto-fill empty slots with CPU players
+    autoFillCPUPlayers(rooms[roomId]);
     broadcastState(roomId);
     broadcastPublicLobbies();
   });
 
   socket.on('join_room', ({ roomId, name, avatar, playerId }) => {
+    // SECURITY: Validate roomId format (should be 4 alphanumeric characters)
+    if (!roomId || typeof roomId !== 'string' || roomId.length !== 4 || !/^[A-Z0-9]{4}$/i.test(roomId)) {
+      socket.emit('error', 'Invalid room code.');
+      return;
+    }
+    
     const room = rooms[roomId];
     if (!room || room.status !== 'LOBBY' || room.players.length >= 4) {
       socket.emit('error', !room ? 'Room not found.' : room.status !== 'LOBBY' ? 'Match in progress.' : 'Lobby is full.');
       return;
     }
+    
+    // SECURITY: Sanitize input
+    const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
+    const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
+    
     const pid = playerId || uuidv4();
     const existingPlayerIndex = room.players.findIndex(p => p.id === pid);
     if (existingPlayerIndex !== -1) {
@@ -566,7 +819,7 @@ io.on('connection', (socket: Socket) => {
        player.isOffline = false;
        if (player.reconnectionTimeout) clearTimeout(player.reconnectionTimeout);
     } else {
-       room.players.push({ id: pid, name, avatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
+       room.players.push({ id: pid, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null });
     }
     mapIdentity(socket, roomId, pid);
     socket.join(roomId);
@@ -634,6 +887,11 @@ io.on('connection', (socket: Socket) => {
     if (!requester || !requester.isHost) return;
     if (pId) mapIdentity(socket, roomId, pId);
 
+    // Auto-fill empty slots with CPU players before starting
+    if (room.status === 'LOBBY' && room.players.length < 4) {
+      autoFillCPUPlayers(room);
+    }
+
     const deck: Card[] = [];
     for (let s = 0; s < 4; s++) for (let r = 3; r <= 15; r++) deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
     for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
@@ -658,21 +916,72 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('play_cards', ({ roomId, cards, playerId }) => {
     const pId = playerId || socketToPlayerId[socket.id];
-    if (pId) mapIdentity(socket, roomId, pId);
+    if (!pId) return;
+    
+    // SECURITY: Validate cards array
+    if (!Array.isArray(cards) || cards.length === 0 || cards.length > 13) {
+      socket.emit('error', 'Invalid card selection.');
+      return;
+    }
+    
+    // SECURITY: Validate each card has required fields
+    for (const card of cards) {
+      if (!card || typeof card !== 'object' || typeof card.id !== 'string' || 
+          typeof card.rank !== 'number' || typeof card.suit !== 'number' ||
+          card.rank < 3 || card.rank > 15 || card.suit < 0 || card.suit > 3) {
+        socket.emit('error', 'Invalid card data.');
+        return;
+      }
+    }
+    
+    // Rate limit check
+    const rateLimitResult = checkRateLimit(socket.id, 'play_cards');
+    if (!rateLimitResult.allowed) {
+      socket.emit('error', 'Rate limit exceeded. Please slow down your card plays.');
+      return;
+    }
+    
+    mapIdentity(socket, roomId, pId);
     handlePlay(roomId, pId, cards);
   });
 
   socket.on('pass_turn', ({ roomId, playerId }) => {
     const pId = playerId || socketToPlayerId[socket.id];
-    if (pId) mapIdentity(socket, roomId, pId);
+    if (!pId) return;
+    
+    // Rate limit check
+    const rateLimitResult = checkRateLimit(socket.id, 'pass_turn');
+    if (!rateLimitResult.allowed) {
+      socket.emit('error', 'Rate limit exceeded. Please slow down your actions.');
+      return;
+    }
+    
+    mapIdentity(socket, roomId, pId);
     handlePass(roomId, pId);
   });
 
-  socket.on('get_public_rooms', () => { socket.emit('public_rooms_list', getPublicRoomsList()); });
+  socket.on('get_public_rooms', () => {
+    // Rate limit check
+    const rateLimitResult = checkRateLimit(socket.id, 'get_public_rooms');
+    if (!rateLimitResult.allowed) {
+      socket.emit('error', 'Rate limit exceeded. Please wait before requesting room list again.');
+      return;
+    }
+    
+    socket.emit('public_rooms_list', getPublicRoomsList());
+  });
 
   socket.on('request_sync', ({ playerId }) => {
     const pId = playerId || socketToPlayerId[socket.id];
     if (!pId) return;
+    
+    // Rate limit check
+    const rateLimitResult = checkRateLimit(socket.id, 'request_sync');
+    if (!rateLimitResult.allowed) {
+      socket.emit('error', 'Rate limit exceeded. Please wait before requesting sync again.');
+      return;
+    }
+    
     let room = Object.values(rooms).find(r => r.players.some(p => p.id === pId));
     if (!room) return;
     const player = room.players.find(p => p.id === pId);
@@ -686,12 +995,40 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('emote_sent', ({ roomId, emote }) => {
     const playerId = socketToPlayerId[socket.id];
-    if (playerId) io.to(roomId).emit('receive_emote', { playerId, emote });
+    if (!playerId) return;
+    
+    // SECURITY: Validate emote format
+    if (!emote || typeof emote !== 'string' || emote.length > 50) {
+      socket.emit('error', 'Invalid emote.');
+      return;
+    }
+    
+    // SECURITY: Validate emote is in allowed list (in-house emotes only for now)
+    // Remote emotes should be validated against database, but for now we allow in-house only
+    const sanitizedEmote = emote.trim();
+    if (!IN_HOUSE_EMOTES.includes(sanitizedEmote) && !sanitizedEmote.startsWith(':')) {
+      socket.emit('error', 'Invalid emote.');
+      return;
+    }
+    
+    // Rate limit check - use socket.id as identifier
+    const rateLimitResult = checkRateLimit(socket.id, 'emote_sent');
+    if (!rateLimitResult.allowed) {
+      const retryAfterSeconds = Math.ceil((rateLimitResult.retryAfter || 0) / 1000);
+      socket.emit('error', `Rate limit exceeded. Please wait ${retryAfterSeconds} second${retryAfterSeconds !== 1 ? 's' : ''} before sending another emote.`);
+      return;
+    }
+    
+    io.to(roomId).emit('receive_emote', { playerId, emote: sanitizedEmote });
   });
 
   socket.on('disconnect', () => {
     const roomId = socketToRoom[socket.id];
     const playerId = socketToPlayerId[socket.id];
+    
+    // Clean up rate limit data for this socket
+    clearRateLimit(socket.id);
+    
     if (!roomId || !playerId) return;
     const room = rooms[roomId];
     if (!room) return;

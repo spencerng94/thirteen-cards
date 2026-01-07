@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { BackgroundTheme, AiDifficulty } from '../types';
 import { PREMIUM_BOARDS, BoardPreview } from './UserHub';
 import { SUPER_PRESTIGE_SLEEVE_IDS, SOVEREIGN_IDS, SLEEVES as ALL_STORE_SLEEVES } from './Store';
+import { InstructionsModal } from './InstructionsModal';
+
+export type SocialFilter = 'UNMUTED' | 'FRIENDS_ONLY' | 'MUTED';
 
 interface GameSettingsProps {
   onClose: () => void;
@@ -24,6 +27,8 @@ interface GameSettingsProps {
   setPlayAnimationsEnabled: (val: boolean) => void;
   unlockedSleeves?: string[];
   unlockedBoards?: string[];
+  socialFilter?: SocialFilter;
+  setSocialFilter?: (filter: SocialFilter) => void;
 }
 
 const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -59,8 +64,11 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   playAnimationsEnabled,
   setPlayAnimationsEnabled,
   unlockedSleeves = [],
-  unlockedBoards = []
+  unlockedBoards = [],
+  socialFilter = 'UNMUTED',
+  setSocialFilter
 }) => {
+  const [showHelp, setShowHelp] = useState(false);
   const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'WITS_END', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'SOVEREIGN_SPADE', 'SOVEREIGN_CLUB', 'SOVEREIGN_DIAMOND', 'SOVEREIGN_HEART', 'ROYAL_CROSS'];
 
   return (
@@ -79,10 +87,16 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
             <h2 className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 via-yellow-300 to-yellow-500 uppercase italic tracking-tight font-serif leading-none drop-shadow-[0_4px_20px_rgba(251,191,36,0.3)]">
               GAME SETTINGS
             </h2>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_12px_rgba(251,191,36,0.8)]"></div>
-              <p className="text-xs sm:text-sm font-semibold text-white/60 uppercase tracking-wide">Battlefield Configuration</p>
-            </div>
+            <button
+              onClick={() => setShowHelp(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] border border-white/20 hover:border-yellow-500/40 text-white/70 hover:text-yellow-400 transition-all duration-200 active:scale-95 group w-fit"
+            >
+              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_12px_rgba(251,191,36,0.8)] flex-shrink-0"></div>
+              <span className="text-xs sm:text-sm font-semibold uppercase tracking-wide group-hover:tracking-wider transition-all whitespace-nowrap">HELP</span>
+              <svg className="w-3.5 h-3.5 group-hover:scale-110 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
           </div>
           <button 
             onClick={onClose} 
@@ -205,6 +219,41 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
               </div>
             )}
           </div>
+
+          {/* Social Filter - Premium */}
+          {!isSinglePlayer && setSocialFilter && (
+            <div className="space-y-5">
+              <SectionHeader>Social Filter</SectionHeader>
+              <div className="grid grid-cols-3 gap-3 p-1.5 bg-white/5 backdrop-blur-xl rounded-2xl sm:rounded-3xl border-2 border-white/10">
+                {(['UNMUTED', 'FRIENDS_ONLY', 'MUTED'] as SocialFilter[]).map(filter => {
+                  const active = socialFilter === filter;
+                  let activeStyle = "bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-[0_0_25px_rgba(251,191,36,0.4)] scale-105";
+                  if (filter === 'UNMUTED') activeStyle = "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-[0_0_25px_rgba(16,185,129,0.4)] scale-105";
+                  if (filter === 'MUTED') activeStyle = "bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_0_25px_rgba(239,68,68,0.4)] scale-105";
+                  
+                  const labels: Record<SocialFilter, string> = {
+                    'UNMUTED': 'Unmuted',
+                    'FRIENDS_ONLY': 'Friends Only',
+                    'MUTED': 'Muted'
+                  };
+                  
+                  return (
+                    <button 
+                      key={filter} 
+                      onClick={() => setSocialFilter(filter)} 
+                      className={`py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold uppercase tracking-wide transition-all duration-300 touch-manipulation ${
+                        active 
+                          ? activeStyle 
+                          : 'text-white/40 hover:text-white/70 hover:bg-white/5 border-2 border-transparent hover:border-white/10'
+                      }`}
+                    >
+                      {labels[filter]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* AI Difficulty - Premium */}
           {isSinglePlayer && currentDifficulty && onChangeDifficulty && (
@@ -364,6 +413,9 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
           </button>
         </div>
       </div>
+      
+      {/* Help Modal */}
+      {showHelp && <InstructionsModal onClose={() => setShowHelp(false)} />}
     </div>
   );
 };

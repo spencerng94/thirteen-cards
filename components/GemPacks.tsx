@@ -1,6 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { UserProfile } from '../types';
 import { CurrencyIcon } from './Store';
+import { GemPurchaseCelebration } from './GemPurchaseCelebration';
+import { processGemTransaction } from '../services/supabase';
+import { Toast } from './Toast';
+import { audioService } from '../services/audio';
 
 interface GemPack {
   id: string;
@@ -215,7 +219,14 @@ export const GemPacks: React.FC<{
   onClose: () => void;
   profile: UserProfile | null;
   onRefreshProfile: () => void;
-}> = ({ onClose, profile }) => {
+}> = ({ onClose, profile, onRefreshProfile }) => {
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [purchasedGems, setPurchasedGems] = useState(0);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // Calculate best value (gems per dollar)
   const bestValue = useMemo(() => {
     return GEM_PACKS.reduce((best, pack) => {
@@ -224,6 +235,122 @@ export const GemPacks: React.FC<{
       return valuePerDollar > best.value ? { pack, value: valuePerDollar } : best;
     }, { pack: GEM_PACKS[0], value: 0 });
   }, []);
+
+  const handlePurchase = async (pack: GemPack) => {
+    if (!profile || isProcessing) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // Detect if we're on web or mobile
+      const isWeb = typeof window !== 'undefined' && window.navigator.userAgent.indexOf('Mobile') === -1;
+      
+      if (isWeb) {
+        // WEB: Stripe placeholder logic
+        // TODO: Replace with actual Stripe integration
+        // Example flow:
+        // 1. Create Stripe checkout session
+        // 2. Redirect to Stripe payment page
+        // 3. On return, verify payment via webhook or server endpoint
+        // 4. Update gems in Supabase
+        
+        console.log('🔄 Stripe integration placeholder - would process:', pack);
+        
+        // For now, simulate successful purchase after confirmation
+        // In production, this would be handled by Stripe checkout flow
+        const confirmed = window.confirm(
+          `Purchase ${pack.totalGems.toLocaleString()} gems for ${pack.price}?\n\n` +
+          `(This is a placeholder. In production, Stripe checkout will be used.)`
+        );
+        
+        if (!confirmed) {
+          setIsProcessing(false);
+          return;
+        }
+        
+        // Simulate payment processing delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Process gem transaction with iap_purchase source
+        const result = await processGemTransaction(profile.id, pack.totalGems, 'iap_purchase');
+        
+        if (result.success && result.newGemBalance !== undefined) {
+          // Play success sound
+          audioService.playPurchase();
+          
+          // Show celebration
+          setPurchasedGems(pack.totalGems);
+          setShowCelebration(true);
+          
+          // Refresh profile immediately to update gem counter in header
+          // This ensures the gem count is fetched fresh from database
+          await onRefreshProfile();
+          
+          // Show success toast
+          setToastMessage(`Successfully purchased ${pack.totalGems.toLocaleString()} gems!`);
+          setToastType('success');
+          setShowToast(true);
+        } else {
+          throw new Error(result.error || 'Failed to update gems');
+        }
+      } else {
+        // MOBILE: In-App Purchase placeholder logic
+        // TODO: Replace with actual IAP integration (React Native IAP, Capacitor IAP, etc.)
+        // Example flow:
+        // 1. Request product details from App Store/Play Store
+        // 2. Initiate purchase
+        // 3. Wait for purchase confirmation
+        // 4. Update gems in Supabase
+        
+        console.log('📱 IAP integration placeholder - would process:', pack);
+        
+        // For now, simulate successful purchase
+        const confirmed = window.confirm(
+          `Purchase ${pack.totalGems.toLocaleString()} gems for ${pack.price}?\n\n` +
+          `(This is a placeholder. In production, IAP will be used.)`
+        );
+        
+        if (!confirmed) {
+          setIsProcessing(false);
+          return;
+        }
+        
+        // Simulate payment processing delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Process gem transaction with iap_purchase source
+        const result = await processGemTransaction(profile.id, pack.totalGems, 'iap_purchase');
+        
+        if (result.success && result.newGemBalance !== undefined) {
+          // Play success sound
+          audioService.playPurchase();
+          
+          // Show celebration
+          setPurchasedGems(pack.totalGems);
+          setShowCelebration(true);
+          
+          // Refresh profile immediately to update gem counter in header
+          // This ensures the gem count is fetched fresh from database
+          await onRefreshProfile();
+          
+          // Show success toast
+          setToastMessage(`Successfully purchased ${pack.totalGems.toLocaleString()} gems!`);
+          setToastType('success');
+          setShowToast(true);
+        } else {
+          throw new Error(result.error || 'Failed to update gems');
+        }
+      }
+    } catch (error: any) {
+      console.error('Purchase failed:', error);
+      setToastMessage(error.message || 'Purchase failed. Please try again.');
+      setToastType('error');
+      setShowToast(true);
+      audioService.playError();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/98 backdrop-blur-3xl p-3 sm:p-4 animate-in fade-in duration-700 overflow-hidden" onClick={onClose}>
@@ -354,8 +481,15 @@ export const GemPacks: React.FC<{
                     
                     {/* Bottom Section: Purchase Button - Always Flush */}
                     <div className="w-full mt-auto">
-                       <button className="w-full px-3 py-1.5 sm:py-2 rounded-lg border-2 bg-gradient-to-br from-pink-500/20 to-pink-600/20 border-pink-500/40 text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider hover:from-pink-500/30 hover:to-pink-600/30 hover:border-pink-500/60 hover:shadow-[0_0_15px_rgba(236,72,153,0.4)] transition-all duration-300 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:from-pink-500/20 disabled:hover:to-pink-600/20">
-                          Purchase
+                       <button 
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handlePurchase(pack);
+                         }}
+                         disabled={isProcessing || !profile}
+                         className="w-full px-3 py-1.5 sm:py-2 rounded-lg border-2 bg-gradient-to-br from-pink-500/20 to-pink-600/20 border-pink-500/40 text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider hover:from-pink-500/30 hover:to-pink-600/30 hover:border-pink-500/60 hover:shadow-[0_0_15px_rgba(236,72,153,0.4)] transition-all duration-300 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:from-pink-500/20 disabled:hover:to-pink-600/20"
+                       >
+                          {isProcessing ? 'Processing...' : 'Purchase'}
                        </button>
                     </div>
 
@@ -404,6 +538,27 @@ export const GemPacks: React.FC<{
           100% { transform: translateY(-60px) translateX(20px); opacity: 0; }
         }
       `}} />
+
+      {/* Gem Purchase Celebration */}
+      {showCelebration && profile && (
+        <GemPurchaseCelebration
+          gemsPurchased={purchasedGems}
+          totalGems={(profile.gems || 0) + purchasedGems}
+          onClose={() => {
+            setShowCelebration(false);
+            setPurchasedGems(0);
+          }}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {showToast && (
+        <Toast
+          message={toastMessage}
+          onClose={() => setShowToast(false)}
+          type={toastType}
+        />
+      )}
     </div>
   );
 };

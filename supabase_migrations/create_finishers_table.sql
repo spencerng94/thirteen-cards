@@ -18,7 +18,8 @@ ADD COLUMN IF NOT EXISTS unlocked_finishers TEXT[] DEFAULT '{}';
 INSERT INTO finishers (name, animation_key, price)
 VALUES 
   ('The Shiba Slam', 'shiba_slam', 1500),
-  ('The Ethereal Blade', 'ethereal_blade', 1500)
+  ('The Ethereal Blade', 'ethereal_blade', 1500),
+  ('KISS MY SHIBA', 'kiss_my_shiba', 1500)
 ON CONFLICT (animation_key) DO NOTHING;
 
 -- Add RLS policies

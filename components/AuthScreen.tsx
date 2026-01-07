@@ -132,6 +132,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
           )}
         </div>
       </div>
+
+      {/* Legal Footer */}
+      <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center">
+        <p className="text-white/40 text-[9px] font-medium text-center px-4">
+          By playing, you agree to our{' '}
+          <button
+            onClick={() => window.open('https://gist.github.com/spencerng94/7f797f735d94fe7ae5272574392e35ae', '_blank', 'noopener,noreferrer')}
+            className="text-yellow-400/80 hover:text-yellow-400 underline underline-offset-2 transition-colors"
+          >
+            Terms
+          </button>
+          {' '}and{' '}
+          <button
+            onClick={() => window.open('https://gist.github.com/spencerng94/35f0e5503071f7a85ecf84a01a059f58', '_blank', 'noopener,noreferrer')}
+            className="text-blue-400/80 hover:text-blue-400 underline underline-offset-2 transition-colors"
+          >
+            Privacy
+          </button>
+          .
+        </p>
+      </div>
     </div>
   );
 };

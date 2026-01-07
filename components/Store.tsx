@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme, Emote, Card as CardType, Rank, Suit } from '../types';
-import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, equipFinisher, Finisher, rewardUserForAd } from '../services/supabase';
+import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, buyFinisherPack, buyPack, equipFinisher, Finisher, processAdReward, fetchChatPresets, ChatPreset, purchasePhrase, incrementGems, processGemTransaction, fetchGemTransactions, GemTransaction } from '../services/supabase';
 import { PREMIUM_BOARDS, BoardPreview, BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
@@ -9,8 +9,29 @@ import { ITEM_REGISTRY } from '../constants/ItemRegistry';
 import { v4 as uuidv4 } from 'uuid';
 import { FinisherPreview } from './FinisherPreview';
 import { PurchaseSuccessModal } from './PurchaseSuccessModal';
+import { AdRewardSuccessModal } from './AdRewardSuccessModal';
+import { Toast } from './Toast';
 import { adService, AdPlacement } from '../services/adService';
 import { GemRain } from './GemRain';
+import { ShibaSlamFinisher } from './ShibaSlamFinisher';
+import { EtherealBladeFinisher } from './EtherealBladeFinisher';
+import { SaltShakeFinisher } from './SaltShakeFinisher';
+import { SanctumSnapFinisher } from './SanctumSnapFinisher';
+import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
+import { KissMyShibaFinisher } from './KissMyShibaFinisher';
+import { ChatBubble } from './ChatBubble';
+
+// Helper function to format time ago
+const getTimeAgo = (date: Date): string => {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  
+  return date.toLocaleDateString();
+};
 
 // Premium Finisher Icons
 const ShibaSlamIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -153,6 +174,67 @@ export const SLEEVES: { id: string; name: string; style: CardCoverStyle; price: 
   { id: 'DIVINE_ROYAL', name: 'Divine Royal', style: 'DIVINE_ROYAL', price: 1000, currency: 'GEMS' },
   { id: 'EMPERORS_HUBRIS', name: "Emperor's Hubris", style: 'EMPERORS_HUBRIS', price: 1200, currency: 'GEMS' },
   { id: 'ROYAL_CROSS', name: 'Royal Cross', style: 'ROYAL_CROSS', price: 1500, currency: 'GEMS' },
+];
+
+// Deal Pack Structure
+export interface DealPack {
+  id: string;
+  name: string;
+  description: string;
+  items: Array<{
+    type: 'FINISHER' | 'EMOTE' | 'BOARD' | 'SLEEVE';
+    id: string; // animation_key for finishers, trigger_code for emotes, id for boards/sleeves
+  }>;
+  originalPrice: number; // Sum of individual prices
+  bundlePrice: number; // Discounted price
+  discountPercent: number;
+  discountLabel: string; // e.g., '30% OFF', '35% OFF'
+}
+
+export const DEAL_PACKS: DealPack[] = [
+  {
+    id: 'LUNAR_NEW_YEAR_PACK',
+    name: 'Lunar New Year Pack',
+    description: 'Celebrate the Year of the Dragon with this exclusive collection!',
+    items: [
+      { type: 'SLEEVE', id: 'DRAGON_SCALE' }, // dragons_fortune -> Dragon Scale sleeve
+      { type: 'BOARD', id: 'GOLDEN_EMPEROR' }, // lucky_board -> Lucky Envelope
+      { type: 'FINISHER', id: 'sanctum_snap' }
+    ],
+    originalPrice: 3000,
+    bundlePrice: 2100,
+    discountPercent: 30,
+    discountLabel: '30% OFF'
+  },
+  {
+    id: 'VALENTINE_PACK',
+    name: 'Valentine Pack',
+    description: 'The perfect romantic collection for your special someone!',
+    items: [
+      { type: 'EMOTE', id: ':heart_eyes:' }, // seductive_emote
+      { type: 'BOARD', id: 'JUST_A_GIRL' }, // girl_board
+      { type: 'FINISHER', id: 'seductive_finish' }
+    ],
+    originalPrice: 3500,
+    bundlePrice: 2450,
+    discountPercent: 30,
+    discountLabel: '30% OFF'
+  },
+  {
+    id: 'SHIBA_INU_PACK',
+    name: 'Shiba Inu Pack',
+    description: 'The ultimate Shiba collection - all the good boys in one pack!',
+    items: [
+      { type: 'EMOTE', id: ':shiba:' }, // shiba_emote
+      { type: 'EMOTE', id: ':shiba_butt:' }, // shiba_butt_emote
+      { type: 'FINISHER', id: 'shiba_slam' },
+      { type: 'FINISHER', id: 'kiss_my_shiba' }
+    ],
+    originalPrice: 4500,
+    bundlePrice: 2900,
+    discountPercent: 35,
+    discountLabel: '35% OFF'
+  }
 ];
 
 /**
@@ -747,13 +829,23 @@ export const CardSleevePreview: React.FC<{
   );
 };
 
-// Free Gems Card Component
+// Free Gems Card Component with Weekly Progress
 const FreeGemsCard: React.FC<{ 
   profile: UserProfile | null; 
   onRefresh: () => void;
   onGemRain: () => void;
-}> = ({ profile, onRefresh, onGemRain }) => {
+  remoteEmotes?: Emote[];
+}> = ({ profile, onRefresh, onGemRain, remoteEmotes = [] }) => {
   const [adState, setAdState] = useState<'idle' | 'loading' | 'playing' | 'rewarded' | 'error'>('idle');
+  const [weeklyGems, setWeeklyGems] = useState<number>(0);
+  const [resetTimestamp, setResetTimestamp] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<string>('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [showWarningToast, setShowWarningToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [rewardAmount, setRewardAmount] = useState(50);
+  const [buttonPulse, setButtonPulse] = useState(false);
   const placement: AdPlacement = 'shop';
 
   useEffect(() => {
@@ -761,53 +853,477 @@ const FreeGemsCard: React.FC<{
     return unsubscribe;
   }, [placement]);
 
-  const isAvailable = adService.isAdAvailable(placement);
+  // Update weekly progress from profile
+  useEffect(() => {
+    if (profile) {
+      setWeeklyGems(profile.ad_weekly_gems || 0);
+      // Calculate reset timestamp (7 days from first claim, or default to 7 days from now)
+      if (profile.first_ad_claim_week) {
+        const firstClaim = new Date(profile.first_ad_claim_week).getTime();
+        const resetTime = firstClaim + (7 * 24 * 60 * 60 * 1000);
+        setResetTimestamp(new Date(resetTime).toISOString());
+      } else {
+        // Default: 7 days from now
+        const defaultReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        setResetTimestamp(defaultReset);
+      }
+    }
+  }, [profile]);
+
+  // Update countdown timer
+  useEffect(() => {
+    if (!resetTimestamp) return;
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const reset = new Date(resetTimestamp).getTime();
+      const diff = reset - now;
+
+      if (diff <= 0) {
+        setCountdown('Resetting...');
+        // Refresh profile to get updated weekly count
+        onRefresh();
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (days > 0) {
+        setCountdown(`${days}d ${hours}h`);
+      } else if (hours > 0) {
+        setCountdown(`${hours}h ${minutes}m`);
+      } else {
+        setCountdown(`${minutes}m ${seconds}s`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [resetTimestamp, onRefresh]);
+
+  // Button pulse animation every 5 seconds
+  useEffect(() => {
+    if (weeklyGems >= 500) return; // Don't pulse if limit reached
+
+    const pulseInterval = setInterval(() => {
+      setButtonPulse(true);
+      setTimeout(() => setButtonPulse(false), 500);
+    }, 5000);
+
+    return () => clearInterval(pulseInterval);
+  }, [weeklyGems]);
+
+  const isLimitReached = weeklyGems >= 500;
+  const isAvailable = adService.isAdAvailable(placement) && !isLimitReached;
+  const isAdLoaded = adService.isLoaded();
   const cooldownString = adService.getCooldownString(placement);
+  const progressPercent = Math.min((weeklyGems / 500) * 100, 100);
 
   const handleWatchAd = async () => {
-    if (!isAvailable || adState !== 'idle' || !profile) return;
+    if (!isAvailable || adState !== 'idle' || !profile || isLimitReached || !isAdLoaded) return;
 
     try {
-      await adService.showRewardedAd(placement, async (amount) => {
-        const result = await rewardUserForAd(profile.id, amount);
-        if (result.success) {
-          audioService.playPurchase();
-          onGemRain();
-          onRefresh();
+      // Simulate 30-second ad delay
+      setAdState('playing');
+      
+      // Wait for 30 seconds (simulated ad)
+      await new Promise(resolve => setTimeout(resolve, 30000));
+      
+      // After ad completes, process gem transaction with ad_reward source
+      const result = await processGemTransaction(profile.id, 25, 'ad_reward');
+      
+      if (result.success && result.newGemBalance !== undefined) {
+        // Play success sound
+        audioService.playPurchase();
+        
+        // Show success modal
+        setRewardAmount(25);
+        setShowSuccessModal(true);
+        
+        // Refresh profile to get updated gem count
+        onRefresh();
+        
+        // Refresh history if HISTORY tab is active
+        if (activeTab === 'HISTORY' && profile) {
+          const transactions = await fetchGemTransactions(profile.id, 5);
+          setGemTransactions(transactions);
         }
-      });
+        
+        // Set state to rewarded
+        setAdState('rewarded');
+        
+        // Reset to idle after a moment
+        setTimeout(() => {
+          setAdState('idle');
+        }, 2000);
+      } else {
+        // Show error toast
+        setToastMessage(result.error || 'Failed to process reward');
+        setShowToast(true);
+        setAdState('error');
+        setTimeout(() => {
+          setAdState('idle');
+        }, 1000);
+      }
     } catch (error: any) {
       console.error('Ad error:', error);
+      setToastMessage('Failed to process ad reward. Please try again.');
+      setShowToast(true);
+      setAdState('error');
+      setTimeout(() => {
+        setAdState('idle');
+      }, 1000);
     }
   };
 
   return (
-    <div className="relative group bg-gradient-to-br from-pink-500/20 via-pink-600/15 to-purple-500/20 backdrop-blur-xl border-2 border-pink-500/30 rounded-2xl sm:rounded-3xl p-4 sm:p-5 overflow-hidden shadow-[0_0_40px_rgba(236,72,153,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,0.5)] transition-all duration-500">
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-      <div className="relative z-10 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-pink-500/40 to-purple-500/40 flex items-center justify-center shadow-lg">
-            <CurrencyIcon type="GEMS" size="md" />
+    <>
+      <div className="relative group bg-gradient-to-br from-pink-500/20 via-pink-600/15 to-purple-500/20 backdrop-blur-xl border-2 border-pink-500/30 rounded-2xl sm:rounded-3xl p-4 sm:p-5 overflow-hidden shadow-[0_0_40px_rgba(236,72,153,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,0.5)] transition-all duration-500">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+        
+        <div className="relative z-10 space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-pink-500/40 to-purple-500/40 flex items-center justify-center shadow-lg">
+                {!isAdLoaded ? (
+                  <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <CurrencyIcon type="GEMS" size="md" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-white mb-1">Free Gems Allowance</h3>
+                <p className="text-xs sm:text-sm text-white/70">
+                  {!isAdLoaded ? 'Loading ad...' : 
+                   isLimitReached ? 'Weekly limit reached' : 
+                   'Watch a video to earn 25 Gems'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleWatchAd}
+              disabled={!isAvailable || adState !== 'idle' || isLimitReached || !isAdLoaded}
+              className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base transition-all duration-300 min-h-[48px] touch-manipulation ${
+                !isAvailable || adState !== 'idle' || isLimitReached || !isAdLoaded
+                  ? 'bg-white/10 border border-white/20 text-white/50 cursor-not-allowed'
+                  : `bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg hover:scale-105 hover:shadow-xl ${
+                      buttonPulse ? 'animate-pulse' : ''
+                    }`
+              }`}
+            >
+              {!isAdLoaded ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Loading...
+                </span>
+              ) : adState === 'loading' ? 'Loading...' : 
+                 adState === 'playing' ? 'Watching Ad...' : 
+                 adState === 'rewarded' ? 'Rewarded!' :
+                 isLimitReached ? 'Limit Reached' :
+                 !isAvailable ? cooldownString : 
+                 '+25 Gems'}
+            </button>
           </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-white mb-1">Free Gems</h3>
-            <p className="text-xs sm:text-sm text-white/70">Watch a video to earn 20 Gems</p>
+
+          {/* Progress Bar */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="text-white/70 font-medium">
+                {weeklyGems} / 500 gems this week
+              </span>
+              {resetTimestamp && (
+                <span className="text-white/50">
+                  Resets in: {countdown}
+                </span>
+              )}
+            </div>
+            <div className="relative h-3 sm:h-4 bg-white/10 rounded-full overflow-hidden">
+              <div 
+                className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
+                  isLimitReached 
+                    ? 'bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 shadow-[0_0_20px_rgba(251,191,36,0.6)]' 
+                    : 'bg-gradient-to-r from-pink-500 to-purple-600'
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+              </div>
+            </div>
           </div>
         </div>
-        <button
-          onClick={handleWatchAd}
-          disabled={!isAvailable || adState !== 'idle'}
-          className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base transition-all duration-300 min-h-[48px] touch-manipulation ${
-            !isAvailable || adState !== 'idle'
-              ? 'bg-white/10 border border-white/20 text-white/50 cursor-not-allowed'
-              : 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg hover:scale-105 hover:shadow-xl'
-          }`}
-        >
-          {adState === 'loading' ? 'Loading...' : 
-           adState === 'playing' ? 'Playing...' : 
-           !isAvailable ? cooldownString : 
-           'Watch Video'}
-        </button>
+      </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <AdRewardSuccessModal
+          gemAmount={rewardAmount}
+          onClose={() => setShowSuccessModal(false)}
+          remoteEmotes={remoteEmotes}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {showToast && (
+        <Toast
+          message={toastMessage}
+          onClose={() => setShowToast(false)}
+          type="error"
+        />
+      )}
+
+      {/* Warning Toast for Early Ad Closure */}
+      {showWarningToast && (
+        <Toast
+          message="Watch the full video to claim your gems!"
+          type="error"
+          onClose={() => setShowWarningToast(false)}
+        />
+      )}
+
+      {/* Shimmer Animation */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+      `}} />
+    </>
+  );
+};
+
+// Pack Purchase Success Modal with Chaos Animation
+interface PackPurchaseSuccessModalProps {
+  packName: string;
+  finisherKeys: string[];
+  finishers: Finisher[];
+  remoteEmotes: Emote[];
+  onClose: () => void;
+}
+
+const PackPurchaseSuccessModal: React.FC<PackPurchaseSuccessModalProps> = ({
+  packName,
+  finisherKeys,
+  finishers,
+  remoteEmotes,
+  onClose
+}) => {
+  const [phase, setPhase] = useState<'entrance' | 'chaos' | 'display'>('entrance');
+  const [replayKeys, setReplayKeys] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    // Entrance animation
+    const entranceTimer = setTimeout(() => setPhase('chaos'), 300);
+    // Chaos phase lasts longer for all finishers to play
+    const chaosTimer = setTimeout(() => setPhase('display'), 6000);
+    
+    // Auto-close after 8 seconds
+    const autoCloseTimer = setTimeout(() => {
+      onClose();
+    }, 8000);
+
+    return () => {
+      clearTimeout(entranceTimer);
+      clearTimeout(chaosTimer);
+      clearTimeout(autoCloseTimer);
+    };
+  }, [onClose]);
+
+  const renderFinisher = (key: string, index: number) => {
+    const replayKey = replayKeys[key] || 0;
+    const finisher = finishers.find(f => f.animation_key === key);
+
+    // Position each finisher in different areas of the screen for chaos effect
+    const positions = [
+      { top: '10%', left: '10%', transform: 'scale(0.8)' },
+      { top: '10%', right: '10%', transform: 'scale(0.8)' },
+      { bottom: '20%', left: '50%', transform: 'translateX(-50%) scale(0.8)' },
+    ];
+
+    const position = positions[index % positions.length] || positions[0];
+
+    if (key === 'shiba_slam') {
+      return (
+        <div key={`${key}-${replayKey}`} className="absolute" style={position}>
+          <ShibaSlamFinisher
+            onComplete={() => {}}
+            isPreview={true}
+            winnerName="GUEST"
+          />
+        </div>
+      );
+    } else if (key === 'ethereal_blade') {
+      return (
+        <div key={`${key}-${replayKey}`} className="absolute" style={position}>
+          <EtherealBladeFinisher
+            onComplete={() => {}}
+            isPreview={true}
+            winnerName="GUEST"
+          />
+        </div>
+      );
+    } else if (key === 'salt_shaker') {
+      return (
+        <div key={`${key}-${replayKey}`} className="absolute" style={position}>
+          <SaltShakeFinisher
+            onComplete={() => {}}
+            isPreview={true}
+            winnerName="GUEST"
+          />
+        </div>
+      );
+    } else if (key === 'sanctum_snap') {
+      return (
+        <div key={`${key}-${replayKey}`} className="absolute" style={position}>
+          <SanctumSnapFinisher
+            onComplete={() => {}}
+            isPreview={true}
+            winnerName="GUEST"
+          />
+        </div>
+      );
+    } else if (key === 'seductive_finish') {
+      return (
+        <div key={`${key}-${replayKey}`} className="absolute" style={position}>
+          <SeductiveFinishFinisher
+            onComplete={() => {}}
+            isPreview={true}
+            winnerName="GUEST"
+          />
+        </div>
+      );
+    } else if (key === 'kiss_my_shiba') {
+      return (
+        <div key={`${key}-${replayKey}`} className="absolute" style={position}>
+          <KissMyShibaFinisher
+            onComplete={() => {}}
+            isPreview={true}
+            winnerName="GUEST"
+          />
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/90 backdrop-blur-sm transition-opacity duration-500"
+        onClick={onClose}
+      />
+
+      {/* Chaos Finisher Animations - All playing at once */}
+      {phase === 'chaos' && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {finisherKeys.map((key, index) => renderFinisher(key, index))}
+        </div>
+      )}
+
+      {/* Success Modal */}
+      <div 
+        className={`relative z-10 bg-gradient-to-br from-[#0a0a0a] via-[#050505] to-[#000000] border-2 border-pink-500/60 rounded-3xl sm:rounded-[3rem] p-6 sm:p-8 w-full max-w-2xl shadow-[0_0_150px_rgba(236,72,153,0.8)] overflow-hidden ${
+          phase === 'entrance' 
+            ? 'scale-0 opacity-0' 
+            : phase === 'chaos'
+            ? 'scale-105 opacity-100 animate-pulse'
+            : 'scale-100 opacity-100'
+        } transition-all duration-500`}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Background Glow Effects */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(236,72,153,0.3)_0%,transparent_70%)]"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-pink-500/20"></div>
+        
+        {/* Animated Border Glow */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 rounded-3xl sm:rounded-[3rem] opacity-60 blur-xl animate-pulse"></div>
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col items-center text-center gap-4 sm:gap-6">
+          {/* Success Icon */}
+          <div className={`relative ${
+            phase === 'chaos' 
+              ? 'scale-150 rotate-12' 
+              : 'scale-100 rotate-0'
+          } transition-all duration-500`}>
+            <div className="absolute inset-0 bg-pink-500/40 blur-2xl rounded-full animate-pulse"></div>
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 bg-gradient-to-br from-pink-400 to-purple-600 rounded-full flex items-center justify-center border-4 border-pink-300 shadow-[0_0_60px_rgba(236,72,153,1)]">
+              <svg 
+                className="w-14 h-14 sm:w-16 sm:h-16 text-white" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={3} 
+                  d="M5 13l4 4L19 7" 
+                />
+              </svg>
+            </div>
+          </div>
+
+          {/* Success Message */}
+          <div className="space-y-2">
+            <h2 className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-pink-400 via-purple-400 to-pink-500 uppercase tracking-tight drop-shadow-[0_0_30px_rgba(236,72,153,0.8)]">
+              Pack Unlocked!
+            </h2>
+            <p className="text-lg sm:text-xl text-white/80 font-semibold">
+              {packName}
+            </p>
+            <p className="text-sm sm:text-base text-white/60 font-medium">
+              All finishers are now in your collection!
+            </p>
+          </div>
+
+          {/* Finisher Icons Grid */}
+          <div className="flex gap-4 flex-wrap justify-center py-4">
+            {finisherKeys.map(key => {
+              const finisher = finishers.find(f => f.animation_key === key);
+              return (
+                <div
+                  key={key}
+                  className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center border-2 border-pink-500/50 bg-pink-500/10"
+                >
+                  {finisher?.animation_key === 'shiba_slam' ? (
+                    <ShibaSlamIcon className="w-full h-full p-2" />
+                  ) : finisher?.animation_key === 'ethereal_blade' ? (
+                    <EtherealBladeIcon className="w-full h-full p-2" />
+                  ) : finisher?.animation_key === 'seductive_finish' ? (
+                    <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="lg" />
+                  ) : finisher?.animation_key === 'sanctum_snap' ? (
+                    <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="lg" />
+                  ) : finisher?.animation_key === 'kiss_my_shiba' ? (
+                    <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="lg" />
+                  ) : (
+                    <div className="text-3xl">⚔️</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="mt-2 px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold uppercase tracking-wide rounded-xl shadow-[0_0_30px_rgba(236,72,153,0.6)] hover:shadow-[0_0_40px_rgba(236,72,153,0.8)] transition-all duration-300 hover:scale-105"
+          >
+            Epic!
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -818,10 +1334,126 @@ export const Store: React.FC<{
   onEquipSleeve: (sleeve: CardCoverStyle) => void; currentSleeve: CardCoverStyle;
   playerAvatar: string; onEquipAvatar: (avatar: string) => void;
   currentTheme: BackgroundTheme; onEquipBoard: (theme: BackgroundTheme) => void;
-  isGuest?: boolean; initialTab?: 'SLEEVES' | 'AVATARS' | 'BOARDS' | 'ITEMS' | 'FINISHERS';
+  isGuest?: boolean; initialTab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'ITEMS' | 'FINISHERS' | 'DEALS' | 'QUICK_CHATS';
   onOpenGemPacks?: () => void;
 }> = ({ onClose, profile, onRefreshProfile, onEquipSleeve, currentSleeve, playerAvatar, onEquipAvatar, currentTheme, onEquipBoard, isGuest, initialTab = 'SLEEVES', onOpenGemPacks }) => {
-  const [activeTab, setActiveTab] = useState<'SLEEVES' | 'AVATARS' | 'BOARDS' | 'ITEMS' | 'FINISHERS'>(initialTab as any);
+  // Inject premium finisher animations
+  useEffect(() => {
+    const styleId = 'premium-finisher-styles';
+    if (!document.getElementById(styleId)) {
+      const styleSheet = document.createElement('style');
+      styleSheet.id = styleId;
+      styleSheet.textContent = `
+        @keyframes premium-shimmer {
+          0% { transform: translateX(-100%) skewX(-15deg); }
+          100% { transform: translateX(200%) skewX(-15deg); }
+        }
+        @keyframes premium-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-3px); }
+        }
+        @keyframes premium-pulse {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.05); }
+        }
+        @keyframes premium-border-pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.7; }
+        }
+        @keyframes premium-badge-pulse {
+          0%, 100% { opacity: 0.4; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.1); }
+        }
+        @keyframes premium-glow {
+          0%, 100% { opacity: 0.3; filter: brightness(1); }
+          50% { opacity: 0.6; filter: brightness(1.2); }
+        }
+        @keyframes premium-icon-float {
+          0%, 100% { transform: translateY(0px) scale(1); }
+          50% { transform: translateY(-2px) scale(1.02); }
+        }
+        @keyframes premium-inner-shimmer-amber {
+          0% { transform: translateX(-100%) skewX(-15deg); }
+          100% { transform: translateX(200%) skewX(-15deg); }
+        }
+        @keyframes premium-inner-shimmer-pink {
+          0% { transform: translateX(-100%) skewX(-15deg); }
+          100% { transform: translateX(200%) skewX(-15deg); }
+        }
+        @keyframes premium-inner-shimmer-blue {
+          0% { transform: translateX(-100%) skewX(-15deg); }
+          100% { transform: translateX(200%) skewX(-15deg); }
+        }
+        .animate-premium-shimmer {
+          animation: premium-shimmer 3s ease-in-out infinite;
+        }
+        .animate-premium-float {
+          animation: premium-float 4s ease-in-out infinite;
+        }
+        .animate-premium-pulse {
+          animation: premium-pulse 3s ease-in-out infinite;
+        }
+        .animate-premium-border-pulse {
+          animation: premium-border-pulse 2s ease-in-out infinite;
+        }
+        .animate-premium-badge-pulse {
+          animation: premium-badge-pulse 2s ease-in-out infinite;
+        }
+        .animate-premium-glow {
+          animation: premium-glow 3s ease-in-out infinite;
+        }
+        .animate-premium-icon-float {
+          animation: premium-icon-float 3s ease-in-out infinite;
+        }
+        .animate-premium-inner-shimmer-amber {
+          animation: premium-inner-shimmer-amber 4s ease-in-out infinite;
+        }
+        .animate-premium-inner-shimmer-pink {
+          animation: premium-inner-shimmer-pink 4s ease-in-out infinite;
+        }
+        .animate-premium-inner-shimmer-blue {
+          animation: premium-inner-shimmer-blue 4s ease-in-out infinite;
+        }
+        @keyframes chat-wiggle {
+          0%, 100% { transform: rotate(0deg) translateY(0px); }
+          25% { transform: rotate(-2deg) translateY(-2px); }
+          75% { transform: rotate(2deg) translateY(-2px); }
+        }
+        .animate-chat-wiggle {
+          animation: chat-wiggle 2s ease-in-out infinite;
+        }
+        @keyframes chat-shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes chat-heartbeat {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        .chat-shimmer {
+          background: linear-gradient(90deg, #eab308 0%, #f97316 50%, #eab308 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: chat-shimmer 2s linear infinite;
+        }
+        .chat-heartbeat {
+          animation: chat-heartbeat 1.5s ease-in-out infinite;
+        }
+        .chat-wiggle {
+          animation: chat-wiggle 0.1s infinite;
+        }
+      `;
+      document.head.appendChild(styleSheet);
+    }
+  }, []);
+
+  const [activeTab, setActiveTab] = useState<'SLEEVES' | 'EMOTES' | 'BOARDS' | 'ITEMS' | 'FINISHERS' | 'DEALS' | 'QUICK_CHATS' | 'HISTORY'>(initialTab as any);
+  const [gemTransactions, setGemTransactions] = useState<GemTransaction[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [chatPresets, setChatPresets] = useState<ChatPreset[]>([]);
+  const [previewingChat, setPreviewingChat] = useState<ChatPreset | null>(null);
   const [pendingPurchase, setPendingPurchase] = useState<any>(null);
   const [applyVoucher, setApplyVoucher] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
@@ -834,7 +1466,7 @@ export const Store: React.FC<{
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successModalData, setSuccessModalData] = useState<{
     itemName: string;
-    itemType: 'SLEEVES' | 'AVATARS' | 'BOARDS' | 'ITEMS' | 'FINISHERS';
+    itemType: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'ITEMS' | 'FINISHERS' | 'QUICK_CHATS';
     price: number;
     currency: 'GOLD' | 'GEMS';
     style?: CardCoverStyle;
@@ -849,6 +1481,9 @@ export const Store: React.FC<{
   const [adState, setAdState] = useState<'idle' | 'loading' | 'playing' | 'rewarded' | 'error'>('idle');
   const [dailyDealSleeveId, setDailyDealSleeveId] = useState<string | null>(null);
   const [dealTimeRemaining, setDealTimeRemaining] = useState<{ hours: number; minutes: number; seconds: number }>({ hours: 0, minutes: 0, seconds: 0 });
+  const [showUpsellModal, setShowUpsellModal] = useState<{ packName: string; packPrice: number; itemPrice: number; difference: number; finisherId: string } | null>(null);
+  const [showPackSuccessModal, setShowPackSuccessModal] = useState<{ packName: string; finisherKeys: string[] } | null>(null);
+  const [showPackPreview, setShowPackPreview] = useState<{ packId: string } | null>(null);
 
   useEffect(() => {
     const unsubscribe = adService.onStateChange('shop', setAdState);
@@ -875,6 +1510,31 @@ export const Store: React.FC<{
       setShowDealsOnly(false);
     }
   }, [activeTab]);
+
+  // SECURITY: Refresh profile from database when Store opens to prevent fake gem balances
+  useEffect(() => {
+    if (profile && !isGuest) {
+      onRefreshProfile();
+    }
+  }, []); // Run once when Store opens
+
+  // Fetch gem transaction history when HISTORY tab is active
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (activeTab === 'HISTORY' && profile && !isGuest) {
+        setLoadingHistory(true);
+        try {
+          const transactions = await fetchGemTransactions(profile.id, 5);
+          setGemTransactions(transactions);
+        } catch (error) {
+          console.error('Error loading gem history:', error);
+        } finally {
+          setLoadingHistory(false);
+        }
+      }
+    };
+    loadHistory();
+  }, [activeTab, profile, isGuest]);
 
   useEffect(() => { 
     // Fetch emotes when component mounts - force refresh to bypass cache
@@ -910,8 +1570,23 @@ export const Store: React.FC<{
       }
     };
     
+    // Fetch chat presets
+    const loadChatPresets = async () => {
+      if (typeof fetchChatPresets === 'function') {
+        try {
+          const presets = await fetchChatPresets();
+          console.log(`💬 Store: Loaded ${presets?.length || 0} chat presets from Supabase`);
+          setChatPresets(presets || []);
+        } catch (err) {
+          console.error('❌ Error fetching chat presets in Store:', err);
+          setChatPresets([]);
+        }
+      }
+    };
+    
     loadEmotes();
     loadFinishers();
+    loadChatPresets();
   }, []);
 
   const hasVoucher = useMemo(() => (profile?.inventory?.items['GENERAL_10_OFF'] || 0) > 0, [profile]);
@@ -927,9 +1602,11 @@ export const Store: React.FC<{
         ? (profile.gems || 0) >= finalPrice
         : (profile.coins || 0) >= finalPrice;
       
-      if (!hasEnough && currency === 'GEMS') {
+      if (!hasEnough) {
+        if (currency === 'GEMS') {
         // Show ad prompt popup
         setShowAdPrompt(true);
+        }
         return;
       }
     }
@@ -943,11 +1620,15 @@ export const Store: React.FC<{
           await equipFinisher(profile.id, pendingPurchase.animation_key);
           onRefreshProfile();
         }
+        else if (pendingPurchase.type === 'QUICK_CHAT') {
+          // Quick chats don't need to be equipped, just unlocked
+          onRefreshProfile();
+        }
         // Show success modal for equip action
         setSuccessModalData({
           itemName: pendingPurchase.name,
           itemType: pendingPurchase.type === 'SLEEVE' ? 'SLEEVES' : 
-                    pendingPurchase.type === 'AVATAR' ? 'AVATARS' :
+                    pendingPurchase.type === 'AVATAR' ? 'EMOTES' :
                     pendingPurchase.type === 'BOARD' ? 'BOARDS' : 'FINISHERS',
           price: 0,
           currency: pendingPurchase.currency || 'GOLD',
@@ -972,7 +1653,85 @@ export const Store: React.FC<{
         };
         await updateProfileSettings(profile.id, updates);
       }
-      if (pendingPurchase.type === 'FINISHER') {
+      if (pendingPurchase.type === 'PACK') {
+        // For Gem Bundles: Use increment_gems to add gems directly
+        // Map bundle prices to gem amounts (100, 550, or 1200 gems)
+        const gemAmountMap: Record<number, number> = {
+          100: 100,
+          550: 550,
+          1200: 1200
+        };
+        
+        // Check if this is a gem bundle purchase (simple gem addition)
+        const gemAmount = gemAmountMap[finalPrice];
+        
+        if (gemAmount) {
+          // This is a gem bundle - process gem transaction with iap_purchase source
+          const result = await processGemTransaction(profile.id, gemAmount, 'iap_purchase');
+          
+          if (result.success && result.newGemBalance !== undefined) {
+            audioService.playPurchase();
+            
+            // Show success toast
+            setToastMessage(`Successfully added ${gemAmount} gems!`);
+            setShowToast(true);
+            
+            // Refresh profile immediately to update gem counter in header
+            // This ensures the gem count is fetched fresh from database
+            await onRefreshProfile();
+            
+            // Refresh history if HISTORY tab is active
+            if (activeTab === 'HISTORY' && profile) {
+              const transactions = await fetchGemTransactions(profile.id, 5);
+              setGemTransactions(transactions);
+            }
+            
+            setPendingPurchase(null);
+            setShowSuccessModal(false);
+          } else {
+            console.error('Failed to add gems:', result.error);
+            setToastMessage(result.error || 'Failed to add gems');
+            setShowToast(true);
+          }
+        } else {
+          // Regular pack purchase (unlocks items) - use buyPack function
+          const packItems = pendingPurchase.items || [];
+          const success = await buyPack(profile.id, packItems, finalPrice);
+          
+          if (success) {
+            audioService.playPurchase();
+            
+            // Also unlock phrases associated with this bundle
+            const packId = pendingPurchase.packId;
+            if (packId) {
+              const bundlePhrases = chatPresets.filter(p => p.bundle_id === packId);
+              if (bundlePhrases.length > 0) {
+                const unlockedPhrases = [...(profile.unlocked_phrases || [])];
+                bundlePhrases.forEach(phrase => {
+                  if (!unlockedPhrases.includes(phrase.id)) {
+                    unlockedPhrases.push(phrase.id);
+                  }
+                });
+                await updateProfileSettings(profile.id, { unlocked_phrases: unlockedPhrases });
+              }
+            }
+            
+            // Show premium pack success modal with chaos animation
+            const finisherKeys = packItems
+              .filter(item => item.type === 'FINISHER' && !isItemOwned(item))
+              .map(item => item.id);
+            
+            setShowPackSuccessModal({
+              packName: pendingPurchase.name,
+              finisherKeys: finisherKeys
+            });
+            setPendingPurchase(null);
+            onRefreshProfile();
+          } else {
+            console.error('Failed to purchase pack');
+          }
+        }
+      } else if (pendingPurchase.type === 'FINISHER') {
         const success = await buyFinisher(profile.id, pendingPurchase.id);
         if (success) {
           audioService.playPurchase();
@@ -989,6 +1748,37 @@ export const Store: React.FC<{
         } else {
           console.error('Failed to purchase finisher');
         }
+      } else if (pendingPurchase.type === 'QUICK_CHAT') {
+        // First process the gem transaction (negative amount for deduction)
+        const transactionResult = await processGemTransaction(
+          profile.id,
+          -finalPrice, // Negative amount for deduction
+          'shop_buy',
+          pendingPurchase.id // item_id
+        );
+        
+        if (!transactionResult.success) {
+          throw new Error(transactionResult.error || 'Failed to process transaction');
+        }
+        
+        // Then unlock the phrase
+        const success = await purchasePhrase(profile.id, pendingPurchase.id);
+        if (success) {
+          audioService.playPurchase();
+          // Show success modal
+          setSuccessModalData({
+            itemName: pendingPurchase.name,
+            itemType: 'QUICK_CHATS',
+            price: finalPrice,
+            currency: pendingPurchase.currency || 'GEMS',
+          });
+          setPendingPurchase(null);
+          setShowSuccessModal(true);
+          onRefreshProfile();
+        } else {
+          console.error('Failed to purchase phrase');
+          throw new Error('Failed to unlock phrase');
+        }
       } else {
         await buyItem(profile.id, finalPrice, pendingPurchase.id, pendingPurchase.type, !!isGuest, pendingPurchase.currency);
         audioService.playPurchase();
@@ -997,7 +1787,7 @@ export const Store: React.FC<{
         setSuccessModalData({
           itemName: pendingPurchase.name,
           itemType: pendingPurchase.type === 'SLEEVE' ? 'SLEEVES' : 
-                    pendingPurchase.type === 'AVATAR' ? 'AVATARS' :
+                    pendingPurchase.type === 'AVATAR' ? 'EMOTES' :
                     pendingPurchase.type === 'BOARD' ? 'BOARDS' : 'ITEMS',
           price: finalPrice,
           currency: pendingPurchase.currency || 'GOLD',
@@ -1024,14 +1814,51 @@ export const Store: React.FC<{
     return <span className="text-4xl">📦</span>;
   };
 
+  // Helper function to check if an item is owned
+  const isItemOwned = (item: { type: 'FINISHER' | 'EMOTE' | 'BOARD' | 'SLEEVE'; id: string }): boolean => {
+    if (item.type === 'FINISHER') {
+      return profile?.unlocked_finishers?.includes(item.id) || false;
+    } else if (item.type === 'EMOTE') {
+      return profile?.unlocked_avatars?.includes(item.id) || false;
+    } else if (item.type === 'BOARD') {
+      return profile?.unlocked_boards?.includes(item.id) || false;
+    } else if (item.type === 'SLEEVE') {
+      return profile?.unlocked_sleeves?.includes(item.id) || false;
+    }
+    return false;
+  };
+
+  // Helper function to check if a pack is fully owned
+  const isPackOwned = (pack: DealPack): boolean => {
+    return pack.items.every(item => isItemOwned(item));
+  };
+
   const renderFinisherCard = (finisher: Finisher, uniqueKey: string) => {
     const unlocked = profile?.unlocked_finishers?.includes(finisher.animation_key) || false;
     const isEquipped = profile?.equipped_finisher === finisher.animation_key;
+
+    // Check if this finisher is part of a pack
+    const pack = DEAL_PACKS.find(p => p.items.some(item => item.type === 'FINISHER' && item.id === finisher.animation_key));
+    const packOwned = pack ? isPackOwned(pack) : false;
+    const packPrice = pack ? pack.bundlePrice : 0;
+    const difference = pack && !packOwned ? packPrice - finisher.price : 0;
 
     return (
       <div 
         key={uniqueKey}
         onClick={() => {
+          // Show upsell if finisher is part of a pack, not owned, and pack is not fully owned
+          if (pack && !unlocked && !packOwned && difference > 0) {
+            setShowUpsellModal({
+              packName: pack.name,
+              packPrice: packPrice,
+              itemPrice: finisher.price,
+              difference: difference,
+              finisherId: finisher.id
+            });
+            return;
+          }
+          
           setPendingPurchase({ 
             id: finisher.id,
             name: finisher.name,
@@ -1044,38 +1871,76 @@ export const Store: React.FC<{
             equipped: isEquipped
           });
         }} 
-        className="relative group bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] border-2 border-white/20 rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col items-center transition-all duration-500 hover:border-yellow-500/40 hover:bg-gradient-to-br hover:from-white/[0.12] hover:via-white/[0.06] hover:to-white/[0.12] hover:shadow-[0_0_40px_rgba(251,191,36,0.2)] cursor-pointer h-full overflow-hidden"
+        className="relative group bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] border-2 border-white/20 rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col items-center transition-all duration-500 hover:border-yellow-500/60 hover:bg-gradient-to-br hover:from-white/[0.15] hover:via-white/[0.08] hover:to-white/[0.15] hover:shadow-[0_0_60px_rgba(251,191,36,0.4)] cursor-pointer h-full overflow-hidden animate-premium-float"
       >
-        {/* Premium Background Effects */}
-        <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 via-transparent to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.05)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-        <div className="absolute -inset-10 bg-gradient-to-br from-yellow-500/10 via-transparent to-pink-500/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+        {/* Premium Shimmer Effect - Always visible but subtle */}
+        <div className="absolute inset-0 overflow-hidden rounded-2xl sm:rounded-3xl">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-premium-shimmer"></div>
+        </div>
+        
+        {/* Premium Background Effects - Enhanced */}
+        <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/8 via-transparent to-pink-500/8 opacity-60 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.08)_0%,transparent_70%)] opacity-40 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="absolute -inset-10 bg-gradient-to-br from-yellow-500/15 via-transparent to-pink-500/15 blur-3xl rounded-full opacity-30 group-hover:opacity-100 transition-opacity duration-700 animate-premium-pulse"></div>
+        
+        {/* Premium Border Glow - Pulsing */}
+        <div className="absolute -inset-0.5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-yellow-500/20 via-pink-500/20 to-yellow-500/20 opacity-40 group-hover:opacity-80 transition-opacity duration-500 blur-sm animate-premium-border-pulse"></div>
+        
+        {/* Premium Badge Indicator */}
+        <div className="absolute top-2 right-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="relative">
+            <div className="absolute inset-0 bg-yellow-500/40 blur-md rounded-full animate-premium-badge-pulse"></div>
+            <div className="relative px-2 py-0.5 bg-gradient-to-r from-yellow-500/30 to-pink-500/30 border border-yellow-400/50 rounded-full backdrop-blur-sm">
+              <span className="text-[8px] font-black text-yellow-300 uppercase tracking-wider">Premium</span>
+            </div>
+          </div>
+        </div>
         
         <div className="relative z-10 flex flex-col items-center gap-2 sm:gap-3 mb-3 sm:mb-4 w-full">
-          {/* Finisher Icon/Preview */}
-          <div className={`relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.8)] border-2 group-hover:scale-110 transition-all duration-500 overflow-hidden ${
+          {/* Finisher Icon/Preview - Enhanced Premium */}
+          <div className={`relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.8)] border-2 group-hover:scale-110 transition-all duration-500 overflow-hidden animate-premium-icon-float ${
             finisher.animation_key === 'shiba_slam' 
-              ? 'bg-gradient-to-br from-amber-900/50 via-yellow-900/40 to-orange-900/50 border-amber-500/30 group-hover:border-amber-500/50 group-hover:shadow-[0_0_40px_rgba(251,191,36,0.6)]'
-              : 'bg-gradient-to-br from-indigo-900/50 via-purple-900/40 to-blue-900/50 border-blue-400/30 group-hover:border-blue-400/50 group-hover:shadow-[0_0_40px_rgba(99,102,241,0.6)]'
+              ? 'bg-gradient-to-br from-amber-900/50 via-yellow-900/40 to-orange-900/50 border-amber-500/40 group-hover:border-amber-500/70 group-hover:shadow-[0_0_60px_rgba(251,191,36,0.8)]'
+              : finisher.animation_key === 'kiss_my_shiba'
+              ? 'bg-gradient-to-br from-pink-900/50 via-rose-900/40 to-fuchsia-900/50 border-pink-500/40 group-hover:border-pink-500/70 group-hover:shadow-[0_0_60px_rgba(255,182,193,0.8)]'
+              : 'bg-gradient-to-br from-indigo-900/50 via-purple-900/40 to-blue-900/50 border-blue-400/40 group-hover:border-blue-400/70 group-hover:shadow-[0_0_60px_rgba(99,102,241,0.8)]'
           }`}>
-            {/* Animated Background Glow */}
-            <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+            {/* Animated Background Glow - Always visible but subtle */}
+            <div className={`absolute inset-0 opacity-30 group-hover:opacity-100 transition-opacity duration-500 animate-premium-glow ${
               finisher.animation_key === 'shiba_slam'
-                ? 'bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.4)_0%,transparent_70%)]'
-                : 'bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.4)_0%,transparent_70%)]'
+                ? 'bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.5)_0%,transparent_70%)]'
+                : finisher.animation_key === 'kiss_my_shiba'
+                ? 'bg-[radial-gradient(circle_at_center,rgba(255,182,193,0.5)_0%,transparent_70%)]'
+                : 'bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.5)_0%,transparent_70%)]'
             }`}></div>
-            {/* Premium Border Glow */}
-            <div className={`absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+            {/* Premium Border Glow - Enhanced */}
+            <div className={`absolute inset-0 rounded-3xl opacity-40 group-hover:opacity-100 transition-opacity duration-500 ${
               finisher.animation_key === 'shiba_slam'
-                ? 'bg-gradient-to-br from-amber-500/20 via-yellow-500/10 to-transparent'
-                : 'bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-transparent'
+                ? 'bg-gradient-to-br from-amber-500/30 via-yellow-500/15 to-transparent'
+                : finisher.animation_key === 'kiss_my_shiba'
+                ? 'bg-gradient-to-br from-pink-500/30 via-rose-500/15 to-transparent'
+                : 'bg-gradient-to-br from-blue-500/30 via-indigo-500/15 to-transparent'
             }`}></div>
+            {/* Inner Shimmer */}
+            <div className="absolute inset-0 rounded-3xl overflow-hidden">
+              <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ${
+                finisher.animation_key === 'shiba_slam' ? 'animate-premium-inner-shimmer-amber' :
+                finisher.animation_key === 'kiss_my_shiba' ? 'animate-premium-inner-shimmer-pink' :
+                'animate-premium-inner-shimmer-blue'
+              }`}></div>
+            </div>
             {/* Custom Icon */}
             <div className="relative z-10 w-full h-full flex items-center justify-center">
               {finisher.animation_key === 'shiba_slam' ? (
                 <ShibaSlamIcon className="w-full h-full p-3 sm:p-4" />
               ) : finisher.animation_key === 'ethereal_blade' ? (
                 <EtherealBladeIcon className="w-full h-full p-3 sm:p-4" />
+              ) : finisher.animation_key === 'sanctum_snap' ? (
+                <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="xl" />
+              ) : finisher.animation_key === 'seductive_finish' ? (
+                <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />
+              ) : finisher.animation_key === 'kiss_my_shiba' ? (
+                <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
               ) : (
                 <div className="text-5xl sm:text-6xl">⚔️</div>
               )}
@@ -1108,6 +1973,154 @@ export const Store: React.FC<{
                   Owned
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Check if phrase is unlocked (either directly or via bundle)
+  const isPhraseUnlocked = (phraseId: string, bundleId?: string | null): boolean => {
+    if (!profile) return false;
+    const unlockedPhrases = profile.unlocked_phrases || [];
+    if (unlockedPhrases.includes(phraseId)) return true;
+    
+    // Check if phrase is in an owned bundle
+    if (bundleId) {
+      const pack = DEAL_PACKS.find(p => p.id === bundleId);
+      if (pack) {
+        // Check if all items in the pack are owned
+        const allOwned = pack.items.every(item => {
+          if (item.type === 'SLEEVE') return profile.unlocked_sleeves?.includes(item.id);
+          if (item.type === 'AVATAR') return profile.unlocked_avatars?.includes(item.id);
+          if (item.type === 'BOARD') return profile.unlocked_boards?.includes(item.id);
+          if (item.type === 'FINISHER') return profile.unlocked_finishers?.includes(item.id);
+          if (item.type === 'EMOTE') return profile.unlocked_emotes?.includes(item.id);
+          return false;
+        });
+        return allOwned;
+      }
+    }
+    return false;
+  };
+
+  const renderQuickChatCard = (preset: ChatPreset, uniqueKey: string) => {
+    const unlocked = isPhraseUnlocked(preset.id, preset.bundle_id);
+    const isWiggle = preset.style === 'wiggle';
+    
+    // Get badge info based on price
+    const getBadgeInfo = () => {
+      if (preset.price === 100) return { type: 'bronze', label: '100', color: 'from-amber-700 to-amber-900', borderColor: 'border-amber-600/50' };
+      if (preset.price === 300) return { type: 'silver', label: '300', color: 'from-gray-400 to-gray-600', borderColor: 'border-gray-400/50' };
+      if (preset.price === 500) return { type: 'gold', label: '500', color: 'from-yellow-400 to-yellow-600', borderColor: 'border-yellow-400/50' };
+      return { type: 'standard', label: `${preset.price}`, color: 'from-white/20 to-white/10', borderColor: 'border-white/20' };
+    };
+    
+    const badgeInfo = getBadgeInfo();
+    
+    // Get bundle name if applicable
+    const bundleName = preset.bundle_id ? DEAL_PACKS.find(p => p.id === preset.bundle_id)?.name : null;
+
+    return (
+      <div 
+        key={uniqueKey}
+        onClick={() => {
+          if (unlocked) return;
+          setPendingPurchase({ 
+            id: preset.id,
+            name: preset.phrase,
+            description: `A quick chat phrase with ${preset.style} styling. ${bundleName ? `Included in ${bundleName}.` : ''}`,
+            price: preset.price,
+            currency: 'GEMS',
+            type: 'QUICK_CHAT',
+            phrase: preset.phrase,
+            style: preset.style,
+            unlocked,
+            bundle_id: preset.bundle_id
+          });
+        }}
+        onMouseEnter={() => setPreviewingChat(preset)}
+        onMouseLeave={() => setPreviewingChat(null)}
+        className={`relative group bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] border-2 border-white/20 rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col items-center transition-all duration-500 hover:border-yellow-500/60 hover:bg-gradient-to-br hover:from-white/[0.15] hover:via-white/[0.08] hover:to-white/[0.15] hover:shadow-[0_0_60px_rgba(251,191,36,0.4)] cursor-pointer h-full overflow-hidden ${isWiggle ? 'animate-chat-wiggle' : ''}`}
+      >
+        {/* Premium Background Effects */}
+        <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/8 via-transparent to-pink-500/8 opacity-60 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.08)_0%,transparent_70%)] opacity-40 group-hover:opacity-100 transition-opacity duration-500"></div>
+        
+        {/* Preview Chat Bubble - Shows on hover/click - Fixed position for better visibility */}
+        {previewingChat?.id === preset.id && (
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[600] pointer-events-none max-w-[90vw] px-4">
+            <div className="max-w-full">
+              <ChatBubble
+                text={preset.phrase}
+                style={preset.style}
+                position="bottom"
+                isVisible={true}
+              />
+            </div>
+          </div>
+        )}
+        
+        <div className="relative z-10 flex flex-col items-center gap-3 w-full">
+          {/* Chat Preview Card */}
+          <div className={`relative w-full min-h-[80px] sm:min-h-[96px] rounded-2xl flex items-center justify-center border-2 transition-all duration-500 overflow-hidden p-2 ${
+            preset.style === 'gold' 
+              ? 'bg-gradient-to-br from-yellow-900/50 via-amber-900/40 to-yellow-900/50 border-yellow-500/30 group-hover:border-yellow-500/60'
+              : preset.style === 'neon'
+              ? 'bg-gradient-to-br from-pink-900/50 via-purple-900/40 to-pink-900/50 border-pink-500/30 group-hover:border-pink-500/60'
+              : preset.style === 'wiggle'
+              ? 'bg-gradient-to-br from-orange-900/50 via-amber-900/40 to-orange-900/50 border-orange-500/30 group-hover:border-orange-500/60'
+              : 'bg-gradient-to-br from-gray-900/50 via-gray-800/40 to-gray-900/50 border-gray-500/30 group-hover:border-gray-500/60'
+          }`}>
+            {/* Chat Bubble Preview */}
+            <div className="w-full px-3 py-2 rounded-xl bg-white/95 border-2 border-white/50 shadow-lg max-w-full">
+              <p className={`text-xs sm:text-sm font-bold text-center break-words line-clamp-3 ${
+                preset.style === 'gold' ? 'chat-shimmer' :
+                preset.style === 'neon' ? 'text-pink-400 chat-heartbeat' :
+                preset.style === 'wiggle' ? 'text-orange-600 chat-wiggle' :
+                'text-black'
+              }`}
+              style={{
+                fontFamily: preset.style === 'wiggle' ? "'Comic Sans MS', 'Fredoka One', cursive" : undefined,
+                textShadow: preset.style === 'neon' ? '0 0 8px #ff00ff, 0 0 12px #ff00ff' : undefined,
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                hyphens: 'auto',
+              }}>
+                {preset.phrase}
+              </p>
+            </div>
+          </div>
+          
+          {/* Phrase Text */}
+          <div className="flex flex-col items-center text-center px-2">
+            <span className="text-xs sm:text-sm font-bold text-white/90 uppercase tracking-wide drop-shadow-md line-clamp-2">
+              {preset.phrase}
+            </span>
+            {bundleName && (
+              <span className="text-[9px] sm:text-[10px] text-yellow-400/70 uppercase mt-1 font-medium line-clamp-1">
+                In {bundleName}
+              </span>
+            )}
+          </div>
+
+          {/* Price Badge / Status */}
+          {!unlocked ? (
+            <div className="flex flex-col items-center gap-1.5 mt-auto">
+              <div className={`px-2 py-1 rounded-lg bg-gradient-to-r ${badgeInfo.color} border ${badgeInfo.borderColor} shadow-lg`}>
+                <div className="flex items-center gap-1">
+                  <CurrencyIcon type="GEMS" size="xs" />
+                  <span className="text-xs sm:text-sm font-bold text-white">{badgeInfo.label}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-auto">
+              <div className="px-3 py-1.5 bg-gradient-to-r from-emerald-500/30 to-emerald-600/20 border border-emerald-500/50 rounded-lg text-emerald-300 text-xs font-bold uppercase flex items-center gap-1">
+                <span>✓</span>
+                <span>OWNED</span>
+              </div>
             </div>
           )}
         </div>
@@ -1254,6 +2267,130 @@ export const Store: React.FC<{
     return Object.values(ITEM_REGISTRY).filter(item => !item.isEventExclusive && item.type !== 'COSMETIC');
   }, []);
 
+  // Memoize items list for all tabs (must be called unconditionally to avoid hook order issues)
+  const tabItems = useMemo(() => {
+    if (activeTab === 'DEALS' || activeTab === 'HISTORY') return []; // DEALS and HISTORY tabs have their own rendering
+    
+    let items: any[] = [];
+    if (activeTab === 'SLEEVES') {
+      // Sort sleeves: Free/Gold items first (by price), then Gem items (by price)
+      items = [...SLEEVES].sort((a, b) => {
+        // First, sort by currency: GOLD first, then GEMS
+        if (a.currency !== b.currency) {
+          return a.currency === 'GOLD' ? -1 : 1;
+        }
+        // Within same currency, sort by price
+        return a.price - b.price;
+      });
+    }
+    else if (activeTab === 'EMOTES') {
+      // ONLY use remote emotes from Supabase database - no hardcoded data
+      // First, deduplicate by trigger_code - keep the one with a valid file_path
+      const emoteMap = new Map<string, Emote>();
+      
+      if (Array.isArray(remoteEmotes) && remoteEmotes.length > 0) {
+        remoteEmotes.forEach(emote => {
+          if (!emote || !emote.trigger_code || typeof emote.trigger_code !== 'string') return;
+          if (emote.trigger_code === ':smile:') return; // Exclude Loyal Shiba
+          
+          const existing = emoteMap.get(emote.trigger_code);
+          const hasValidPath = emote.file_path && typeof emote.file_path === 'string' && emote.file_path.trim() !== '';
+          
+          // If we already have this trigger_code, prefer the one with a valid file_path
+          if (existing) {
+            const existingHasPath = existing.file_path && typeof existing.file_path === 'string' && existing.file_path.trim() !== '';
+            if (hasValidPath && !existingHasPath) {
+              // Replace with the one that has a file_path
+              emoteMap.set(emote.trigger_code, emote);
+              console.log(`🔄 Store: Replacing duplicate "${emote.name}" (${emote.trigger_code}) - keeping version with file_path`);
+            } else if (!hasValidPath && existingHasPath) {
+              // Keep the existing one with file_path
+              return;
+            } else {
+              // Both have or both don't have file_path - keep first one, but log if it's a problematic emote
+              if (['Game Over', 'Doge Focus', 'Lunar New Year', 'The Mooner'].includes(emote.name)) {
+                console.warn(`⚠️ Store: Duplicate "${emote.name}" (${emote.trigger_code}) - keeping first occurrence`);
+              }
+              return;
+            }
+          } else {
+            emoteMap.set(emote.trigger_code, emote);
+          }
+        });
+      }
+      
+      // Filter to only include emotes with valid file_paths
+      const validEmotes = Array.from(emoteMap.values()).filter(emote => {
+        const hasValidPath = emote.file_path && typeof emote.file_path === 'string' && emote.file_path.trim() !== '';
+        if (!hasValidPath) {
+          console.warn(`⚠️ Store: Excluding emote "${emote.name}" (${emote.trigger_code}) - no file_path`);
+          // Log specific problematic emotes
+          if (['Game Over', 'Doge Focus', 'Lunar New Year', 'The Mooner'].includes(emote.name)) {
+            console.error(`❌ CRITICAL: Premium emote "${emote.name}" (${emote.trigger_code}) has no file_path!`, emote);
+          }
+          return false;
+        }
+        return true;
+      });
+      
+      // Filter out problematic emotes that fail to load (400 errors)
+      const problematicTriggers = [':doge_focus:', ':game_over:', ':lunar_new_year:', ':the_mooner:'];
+      const workingEmotes = validEmotes.filter(emote => {
+        const isProblematic = problematicTriggers.includes(emote.trigger_code.toLowerCase());
+        if (isProblematic) {
+          console.warn(`⚠️ Store: Excluding emote "${emote.name}" (${emote.trigger_code}) - image fails to load (400 error)`);
+        }
+        return !isProblematic;
+      });
+      
+      // Map to trigger codes
+      items = workingEmotes.map(emote => emote.trigger_code);
+    }
+    else if (activeTab === 'BOARDS') items = PREMIUM_BOARDS;
+    else if (activeTab === 'FINISHERS') items = finishers;
+    else if (activeTab === 'QUICK_CHATS') items = chatPresets;
+    else items = storeItems;
+
+    // Filter by owned status
+    if (hideUnowned) {
+      items = items.filter(item => {
+        if (activeTab === 'EMOTES') {
+          const isUnlocked = profile?.unlocked_avatars?.includes(item) || false;
+          return isUnlocked;
+        } else if (activeTab === 'BOARDS') {
+          const id = item.id || item;
+          return profile?.unlocked_boards.includes(id) || id === 'EMERALD';
+        } else if (activeTab === 'FINISHERS') {
+          const finisher = item as Finisher;
+          return profile?.unlocked_finishers?.includes(finisher.animation_key) || false;
+        } else if (activeTab === 'QUICK_CHATS') {
+          const preset = item as ChatPreset;
+          return isPhraseUnlocked(preset.id, preset.bundle_id);
+        } else if (activeTab === 'SLEEVES') {
+          return profile?.unlocked_sleeves?.includes(item.style) || item.style === 'STANDARD';
+        } else {
+          return (profile?.inventory?.items?.[item.id] || 0) > 0;
+        }
+      });
+    }
+
+    // Filter by deals (only for sleeves)
+    if (showDealsOnly && activeTab === 'SLEEVES' && dailyDealSleeveId) {
+      items = items.filter(item => {
+        const id = item.id || item.style;
+        const isUnlocked = profile?.unlocked_sleeves?.includes(item.style) || false;
+        return id === dailyDealSleeveId && !isUnlocked;
+      });
+    }
+    
+    // Final deduplication pass
+    const finalItems = activeTab === 'EMOTES' 
+      ? Array.from(new Set(items as string[]))
+      : items;
+    
+    return finalItems;
+  }, [activeTab, remoteEmotes, hideUnowned, showDealsOnly, dailyDealSleeveId, profile, finishers, storeItems]);
+
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in" onClick={onClose}>
       {showSleevePreview && pendingPurchase?.type === 'SLEEVE' && (
@@ -1331,6 +2468,12 @@ export const Store: React.FC<{
                       <ShibaSlamIcon className="w-full h-full p-4" />
                     ) : pendingPurchase.animation_key === 'ethereal_blade' ? (
                       <EtherealBladeIcon className="w-full h-full p-4" />
+                    ) : pendingPurchase.animation_key === 'sanctum_snap' ? (
+                      <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="xl" />
+                    ) : pendingPurchase.animation_key === 'seductive_finish' ? (
+                      <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />
+                    ) : pendingPurchase.animation_key === 'kiss_my_shiba' ? (
+                      <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
                     ) : (
                       <div className="text-6xl">⚔️</div>
                     )}
@@ -1370,7 +2513,7 @@ export const Store: React.FC<{
                   }}
                   className="absolute bottom-2 right-2 z-20 px-3 py-1.5 rounded-lg bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/40 text-[10px] sm:text-xs font-medium uppercase tracking-wide text-yellow-300 hover:bg-gradient-to-r hover:from-yellow-500/30 hover:to-amber-500/30 hover:border-yellow-500/60 transition-all backdrop-blur-sm shadow-[0_0_15px_rgba(251,191,36,0.3)]"
                 >
-                  Test Drive
+                  Preview
                 </button>
               )}
             </div>
@@ -1516,14 +2659,16 @@ export const Store: React.FC<{
             </p>
         </div>
 
-          {/* Premium Navigation Tabs - Single Row */}
-          <div className="w-full overflow-x-auto scrollbar-none -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6">
-            <div className="flex items-center justify-center gap-1 sm:gap-1.5 md:gap-2.5 flex-nowrap min-w-max">
-            {(['SLEEVES', 'AVATARS', 'BOARDS', 'ITEMS', 'FINISHERS'] as const).map(tab => (
+          {/* Premium Navigation Tabs - Wraps on Mobile, Single Row on Desktop */}
+          <div className="w-full px-2 sm:px-4 md:px-6">
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-wrap sm:flex-nowrap justify-center">
+            {(['SLEEVES', 'EMOTES', 'BOARDS', 'ITEMS', 'FINISHERS', 'QUICK_CHATS', 'HISTORY'] as const).map(tab => {
+              const displayName = tab.replace(/_/g, ' ');
+              return (
               <button 
                 key={tab} 
                 onClick={() => setActiveTab(tab)} 
-                className={`relative px-2 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold uppercase tracking-wide transition-all duration-300 overflow-hidden group whitespace-nowrap touch-manipulation shrink-0 flex-shrink-0 ${
+                className={`relative px-2.5 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold uppercase tracking-wide transition-all duration-300 overflow-hidden group whitespace-nowrap touch-manipulation flex-shrink-0 ${
                   activeTab === tab 
                     ? 'bg-gradient-to-br from-yellow-500/40 via-yellow-600/35 to-yellow-500/40 text-white border-2 border-yellow-500/60 shadow-[0_0_30px_rgba(251,191,36,0.5)]' 
                     : 'bg-white/[0.08] text-white/60 hover:text-white/90 hover:bg-white/[0.12] border-2 border-white/15 hover:border-white/25'
@@ -1532,10 +2677,34 @@ export const Store: React.FC<{
                 {activeTab === tab && (
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 )}
-                <span className="relative z-10">{tab}</span>
+                <span className="relative z-10">{displayName}</span>
               </button>
-            ))}
+            )})}
             </div>
+          </div>
+
+          {/* DEALS Button - Stylistically Distinct Row */}
+          <div className="w-full flex items-center justify-center mt-3 sm:mt-4 px-3 sm:px-4 md:px-6">
+            <button
+              onClick={() => setActiveTab('DEALS')}
+              className={`relative px-6 sm:px-8 md:px-10 lg:px-12 py-3 sm:py-3.5 md:py-4 rounded-xl sm:rounded-2xl md:rounded-3xl text-sm sm:text-base md:text-lg lg:text-xl font-black uppercase tracking-wider transition-all duration-500 overflow-hidden group touch-manipulation ${
+                activeTab === 'DEALS'
+                  ? 'bg-gradient-to-br from-pink-500/60 via-purple-500/50 to-pink-500/60 text-white border-2 border-pink-400/80 shadow-[0_0_50px_rgba(236,72,153,0.7)] scale-105'
+                  : 'bg-gradient-to-br from-pink-500/40 via-purple-500/30 to-pink-500/40 text-white border-2 border-pink-400/60 shadow-[0_0_40px_rgba(236,72,153,0.5)] hover:scale-105 hover:shadow-[0_0_60px_rgba(236,72,153,0.8)]'
+              }`}
+            >
+              {/* Animated Glow Effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              {/* Pulsing Glow */}
+              <div className="absolute -inset-2 bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 rounded-xl sm:rounded-2xl md:rounded-3xl opacity-50 blur-xl animate-pulse"></div>
+              {/* Additional Outer Glow */}
+              <div className="absolute -inset-4 bg-gradient-to-r from-pink-400/30 via-purple-400/30 to-pink-400/30 rounded-xl sm:rounded-2xl md:rounded-3xl opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-500"></div>
+              <span className="relative z-10 flex items-center gap-2">
+                <span>🔥</span>
+                <span>DEALS</span>
+                <span>🔥</span>
+              </span>
+            </button>
           </div>
         </div>
 
@@ -1547,6 +2716,7 @@ export const Store: React.FC<{
               profile={profile} 
               onRefresh={onRefreshProfile}
               onGemRain={() => setShowGemRain(true)}
+              remoteEmotes={remoteEmotes}
             />
           </div>
 
@@ -1646,216 +2816,307 @@ export const Store: React.FC<{
             </div>
           </div>
 
+          {/* HISTORY Tab Content */}
+          {activeTab === 'HISTORY' ? (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-br from-white/5 via-white/3 to-white/5 backdrop-blur-xl border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                  <span>📜</span>
+                  <span>Gem Activity History</span>
+                </h3>
+                
+                {loadingHistory ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  </div>
+                ) : gemTransactions.length === 0 ? (
+                  <div className="text-center py-8 text-white/50">
+                    <p className="text-sm">No gem transactions yet</p>
+                    <p className="text-xs mt-2">Watch ads or make purchases to see activity here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {gemTransactions.map((transaction) => {
+                      const isPositive = transaction.amount > 0;
+                      const amount = Math.abs(transaction.amount);
+                      const sourceNames: Record<string, string> = {
+                        'ad_reward': 'Ad Reward',
+                        'iap_purchase': 'IAP Purchase',
+                        'shop_buy': 'Shop Purchase'
+                      };
+                      const sourceName = sourceNames[transaction.source] || transaction.source;
+                      const date = new Date(transaction.created_at);
+                      const timeAgo = getTimeAgo(date);
+                      
+                      return (
+                        <div
+                          key={transaction.id}
+                          className="flex items-center justify-between p-3 sm:p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all duration-300"
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              isPositive ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-pink-500/20 border border-pink-500/30'
+                            }`}>
+                              <span className="text-lg">{isPositive ? '+' : '-'}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-base sm:text-lg font-bold ${isPositive ? 'text-emerald-400' : 'text-pink-400'}`}>
+                                  {isPositive ? '+' : '-'}{amount}
+                                </span>
+                                <CurrencyIcon type="GEMS" size="xs" />
+                              </div>
+                              <p className="text-xs sm:text-sm text-white/70 truncate">{sourceName}</p>
+                              {transaction.item_id && (
+                                <p className="text-xs text-white/50 truncate">Item: {transaction.item_id}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs text-white/50">{timeAgo}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : activeTab === 'DEALS' ? (
+            <div className="grid gap-6 sm:gap-8 md:gap-10 pb-8 grid-cols-1 lg:grid-cols-2">
+              {DEAL_PACKS.map(pack => {
+                // Check if user already owns all items in pack
+                const allOwned = isPackOwned(pack);
+
+                return (
+                  <div
+                    key={pack.id}
+                    onClick={() => {
+                      if (!allOwned) {
+                        setShowPackPreview({ packId: pack.id });
+                      }
+                    }}
+                    className={`relative group bg-gradient-to-br from-[#1a0a1f] via-[#0f0515] to-[#1a0a1f] border-2 rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden transition-all duration-500 ${
+                      allOwned 
+                        ? 'border-emerald-500/40 cursor-default' 
+                        : 'border-pink-500/50 hover:border-pink-400/70 hover:shadow-[0_0_60px_rgba(236,72,153,0.4)] cursor-pointer hover:scale-[1.02]'
+                    }`}
+                  >
+                    {/* Animated Background Gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(236,72,153,0.15)_0%,transparent_60%)]"></div>
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(168,85,247,0.1)_0%,transparent_60%)]"></div>
+                    
+                    {/* Animated Border Glow */}
+                    <div className="absolute -inset-[2px] bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 rounded-[2rem] sm:rounded-[2.5rem] opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-700"></div>
+                    <div className="absolute -inset-[1px] bg-gradient-to-r from-pink-400/20 via-purple-400/20 to-pink-400/20 rounded-[2rem] sm:rounded-[2.5rem] opacity-0 group-hover:opacity-100 blur-sm transition-opacity duration-500"></div>
+
+                    {/* Discount Badge - More Prominent */}
+                    <div className="absolute top-4 right-4 z-30">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-yellow-400 blur-lg opacity-60 animate-pulse"></div>
+                        <div className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 text-black font-black text-sm sm:text-base px-4 sm:px-5 py-2 sm:py-2.5 transform rotate-12 shadow-[0_4px_20px_rgba(234,179,8,0.6)] border-2 border-yellow-300/50">
+                          <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded"></div>
+                          <span className="relative z-10">{pack.discountLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="relative z-10 p-6 sm:p-8 md:p-10 flex flex-col h-full">
+                      {/* Header Section */}
+                      <div className="flex flex-col gap-3 mb-6">
+                        <h3 className="text-2xl sm:text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-purple-300 to-pink-300 uppercase tracking-tight leading-tight">
+                          {pack.name}
+                        </h3>
+                        <p className="text-sm sm:text-base text-white/70 font-medium leading-relaxed">
+                          {pack.description}
+                        </p>
+                      </div>
+
+                      {/* Pack Items - Larger, Better Layout */}
+                      <div className={`grid gap-4 sm:gap-5 mb-6 ${
+                        pack.items.length === 2 ? 'grid-cols-2' :
+                        pack.items.length === 3 ? 'grid-cols-3' :
+                        'grid-cols-2 sm:grid-cols-4'
+                      }`}>
+                        {pack.items.map((item, idx) => {
+                          const isOwned = isItemOwned(item);
+                          const itemName = item.type === 'FINISHER' 
+                            ? finishers.find(f => f.animation_key === item.id)?.name || item.id
+                            : item.type === 'EMOTE'
+                            ? remoteEmotes.find(e => e.trigger_code === item.id)?.name || item.id
+                            : item.type === 'BOARD'
+                            ? PREMIUM_BOARDS.find(b => b.id === item.id)?.name || item.id
+                            : item.type === 'SLEEVE'
+                            ? SLEEVES.find(s => s.id === item.id)?.name || item.id
+                            : item.id;
+
+                          return (
+                            <div
+                              key={`${item.type}-${item.id}-${idx}`}
+                              className="relative flex flex-col items-center gap-2 group/item"
+                            >
+                              <div className={`relative w-full aspect-square rounded-2xl sm:rounded-3xl flex items-center justify-center border-2 transition-all duration-300 overflow-hidden ${
+                                isOwned 
+                                  ? 'border-emerald-500/60 bg-emerald-500/15 shadow-[0_0_20px_rgba(16,185,129,0.3)]' 
+                                  : 'border-pink-500/40 bg-gradient-to-br from-pink-500/10 via-purple-500/10 to-pink-500/10 group-hover/item:border-pink-400/60 group-hover/item:bg-gradient-to-br group-hover/item:from-pink-500/20 group-hover/item:via-purple-500/20 group-hover/item:to-pink-500/20 group-hover/item:shadow-[0_0_30px_rgba(236,72,153,0.4)] group-hover/item:scale-105'
+                              }`}>
+                                {/* Item Glow Effect */}
+                                <div className={`absolute inset-0 bg-gradient-to-br ${
+                                  isOwned 
+                                    ? 'from-emerald-500/20 to-transparent' 
+                                    : 'from-pink-500/20 via-purple-500/20 to-transparent opacity-0 group-hover/item:opacity-100'
+                                } transition-opacity duration-300`}></div>
+                                
+                                {/* Item Content */}
+                                <div className="relative z-10 w-full h-full flex items-center justify-center p-3 sm:p-4">
+                                  {item.type === 'FINISHER' ? (
+                                    (() => {
+                                      if (item.id === 'shiba_slam') {
+                                        return <ShibaSlamIcon className="w-full h-full" />;
+                                      } else if (item.id === 'ethereal_blade') {
+                                        return <EtherealBladeIcon className="w-full h-full" />;
+                                      } else if (item.id === 'seductive_finish') {
+                                        return <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />;
+                                      } else if (item.id === 'sanctum_snap') {
+                                        return <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="xl" />;
+                                      } else if (item.id === 'kiss_my_shiba') {
+                                        return <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />;
+                  } else {
+                                        return <div className="text-4xl sm:text-5xl">⚔️</div>;
+                                      }
+                                    })()
+                                  ) : item.type === 'EMOTE' ? (
+                                    <VisualEmote trigger={item.id} remoteEmotes={remoteEmotes} size="xl" />
+                                  ) : item.type === 'BOARD' ? (
+                                    <div className="w-full h-full rounded-xl overflow-hidden">
+                                      <BoardPreview themeId={item.id as BackgroundTheme} unlocked={isOwned} active={false} hideActiveMarker className="w-full h-full" />
+                                    </div>
+                                  ) : item.type === 'SLEEVE' ? (
+                                    <Card faceDown coverStyle={item.id as CardCoverStyle} className="!w-full !h-full rounded-xl shadow-lg" />
+                                  ) : (
+                                    <div className="text-4xl sm:text-5xl">❓</div>
+                                  )}
+                                </div>
+
+                                {/* Owned Badge */}
+                                {isOwned && (
+                                  <div className="absolute top-2 right-2 w-6 h-6 sm:w-7 sm:h-7 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg border-2 border-emerald-300 z-20">
+                                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                )}
+
+                                {/* Item Type Badge */}
+                                <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md border border-white/20">
+                                  <span className="text-[9px] sm:text-[10px] font-bold text-white/80 uppercase tracking-wider">
+                                    {item.type === 'FINISHER' ? 'FIN' : item.type === 'EMOTE' ? 'EMO' : item.type === 'BOARD' ? 'BRD' : 'SLV'}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {/* Item Name */}
+                              <span className="text-[10px] sm:text-xs font-bold text-white/70 text-center leading-tight line-clamp-2 max-w-full px-1">
+                                {itemName}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Pricing Section - More Prominent */}
+                      <div className="mt-auto pt-6 border-t border-white/10">
+                        <div className="flex flex-col gap-4">
+                          {/* Price Display */}
+                          <div className="flex items-baseline justify-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl sm:text-2xl text-white/30 line-through font-semibold">
+                                {pack.originalPrice.toLocaleString()}
+                              </span>
+                              <CurrencyIcon type="GEMS" size="sm" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-4xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-purple-300 to-pink-300 drop-shadow-[0_0_20px_rgba(236,72,153,0.6)]">
+                                {pack.bundlePrice.toLocaleString()}
+                              </span>
+                              <CurrencyIcon type="GEMS" size="lg" />
+                            </div>
+                          </div>
+
+                          {/* Savings Badge */}
+                          <div className="flex justify-center">
+                            <div className="px-4 py-1.5 bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-400/30 rounded-full">
+                              <span className="text-xs sm:text-sm font-bold text-pink-300">
+                                Save {(pack.originalPrice - pack.bundlePrice).toLocaleString()} Gems
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action Button */}
+                          {allOwned ? (
+                            <div className="px-6 py-4 bg-emerald-500/20 border-2 border-emerald-500/50 rounded-2xl text-emerald-300 text-sm sm:text-base font-bold uppercase text-center shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                              Pack Owned
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!allOwned) {
+                                  setShowPackPreview({ packId: pack.id });
+                                }
+                              }}
+                              className="relative w-full px-6 py-4 sm:py-5 bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 text-white font-black text-base sm:text-lg uppercase tracking-wide rounded-2xl shadow-[0_0_30px_rgba(236,72,153,0.5)] hover:shadow-[0_0_40px_rgba(236,72,153,0.7)] transition-all duration-300 hover:scale-105 overflow-hidden group/btn"
+                            >
+                              {/* Button Shine Effect */}
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000"></div>
+                              <span className="relative z-10 flex items-center justify-center gap-2">
+                                <span>See Pack</span>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                </svg>
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <div className={`grid gap-3 sm:gap-4 md:gap-5 pb-8 auto-rows-fr ${
             density === 1 ? 'grid-cols-1' :
             density === 2 ? 'grid-cols-2' :
             'grid-cols-3'
           }`}>
-            {useMemo(() => {
-              let items: any[] = [];
-              if (activeTab === 'SLEEVES') {
-                // Sort sleeves: Free/Gold items first (by price), then Gem items (by price)
-                items = [...SLEEVES].sort((a, b) => {
-                  // First, sort by currency: GOLD first, then GEMS
-                  if (a.currency !== b.currency) {
-                    return a.currency === 'GOLD' ? -1 : 1;
-                  }
-                  // Within same currency, sort by price
-                  return a.price - b.price;
-                });
-              }
-              else if (activeTab === 'AVATARS') {
-                // ONLY use remote emotes from Supabase database - no hardcoded data
-                // First, deduplicate by trigger_code - keep the one with a valid file_path
-                const emoteMap = new Map<string, Emote>();
-                
-                if (Array.isArray(remoteEmotes) && remoteEmotes.length > 0) {
-                  remoteEmotes.forEach(emote => {
-                    if (!emote || !emote.trigger_code || typeof emote.trigger_code !== 'string') return;
-                    if (emote.trigger_code === ':smile:') return; // Exclude Loyal Shiba
-                    
-                    const existing = emoteMap.get(emote.trigger_code);
-                    const hasValidPath = emote.file_path && typeof emote.file_path === 'string' && emote.file_path.trim() !== '';
-                    
-                    // If we already have this trigger_code, prefer the one with a valid file_path
-                    if (existing) {
-                      const existingHasPath = existing.file_path && typeof existing.file_path === 'string' && existing.file_path.trim() !== '';
-                      if (hasValidPath && !existingHasPath) {
-                        // Replace with the one that has a file_path
-                        emoteMap.set(emote.trigger_code, emote);
-                        console.log(`🔄 Store: Replacing duplicate "${emote.name}" (${emote.trigger_code}) - keeping version with file_path`);
-                      } else if (!hasValidPath && existingHasPath) {
-                        // Keep the existing one with file_path
-                        return;
-                      } else {
-                        // Both have or both don't have file_path - keep first one, but log if it's a problematic emote
-                        if (['Game Over', 'Doge Focus', 'Lunar New Year', 'The Mooner'].includes(emote.name)) {
-                          console.warn(`⚠️ Store: Duplicate "${emote.name}" (${emote.trigger_code}) - keeping first occurrence`);
-                        }
-                        return;
-                      }
-                    } else {
-                      emoteMap.set(emote.trigger_code, emote);
-                    }
-                  });
-                }
-                
-                // Filter to only include emotes with valid file_paths
-                const validEmotes = Array.from(emoteMap.values()).filter(emote => {
-                  const hasValidPath = emote.file_path && typeof emote.file_path === 'string' && emote.file_path.trim() !== '';
-                  if (!hasValidPath) {
-                    console.warn(`⚠️ Store: Excluding emote "${emote.name}" (${emote.trigger_code}) - no file_path`);
-                    // Log specific problematic emotes
-                    if (['Game Over', 'Doge Focus', 'Lunar New Year', 'The Mooner'].includes(emote.name)) {
-                      console.error(`❌ CRITICAL: Premium emote "${emote.name}" (${emote.trigger_code}) has no file_path!`, emote);
-                    }
-                    return false;
-                  }
-                  return true;
-                });
-                
-                // Filter out problematic emotes that fail to load (400 errors)
-                const problematicTriggers = [':doge_focus:', ':game_over:', ':lunar_new_year:', ':the_mooner:'];
-                const workingEmotes = validEmotes.filter(emote => {
-                  const isProblematic = problematicTriggers.includes(emote.trigger_code.toLowerCase());
-                  if (isProblematic) {
-                    console.warn(`⚠️ Store: Excluding emote "${emote.name}" (${emote.trigger_code}) - image fails to load (400 error)`);
-                  }
-                  return !isProblematic;
-                });
-                
-                // Map to trigger codes
-                items = workingEmotes.map(emote => emote.trigger_code);
-                
-                // Log specific emotes for debugging with full details
-                const problematicNames = ['Game Over', 'Doge Focus', 'Lunar New Year', 'The Mooner'];
-                problematicNames.forEach(name => {
-                  const found = validEmotes.find(e => e.name === name);
-                  if (found) {
-                    const fullUrl = `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${found.file_path}?v=6`;
-                    console.log(`✅ Store: Found "${name}" (${found.trigger_code})`, {
-                      file_path: found.file_path,
-                      fullUrl,
-                      price: found.price
-                    });
-                  } else {
-                    // Check if it exists in the original remoteEmotes but was filtered out
-                    const inOriginal = remoteEmotes.find(e => e.name === name);
-                    if (inOriginal) {
-                      console.error(`❌ Store: "${name}" EXISTS in database but was FILTERED OUT!`, {
-                        trigger_code: inOriginal.trigger_code,
-                        file_path: inOriginal.file_path,
-                        hasFilePath: inOriginal.file_path && typeof inOriginal.file_path === 'string' && inOriginal.file_path.trim() !== '',
-                        fullEmoteData: inOriginal
-                      });
-                    } else {
-                      console.error(`❌ Store: "${name}" NOT FOUND in database at all!`);
-                    }
-                  }
-                });
-                
-                if (remoteEmotes.length > 0) {
-                  // Check for duplicates (should be none after deduplication)
-                  const duplicates = items.filter((item, index) => items.indexOf(item) !== index);
-                  console.log(`🎭 AVATARS Tab: ${items.length} total avatars displayed (from ${emoteMap.size} unique emotes, ${validEmotes.length} with valid file_paths, ${workingEmotes.length} working)`);
-                  console.log(`   - All valid triggers:`, items);
-                  if (duplicates.length > 0) {
-                    console.error(`❌ DUPLICATES FOUND:`, duplicates);
-                  } else {
-                    console.log(`✅ No duplicates found - all ${items.length} avatars are unique`);
-                  }
-                } else {
-                  console.log(`⚠️ AVATARS: No remote emotes loaded (remoteEmotes.length: ${remoteEmotes?.length || 0})`);
-                }
-              }
-              else if (activeTab === 'BOARDS') items = PREMIUM_BOARDS;
-              else if (activeTab === 'FINISHERS') items = finishers;
-              else items = storeItems;
-
-              // Filter by owned status
-              if (hideUnowned) {
-                items = items.filter(item => {
-                  if (activeTab === 'AVATARS') {
-                    // For avatars, check if unlocked in profile
-                    // All avatars come from database, so we check unlock status from profile
-                    const isUnlocked = profile?.unlocked_avatars?.includes(item) || false;
-                    // If hideUnowned is false, show all; if true, only show unlocked
-                    return isUnlocked;
-                  } else if (activeTab === 'BOARDS') {
-                    const id = item.id || item;
-                    return profile?.unlocked_boards.includes(id) || id === 'EMERALD';
-                  } else if (activeTab === 'FINISHERS') {
-                    const finisher = item as Finisher;
-                    return profile?.unlocked_finishers?.includes(finisher.animation_key) || false;
-                  } else if (activeTab === 'SLEEVES') {
-                    return profile?.unlocked_sleeves?.includes(item.style) || item.style === 'STANDARD';
-                  } else {
-                    // For items, check if they're in inventory
-                    return (profile?.inventory?.items?.[item.id] || 0) > 0;
-                  }
-                });
-              }
-
-              // Filter by deals (only for sleeves)
-              if (showDealsOnly && activeTab === 'SLEEVES' && dailyDealSleeveId) {
-                items = items.filter(item => {
-                  const id = item.id || item.style;
-                  const isUnlocked = profile?.unlocked_sleeves?.includes(item.style) || false;
-                  // Show only the daily deal sleeve that is not unlocked
-                  return id === dailyDealSleeveId && !isUnlocked;
-                });
-              }
-
-              if (items.length === 0) {
-                return <div className="col-span-full text-center text-white/50 py-8">No items available</div>;
-              }
-              
-              // Final deduplication pass - ensure absolute uniqueness by value
-              // For avatars, items are strings (trigger codes), so Set works perfectly
-              const finalItems = activeTab === 'AVATARS' 
-                ? Array.from(new Set(items as string[]))
-                : items;
-              
-              if (finalItems.length !== items.length) {
-                console.warn(`⚠️ Duplicates removed in final pass: ${items.length} -> ${finalItems.length}`);
-                const removed = items.filter((item, idx) => items.indexOf(item) !== idx);
-                console.warn(`   Removed:`, removed);
-              }
-              
-              // Log what's being rendered with counts
-              if (activeTab === 'AVATARS' && finalItems.length > 0) {
-                const itemCounts = (finalItems as string[]).reduce((acc, item) => {
-                  acc[item] = (acc[item] || 0) + 1;
-                  return acc;
-                }, {} as Record<string, number>);
-                const duplicates = Object.entries(itemCounts).filter(([_, count]) => count > 1);
-                if (duplicates.length > 0) {
-                  console.error(`❌ DUPLICATES IN FINAL ITEMS:`, duplicates);
-                } else {
-                  console.log(`✅ Final items are unique: ${finalItems.length} items`);
-                }
-              }
-              
-              return finalItems.map((item, idx) => {
+            {tabItems.length === 0 ? (
+              <div className="col-span-full text-center text-white/50 py-8">No items available</div>
+            ) : (
+              tabItems.map((item, idx) => {
                 try {
-                  // Use a unique key combining item and index to prevent React key collisions
-                  const uniqueKey = activeTab === 'AVATARS' ? `avatar-${item}-${idx}` : 
+                  const uniqueKey = activeTab === 'EMOTES' ? `emote-${item}-${idx}` : 
                                    activeTab === 'BOARDS' ? `board-${item.id || item}-${idx}` :
                                    activeTab === 'ITEMS' ? `item-${item.id}-${idx}` :
+                                   activeTab === 'FINISHERS' ? `finisher-${(item as Finisher).id}-${idx}` :
+                                   activeTab === 'QUICK_CHATS' ? `chat-${(item as ChatPreset).id}-${idx}` :
                                    `sleeve-${item.id || item}-${idx}`;
                   
-                  if (activeTab === 'AVATARS') return renderItemCard(item, true, false, false, uniqueKey);
+                  if (activeTab === 'EMOTES') return renderItemCard(item, true, false, false, uniqueKey);
                   if (activeTab === 'BOARDS') return renderItemCard(item, false, true, false, uniqueKey);
                   if (activeTab === 'ITEMS') return renderItemCard(item, false, false, true, uniqueKey);
                   if (activeTab === 'FINISHERS') return renderFinisherCard(item as Finisher, uniqueKey);
+                  if (activeTab === 'QUICK_CHATS') return renderQuickChatCard(item as ChatPreset, uniqueKey);
                   return renderItemCard(item, false, false, false, uniqueKey);
                 } catch (error) {
                   console.error('Error rendering item:', item, error);
                   return null;
                 }
-              }).filter(Boolean);
-            }, [activeTab, remoteEmotes, hideUnowned, showDealsOnly, dailyDealSleeveId, profile])}
+              }).filter(Boolean)
+            )}
           </div>
+          )}
         </div>
       </div>
 
@@ -1871,14 +3132,23 @@ export const Store: React.FC<{
                   setShowAdPrompt(false);
                   const placement: AdPlacement = 'shop';
                   try {
-                    await adService.showRewardedAd(placement, async (amount) => {
-                      const result = await rewardUserForAd(profile?.id || 'guest', amount);
-                      if (result.success) {
-                        audioService.playPurchase();
-                        setShowGemRain(true);
-                        onRefreshProfile();
+                    await adService.showRewardedAd(
+                      placement,
+                      async (amount) => {
+                        // SECURITY: Only called when onUserEarnedReward fires
+                        const result = await processAdReward(profile?.id || 'guest', amount);
+                        if (result.success) {
+                          audioService.playPurchase();
+                          setShowGemRain(true);
+                          onRefreshProfile();
+                        }
+                      },
+                      () => {
+                        // Early close callback - show warning toast
+                        // Note: This toast would need to be added to the parent component
+                        console.warn('Ad closed early');
                       }
-                    });
+                    );
                   } catch (error: any) {
                     console.error('Ad error:', error);
                   }
@@ -1904,6 +3174,243 @@ export const Store: React.FC<{
         <GemRain 
           gemCount={20} 
           onComplete={() => setShowGemRain(false)} 
+        />
+      )}
+
+      {/* Upsell Modal */}
+      {showUpsellModal && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setShowUpsellModal(null)}>
+          <div className="relative bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl border-2 border-pink-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-2xl font-bold text-white mb-2 text-center">Wait!</h3>
+            <p className="text-white/80 text-center mb-6 text-lg">
+              Get the full <span className="font-bold text-pink-300">{showUpsellModal.packName}</span> for only{' '}
+              <span className="font-bold text-yellow-300">{showUpsellModal.difference.toLocaleString()} Gems</span> more!
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  const pack = DEAL_PACKS.find(p => p.name === showUpsellModal.packName);
+                  if (pack) {
+                    setShowPackPreview({ packId: pack.id });
+                    setShowUpsellModal(null);
+                  }
+                }}
+                className="w-full py-4 px-6 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-xl shadow-lg hover:from-pink-600 hover:to-purple-600 transition-all duration-300 hover:scale-105 min-h-[56px] touch-manipulation"
+              >
+                See the Pack
+              </button>
+              <button
+                onClick={() => {
+                  const finisher = finishers.find(f => f.id === showUpsellModal.finisherId);
+                  if (finisher) {
+                    setPendingPurchase({
+                      id: finisher.id,
+                      name: finisher.name,
+                      description: `A legendary cinematic finisher that plays when you win a match. Feel the main character energy.`,
+                      price: finisher.price,
+                      currency: 'GEMS',
+                      type: 'FINISHER',
+                      animation_key: finisher.animation_key,
+                      unlocked: false,
+                      equipped: false
+                    });
+                    setShowUpsellModal(null);
+                  }
+                }}
+                className="w-full py-3 px-6 bg-white/5 border border-white/20 text-white/70 hover:text-white rounded-xl transition-all min-h-[48px] touch-manipulation"
+              >
+                Just This Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pack Preview Modal */}
+      {showPackPreview && (() => {
+        const pack = DEAL_PACKS.find(p => p.id === showPackPreview.packId);
+        if (!pack) return null;
+        
+        const allOwned = isPackOwned(pack);
+
+        return (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4" onClick={() => setShowPackPreview(null)}>
+            <div className="relative bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl border-2 border-pink-500/40 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => setShowPackPreview(null)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <div className="flex flex-col gap-6">
+                {/* Header */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-3xl font-black text-white uppercase tracking-wide">{pack.name}</h3>
+                    {/* Discount Badge */}
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-yellow-400 blur-md opacity-50"></div>
+                      <div className="relative bg-gradient-to-br from-yellow-400 to-yellow-500 text-black font-black text-sm px-4 py-1.5 transform rotate-12 shadow-lg">
+                        {pack.discountLabel}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-white/70">{pack.description}</p>
+                </div>
+
+                {/* Pack Items Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {pack.items.map((item, idx) => {
+                    const isOwned = isItemOwned(item);
+                    return (
+                      <div
+                        key={`${item.type}-${item.id}-${idx}`}
+                        className={`relative rounded-2xl p-4 border-2 flex flex-col items-center gap-2 ${
+                          isOwned 
+                            ? 'border-emerald-500/50 bg-emerald-500/10' 
+                            : 'border-white/20 bg-white/5'
+                        }`}
+                      >
+                        {/* Category Badge - Top Left */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <div className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${
+                            item.type === 'FINISHER' 
+                              ? 'bg-gradient-to-r from-purple-500/80 to-pink-500/80 text-white border border-purple-400/50'
+                              : item.type === 'EMOTE'
+                              ? 'bg-gradient-to-r from-yellow-500/80 to-orange-500/80 text-white border border-yellow-400/50'
+                              : item.type === 'BOARD'
+                              ? 'bg-gradient-to-r from-blue-500/80 to-cyan-500/80 text-white border border-blue-400/50'
+                              : item.type === 'SLEEVE'
+                              ? 'bg-gradient-to-r from-green-500/80 to-emerald-500/80 text-white border border-green-400/50'
+                              : item.type === 'QUICK_CHAT'
+                              ? 'bg-gradient-to-r from-pink-500/80 to-rose-500/80 text-white border border-pink-400/50'
+                              : 'bg-white/20 text-white/80 border border-white/30'
+                          }`}>
+                            {item.type === 'EMOTE' ? 'EMOTE' : item.type === 'QUICK_CHAT' ? 'CHAT' : item.type}
+                          </div>
+                        </div>
+                        
+                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl flex items-center justify-center">
+                          {item.type === 'FINISHER' ? (
+                            (() => {
+                              if (item.id === 'shiba_slam') {
+                                return <ShibaSlamIcon className="w-full h-full p-2" />;
+                              } else if (item.id === 'ethereal_blade') {
+                                return <EtherealBladeIcon className="w-full h-full p-2" />;
+                              } else if (item.id === 'seductive_finish') {
+                                return <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="lg" />;
+                              } else if (item.id === 'sanctum_snap') {
+                                return <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="lg" />;
+                              } else if (item.id === 'kiss_my_shiba') {
+                                return <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="lg" />;
+                              } else {
+                                const finisher = finishers.find(f => f.animation_key === item.id);
+                                return <div className="text-3xl">⚔️</div>;
+                              }
+                            })()
+                          ) : item.type === 'EMOTE' ? (
+                            <VisualEmote trigger={item.id} remoteEmotes={remoteEmotes} size="lg" />
+                          ) : item.type === 'BOARD' ? (
+                            <div className="w-full h-full">
+                              <BoardPreview themeId={item.id as BackgroundTheme} unlocked={isOwned} active={false} hideActiveMarker className="w-full h-full rounded-xl" />
+                            </div>
+                          ) : item.type === 'SLEEVE' ? (
+                            <Card faceDown coverStyle={item.id as CardCoverStyle} className="!w-full !h-full rounded-xl" />
+                          ) : item.type === 'QUICK_CHAT' ? (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-rose-500/20 rounded-xl border border-pink-400/30">
+                              <div className="text-2xl sm:text-3xl">💬</div>
+                            </div>
+                          ) : (
+                            <div className="text-3xl">❓</div>
+                          )}
+                          {isOwned && (
+                            <div className="absolute -top-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs font-bold text-white/80 text-center">
+                          {item.type === 'FINISHER' 
+                            ? finishers.find(f => f.animation_key === item.id)?.name || item.id
+                            : item.type === 'EMOTE'
+                            ? remoteEmotes.find(e => e.trigger_code === item.id)?.name || item.id
+                            : item.type === 'BOARD'
+                            ? PREMIUM_BOARDS.find(b => b.id === item.id)?.name || item.id
+                            : item.type === 'SLEEVE'
+                            ? SLEEVES.find(s => s.id === item.id)?.name || item.id
+                            : item.type === 'QUICK_CHAT'
+                            ? chatPresets.find(p => p.id === item.id)?.phrase || item.id
+                            : item.id
+                          }
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Pricing */}
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl text-white/40 line-through">
+                        {pack.originalPrice.toLocaleString()}
+                      </span>
+                      <CurrencyIcon type="GEMS" size="sm" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-3xl font-black text-pink-300">
+                        {pack.bundlePrice.toLocaleString()}
+                      </span>
+                      <CurrencyIcon type="GEMS" size="md" />
+                    </div>
+                  </div>
+                  
+                  {allOwned ? (
+                    <div className="px-4 py-3 bg-emerald-500/20 border border-emerald-500/50 rounded-xl text-emerald-300 text-sm font-bold uppercase text-center">
+                      Pack Owned
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setPendingPurchase({
+                          id: pack.id,
+                          name: pack.name,
+                          description: pack.description,
+                          price: pack.bundlePrice,
+                          originalPrice: pack.originalPrice,
+                          currency: 'GEMS',
+                          type: 'PACK',
+                          items: pack.items,
+                          discountPercent: pack.discountPercent,
+                          packId: pack.id
+                        });
+                        setShowPackPreview(null);
+                      }}
+                      className="w-full px-6 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-xl hover:from-pink-600 hover:to-purple-600 transition-all duration-300 hover:scale-105 shadow-lg text-lg"
+                    >
+                      Buy Pack
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Pack Success Modal with Chaos Animation */}
+      {showPackSuccessModal && (
+        <PackPurchaseSuccessModal
+          packName={showPackSuccessModal.packName}
+          finisherKeys={showPackSuccessModal.finisherKeys}
+          finishers={finishers}
+          remoteEmotes={remoteEmotes}
+          onClose={() => setShowPackSuccessModal(null)}
         />
       )}
     </div>

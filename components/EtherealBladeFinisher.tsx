@@ -113,7 +113,13 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
   };
 
   const content = (
-    <div className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden">
+    <div 
+      className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden transform-gpu" 
+      style={{
+        contain: 'layout style paint',
+        willChange: 'contents'
+      }}
+    >
       {/* Cinematic Letterbox Bars */}
       <AnimatePresence>
         {showLetterbox && (
@@ -159,17 +165,19 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
 
       {/* Phase 0: Energy Charge/Charge-up - Final Fantasy Style */}
       {phase === 'charge' && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center transform-gpu" style={{ contain: 'layout style paint' }}>
           {/* Concentric Energy Rings */}
           {Array.from({ length: 5 }).map((_, i) => (
             <motion.div
               key={`ring-${i}`}
-              className="absolute border-2 border-cyan-400 rounded-full"
+              className="absolute border-2 border-cyan-400 rounded-full transform-gpu"
               style={{
                 width: `${200 + i * 100}px`,
                 height: `${200 + i * 100}px`,
                 borderColor: `rgba(${100 + i * 30}, ${200 + i * 20}, 255, ${0.8 - i * 0.15})`,
                 boxShadow: `0 0 ${20 + i * 10}px rgba(100, 200, 255, 0.6)`,
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden'
               }}
               initial={{ scale: 0, opacity: 0 }}
               animate={{ 
@@ -191,10 +199,12 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
             return (
               <motion.div
                 key={`orb-${i}`}
-                className="absolute w-4 h-4 rounded-full"
+                className="absolute w-4 h-4 rounded-full transform-gpu"
                 style={{
                   background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(100,200,255,0.8) 50%, transparent 100%)',
                   boxShadow: '0 0 20px rgba(100,200,255,1), 0 0 40px rgba(100,200,255,0.6)',
+                  willChange: 'transform, opacity',
+                  backfaceVisibility: 'hidden'
                 }}
                 initial={{ 
                   x: 0, 
@@ -220,10 +230,12 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
 
           {/* Central Energy Core */}
           <motion.div
-            className="absolute w-32 h-32 rounded-full"
+            className="absolute w-32 h-32 rounded-full transform-gpu"
             style={{
               background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(100,200,255,0.8) 30%, rgba(150,100,255,0.6) 60%, transparent 100%)',
               boxShadow: '0 0 60px rgba(100,200,255,1), 0 0 120px rgba(150,100,255,0.8), inset 0 0 40px rgba(255,255,255,0.5)',
+              willChange: 'transform, opacity',
+              backfaceVisibility: 'hidden'
             }}
             initial={{ scale: 0, opacity: 0 }}
             animate={{ 
@@ -241,7 +253,7 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
 
       {/* Phase 1: Enhanced Slash Layers - Energy Blades */}
       {phase === 'slashes' && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center transform-gpu" style={{ contain: 'layout style paint' }}>
           {Array.from({ length: 5 }).map((_, i) => {
             const angle = -45 + (Math.random() * 20 - 10); // -55 to -35 degrees
             const x = 50 + (Math.random() * 20 - 10); // Center with variation
@@ -250,12 +262,14 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
             return (
               <motion.div
                 key={i}
-                className="absolute"
+                className="absolute transform-gpu"
                 style={{
                   left: `${x}%`,
                   top: `${y}%`,
                   transformOrigin: 'center',
-                  transform: `rotate(${angle}deg)`,
+                  transform: `translate3d(0, 0, 0) rotate3d(0, 0, 1, ${angle}deg)`,
+                  willChange: 'transform, opacity, width',
+                  backfaceVisibility: 'hidden'
                 }}
                 initial={{ width: 0, opacity: 1 }}
                 animate={{ 
@@ -324,10 +338,12 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
       <AnimatePresence>
         {phase === 'shatter' && (
           <div 
-            className="absolute inset-0 flex items-center justify-center"
+            className="absolute inset-0 flex items-center justify-center transform-gpu"
             style={{
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              contain: 'layout style paint',
+              willChange: 'contents'
             }}
           >
             {shardDirections.map((dir, i) => {
@@ -336,7 +352,7 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
               return (
                 <motion.div
                   key={i}
-                  className="absolute"
+                  className="absolute transform-gpu"
                   style={{
                     left: '50%',
                     top: '50%',
@@ -347,8 +363,10 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
                       hsla(${hue}, 100%, 90%, 0.95) 0%, 
                       hsla(${hue}, 100%, 70%, 0.85) 50%, 
                       hsla(${hue + 30}, 100%, 60%, 0.75) 100%)`,
-                    filter: `blur(0.5px) drop-shadow(0 0 12px hsla(${hue}, 100%, 80%, 0.9)) drop-shadow(0 0 24px hsla(${hue}, 100%, 70%, 0.6))`,
+                    filter: `drop-shadow(0 0 12px hsla(${hue}, 100%, 80%, 0.9)) drop-shadow(0 0 24px hsla(${hue}, 100%, 70%, 0.6))`,
                     border: `1px solid hsla(${hue}, 100%, 85%, 0.6)`,
+                    willChange: 'transform, opacity',
+                    backfaceVisibility: 'hidden'
                   }}
                   initial={{ 
                     x: 0, 
@@ -380,12 +398,14 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
               return (
                 <motion.div
                   key={`burst-${i}`}
-                  className="absolute w-3 h-3 rounded-full"
+                  className="absolute w-3 h-3 rounded-full transform-gpu"
                   style={{
                     left: '50%',
                     top: '50%',
                     background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(100,200,255,0.8) 50%, transparent 100%)',
                     boxShadow: '0 0 20px rgba(255,255,255,1), 0 0 40px rgba(100,200,255,0.8)',
+                    willChange: 'transform, opacity',
+                    backfaceVisibility: 'hidden'
                   }}
                   initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
                   animate={{ 
@@ -410,27 +430,31 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
       <AnimatePresence>
         {(phase === 'glow' || phase === 'fanfare') && (
           <>
-            {/* Multiple Glow Layers */}
+            {/* Multiple Glow Layers - optimized blur */}
             <motion.div
-              className="absolute inset-0 flex items-center justify-center"
+              className="absolute inset-0 flex items-center justify-center transform-gpu"
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.6, ease: 'easeOut' }}
               style={{
                 background: 'radial-gradient(circle at center, rgba(255,255,255,0.95) 0%, rgba(200,150,255,0.8) 20%, rgba(100,200,255,0.6) 40%, rgba(255,215,0,0.4) 60%, transparent 80%)',
-                filter: 'blur(40px)',
+                filter: 'blur(30px)',
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden'
               }}
             />
             <motion.div
-              className="absolute inset-0 flex items-center justify-center"
+              className="absolute inset-0 flex items-center justify-center transform-gpu"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
               style={{
                 background: 'radial-gradient(circle at center, rgba(255,215,0,0.9) 0%, rgba(255,165,0,0.7) 30%, rgba(200,100,255,0.5) 50%, transparent 70%)',
-                filter: 'blur(60px)',
+                filter: 'blur(40px)',
+                willChange: 'opacity',
+                backfaceVisibility: 'hidden'
               }}
             />
             
@@ -438,13 +462,15 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
             {Array.from({ length: 3 }).map((_, i) => (
               <motion.div
                 key={`energy-ring-${i}`}
-                className="absolute border-2 rounded-full"
+                className="absolute border-2 rounded-full transform-gpu"
                 style={{
                   width: `${300 + i * 200}px`,
                   height: `${300 + i * 200}px`,
                   borderColor: `rgba(${255 - i * 50}, ${215 - i * 30}, ${i * 50}, ${0.6 - i * 0.15})`,
                   borderImage: 'linear-gradient(45deg, rgba(255,215,0,0.8), rgba(200,150,255,0.8), rgba(100,200,255,0.8)) 1',
                   boxShadow: `0 0 ${40 + i * 20}px rgba(255,215,0,${0.8 - i * 0.2})`,
+                  willChange: 'transform, opacity',
+                  backfaceVisibility: 'hidden'
                 }}
                 initial={{ rotate: 0, scale: 0, opacity: 0 }}
                 animate={{ 
@@ -473,23 +499,24 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 1, ease: 'easeOut' }}
           >
-            {/* Enhanced Floating Particles - Ethereal Energy */}
-            {Array.from({ length: 50 }).map((_, i) => {
-              const angle = (i * 360) / 50;
-              const distance = 150 + Math.random() * 100;
-              const hue = 180 + Math.random() * 60; // Cyan to purple
+            {/* Enhanced Floating Particles - Ethereal Energy - optimized count */}
+            {Array.from({ length: 30 }).map((_, i) => {
+              const angle = (i * 360) / 30;
+              const distance = 150 + (i % 3) * 30;
+              const hue = 180 + (i % 60); // Cyan to purple
               return (
                 <motion.div
                   key={i}
-                  className="absolute rounded-full"
+                  className="absolute rounded-full transform-gpu"
                   style={{
                     left: '50%',
                     top: '50%',
-                    width: `${3 + Math.random() * 4}px`,
-                    height: `${3 + Math.random() * 4}px`,
+                    width: `${3 + (i % 4)}px`,
+                    height: `${3 + (i % 4)}px`,
                     background: `radial-gradient(circle, rgba(255,255,255,1) 0%, hsla(${hue}, 100%, 80%, 0.9) 50%, hsla(${hue + 30}, 100%, 70%, 0.7) 100%)`,
-                    boxShadow: `0 0 ${8 + Math.random() * 8}px hsla(${hue}, 100%, 85%, 1), 0 0 ${16 + Math.random() * 12}px hsla(${hue}, 100%, 75%, 0.8)`,
-                    filter: 'blur(0.5px)',
+                    boxShadow: `0 0 ${8 + (i % 8)}px hsla(${hue}, 100%, 85%, 1), 0 0 ${16 + (i % 12)}px hsla(${hue}, 100%, 75%, 0.8)`,
+                    willChange: 'transform, opacity',
+                    backfaceVisibility: 'hidden'
                   }}
                   initial={{ 
                     x: 0, 
@@ -505,8 +532,8 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
                     rotate: 360,
                   }}
                   transition={{
-                    duration: 3 + Math.random() * 2,
-                    delay: i * 0.05,
+                    duration: 3 + (i % 2),
+                    delay: i * 0.08,
                     ease: 'easeOut',
                   }}
                 />
@@ -555,10 +582,15 @@ export const EtherealBladeFinisher: React.FC<EtherealBladeFinisherProps> = ({
 
             {/* Victory Text - Premium Final Fantasy Style */}
             <motion.div
-              className="relative"
+              className="relative transform-gpu"
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 1.2, ease: [0.34, 1.56, 0.64, 1] }}
+              style={{
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden',
+                contain: 'layout style paint'
+              }}
             >
               {/* Multiple Glow Layers Behind Text */}
               <motion.div

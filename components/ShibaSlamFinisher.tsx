@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ShibaSlamFinisherProps {
   onComplete: () => void;
@@ -8,7 +9,7 @@ interface ShibaSlamFinisherProps {
   winnerName?: string;
 }
 
-// Cute Chibi Shiba Component
+// Cute Chibi Shiba Component - Now actually used!
 interface ChibiShibaProps {
   color: 'orange' | 'black' | 'tan';
   startDelay: number;
@@ -62,7 +63,11 @@ const ChibiShiba: React.FC<ChibiShibaProps> = ({ color, startDelay, duration, pa
         return;
       }
 
-      const progress = (elapsed % duration) / duration;
+      if (elapsed > duration) {
+        return; // Stop after duration
+      }
+
+      const progress = elapsed / duration;
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       
@@ -114,21 +119,29 @@ const ChibiShiba: React.FC<ChibiShibaProps> = ({ color, startDelay, duration, pa
   }, [duration, startDelay, path]);
 
   return (
-    <div
+    <motion.div
       style={{
         ...style,
-        transform: `translate(${position.x}px, ${position.y}px) scaleX(${facing === 'right' ? 1 : -1})`,
-        transition: 'transform 0.1s linear',
-        willChange: 'transform'
+        transform: `translate3d(${position.x}px, ${position.y}px, 0) scaleX(${facing === 'right' ? 1 : -1})`,
+        willChange: 'transform',
+        backfaceVisibility: 'hidden',
+        perspective: 1000
       }}
-      className="pointer-events-none"
+      className="pointer-events-none transform-gpu"
+      animate={{
+        y: [0, -3, 0, -2, 0],
+      }}
+      transition={{
+        duration: 0.4,
+        repeat: Infinity,
+        ease: 'easeInOut',
+      }}
     >
       <svg
         width="60"
         height="60"
         viewBox="0 0 60 60"
         style={{
-          animation: 'shibaWalk 0.6s steps(4) infinite',
           filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
         }}
       >
@@ -143,22 +156,22 @@ const ChibiShiba: React.FC<ChibiShibaProps> = ({ color, startDelay, duration, pa
           </linearGradient>
         </defs>
         
-        {/* Body - More Shiba-like shape (not just ellipse) */}
+        {/* Body - More Shiba-like shape */}
         <path d="M 15 38 Q 12 45 15 52 Q 20 55 25 52 Q 30 50 30 48 Q 30 50 35 52 Q 40 55 45 52 Q 48 45 45 38 Q 42 35 30 35 Q 18 35 15 38 Z" 
               fill={`url(#shibaBody-${color})`} />
         
-        {/* White chest marking - Distinctive Shiba feature */}
+        {/* White chest marking */}
         <path d="M 20 38 Q 25 40 30 38 Q 35 40 40 38 Q 38 42 35 45 Q 30 48 30 48 Q 30 48 25 45 Q 22 42 20 38 Z" 
               fill={`url(#shibaWhite-${color})`} opacity="0.95" />
         
-        {/* Head - More rounded, Shiba-like */}
+        {/* Head */}
         <circle cx="30" cy="18" r="11" fill={`url(#shibaBody-${color})`} />
         
-        {/* White muzzle marking - Key Shiba feature */}
+        {/* White muzzle marking */}
         <ellipse cx="30" cy="22" rx="7" ry="5" fill={`url(#shibaWhite-${color})`} opacity="0.95" />
         <ellipse cx="30" cy="20" rx="5" ry="3" fill={`url(#shibaWhite-${color})`} opacity="0.98" />
         
-        {/* Pointed triangular ears - Proper Shiba ears */}
+        {/* Pointed triangular ears */}
         <path d="M 20 12 L 18 6 L 22 10 L 20 12 Z" fill={colors.face} stroke={colors.body} strokeWidth="0.5" />
         <path d="M 40 12 L 42 6 L 38 10 L 40 12 Z" fill={colors.face} stroke={colors.body} strokeWidth="0.5" />
         
@@ -166,7 +179,7 @@ const ChibiShiba: React.FC<ChibiShibaProps> = ({ color, startDelay, duration, pa
         <path d="M 20 12 L 19 8 L 21 10 Z" fill={colors.highlight} opacity="0.6" />
         <path d="M 40 12 L 41 8 L 39 10 Z" fill={colors.highlight} opacity="0.6" />
         
-        {/* Large expressive eyes with white reflections - Shiba characteristic */}
+        {/* Large expressive eyes */}
         <ellipse cx="26" cy="18" rx="3.5" ry="4" fill="#000000" />
         <ellipse cx="34" cy="18" rx="3.5" ry="4" fill="#000000" />
         {/* Eye reflections */}
@@ -179,25 +192,19 @@ const ChibiShiba: React.FC<ChibiShibaProps> = ({ color, startDelay, duration, pa
         {/* Simple curved mouth */}
         <path d="M 28 25 Q 30 26 32 25" stroke="#000000" strokeWidth="1" fill="none" strokeLinecap="round" />
         
-        {/* Legs - More defined, Shiba-like */}
+        {/* Legs */}
         <ellipse cx="22" cy="50" rx="2.5" ry="3.5" fill={colors.face} />
         <ellipse cx="30" cy="52" rx="2.5" ry="3.5" fill={colors.face} />
         <ellipse cx="38" cy="50" rx="2.5" ry="3.5" fill={colors.face} />
         
-        {/* Curled tail over back - Signature Shiba feature */}
+        {/* Curled tail over back */}
         <path d="M 42 32 Q 48 28 50 22 Q 48 18 45 20 Q 46 24 44 26 Q 42 30 42 32 Z" 
               fill={`url(#shibaBody-${color})`} />
         {/* White underside of tail */}
         <path d="M 44 28 Q 46 24 45 22 Q 44 24 44 26 Z" 
               fill={`url(#shibaWhite-${color})`} opacity="0.7" />
-        
-        {/* Fluffy white fur outline on face edges - Soft texture */}
-        <path d="M 20 18 Q 18 16 19 14 Q 20 15 20 18 Z" fill={colors.white} opacity="0.4" />
-        <path d="M 40 18 Q 42 16 41 14 Q 40 15 40 18 Z" fill={colors.white} opacity="0.4" />
-        <path d="M 22 20 Q 20 22 18 20 Q 20 20 22 20 Z" fill={colors.white} opacity="0.3" />
-        <path d="M 38 20 Q 40 22 42 20 Q 40 20 38 20 Z" fill={colors.white} opacity="0.3" />
       </svg>
-    </div>
+    </motion.div>
   );
 };
 
@@ -207,50 +214,57 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
   isPreview = false,
   winnerName = 'GUEST'
 }) => {
-  const [phase, setPhase] = useState<'shadow' | 'impact' | 'victory' | 'lingering'>('shadow');
+  const [phase, setPhase] = useState<'running' | 'shadow' | 'slam' | 'impact' | 'victory' | 'lingering'>('running');
   const [showReplay, setShowReplay] = useState(false);
 
   useEffect(() => {
-    // Reset to shadow phase when component mounts
+    // Phase 1: Shibas running around (1.5s)
+    const runningTimer = setTimeout(() => {
     setPhase('shadow');
-    console.log('🎬 ShibaSlamFinisher: Starting animation, phase:', 'shadow');
+    }, 1500);
     
-    // Phase 1: Shadow (0.5s)
+    // Phase 2: Shadow buildup (0.8s)
     const shadowTimer = setTimeout(() => {
-      console.log('🎬 ShibaSlamFinisher: Phase -> impact');
+      setPhase('slam');
+    }, 2300);
+
+    // Phase 3: Slam down (0.4s)
+    const slamTimer = setTimeout(() => {
       setPhase('impact');
-    }, 500);
+    }, 2700);
 
-    // Phase 2: Impact (0.6s)
+    // Phase 4: Impact effects (1s)
     const impactTimer = setTimeout(() => {
-      console.log('🎬 ShibaSlamFinisher: Phase -> victory');
       setPhase('victory');
-    }, 1100);
+    }, 3700);
 
-    // Phase 3: Victory text (0.8s)
+    // Phase 5: Victory text (2s)
     const victoryTimer = setTimeout(() => {
-      console.log('🎬 ShibaSlamFinisher: Phase -> lingering');
       setPhase('lingering');
       if (isPreview) {
         setShowReplay(true);
       }
-    }, 1900);
+    }, 5700);
 
-    // Phase 4: Lingering (3s) - only if not preview
+    // Complete (only if not preview)
     if (!isPreview) {
-      const lingeringTimer = setTimeout(() => {
+      const completeTimer = setTimeout(() => {
         onComplete();
-      }, 4900);
+      }, 8000);
       return () => {
+        clearTimeout(runningTimer);
         clearTimeout(shadowTimer);
+        clearTimeout(slamTimer);
         clearTimeout(impactTimer);
         clearTimeout(victoryTimer);
-        clearTimeout(lingeringTimer);
+        clearTimeout(completeTimer);
       };
     }
 
     return () => {
+      clearTimeout(runningTimer);
       clearTimeout(shadowTimer);
+      clearTimeout(slamTimer);
       clearTimeout(impactTimer);
       clearTimeout(victoryTimer);
     };
@@ -258,97 +272,137 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
 
   const handleReplay = () => {
     if (onReplay) {
-      setPhase('shadow');
+      setPhase('running');
       setShowReplay(false);
       onReplay();
     }
   };
 
   const content = (
-    <div className="fixed inset-0 z-[300] pointer-events-none" style={{ backgroundColor: 'transparent' }}>
-      {/* Dimmed Background - Semi-transparent overlay that doesn't block the animation */}
-      <div 
-        className={`absolute inset-0 bg-black transition-opacity duration-500 ${
-          phase === 'shadow' 
-            ? 'opacity-0' 
-            : isPreview 
-            ? 'opacity-50'  // Lighter so animation is clearly visible
-            : 'opacity-80'  // Normal for actual game
-        }`}
+    <div 
+      className="fixed inset-0 z-[300] pointer-events-none transform-gpu" 
+      style={{ 
+        backgroundColor: 'transparent',
+        contain: 'layout style paint',
+        willChange: 'contents'
+      }}
+    >
+      {/* Dimmed Background */}
+      <motion.div 
+        className="absolute inset-0 bg-black"
+        initial={{ opacity: 0 }}
+        animate={{ 
+          opacity: phase === 'running' 
+            ? (isPreview ? 0.3 : 0.4)
+            : phase === 'shadow' || phase === 'slam'
+            ? (isPreview ? 0.5 : 0.6)
+            : (isPreview ? 0.6 : 0.75)
+        }}
+        transition={{ duration: 0.3 }}
       />
 
-      {/* Phase 1: Shadow - Show during shadow phase and grow - Make it visible with darker color */}
-      {phase === 'shadow' && (
+      {/* Phase 1: Chibi Shibas Running Around */}
+      {phase === 'running' && (
+        <div className="absolute inset-0 overflow-hidden">
+          <ChibiShiba color="orange" startDelay={0} duration={1.5} path="curved" />
+          <ChibiShiba color="black" startDelay={0.2} duration={1.5} path="reverse" />
+          <ChibiShiba color="tan" startDelay={0.4} duration={1.5} path="vertical" />
+          <ChibiShiba color="orange" startDelay={0.6} duration={1.5} path="curved" />
+          <ChibiShiba color="black" startDelay={0.8} duration={1.5} path="reverse" />
+        </div>
+      )}
+      
+      {/* Phase 2 & 3: Shadow Buildup */}
+      {(phase === 'shadow' || phase === 'slam' || phase === 'impact' || phase === 'victory' || phase === 'lingering') && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div 
-            className="w-[600px] h-[600px] rounded-full bg-gray-800 blur-[80px]"
+          <motion.div 
+            className="w-[600px] h-[600px] rounded-full bg-gray-900 blur-[100px]"
+            initial={{ scale: 0.3, opacity: 0.4 }}
+            animate={{ 
+              scale: phase === 'shadow' 
+                ? [0.3, 1.2, 1.5]
+                : phase === 'slam' || phase === 'impact'
+                ? [1.5, 1.8, 1.6]
+                : 1.6,
+              opacity: phase === 'shadow'
+                ? [0.4, 0.8, 0.9]
+                : phase === 'slam' || phase === 'impact'
+                ? [0.9, 1, 0.95]
+                : 0.9
+            }}
+            transition={{ 
+              duration: phase === 'shadow' ? 0.8 : 0.4,
+              ease: 'easeOut'
+            }}
             style={{
-              animation: 'shadowGrow 0.5s ease-out forwards',
-              transform: 'scale(0)',
-              opacity: 0
+              boxShadow: '0 0 200px rgba(251,191,36,0.8)',
             }}
           />
         </div>
       )}
-      
-      {/* Keep shadow visible during impact phase too */}
-      {phase === 'impact' && (
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div 
-            className="w-[600px] h-[600px] rounded-full bg-gray-800 blur-[80px] opacity-60"
-          />
-        </div>
-      )}
 
-      {/* Phase 2: Paw Impact - Show paw starting from shadow phase so it can animate down */}
-      {(phase === 'shadow' || phase === 'impact' || phase === 'victory' || phase === 'lingering') && (
-        <div className="absolute inset-0 flex items-center justify-center z-20">
-          {/* Screen Shake Container */}
-          <div 
-            className={`transition-transform duration-200 ${
-              phase === 'impact' ? 'animate-screen-shake' : ''
-            }`}
-          >
-            {/* Shiba Paw */}
-            <div 
-              className="relative"
-              style={{
-                transform: phase === 'shadow'
-                  ? 'translateY(-100%)'
+      {/* Phase 3 & 4: Dramatic Paw Slam */}
+      {(phase === 'shadow' || phase === 'slam' || phase === 'impact' || phase === 'victory' || phase === 'lingering') && (
+        <motion.div 
+          className="absolute inset-0 flex items-center justify-center z-20"
+          animate={phase === 'slam' || phase === 'impact' ? {
+            x: [0, -8, 6, -5, 4, -3, 2, -1, 0],
+            y: [0, -4, 3, -2, 2, -1, 1, 0, 0],
+            rotate: [0, -1, 1, -0.5, 0.5, -0.3, 0.3, 0, 0],
+          } : {}}
+          transition={{
+            duration: phase === 'slam' ? 0.4 : 1,
+            ease: 'easeOut',
+            times: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 1],
+          }}
+        >
+          <motion.div 
+              className="relative transform-gpu"
+            initial={phase === 'shadow' ? {
+              y: '-80vh',
+              scale: 0.8,
+              opacity: 0.6,
+            } : {}}
+            animate={{
+              y: phase === 'shadow'
+                ? '-80vh'
+                : phase === 'slam'
+                ? ['-80vh', '0vh', '-10px']
                   : phase === 'impact' 
-                  ? 'translateY(0)' 
-                  : phase === 'victory' || phase === 'lingering'
-                  ? 'translateY(-20px)'
-                  : 'translateY(-100%)',
-                transition: phase === 'shadow'
-                  ? 'none'
+                ? ['-10px', '0px', '-5px', '0px']
+                : '-20px',
+              scale: phase === 'shadow'
+                ? 0.8
+                : phase === 'slam'
+                ? [0.8, 1.2, 1]
                   : phase === 'impact' 
-                  ? 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' 
-                  : phase === 'victory' || phase === 'lingering'
-                  ? 'transform 0.4s ease-out'
-                  : 'none',
-                filter: phase === 'impact' ? 'blur(2px)' : 'blur(0px)',
+                ? [1, 1.1, 1]
+                : 0.95,
+                opacity: phase === 'shadow' ? 0.6 : 1,
+            }}
+            transition={{
+              duration: phase === 'slam' ? 0.4 : phase === 'impact' ? 1 : 0.3,
+              ease: phase === 'slam' ? [0.16, 1, 0.3, 1] : 'easeOut',
               }}
             >
-              {/* Premium Cute Shiba Paw SVG - Detailed and adorable */}
+            {/* Premium Shiba Paw SVG */}
               <svg 
                 width="500" 
                 height="500" 
                 viewBox="0 0 200 200" 
-                className="drop-shadow-[0_30px_80px_rgba(251,191,36,0.8)]"
                 style={{ 
-                  filter: 'drop-shadow(0 0 40px rgba(251,191,36,0.8)) drop-shadow(0 0 80px rgba(251,191,36,0.4))',
-                  animation: phase === 'impact' ? 'pawGlow 0.6s ease-out' : undefined
+                filter: phase === 'slam' || phase === 'impact'
+                  ? 'drop-shadow(0 0 80px rgba(251,191,36,1)) drop-shadow(0 0 150px rgba(251,191,36,0.9)) drop-shadow(0 0 220px rgba(251,191,36,0.7))'
+                    : 'drop-shadow(0 0 50px rgba(251,191,36,0.9)) drop-shadow(0 0 100px rgba(251,191,36,0.7))',
+                transition: 'filter 0.3s ease-out'
                 }}
               >
                 <defs>
-                  {/* Gradient for paw pads */}
                   <radialGradient id="pawGradient" cx="50%" cy="50%">
                     <stop offset="0%" stopColor="#FFE4B5" stopOpacity="1" />
                     <stop offset="70%" stopColor="#DEB887" stopOpacity="1" />
                     <stop offset="100%" stopColor="#CD853F" stopOpacity="1" />
                   </radialGradient>
-                  {/* Glow filter */}
                   <filter id="pawGlowFilter">
                     <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
                     <feMerge>
@@ -361,127 +415,178 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
                 {/* Outer glow ring */}
                 <circle cx="100" cy="100" r="95" fill="url(#pawGradient)" opacity="0.2" filter="url(#pawGlowFilter)" />
                 
-                {/* Main paw pad (bottom, largest) */}
+              {/* Main paw pad */}
                 <ellipse cx="100" cy="145" rx="45" ry="35" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
                 <ellipse cx="100" cy="145" rx="40" ry="30" fill="#FFE4B5" opacity="0.6" />
                 
-                {/* Top toe pads (3 main ones) */}
+              {/* Top toe pads */}
                 <ellipse cx="75" cy="75" rx="18" ry="22" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
                 <ellipse cx="100" cy="65" rx="20" ry="25" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
                 <ellipse cx="125" cy="75" rx="18" ry="22" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
                 
-                {/* Inner highlights on toe pads */}
+              {/* Inner highlights */}
                 <ellipse cx="75" cy="75" rx="12" ry="15" fill="#FFE4B5" opacity="0.7" />
                 <ellipse cx="100" cy="65" rx="14" ry="18" fill="#FFE4B5" opacity="0.7" />
                 <ellipse cx="125" cy="75" rx="12" ry="15" fill="#FFE4B5" opacity="0.7" />
                 
-                {/* Smaller toe pads (2 on sides) */}
+              {/* Smaller toe pads */}
                 <ellipse cx="88" cy="105" rx="15" ry="18" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
                 <ellipse cx="112" cy="105" rx="15" ry="18" fill="url(#pawGradient)" filter="url(#pawGlowFilter)" />
                 <ellipse cx="88" cy="105" rx="10" ry="12" fill="#FFE4B5" opacity="0.7" />
                 <ellipse cx="112" cy="105" rx="10" ry="12" fill="#FFE4B5" opacity="0.7" />
                 
-                {/* Cute little claws - curved and adorable */}
+              {/* Claws */}
                 <path d="M 65 70 Q 60 55 58 45" stroke="#8B4513" strokeWidth="3.5" strokeLinecap="round" fill="none" />
                 <path d="M 80 60 Q 75 45 73 35" stroke="#8B4513" strokeWidth="3.5" strokeLinecap="round" fill="none" />
                 <path d="M 100 55 Q 100 40 100 30" stroke="#8B4513" strokeWidth="4" strokeLinecap="round" fill="none" />
                 <path d="M 120 60 Q 125 45 127 35" stroke="#8B4513" strokeWidth="3.5" strokeLinecap="round" fill="none" />
                 <path d="M 135 70 Q 140 55 142 45" stroke="#8B4513" strokeWidth="3.5" strokeLinecap="round" fill="none" />
-                
-                {/* Sparkle effects on impact */}
-                {phase === 'impact' && (
-                  <>
-                    <circle cx="75" cy="75" r="3" fill="#FFD700" opacity="0.9">
-                      <animate attributeName="opacity" values="0.9;0;0.9" dur="0.3s" repeatCount="indefinite" />
-                    </circle>
-                    <circle cx="100" cy="65" r="3" fill="#FFD700" opacity="0.9">
-                      <animate attributeName="opacity" values="0;0.9;0" dur="0.3s" begin="0.1s" repeatCount="indefinite" />
-                    </circle>
-                    <circle cx="125" cy="75" r="3" fill="#FFD700" opacity="0.9">
-                      <animate attributeName="opacity" values="0.9;0;0.9" dur="0.3s" begin="0.2s" repeatCount="indefinite" />
-                    </circle>
-                  </>
-                )}
               </svg>
-            </div>
+          </motion.div>
 
-            {/* Enhanced Particle Effects on Impact */}
+          {/* Impact Particle Effects */}
             {phase === 'impact' && (
               <>
-                {/* Radial dust burst */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  {Array.from({ length: 50 }).map((_, i) => (
-                    <div
+              {/* Radial dust burst */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                {Array.from({ length: 40 }).map((_, i) => {
+                  const angle = (i * 360) / 40;
+                  const distance = 200 + Math.random() * 150;
+                  return (
+                    <motion.div
                       key={`dust-${i}`}
-                      className="absolute w-3 h-3 bg-amber-300/80 rounded-full"
+                      className="absolute w-3 h-3 bg-amber-300 rounded-full"
                       style={{
                         left: '50%',
                         top: '50%',
-                        transform: `translate(-50%, -50%) rotate(${i * 7.2}deg) translateY(-200px)`,
-                        animation: `dustBurst 1s ease-out forwards`,
-                        animationDelay: `${i * 0.015}s`,
-                        boxShadow: '0 0 8px rgba(251,191,36,0.6)'
+                        boxShadow: '0 0 12px rgba(251,191,36,0.9), 0 0 20px rgba(251,191,36,0.6)',
+                      }}
+                      initial={{ 
+                        x: 0, 
+                        y: 0, 
+                        scale: 1, 
+                        opacity: 1 
+                      }}
+                      animate={{ 
+                        x: Math.cos((angle * Math.PI) / 180) * distance,
+                        y: Math.sin((angle * Math.PI) / 180) * distance,
+                        scale: [1, 1.5, 0],
+                        opacity: [1, 0.8, 0],
+                      }}
+                      transition={{
+                        duration: 1,
+                        delay: i * 0.02,
+                        ease: 'easeOut',
                       }}
                     />
-                  ))}
+                  );
+                })}
                 </div>
                 
-                {/* Impact shockwave rings */}
-                <div className="absolute inset-0 flex items-center justify-center">
+              {/* Impact shockwave rings */}
                   {[0, 1, 2].map((ring) => (
-                    <div
+                <motion.div
                       key={`ring-${ring}`}
-                      className="absolute w-0 h-0 border-4 border-yellow-400 rounded-full opacity-60"
+                  className="absolute border-4 border-yellow-400 rounded-full"
                       style={{
-                        animation: `shockwave 1s ease-out forwards`,
-                        animationDelay: `${ring * 0.2}s`,
+                    left: '50%',
+                    top: '50%',
+                    width: 0,
+                    height: 0,
+                        boxShadow: '0 0 20px rgba(251,191,36,0.8)',
+                  }}
+                  initial={{ 
+                    width: 0, 
+                    height: 0, 
+                    x: '-50%', 
+                    y: '-50%',
+                    opacity: 0.8 
+                  }}
+                  animate={{ 
+                    width: 800,
+                    height: 800,
+                    opacity: 0,
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    delay: ring * 0.3,
+                    ease: 'easeOut',
                       }}
                     />
                   ))}
-                </div>
-                
-                {/* Golden sparkles */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  {Array.from({ length: 30 }).map((_, i) => (
-                    <div
-                      key={`sparkle-${i}`}
-                      className="absolute w-1 h-8 bg-gradient-to-b from-yellow-300 to-transparent"
-                      style={{
-                        left: `${50 + (Math.random() - 0.5) * 40}%`,
-                        top: `${50 + (Math.random() - 0.5) * 40}%`,
-                        transform: `rotate(${Math.random() * 360}deg)`,
-                        animation: `sparkleFade 0.8s ease-out forwards`,
-                        animationDelay: `${Math.random() * 0.3}s`,
-                        boxShadow: '0 0 6px rgba(251,191,36,0.8)'
-                      }}
-                    />
-                  ))}
-                </div>
+              
+              {/* Golden sparkles */}
+              {Array.from({ length: 30 }).map((_, i) => (
+                <motion.div
+                        key={`sparkle-${i}`}
+                  className="absolute w-1 h-8 bg-gradient-to-b from-yellow-300 to-transparent"
+                        style={{
+                    left: `${50 + (Math.random() - 0.5) * 40}%`,
+                    top: `${50 + (Math.random() - 0.5) * 40}%`,
+                          boxShadow: '0 0 10px rgba(251,191,36,1), 0 0 15px rgba(251,191,36,0.7)',
+                  }}
+                  initial={{ 
+                    opacity: 0, 
+                    scale: 0, 
+                    rotate: Math.random() * 360 
+                  }}
+                  animate={{ 
+                    opacity: [0, 1, 0],
+                    scale: [0, 1.5, 0],
+                    y: -100,
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    delay: Math.random() * 0.4,
+                    ease: 'easeOut',
+                  }}
+                />
+              ))}
               </>
             )}
-          </div>
-        </div>
+        </motion.div>
       )}
 
-      {/* Phase 3 & 4: Victory Text - Premium obnoxious style - Responsive */}
+      {/* Phase 5 & 6: Victory Text */}
+      <AnimatePresence>
       {(phase === 'victory' || phase === 'lingering') && (
-        <div className="absolute inset-0 flex items-center justify-center z-30 px-4">
-          <div 
-            className="relative w-full max-w-[95vw]"
-            style={{
-              animation: phase === 'victory' 
-                ? 'victoryExplode 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards' 
-                : undefined,
-              transform: phase === 'lingering' ? 'scale(1)' : undefined,
-            }}
+          <motion.div
+            className="absolute inset-0 flex flex-col items-center justify-center z-30 px-4"
+            initial={{ opacity: 0, scale: 0.8, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
           >
-            {/* Multiple glow layers for obnoxious effect */}
-            <div className="absolute inset-0 blur-[60px] bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 opacity-90 animate-pulse" style={{ transform: 'scale(1.5)' }} />
-            <div className="absolute inset-0 blur-[40px] bg-gradient-to-br from-yellow-300 via-yellow-400 to-amber-400 opacity-80 animate-pulse" style={{ transform: 'scale(1.3)', animationDelay: '0.2s' }} />
-            <div className="absolute inset-0 blur-[20px] bg-gradient-to-br from-yellow-200 via-yellow-300 to-amber-300 opacity-70" />
+            {/* Multiple glow layers */}
+            <motion.div 
+              className="absolute inset-0 blur-[60px] bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 opacity-90"
+              style={{ transform: 'scale(1.5)' }}
+              animate={{ 
+                opacity: [0.7, 0.9, 0.7],
+                scale: [1.5, 1.6, 1.5],
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+            />
+            <motion.div 
+              className="absolute inset-0 blur-[40px] bg-gradient-to-br from-yellow-300 via-yellow-400 to-amber-400 opacity-80"
+              style={{ transform: 'scale(1.3)' }}
+              animate={{ 
+                opacity: [0.6, 0.8, 0.6],
+              }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: 0.2,
+              }}
+            />
             
             {/* Winner Name */}
-            <div 
+            <motion.div 
               className="relative italic uppercase tracking-tighter text-center mb-4"
               style={{
                 fontFamily: "'Playfair Display', 'Cinzel', serif",
@@ -494,69 +599,91 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
                 background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 25%, #FCD34D 50%, #FBBF24 75%, #F59E0B 100%)',
                 WebkitBackgroundClip: 'text',
                 backgroundClip: 'text',
-                animation: phase === 'lingering' ? 'victoryPulse 1.5s ease-in-out infinite' : undefined,
                 letterSpacing: '-0.03em',
-                wordBreak: 'keep-all',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap'
+              }}
+              animate={{ 
+                scale: [1, 1.03, 1],
+              }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: 'easeInOut',
               }}
             >
               {winnerName}
-            </div>
+            </motion.div>
             
-            {/* Main text with premium serif font - Responsive and always visible */}
-            <div 
+            {/* Main Victory Text */}
+            <motion.div 
               className="relative italic uppercase tracking-tighter text-center"
               style={{
                 fontFamily: "'Playfair Display', 'Cinzel', serif",
                 fontWeight: 900,
                 fontSize: 'clamp(4rem, 15vw, 12rem)',
                 lineHeight: '1',
-                textShadow: '0 0 80px rgba(251,191,36,1), 0 0 120px rgba(251,191,36,0.8), 0 0 160px rgba(251,191,36,0.6), 0 0 200px rgba(251,191,36,0.4), 0 0 240px rgba(251,191,36,0.3)',
+                textShadow: '0 0 80px rgba(251,191,36,1), 0 0 120px rgba(251,191,36,0.8), 0 0 160px rgba(251,191,36,0.6), 0 0 200px rgba(251,191,36,0.4)',
                 WebkitTextStroke: '3px rgba(251,191,36,0.4)',
                 WebkitTextFillColor: 'transparent',
                 background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 25%, #FCD34D 50%, #FBBF24 75%, #F59E0B 100%)',
                 WebkitBackgroundClip: 'text',
                 backgroundClip: 'text',
-                animation: phase === 'lingering' ? 'victoryPulse 1.5s ease-in-out infinite' : undefined,
                 letterSpacing: '-0.05em',
-                wordBreak: 'keep-all',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap'
+              }}
+              animate={{ 
+                scale: [1, 1.05, 1],
+              }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: 'easeInOut',
               }}
             >
               VICTORY
-            </div>
+            </motion.div>
             
             {/* Floating particles around text */}
-            {phase === 'lingering' && Array.from({ length: 20 }).map((_, i) => (
-              <div
+            {Array.from({ length: 20 }).map((_, i) => (
+              <motion.div
                 key={i}
                 className="absolute w-2 h-2 bg-yellow-400 rounded-full"
                 style={{
                   left: `${50 + Math.cos(i * 0.314) * 30}%`,
                   top: `${50 + Math.sin(i * 0.314) * 30}%`,
-                  animation: `floatParticle 3s ease-in-out infinite`,
-                  animationDelay: `${i * 0.15}s`,
-                  boxShadow: '0 0 10px rgba(251,191,36,0.8)'
+                  boxShadow: '0 0 10px rgba(251,191,36,0.8)',
+                }}
+                animate={{
+                  x: [0, Math.cos(i * 0.314) * 20, 0],
+                  y: [0, Math.sin(i * 0.314) * 20, 0],
+                  scale: [1, 1.2, 1],
+                  opacity: [0.6, 1, 0.6],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  delay: i * 0.15,
+                  ease: 'easeInOut',
                 }}
               />
             ))}
-          </div>
-        </div>
+          </motion.div>
       )}
-
+      </AnimatePresence>
 
       {/* Replay Button (Preview Mode Only) */}
       {isPreview && showReplay && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-auto">
+        <motion.div
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-auto z-[301]"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
           <button
             onClick={handleReplay}
             className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold rounded-xl shadow-lg hover:scale-105 transition-transform duration-200"
           >
             Replay
           </button>
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -566,146 +693,3 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
     ? createPortal(content, document.body)
     : content;
 };
-
-// Inject CSS styles on component mount
-if (typeof document !== 'undefined') {
-  const styleId = 'shiba-slam-styles';
-  if (!document.getElementById(styleId)) {
-    const styleSheet = document.createElement('style');
-    styleSheet.id = styleId;
-    styleSheet.textContent = `
-      @keyframes shadowGrow {
-        0% {
-          transform: scale(0);
-          opacity: 0;
-        }
-        100% {
-          transform: scale(1.5);
-          opacity: 0.8;
-        }
-      }
-
-      @keyframes screen-shake {
-        0%, 100% { transform: translate(0, 0); }
-        10% { transform: translate(-10px, -5px) rotate(-1deg); }
-        20% { transform: translate(10px, 5px) rotate(1deg); }
-        30% { transform: translate(-8px, -3px) rotate(-0.5deg); }
-        40% { transform: translate(8px, 3px) rotate(0.5deg); }
-        50% { transform: translate(-5px, -2px) rotate(-0.3deg); }
-        60% { transform: translate(5px, 2px) rotate(0.3deg); }
-        70% { transform: translate(-3px, -1px); }
-        80% { transform: translate(3px, 1px); }
-        90% { transform: translate(-1px, 0); }
-      }
-
-      @keyframes dustBurst {
-        0% {
-          opacity: 1;
-          transform: translate(-50%, -50%) scale(1);
-        }
-        100% {
-          opacity: 0;
-          transform: translate(-50%, -50%) scale(0) translateY(-200px);
-        }
-      }
-
-      @keyframes victoryExplode {
-        0% {
-          transform: scale(0) rotate(-10deg);
-          opacity: 0;
-        }
-        40% {
-          transform: scale(1.3) rotate(5deg);
-          opacity: 1;
-        }
-        60% {
-          transform: scale(0.95) rotate(-2deg);
-          opacity: 1;
-        }
-        80% {
-          transform: scale(1.05) rotate(1deg);
-          opacity: 1;
-        }
-        100% {
-          transform: scale(1) rotate(0deg);
-          opacity: 1;
-        }
-      }
-
-      @keyframes victoryPulse {
-        0%, 100% {
-          transform: scale(1);
-          filter: brightness(1);
-        }
-        50% {
-          transform: scale(1.05);
-          filter: brightness(1.2);
-        }
-      }
-
-      @keyframes pawGlow {
-        0% {
-          filter: drop-shadow(0 0 20px rgba(251,191,36,0.5));
-        }
-        50% {
-          filter: drop-shadow(0 0 60px rgba(251,191,36,1)) drop-shadow(0 0 100px rgba(251,191,36,0.6));
-        }
-        100% {
-          filter: drop-shadow(0 0 40px rgba(251,191,36,0.8)) drop-shadow(0 0 80px rgba(251,191,36,0.4));
-        }
-      }
-
-      @keyframes shockwave {
-        0% {
-          width: 0;
-          height: 0;
-          opacity: 0.8;
-        }
-        100% {
-          width: 600px;
-          height: 600px;
-          opacity: 0;
-        }
-      }
-
-      @keyframes sparkleFade {
-        0% {
-          opacity: 1;
-          transform: scale(1);
-        }
-        100% {
-          opacity: 0;
-          transform: scale(0) translateY(-100px);
-        }
-      }
-
-      @keyframes floatParticle {
-        0%, 100% {
-          transform: translate(0, 0) scale(1);
-          opacity: 0.6;
-        }
-        50% {
-          transform: translate(10px, -20px) scale(1.2);
-          opacity: 1;
-        }
-      }
-
-      @keyframes shibaWalk {
-        0% { transform: translateY(0px); }
-        25% { transform: translateY(-2px); }
-        50% { transform: translateY(0px); }
-        75% { transform: translateY(2px); }
-        100% { transform: translateY(0px); }
-      }
-
-      .animate-shadow-grow {
-        animation: shadowGrow 0.5s ease-out forwards;
-      }
-
-      .animate-screen-shake {
-        animation: screen-shake 0.6s ease-out;
-      }
-    `;
-    document.head.appendChild(styleSheet);
-  }
-}

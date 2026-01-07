@@ -22,11 +22,13 @@ const SaltParticle: React.FC<{
 }> = ({ startX, startY, targetX, targetY, delay, duration }) => {
   return (
     <motion.div
-      className="absolute w-1 h-1 bg-white rounded-full"
+      className="absolute w-1 h-1 bg-white rounded-full transform-gpu"
       style={{
         left: `${startX}%`,
         top: `${startY}%`,
         boxShadow: '0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.4)',
+        willChange: 'transform, opacity',
+        backfaceVisibility: 'hidden'
       }}
       initial={{ 
         x: 0, 
@@ -63,8 +65,12 @@ const SaltMound: React.FC<{
 
   return (
     <motion.div
-      className="absolute pointer-events-none z-[10000]"
-      style={positionStyles[position]}
+      className="absolute pointer-events-none z-[10000] transform-gpu"
+      style={{
+        ...positionStyles[position],
+        willChange: 'transform, opacity',
+        backfaceVisibility: 'hidden'
+      }}
       initial={{ scale: 0, opacity: 0 }}
       animate={{ 
         scale: [0, 1.2, 1.2],
@@ -134,16 +140,18 @@ const SaltShaker3D: React.FC<{
   opacity?: number;
 }> = ({ tilt = 0, x = 50, y = 50, scale = 1, opacity = 1 }) => {
   return (
-    <motion.div
-      className="absolute pointer-events-none"
-      style={{
-        left: `${x}%`,
-        top: `${y}%`,
-        transform: `translate(-50%, -50%) rotate(${tilt}deg) scale(${scale})`,
-        opacity: opacity,
-        filter: 'drop-shadow(0 10px 30px rgba(255,255,255,0.3))',
-      }}
-    >
+      <motion.div
+        className="absolute pointer-events-none transform-gpu"
+        style={{
+          left: `${x}%`,
+          top: `${y}%`,
+          transform: `translate3d(-50%, -50%, 0) rotate3d(0, 0, 1, ${tilt}deg) scale(${scale})`,
+          opacity: opacity,
+          filter: 'drop-shadow(0 10px 30px rgba(255,255,255,0.3))',
+          willChange: 'transform, opacity',
+          backfaceVisibility: 'hidden'
+        }}
+      >
       <svg
         width="120"
         height="180"
@@ -415,7 +423,13 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
   };
 
   const content = (
-    <div className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden">
+    <div 
+      className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden transform-gpu" 
+      style={{
+        contain: 'layout style paint',
+        willChange: 'contents'
+      }}
+    >
       {/* Dimmed Background */}
       <motion.div
         className="absolute inset-0 bg-black"
@@ -429,7 +443,11 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
       {/* Phase 1: Salt Shaker Appears */}
       {(phase === 'shaker' || phase === 'pour' || phase === 'particles' || phase === 'mound' || phase === 'toxic') && (
         <motion.div
-          className="absolute inset-0 flex items-center justify-center"
+          className="absolute inset-0 flex items-center justify-center transform-gpu"
+          style={{
+            willChange: 'transform, opacity',
+            backfaceVisibility: 'hidden'
+          }}
           initial={{ opacity: 0, scale: 0.5 }}
           animate={{ 
             opacity: phase === 'shaker' ? [0, 1] : 1,
@@ -458,10 +476,14 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
             const tilt = Math.atan2(targetPos.y - 50, targetPos.x - 50) * (180 / Math.PI) - 90;
             const shouldTilt = phase === 'pour' && (currentTarget === index || currentTarget > index);
             
-            return (
+              return (
               <motion.div
                 key={target.id}
-                className="absolute inset-0 flex items-center justify-center"
+                className="absolute inset-0 flex items-center justify-center transform-gpu"
+                style={{
+                  willChange: 'transform, opacity',
+                  backfaceVisibility: 'hidden'
+                }}
                 initial={{ opacity: 0 }}
                 animate={{ 
                   opacity: shouldTilt ? 0.6 : 0,
@@ -482,12 +504,12 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
         </>
       )}
 
-      {/* Phase 3: Heavy Salt Particle Stream */}
+      {/* Phase 3: Heavy Salt Particle Stream - optimized particle count */}
       {phase === 'particles' && (
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 transform-gpu" style={{ contain: 'layout style paint' }}>
           {targets.map((target, targetIndex) => {
             const targetPos = getTargetPosition(target.position);
-            const particles = Array.from({ length: 150 }, (_, i) => {
+            const particles = Array.from({ length: 80 }, (_, i) => {
               const angle = (Math.PI / 6) * (Math.random() - 0.5); // Spread angle
               const offsetX = Math.cos(angle) * (Math.random() - 0.5) * 10;
               const offsetY = Math.sin(angle) * (Math.random() - 0.5) * 10;
@@ -526,7 +548,11 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
       <AnimatePresence>
         {(phase === 'toxic' || phase === 'complete') && (
           <motion.div
-            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[10001]"
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[10001] transform-gpu"
+            style={{
+              willChange: 'transform, opacity',
+              backfaceVisibility: 'hidden'
+            }}
             initial={{ opacity: 0, y: 50, scale: 0.8 }}
             animate={{ 
               opacity: 1, 

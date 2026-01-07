@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Player, UserProfile, Emote } from '../types';
-import { calculateLevel, getXpForLevel, fetchEmotes, rewardUserForAd, updateProfileSettings } from '../services/supabase';
+import { calculateLevel, getXpForLevel, fetchEmotes, processAdReward, updateProfileSettings, submitVibeCheck } from '../services/supabase';
 import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 import { useFinisher } from '../hooks/useFinisher';
@@ -8,9 +8,12 @@ import { ShibaSlamFinisher } from './ShibaSlamFinisher';
 import { EtherealBladeFinisher } from './EtherealBladeFinisher';
 import { SaltShakeFinisher } from './SaltShakeFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
+import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
+import { KissMyShibaFinisher } from './KissMyShibaFinisher';
 import { adService, AdPlacement } from '../services/adService';
 import { GemRain } from './GemRain';
 import { CurrencyIcon } from './Store';
+import { Toast } from './Toast';
 
 interface VictoryScreenProps {
   players: Player[];
@@ -22,6 +25,7 @@ interface VictoryScreenProps {
   coinsGained: number;
   xpBonusApplied?: boolean;
   totalXpAfter?: number;
+  speedBonus?: { gold: number; xp: number };
 }
 
 const Particle: React.FC<{ color: string }> = ({ color }) => {
@@ -47,7 +51,8 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   xpGained, 
   coinsGained,
   xpBonusApplied,
-  totalXpAfter: explicitTotalXpAfter
+  totalXpAfter: explicitTotalXpAfter,
+  speedBonus
 }) => {
   const [animatedXp, setAnimatedXp] = useState(0);
   const [animatedCoins, setAnimatedCoins] = useState(0);
@@ -59,6 +64,12 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
   const [xpRemaining, setXpRemaining] = useState(0);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [finisherComplete, setFinisherComplete] = useState(false);
+  const [adState, setAdState] = useState<'idle' | 'loading' | 'showing' | 'rewarded' | 'error'>('idle');
+  const [adRewardChoice, setAdRewardChoice] = useState<'gems' | 'gold' | null>(null);
+  const [showGemRain, setShowGemRain] = useState(false);
+  const [showFinisherQuestion, setShowFinisherQuestion] = useState(false);
+  const [vibeSubmitted, setVibeSubmitted] = useState(false);
+  const [showWarningToast, setShowWarningToast] = useState(false);
 
   const sortedPlayers = useMemo(() => [...players].sort((a, b) => {
     const rankA = a.finishedRank || 99;
@@ -95,28 +106,41 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
     const placement: AdPlacement = 'victory';
     
     try {
-      await adService.showRewardedAd(placement, async (amount) => {
-        if (choice === 'gems') {
-          const result = await rewardUserForAd(profile.id, amount);
-          if (result.success) {
+      await adService.showRewardedAd(
+        placement,
+        async (amount) => {
+          // SECURITY: Only called when onUserEarnedReward fires
+          if (choice === 'gems') {
+            const result = await processAdReward(profile.id, amount);
+            if (result.success) {
+              audioService.playPurchase();
+              setShowGemRain(true);
+            }
+          } else {
+            // Double gold
+            const updates: Partial<UserProfile> = {
+              coins: (profile.coins || 0) + coinsGained
+            };
+            await updateProfileSettings(profile.id, updates);
             audioService.playPurchase();
-            setShowGemRain(true);
           }
-        } else {
-          // Double gold
-          const updates: Partial<UserProfile> = {
-            coins: (profile.coins || 0) + coinsGained
-          };
-          await updateProfileSettings(profile.id, updates);
-          audioService.playPurchase();
+        },
+        () => {
+          // Early close callback - show warning toast
+          setShowWarningToast(true);
         }
-      });
+      );
     } catch (error: any) {
       console.error('Ad error:', error);
+      // Check if ad was closed early
+      if (adService.wasAdClosedEarly()) {
+        setShowWarningToast(true);
+      }
     }
   };
 
   const isAdAvailable = adService.isAdAvailable('victory');
+  const isAdLoaded = adService.isLoaded();
 
   useEffect(() => {
     audioService.playVictory();
@@ -248,6 +272,25 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
               winnerName={me?.name || 'GUEST'}
             />
           )}
+          {finisherData.animation_key === 'seductive_finish' && (
+            <SeductiveFinishFinisher 
+              onComplete={() => setFinisherComplete(true)}
+              losingPlayers={sortedPlayers
+                .filter(p => p.finishedRank && p.finishedRank > 1)
+                .slice(0, 3)
+                .map((p, idx) => ({
+                  id: p.id,
+                  position: (['top', 'left', 'right'] as const)[idx] || 'top'
+                }))}
+              winnerName={me?.name || 'GUEST'}
+            />
+          )}
+          {finisherData.animation_key === 'kiss_my_shiba' && (
+            <KissMyShibaFinisher 
+              onComplete={() => setFinisherComplete(true)}
+              winnerName={me?.name || 'GUEST'}
+            />
+          )}
         </>
       )}
       
@@ -340,11 +383,38 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
                 </div>
             </div>
 
+            {/* Speed Bonuses Breakdown */}
+            {speedBonus && (speedBonus.gold > 0 || speedBonus.xp > 0) && (
+                <div className={`bg-gradient-to-br from-yellow-900/20 via-orange-900/15 to-yellow-900/20 backdrop-blur-xl border-2 border-yellow-500/30 rounded-[2rem] p-6 shadow-[0_0_40px_rgba(234,179,8,0.3)] transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                        <span className="text-2xl">⚡</span>
+                        <h3 className="text-lg font-black text-yellow-400 uppercase tracking-wider">Speed Bonuses</h3>
+                    </div>
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between bg-black/40 px-4 py-3 rounded-xl border border-yellow-500/20">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl">💰</span>
+                                <span className="text-sm font-bold text-white/80">Speed Gold</span>
+                            </div>
+                            <span className="text-lg font-black text-yellow-400">+{speedBonus.gold}</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-black/40 px-4 py-3 rounded-xl border border-blue-500/20">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl">⭐</span>
+                                <span className="text-sm font-bold text-white/80">Speed XP</span>
+                            </div>
+                            <span className="text-lg font-black text-blue-400">+{speedBonus.xp}</span>
+                        </div>
+                    </div>
+                    <p className="text-[10px] text-white/50 text-center mt-4 italic">Rewards for quick moves during the match</p>
+                </div>
+            )}
+
             {/* Players List */}
             <div className={`flex flex-col gap-3 w-full transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                 {sortedPlayers.map((p, idx) => {
                     const isMe = p.id === myId;
-                    const rank = idx + 1;
+                    const rank = p.finishedRank || idx + 1;
                     const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '💩';
                     const rankColor = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-gray-300' : rank === 3 ? 'text-orange-400' : 'text-gray-500';
                     const isVictor = rank === 1;
@@ -398,37 +468,82 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => handleAdReward('gold')}
-                  disabled={adState !== 'idle'}
+                  disabled={adState !== 'idle' || !isAdLoaded}
                   className={`group relative overflow-hidden py-3 sm:py-4 px-4 rounded-xl transition-all duration-300 min-h-[56px] touch-manipulation ${
-                    adState !== 'idle'
+                    adState !== 'idle' || !isAdLoaded
                       ? 'bg-white/10 border border-white/20 text-white/50 cursor-not-allowed'
                       : 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-bold shadow-lg hover:scale-105'
                   }`}
                 >
                   <div className="flex flex-col items-center gap-1">
-                    <CurrencyIcon type="GOLD" size="sm" />
-                    <span className="text-xs font-bold">Double Gold</span>
-                    <span className="text-[10px] opacity-80">+{coinsGained}</span>
+                    {!isAdLoaded ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span className="text-xs font-bold">Loading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CurrencyIcon type="GOLD" size="sm" />
+                        <span className="text-xs font-bold">Double Gold</span>
+                        <span className="text-[10px] opacity-80">+{coinsGained}</span>
+                      </>
+                    )}
                   </div>
                 </button>
                 <button
                   onClick={() => handleAdReward('gems')}
-                  disabled={adState !== 'idle'}
+                  disabled={adState !== 'idle' || !isAdLoaded}
                   className={`group relative overflow-hidden py-3 sm:py-4 px-4 rounded-xl transition-all duration-300 min-h-[56px] touch-manipulation ${
-                    adState !== 'idle'
+                    adState !== 'idle' || !isAdLoaded
                       ? 'bg-white/10 border border-white/20 text-white/50 cursor-not-allowed'
                       : 'bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold shadow-lg hover:scale-105'
                   }`}
                 >
                   <div className="flex flex-col items-center gap-1">
-                    <CurrencyIcon type="GEMS" size="sm" />
-                    <span className="text-xs font-bold">Get 5 Gems</span>
-                    <span className="text-[10px] opacity-80">+5</span>
+                    {!isAdLoaded ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span className="text-xs font-bold">Loading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CurrencyIcon type="GEMS" size="sm" />
+                        <span className="text-xs font-bold">Get 5 Gems</span>
+                        <span className="text-[10px] opacity-80">+5</span>
+                      </>
+                    )}
                   </div>
                 </button>
               </div>
               <p className="text-[10px] text-white/50 text-center mt-3">Watch a video to claim</p>
             </div>
+          </div>
+        )}
+
+        {/* Vibe Check - Happy/Salty Faces */}
+        {phase === 'ready' && !vibeSubmitted && (
+          <div className={`w-full flex items-center justify-center gap-6 transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <button
+              onClick={async () => {
+                setVibeSubmitted(true);
+                if (profile) {
+                  await submitVibeCheck(profile.id, true, undefined, '1.0.0');
+                }
+              }}
+              className="group relative flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 transition-all active:scale-95"
+            >
+              <div className="text-4xl group-hover:scale-110 transition-transform">😊</div>
+              <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Happy</span>
+            </button>
+            <button
+              onClick={() => {
+                setShowFinisherQuestion(true);
+              }}
+              className="group relative flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 transition-all active:scale-95"
+            >
+              <div className="text-4xl group-hover:scale-110 transition-transform">😤</div>
+              <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Salty</span>
+            </button>
           </div>
         )}
 
@@ -489,6 +604,58 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
           gemCount={5} 
           onComplete={() => setShowGemRain(false)} 
         />
+      )}
+
+      {/* Warning Toast for Early Ad Closure */}
+      {showWarningToast && (
+        <Toast
+          message="Watch the full video to claim your gems!"
+          type="error"
+          onClose={() => setShowWarningToast(false)}
+        />
+      )}
+
+      {/* Finisher Question Modal */}
+      {showFinisherQuestion && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/90 backdrop-blur-md p-4" onClick={() => setShowFinisherQuestion(false)}>
+          <div 
+            className="relative bg-black/80 backdrop-blur-2xl border border-white/10 w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.8)] p-6 md:p-8"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-center space-y-6">
+              <div className="text-5xl">😤</div>
+              <h3 className="text-xl font-black text-white uppercase tracking-wider">
+                Was it the finisher?
+              </h3>
+              <div className="flex gap-4">
+                <button
+                  onClick={async () => {
+                    setShowFinisherQuestion(false);
+                    setVibeSubmitted(true);
+                    if (profile) {
+                      await submitVibeCheck(profile.id, false, true, '1.0.0');
+                    }
+                  }}
+                  className="flex-1 py-3 bg-emerald-600/80 hover:bg-emerald-600 text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowFinisherQuestion(false);
+                    setVibeSubmitted(true);
+                    if (profile) {
+                      await submitVibeCheck(profile.id, false, false, '1.0.0');
+                    }
+                  }}
+                  className="flex-1 py-3 bg-white/[0.05] hover:bg-white/[0.10] text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 border border-white/10"
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
     </>

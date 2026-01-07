@@ -7,7 +7,7 @@ import { Lobby } from './components/Lobby';
 import { TutorialMode } from './components/TutorialMode';
 import { GameEndTransition } from './components/GameEndTransition';
 import { AuthScreen } from './components/AuthScreen';
-import { GameSettings } from './components/GameSettings';
+import { GameSettings, SocialFilter } from './components/GameSettings';
 
 // Lazy load heavy components for better initial load performance
 const GameTable = lazy(() => import('./components/GameTable').then(m => ({ default: m.GameTable })));
@@ -23,6 +23,7 @@ import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGu
 import { supabase as supabaseClient } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeToast } from './components/WelcomeToast';
+import { adService } from './services/adService';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
@@ -63,7 +64,7 @@ const App: React.FC = () => {
   const [gemPacksOpen, setGemPacksOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
-  const [storeTab, setStoreTab] = useState<'SLEEVES' | 'AVATARS' | 'BOARDS'>('SLEEVES');
+  const [storeTab, setStoreTab] = useState<'SLEEVES' | 'EMOTES' | 'BOARDS'>('SLEEVES');
   
   const [playerName, setPlayerName] = useState('');
   const [playerAvatar, setPlayerAvatar] = useState(':cool:');
@@ -75,6 +76,8 @@ const App: React.FC = () => {
   const [turnTimerSetting, setTurnTimerSetting] = useState(0);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('MEDIUM');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [socialFilter, setSocialFilter] = useState<SocialFilter>('UNMUTED');
+  const [sessionMuted, setSessionMuted] = useState<string[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showWelcomeToast, setShowWelcomeToast] = useState(false);
   const [welcomeUsername, setWelcomeUsername] = useState('');
@@ -90,7 +93,7 @@ const App: React.FC = () => {
   const [spLastCardRank, setSpLastCardRank] = useState(0);
   
   const [error, setError] = useState<string | null>(null);
-  const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean, totalXpAfter: number } | null>(null);
+  const [lastMatchRewards, setLastMatchRewards] = useState<{ xp: number, coins: number, diff: AiDifficulty, bonus: boolean, totalXpAfter: number, speedBonus?: { gold: number; xp: number } } | null>(null);
 
   const isLoggingOutRef = useRef(false);
   const initialSyncCompleteRef = useRef(false);
@@ -141,6 +144,19 @@ const App: React.FC = () => {
       if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
     };
   }, [spGameState?.currentPlayerId, spGameState?.status, spGameState?.currentPlayPile?.length, gameMode, spOpponentHands, aiDifficulty]);
+
+  // Initialize AdMob and pre-load ads on app start
+  useEffect(() => {
+    const initializeAds = async () => {
+      try {
+        await adService.initialize();
+        await adService.load();
+      } catch (error) {
+        console.error('Failed to initialize ads:', error);
+      }
+    };
+    initializeAds();
+  }, []);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -285,11 +301,11 @@ const App: React.FC = () => {
     setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 
-  const handleOpenStore = (tab?: 'SLEEVES' | 'AVATARS' | 'BOARDS' | 'GEMS') => { 
+  const handleOpenStore = (tab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => { 
     if (tab === 'GEMS') {
       setGemPacksOpen(true);
     } else {
-      if (tab) setStoreTab(tab as 'SLEEVES' | 'AVATARS' | 'BOARDS'); 
+      if (tab) setStoreTab(tab as 'SLEEVES' | 'EMOTES' | 'BOARDS'); 
       setStoreOpen(true); 
     }
   };
@@ -326,14 +342,27 @@ const App: React.FC = () => {
       } else if (state.status === GameStatus.FINISHED) {
         if (prevStatus === GameStatus.PLAYING || view === 'GAME_TABLE') {
           const myRank = state.players.find(p => p.id === myPersistentId)?.finishedRank || 4;
+          // Extract speed bonuses
+          const mySpeedBonus = state.speedBonuses?.[myPersistentId] || { gold: 0, xp: 0 };
           // Note: In MP, we lack precise metadata currently, defaults used.
           const result = await recordGameResult(myRank, false, 'MEDIUM', isGuest, profile, { chopsInMatch: 0, bombsInMatch: 0, lastCardRank: 15 });
-          setLastMatchRewards({ xp: result.xpGained, coins: result.coinsGained, diff: 'MEDIUM', bonus: result.xpBonusApplied, totalXpAfter: result.newTotalXp });
+          // Add speed bonuses to rewards
+          const totalCoins = result.coinsGained + mySpeedBonus.gold;
+          const totalXp = result.xpGained + mySpeedBonus.xp;
+          const newTotalXp = result.newTotalXp + mySpeedBonus.xp;
+          setLastMatchRewards({ 
+            xp: result.xpGained, 
+            coins: result.coinsGained, 
+            diff: 'MEDIUM', 
+            bonus: result.xpBonusApplied, 
+            totalXpAfter: result.newTotalXp,
+            speedBonus: mySpeedBonus
+          });
           
           setProfile(prev => prev ? { 
             ...prev, 
-            xp: result.newTotalXp, 
-            coins: prev.coins + result.coinsGained,
+            xp: newTotalXp, 
+            coins: prev.coins + totalCoins,
             event_stats: result.updatedStats || prev.event_stats
           } : null);
 
@@ -519,12 +548,12 @@ const App: React.FC = () => {
       {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPersistentId} turnTimerSetting={turnTimerSetting} />}
       {view === 'GAME_TABLE' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
-          <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPersistentId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} onOpenSettings={() => setGameSettingsOpen(true)} />
+          <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPersistentId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} onOpenSettings={() => setGameSettingsOpen(true)} socialFilter={socialFilter} sessionMuted={sessionMuted} setSessionMuted={setSessionMuted} />
         </Suspense>
       )}
       {view === 'VICTORY' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading results...</div></div>}>
-          <VictoryScreen players={gameMode === 'MULTI_PLAYER' ? mpGameState!.players : spGameState!.players} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} onPlayAgain={() => { setView(gameMode === 'MULTI_PLAYER' ? 'LOBBY' : 'WELCOME'); if (gameMode === 'SINGLE_PLAYER') handleStart(playerName, 'SINGLE_PLAYER'); }} onGoHome={handleExit} profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} totalXpAfter={lastMatchRewards?.totalXpAfter} />
+          <VictoryScreen players={gameMode === 'MULTI_PLAYER' ? mpGameState!.players : spGameState!.players} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} onPlayAgain={() => { setView(gameMode === 'MULTI_PLAYER' ? 'LOBBY' : 'WELCOME'); if (gameMode === 'SINGLE_PLAYER') handleStart(playerName, 'SINGLE_PLAYER'); }} onGoHome={handleExit} profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} totalXpAfter={lastMatchRewards?.totalXpAfter} speedBonus={lastMatchRewards?.speedBonus} />
         </Suspense>
       )}
       {view === 'TUTORIAL' && <TutorialMode onExit={() => setView('WELCOME')} />}
@@ -538,7 +567,7 @@ const App: React.FC = () => {
           <InventoryModal profile={profile} onClose={() => setInventoryOpen(false)} onRefreshProfile={handleRefreshProfile} />
         </Suspense>
       )}
-      {gameSettingsOpen && <GameSettings onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled} playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled} unlockedSleeves={profile?.unlocked_sleeves || []} unlockedBoards={profile?.unlocked_boards || []} />}
+      {gameSettingsOpen && <GameSettings onClose={() => setGameSettingsOpen(false)} onExitGame={handleExit} currentCoverStyle={cardCoverStyle} onChangeCoverStyle={setCardCoverStyle} currentTheme={backgroundTheme} onChangeTheme={setBackgroundTheme} isSinglePlayer={gameMode === 'SINGLE_PLAYER'} spQuickFinish={spQuickFinish} setSpQuickFinish={setSpQuickFinish} currentDifficulty={aiDifficulty} onChangeDifficulty={setAiDifficulty} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} sleeveEffectsEnabled={sleeveEffectsEnabled} setSleeveEffectsEnabled={setSleeveEffectsEnabled} playAnimationsEnabled={playAnimationsEnabled} setPlayAnimationsEnabled={setPlayAnimationsEnabled} unlockedSleeves={profile?.unlocked_sleeves || []} unlockedBoards={profile?.unlocked_boards || []} socialFilter={socialFilter} setSocialFilter={setSocialFilter} />}
       {storeOpen && (
         <Suspense fallback={<div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"><div className="text-yellow-400 text-lg">Loading store...</div></div>}>
           <Store onClose={() => setStoreOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} onEquipSleeve={setCardCoverStyle} currentSleeve={cardCoverStyle} playerAvatar={playerAvatar} onEquipAvatar={setPlayerAvatar} currentTheme={backgroundTheme} onEquipBoard={setBackgroundTheme} isGuest={isGuest} initialTab={storeTab} onOpenGemPacks={handleOpenGemPacks} />

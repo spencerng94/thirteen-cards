@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { InventoryGrid } from './InventoryGrid';
 import { BoardSurface } from './UserHub';
-import { rewardUserForAd } from '../services/supabase';
+import { processGemTransaction } from '../services/supabase';
 import { adService, AdPlacement } from '../services/adService';
 import { audioService } from '../services/audio';
 import { CurrencyIcon } from './Store';
 import { GemRain } from './GemRain';
+import { Toast } from './Toast';
 
 interface InventoryModalProps {
   onClose: () => void;
@@ -17,6 +18,9 @@ interface InventoryModalProps {
 const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }> = ({ profile, onRefresh }) => {
   const [adState, setAdState] = useState<'idle' | 'loading' | 'playing' | 'rewarded' | 'error'>('idle');
   const [showGemRain, setShowGemRain] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const placement: AdPlacement = 'inventory';
 
   useEffect(() => {
@@ -28,19 +32,46 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
   const cooldownString = adService.getCooldownString(placement);
 
   const handleWatchAd = async () => {
-    if (!isAvailable || adState !== 'idle') return;
+    // SECURITY: Prevent spam-clicking - button is disabled, but double-check state
+    if (!isAvailable || adState !== 'idle') {
+      console.warn('Ad button clicked while not available or not idle. State:', adState);
+      return;
+    }
 
     try {
       await adService.showRewardedAd(placement, async (amount) => {
-        const result = await rewardUserForAd(profile.id, amount);
+        // SECURITY: This callback is ONLY triggered AFTER AdMob's onUserEarnedReward event fires
+        // This ensures server-side verification - we never award gems without AdMob confirming the reward
+        // Call process_gem_transaction with source 'ad_reward'
+        const result = await processGemTransaction(profile.id, 20, 'ad_reward');
         if (result.success) {
           audioService.playPurchase();
           setShowGemRain(true);
+          setToastMessage('Boba secured! +20 Gems');
+          setToastType('success');
+          setShowToast(true);
           onRefresh();
+        } else {
+          setToastMessage(result.error || 'Failed to process reward');
+          setToastType('error');
+          setShowToast(true);
         }
+      }, () => {
+        // Early close callback - user closed ad early
+        setToastMessage('No ads available right now. Take a boba break and try again later!');
+        setToastType('error');
+        setShowToast(true);
       });
     } catch (error: any) {
       console.error('Ad error:', error);
+      // Handle ad loading/showing errors
+      if (error.message?.includes('failed to load') || error.message?.includes('not available')) {
+        setToastMessage('No ads available right now. Take a boba break and try again later!');
+      } else {
+        setToastMessage('No ads available right now. Take a boba break and try again later!');
+      }
+      setToastType('error');
+      setShowToast(true);
     }
   };
 
@@ -56,6 +87,7 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
     <>
       <button 
         onClick={handleWatchAd} 
+        // Disable button when loading, playing, or not available to prevent spam-clicking
         disabled={!isAvailable || adState !== 'idle'}
         className={`group relative overflow-hidden px-5 py-3 sm:px-6 sm:py-3.5 rounded-2xl backdrop-blur-md border transition-all duration-300 active:scale-95 min-h-[48px] touch-manipulation
           ${!isAvailable || adState !== 'idle'
@@ -79,6 +111,13 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
         <GemRain 
           gemCount={20} 
           onComplete={() => setShowGemRain(false)} 
+        />
+      )}
+      {showToast && (
+        <Toast
+          message={toastMessage}
+          onClose={() => setShowToast(false)}
+          type={toastType}
         />
       )}
     </>

@@ -22,7 +22,7 @@ interface WelcomeScreenProps {
   profile: UserProfile | null;
   onRefreshProfile: () => void;
   onOpenHub: (tab: HubTab) => void;
-  onOpenStore: (tab?: 'SLEEVES' | 'AVATARS' | 'BOARDS') => void;
+  onOpenStore: (tab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => void;
   onOpenGemPacks: () => void;
   onOpenFriends: () => void;
   playerName: string;
@@ -773,12 +773,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                       <div className={`relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.8)] border-2 group-hover:scale-110 transition-all duration-500 overflow-hidden ${
                         f.animation_key === 'shiba_slam' 
                           ? 'bg-gradient-to-br from-yellow-500/20 via-orange-500/15 to-yellow-500/20 border-yellow-500/30' 
+                          : f.animation_key === 'kiss_my_shiba'
+                          ? 'bg-gradient-to-br from-pink-500/20 via-rose-500/15 to-pink-500/20 border-pink-500/30'
                           : 'bg-gradient-to-br from-blue-500/20 via-indigo-500/15 to-blue-500/20 border-blue-500/30'
                       }`}>
                         {f.animation_key === 'shiba_slam' ? (
                           <ShibaSlamIcon className="w-full h-full p-3 sm:p-4" />
                         ) : f.animation_key === 'ethereal_blade' ? (
                           <EtherealBladeIcon className="w-full h-full p-3 sm:p-4" />
+                        ) : f.animation_key === 'kiss_my_shiba' ? (
+                          <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
                         ) : (
                           <div className="text-4xl">⚔️</div>
                         )}
@@ -892,6 +896,37 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             ))}
           </div>
         </div>
+        
+        {/* Legal Links */}
+        <div className="mt-8 pt-6 border-t border-white/10">
+          <SectionLabel>Legal</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => window.open('https://gist.github.com/spencerng94/35f0e5503071f7a85ecf84a01a059f58', '_blank', 'noopener,noreferrer')}
+              className="relative flex items-center justify-center bg-gradient-to-br from-white/5 via-white/[0.02] to-white/5 backdrop-blur-xl p-3 rounded-xl border border-white/20 hover:border-white/30 transition-all duration-300 group overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10 flex flex-col items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-400/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="text-[9px] font-bold text-white uppercase tracking-wider text-center">Privacy</span>
+              </div>
+            </button>
+            <button
+              onClick={() => window.open('https://gist.github.com/spencerng94/7f797f735d94fe7ae5272574392e35ae', '_blank', 'noopener,noreferrer')}
+              className="relative flex items-center justify-center bg-gradient-to-br from-white/5 via-white/[0.02] to-white/5 backdrop-blur-xl p-3 rounded-xl border border-white/20 hover:border-white/30 transition-all duration-300 group overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10 flex flex-col items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-500/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="text-[9px] font-bold text-white uppercase tracking-wider text-center">Terms</span>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -959,6 +994,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                         <ShibaSlamIcon className="w-full h-full p-4" />
                       ) : pendingPurchase.animation_key === 'ethereal_blade' ? (
                         <EtherealBladeIcon className="w-full h-full p-4" />
+                      ) : pendingPurchase.animation_key === 'sanctum_snap' ? (
+                        <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="xl" />
+                      ) : pendingPurchase.animation_key === 'seductive_finish' ? (
+                        <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />
+                      ) : pendingPurchase.animation_key === 'kiss_my_shiba' ? (
+                        <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
                       ) : (
                         <div className="text-6xl">⚔️</div>
                       )}
@@ -995,7 +1036,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     }}
                     className="relative z-10 mt-2 mb-3 px-4 py-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/40 text-[9px] font-black uppercase tracking-[0.25em] text-yellow-300 hover:bg-gradient-to-r hover:from-yellow-500/30 hover:to-amber-500/30 hover:border-yellow-500/60 transition-all shadow-[0_0_15px_rgba(251,191,36,0.3)]"
                   >
-                    Test Drive
+                    Preview
                   </button>
                 )}
             </div>

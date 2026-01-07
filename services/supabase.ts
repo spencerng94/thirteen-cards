@@ -281,12 +281,41 @@ export const updateProfileAvatar = async (userId: string, avatar: string) => {
 };
 
 export const updateProfileSettings = async (userId: string, updates: Partial<UserProfile>) => {
+  // SECURITY: Restrict which fields can be directly updated to prevent manipulation
+  // Only allow safe fields to be updated directly
+  const allowedFields = [
+    'avatar_url', 'sfx_enabled', 'turbo_enabled', 'sleeve_effects_enabled',
+    'play_animations_enabled', 'turn_timer_setting', 'active_sleeve', 'active_board',
+    'equipped_finisher', 'unlocked_sleeves', 'unlocked_avatars', 'unlocked_boards',
+    'unlocked_finishers', 'unlocked_phrases', 'inventory'
+  ];
+  
+  // Filter updates to only include allowed fields
+  const safeUpdates: Partial<UserProfile> = {};
+  for (const key of allowedFields) {
+    if (key in updates) {
+      (safeUpdates as any)[key] = (updates as any)[key];
+    }
+  }
+  
+  // SECURITY: Block direct updates to sensitive fields like currency, XP, wins, etc.
+  // These should only be updated through specific functions (buyItem, recordGameResult, etc.)
+  const blockedFields = ['coins', 'gems', 'currency', 'xp', 'level', 'wins', 'games_played', 
+    'total_chops', 'current_streak', 'longest_streak', 'finish_dist', 'undo_count',
+    'event_stats', 'username', 'id'];
+  for (const key of blockedFields) {
+    if (key in updates) {
+      console.warn(`Attempted to update blocked field: ${key}. This update was ignored.`);
+      delete (safeUpdates as any)[key];
+    }
+  }
+  
   if (!supabaseAnonKey || userId === 'guest') {
     const local = fetchGuestProfile();
-    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, ...updates }));
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, ...safeUpdates }));
     return;
   }
-  await supabase.from('profiles').upsert({ id: userId, ...updates });
+  await supabase.from('profiles').upsert({ id: userId, ...safeUpdates });
 };
 
 export const buyItem = async (
@@ -297,8 +326,39 @@ export const buyItem = async (
   isGuest: boolean = false,
   currency: 'GOLD' | 'GEMS' = 'GOLD'
 ) => {
+  // SECURITY: Validate price is a positive number
+  if (typeof price !== 'number' || price < 0 || !isFinite(price)) {
+    throw new Error("Invalid price");
+  }
+  
+  // SECURITY: Validate itemName is a non-empty string
+  if (!itemName || typeof itemName !== 'string' || itemName.length > 100) {
+    throw new Error("Invalid item name");
+  }
+  
   const profile = isGuest ? fetchGuestProfile() : await fetchProfile(userId);
   if (!profile) throw new Error("Profile not found");
+
+  // SECURITY: Server-side price validation
+  // For ITEM type, validate against ITEM_REGISTRY
+  if (type === 'ITEM') {
+    const itemDef = ITEM_REGISTRY[itemName];
+    if (!itemDef) {
+      throw new Error("Item not found in registry");
+    }
+    // Validate price matches registry (client should send correct price, but we verify)
+    if (itemDef.price !== undefined && itemDef.price !== price) {
+      throw new Error("Price mismatch - item price does not match registry");
+    }
+    // Validate currency matches registry
+    if (itemDef.currency && itemDef.currency !== currency) {
+      throw new Error("Currency mismatch");
+    }
+  }
+  
+  // Note: For SLEEVE, AVATAR, BOARD types, prices should be validated against server-side constants
+  // This is a client-side call, so we rely on Supabase RLS policies for additional security
+  // In production, consider moving purchase logic to a server-side API endpoint
 
   if (currency === 'GEMS') {
     if ((profile.gems || 0) < price) throw new Error("Insufficient gems");
@@ -464,6 +524,253 @@ export const rewardUserForAd = async (userId: string, gemAmount: number = 20): P
   }
 };
 
+/**
+ * Process a gem transaction using the process_gem_transaction RPC function
+ * This creates a transaction record and updates the user's gem balance
+ * 
+ * @param userId - The user's ID
+ * @param amount - The gem amount (positive for additions, negative for deductions)
+ * @param source - The source of the transaction ('ad_reward', 'iap_purchase', 'shop_buy', etc.)
+ * @param itemId - Optional item ID for shop purchases
+ * @returns Transaction result with success status and new balance
+ */
+export const processGemTransaction = async (
+  userId: string,
+  amount: number,
+  source: 'ad_reward' | 'iap_purchase' | 'shop_buy' | string,
+  itemId?: string
+): Promise<{ success: boolean; newGemBalance?: number; error?: string }> => {
+  if (!supabaseAnonKey || userId === 'guest') {
+    // For guest users, update local storage
+    const guestProfile = fetchGuestProfile();
+    const newGems = (guestProfile.gems || 0) + amount;
+    if (newGems < 0) {
+      return { success: false, error: 'Insufficient gems' };
+    }
+    guestProfile.gems = newGems;
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestProfile));
+    return { success: true, newGemBalance: newGems };
+  }
+
+  try {
+    // Call the process_gem_transaction RPC function
+    const { data, error } = await supabase.rpc('process_gem_transaction', {
+      user_id: userId,
+      amount: amount,
+      source: source,
+      item_id: itemId || null
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    if (!data) {
+      return { success: false, error: 'No data returned from transaction' };
+    }
+
+    return {
+      success: data.success || false,
+      newGemBalance: data.new_balance,
+      error: data.error
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Unknown error occurred' };
+  }
+};
+
+/**
+ * Simple handleWatchAd function with mock 30-second delay
+ * Simulates watching an ad, then increments gems by 25
+ * 
+ * @param userId - The user's ID
+ * @param onComplete - Callback function when ad is completed successfully
+ * @param onError - Optional error callback
+ */
+export const handleWatchAd = async (
+  userId: string,
+  onComplete?: (newBalance: number) => void,
+  onError?: (error: string) => void
+): Promise<void> => {
+  try {
+    // Simulate a 30-second ad delay
+    await new Promise(resolve => setTimeout(resolve, 30000));
+    
+    // After ad completes, process gem transaction with ad_reward source
+    const result = await processGemTransaction(userId, 25, 'ad_reward');
+    
+    if (result.success && result.newGemBalance !== undefined) {
+      if (onComplete) {
+        onComplete(result.newGemBalance);
+      }
+    } else {
+      const errorMsg = result.error || 'Failed to process ad reward';
+      if (onError) {
+        onError(errorMsg);
+      } else {
+        throw new Error(errorMsg);
+      }
+    }
+  } catch (error: any) {
+    const errorMsg = error.message || 'Unknown error occurred';
+    if (onError) {
+      onError(errorMsg);
+    } else {
+      throw error;
+    }
+  }
+};
+
+/**
+ * Fetch gem transaction history for a user
+ * 
+ * @param userId - The user's ID
+ * @param limit - Maximum number of transactions to fetch (default: 5)
+ * @returns Array of gem transactions
+ */
+export interface GemTransaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  source: string;
+  item_id?: string | null;
+  created_at: string;
+}
+
+export const fetchGemTransactions = async (
+  userId: string,
+  limit: number = 5
+): Promise<GemTransaction[]> => {
+  if (!supabaseAnonKey || userId === 'guest') {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('gem_transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching gem transactions:', error);
+      return [];
+    }
+
+    return (data || []) as GemTransaction[];
+  } catch (error: any) {
+    console.error('Exception fetching gem transactions:', error);
+    return [];
+  }
+};
+
+/**
+ * Simple function to increment gems by a specific amount
+ * Uses RPC function if available, otherwise direct update
+ */
+export const incrementGems = async (userId: string, gemAmount: number): Promise<{ success: boolean; newGemBalance?: number; error?: string }> => {
+  if (!supabaseAnonKey || userId === 'guest') {
+    // For guest users, update local storage
+    const guestProfile = fetchGuestProfile();
+    const newGems = (guestProfile.gems || 0) + gemAmount;
+    guestProfile.gems = newGems;
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestProfile));
+    return { success: true, newGemBalance: newGems };
+  }
+
+  try {
+    // Try RPC function first (if it exists in Supabase)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('increment_gems', {
+      user_id: userId,
+      gem_amount: gemAmount
+    });
+
+    if (!rpcError && rpcData) {
+      return { success: true, newGemBalance: rpcData.new_balance };
+    }
+
+    // Fallback: Direct update if RPC doesn't exist
+    const { data: profileData, error: fetchError } = await supabase
+      .from('profiles')
+      .select('gems')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError || !profileData) {
+      return { success: false, error: 'Failed to fetch profile' };
+    }
+
+    const newGems = (profileData.gems || 0) + gemAmount;
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ gems: newGems })
+      .eq('id', userId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true, newGemBalance: newGems };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+};
+
+/**
+ * Process ad reward with weekly limit tracking (500 gems/week)
+ * Returns success status, new balance, weekly progress, and reset timestamp
+ */
+export const processAdReward = async (
+  userId: string, 
+  gemAmount: number = 20
+): Promise<{
+  success: boolean;
+  newGemBalance?: number;
+  weeklyGems?: number;
+  resetTimestamp?: string;
+  error?: string;
+}> => {
+  if (!supabaseAnonKey || userId === 'guest') {
+    // For guest users, simple tracking without weekly limits
+    const guestProfile = fetchGuestProfile();
+    const newGems = (guestProfile.gems || 0) + gemAmount;
+    guestProfile.gems = newGems;
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestProfile));
+    return { 
+      success: true, 
+      newGemBalance: newGems,
+      weeklyGems: gemAmount,
+      resetTimestamp: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('process_ad_reward', {
+      user_id: userId,
+      gem_amount: gemAmount
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    if (!data) {
+      return { success: false, error: 'No data returned' };
+    }
+
+    return {
+      success: data.success,
+      newGemBalance: data.new_balance,
+      weeklyGems: data.weekly_gems,
+      resetTimestamp: data.reset_timestamp,
+      error: data.error
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+};
+
 /* Added helper to check for completed event milestones */
 const checkEventMilestones = (stats: NonNullable<UserProfile['event_stats']>, currentStreak: number = 0, lastDailyClaim?: string): string[] => {
   const ready: string[] = [];
@@ -504,6 +811,26 @@ const checkEventMilestones = (stats: NonNullable<UserProfile['event_stats']>, cu
 };
 
 export const recordGameResult = async (rank: number, isBot: boolean, difficulty: AiDifficulty, isGuest: boolean, currentProfile: UserProfile | null, metadata: { chopsInMatch: number, bombsInMatch: number, lastCardRank: number }) => {
+  // SECURITY: Validate inputs
+  if (typeof rank !== 'number' || rank < 1 || rank > 4 || !Number.isInteger(rank)) {
+    console.error('Invalid rank provided to recordGameResult');
+    return { xpGained: 10, coinsGained: 25, newTotalXp: currentProfile?.xp || 10, xpBonusApplied: false };
+  }
+  
+  if (!metadata || typeof metadata !== 'object') {
+    console.error('Invalid metadata provided to recordGameResult');
+    return { xpGained: 10, coinsGained: 25, newTotalXp: currentProfile?.xp || 10, xpBonusApplied: false };
+  }
+  
+  // SECURITY: Validate metadata values are reasonable
+  const chopsInMatch = typeof metadata.chopsInMatch === 'number' && metadata.chopsInMatch >= 0 && metadata.chopsInMatch <= 100 ? metadata.chopsInMatch : 0;
+  const bombsInMatch = typeof metadata.bombsInMatch === 'number' && metadata.bombsInMatch >= 0 && metadata.bombsInMatch <= 50 ? metadata.bombsInMatch : 0;
+  const lastCardRank = typeof metadata.lastCardRank === 'number' && metadata.lastCardRank >= 3 && metadata.lastCardRank <= 15 ? metadata.lastCardRank : 0;
+  
+  // SECURITY: Note: For multiplayer games, rank should come from server, not client
+  // This function is primarily for single-player games. For multiplayer, the server should
+  // track ranks and call a server-side function to update profiles.
+  
   if (!currentProfile) return { xpGained: 10, coinsGained: 25, newTotalXp: 10, xpBonusApplied: false };
 
   // Base rewards (No-Loss Economy)
@@ -583,9 +910,9 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
     let increment = 0;
     if (ch.metric === 'games') increment = 1;
     if (ch.metric === 'wins' && rank === 1) increment = 1;
-    if (ch.metric === 'bombs') increment = metadata.bombsInMatch;
-    if (ch.metric === 'chops') increment = metadata.chopsInMatch;
-    if (ch.metric === 'low_rank_win' && rank === 1 && metadata.lastCardRank <= 7) increment = 1;
+    if (ch.metric === 'bombs') increment = bombsInMatch;
+    if (ch.metric === 'chops') increment = chopsInMatch;
+    if (ch.metric === 'low_rank_win' && rank === 1 && lastCardRank <= 7) increment = 1;
     
     newChallengeProgress[ch.id] = (newChallengeProgress[ch.id] || 0) + increment;
   });
@@ -596,8 +923,8 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
     daily_wins: rank === 1 ? (currentStats.daily_wins || 0) + 1 : currentStats.daily_wins,
     weekly_games_played: (currentStats.weekly_games_played || 0) + 1,
     weekly_wins: rank === 1 ? (currentStats.weekly_wins || 0) + 1 : currentStats.weekly_wins,
-    weekly_bombs_played: (currentStats.weekly_bombs_played || 0) + metadata.bombsInMatch,
-    weekly_chops_performed: (currentStats.weekly_chops_performed || 0) + metadata.chopsInMatch,
+    weekly_bombs_played: (currentStats.weekly_bombs_played || 0) + bombsInMatch,
+    weekly_chops_performed: (currentStats.weekly_chops_performed || 0) + chopsInMatch,
     weekly_challenge_progress: newChallengeProgress,
     total_hands_played: (currentStats.total_hands_played || 0) + 1,
     online_games_played: !isBot ? (currentStats.online_games_played || 0) + 1 : (currentStats.online_games_played || 0),
@@ -613,7 +940,7 @@ export const recordGameResult = async (rank: number, isBot: boolean, difficulty:
     xp: newXp, level: calculateLevel(newXp), coins: newCoins,
     games_played: currentProfile.games_played + 1,
     wins: rank === 1 ? currentProfile.wins + 1 : currentProfile.wins,
-    total_chops: (currentProfile.total_chops || 0) + metadata.chopsInMatch,
+    total_chops: (currentProfile.total_chops || 0) + chopsInMatch,
     event_stats: updatedStats,
     inventory: {
       ...currentProfile.inventory,
@@ -859,13 +1186,18 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
 };
 
 export const buyFinisher = async (userId: string, finisherId: string): Promise<boolean> => {
+  // SECURITY: Validate finisherId
+  if (!finisherId || typeof finisherId !== 'string' || finisherId.length > 100) {
+    throw new Error("Invalid finisher ID");
+  }
+  
   if (!supabaseAnonKey || userId === 'guest') {
     console.warn('Cannot buy finisher: guest user or no Supabase key');
     return false;
   }
   
   try {
-    // Get finisher details
+    // Get finisher details - SECURITY: Price comes from database, not client
     const { data: finisher, error: finisherError } = await supabase
       .from('finishers')
       .select('*')
@@ -874,6 +1206,12 @@ export const buyFinisher = async (userId: string, finisherId: string): Promise<b
     
     if (finisherError || !finisher) {
       console.error('Finisher not found:', finisherError);
+      return false;
+    }
+    
+    // SECURITY: Validate finisher price is valid
+    if (typeof finisher.price !== 'number' || finisher.price < 0 || !isFinite(finisher.price)) {
+      console.error('Invalid finisher price');
       return false;
     }
     
@@ -903,6 +1241,7 @@ export const buyFinisher = async (userId: string, finisherId: string): Promise<b
     }
     
     // Deduct gems and add finisher in a single transaction
+    // SECURITY: Use price from database, not from client
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
@@ -919,6 +1258,157 @@ export const buyFinisher = async (userId: string, finisherId: string): Promise<b
     return true;
   } catch (e) {
     console.error('Exception purchasing finisher:', e);
+    return false;
+  }
+};
+
+export const buyFinisherPack = async (userId: string, finisherIds: string[], packPrice: number): Promise<boolean> => {
+  if (!supabaseAnonKey || userId === 'guest') {
+    console.warn('Cannot buy finisher pack: guest user or no Supabase key');
+    return false;
+  }
+  
+  try {
+    // Get all finisher details
+    const { data: finishersData, error: finishersError } = await supabase
+      .from('finishers')
+      .select('*')
+      .in('id', finisherIds);
+    
+    if (finishersError || !finishersData || finishersData.length === 0) {
+      console.error('Finishers not found:', finishersError);
+      return false;
+    }
+    
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('gems, unlocked_finishers')
+      .eq('id', userId)
+      .single();
+    
+    if (profileError || !profile) {
+      console.error('Profile not found:', profileError);
+      return false;
+    }
+    
+    // Check if user has enough gems
+    if ((profile.gems || 0) < packPrice) {
+      console.warn('Insufficient gems for pack');
+      return false;
+    }
+    
+    // Get animation keys for finishers
+    const finisherAnimationKeys = finishersData.map(f => f.animation_key);
+    
+    // Filter out already owned finishers
+    const unlockedFinishers = profile.unlocked_finishers || [];
+    const newFinisherKeys = finisherAnimationKeys.filter(key => !unlockedFinishers.includes(key));
+    
+    if (newFinisherKeys.length === 0) {
+      console.warn('All finishers in pack already owned');
+      return false;
+    }
+    
+    // Deduct pack price and add all finishers in a single transaction
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        gems: (profile.gems || 0) - packPrice,
+        unlocked_finishers: [...unlockedFinishers, ...newFinisherKeys]
+      })
+      .eq('id', userId);
+    
+    if (updateError) {
+      console.error('Error purchasing finisher pack:', updateError);
+      return false;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Exception purchasing finisher pack:', e);
+    return false;
+  }
+};
+
+export const buyPack = async (
+  userId: string, 
+  items: Array<{ type: 'FINISHER' | 'EMOTE' | 'BOARD' | 'SLEEVE'; id: string }>,
+  packPrice: number
+): Promise<boolean> => {
+  if (!supabaseAnonKey || userId === 'guest') {
+    console.warn('Cannot buy pack: guest user or no Supabase key');
+    return false;
+  }
+  
+  try {
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('gems, unlocked_finishers, unlocked_avatars, unlocked_boards, unlocked_sleeves, unlocked_phrases')
+      .eq('id', userId)
+      .single();
+    
+    if (profileError || !profile) {
+      console.error('Profile not found:', profileError);
+      return false;
+    }
+    
+    // Check if user has enough gems
+    if ((profile.gems || 0) < packPrice) {
+      console.warn('Insufficient gems for pack');
+      return false;
+    }
+    
+    // Build updates object
+    const updates: any = {
+      gems: (profile.gems || 0) - packPrice
+    };
+    
+    // Collect items to unlock
+    const unlockedFinishers = [...(profile.unlocked_finishers || [])];
+    const unlockedAvatars = [...(profile.unlocked_avatars || [])];
+    const unlockedBoards = [...(profile.unlocked_boards || [])];
+    const unlockedSleeves = [...(profile.unlocked_sleeves || [])];
+    const unlockedPhrases = [...(profile.unlocked_phrases || [])];
+    
+    for (const item of items) {
+      if (item.type === 'FINISHER' && !unlockedFinishers.includes(item.id)) {
+        unlockedFinishers.push(item.id);
+      } else if (item.type === 'EMOTE' && !unlockedAvatars.includes(item.id)) {
+        unlockedAvatars.push(item.id);
+      } else if (item.type === 'BOARD' && !unlockedBoards.includes(item.id)) {
+        unlockedBoards.push(item.id);
+      } else if (item.type === 'SLEEVE' && !unlockedSleeves.includes(item.id)) {
+        unlockedSleeves.push(item.id);
+      }
+    }
+    
+    // Also unlock any phrases associated with this bundle
+    // Find the pack ID from the items (we need to pass bundle_id or find it)
+    // For now, we'll fetch all chat presets and unlock those with matching bundle_id
+    // This will be handled by checking if all pack items are owned after purchase
+    
+    updates.unlocked_finishers = unlockedFinishers;
+    updates.unlocked_avatars = unlockedAvatars;
+    updates.unlocked_boards = unlockedBoards;
+    updates.unlocked_sleeves = unlockedSleeves;
+    updates.unlocked_phrases = unlockedPhrases;
+    
+    // Apply all updates in a single transaction
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId);
+    
+    if (updateError) {
+      console.error('Error purchasing pack:', updateError);
+      return false;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Exception purchasing pack:', e);
     return false;
   }
 };
@@ -945,5 +1435,243 @@ export const equipFinisher = async (userId: string, finisherAnimationKey: string
   } catch (e) {
     console.error('Exception equipping finisher:', e);
     return false;
+  }
+};
+
+// Chat Presets Functions
+export interface ChatPreset {
+  id: string;
+  phrase: string;
+  style: 'standard' | 'gold' | 'neon' | 'wiggle';
+  bundle_id?: string | null;
+  price: number;
+  created_at?: string;
+}
+
+// Default chat presets that are always available
+const DEFAULT_CHAT_PRESETS: ChatPreset[] = [
+  { id: 'default-1', phrase: 'Nice!', style: 'standard', price: 0 },
+  { id: 'default-2', phrase: 'Good game', style: 'standard', price: 0 },
+  { id: 'default-3', phrase: 'Well played', style: 'standard', price: 0 },
+  { id: 'default-4', phrase: 'Oops', style: 'standard', price: 0 },
+  { id: 'default-5', phrase: 'Close one!', style: 'standard', price: 0 },
+  { id: 'default-6', phrase: 'GG', style: 'standard', price: 0 },
+  { id: 'default-7', phrase: 'Lucky!', style: 'standard', price: 0 },
+  { id: 'default-8', phrase: 'Unlucky', style: 'standard', price: 0 },
+];
+
+export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
+  // Always include default presets
+  const defaultPresets = [...DEFAULT_CHAT_PRESETS];
+  
+  if (!supabaseAnonKey) {
+    console.warn('No Supabase key, returning default chat presets only');
+    return defaultPresets;
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('chat_presets')
+      .select('*')
+      .order('price', { ascending: true });
+    
+    if (error) {
+      console.error('Error fetching chat presets:', error);
+      return defaultPresets;
+    }
+    
+    const dbPresets = (data || []).map((p: any) => ({
+      id: p.id,
+      phrase: p.phrase,
+      style: p.style || 'standard',
+      bundle_id: p.bundle_id || null,
+      price: p.price || 100,
+      created_at: p.created_at
+    })) as ChatPreset[];
+    
+    // Combine default presets with database presets (avoid duplicates by ID)
+    const presetMap = new Map<string, ChatPreset>();
+    defaultPresets.forEach(p => presetMap.set(p.id, p));
+    dbPresets.forEach(p => presetMap.set(p.id, p));
+    
+    return Array.from(presetMap.values());
+  } catch (e) {
+    console.error('Exception fetching chat presets:', e);
+    return defaultPresets;
+  }
+};
+
+export const purchasePhrase = async (userId: string, phraseId: string): Promise<boolean> => {
+  // SECURITY: Validate phraseId
+  if (!phraseId || typeof phraseId !== 'string' || phraseId.length > 100) {
+    throw new Error("Invalid phrase ID");
+  }
+  
+  if (!supabaseAnonKey || userId === 'guest') {
+    console.warn('Cannot buy phrase: guest user or no Supabase key');
+    return false;
+  }
+  
+  try {
+    // Get phrase details
+    const { data: phrase, error: phraseError } = await supabase
+      .from('chat_presets')
+      .select('*')
+      .eq('id', phraseId)
+      .single();
+    
+    if (phraseError || !phrase) {
+      console.error('Phrase not found:', phraseError);
+      return false;
+    }
+    
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('gems, unlocked_phrases')
+      .eq('id', userId)
+      .single();
+    
+    if (profileError || !profile) {
+      console.error('Profile not found:', profileError);
+      return false;
+    }
+    
+    // Check if already owned
+    const unlockedPhrases = profile.unlocked_phrases || [];
+    if (unlockedPhrases.includes(phraseId)) {
+      console.warn('Phrase already owned');
+      return false;
+    }
+    
+    // Check if user has enough gems
+    if ((profile.gems || 0) < phrase.price) {
+      console.warn('Insufficient gems');
+      return false;
+    }
+    
+    // Deduct gems and add phrase in a single transaction
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        gems: (profile.gems || 0) - phrase.price,
+        unlocked_phrases: [...unlockedPhrases, phraseId]
+      })
+      .eq('id', userId);
+    
+    if (updateError) {
+      console.error('Error purchasing phrase:', updateError);
+      return false;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Exception purchasing phrase:', e);
+    return false;
+  }
+};
+
+// ========== FEEDBACK SYSTEM ==========
+
+export interface PlayerFeedback {
+  id?: string;
+  user_id: string;
+  category: 'Bug' | 'Suggestion' | 'Balance' | 'Compliment';
+  message: string;
+  game_version: string;
+  was_finisher_tilting?: boolean;
+  created_at?: string;
+}
+
+/**
+ * Submit player feedback
+ */
+export const submitFeedback = async (
+  userId: string,
+  category: 'Bug' | 'Suggestion' | 'Balance' | 'Compliment',
+  message: string,
+  gameVersion: string = '1.0.0'
+): Promise<{ success: boolean; error?: string }> => {
+  if (!supabaseAnonKey) {
+    console.warn('No Supabase key, cannot submit feedback');
+    return { success: false, error: 'No database connection' };
+  }
+
+  // SECURITY: Validate inputs
+  if (!userId || typeof userId !== 'string' || userId.length > 100) {
+    return { success: false, error: 'Invalid user ID' };
+  }
+
+  if (!['Bug', 'Suggestion', 'Balance', 'Compliment'].includes(category)) {
+    return { success: false, error: 'Invalid category' };
+  }
+
+  if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 1000) {
+    return { success: false, error: 'Invalid message' };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('player_feedback')
+      .insert({
+        user_id: userId,
+        category,
+        message: message.trim(),
+        game_version: gameVersion,
+        created_at: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error('Error submitting feedback:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('Exception submitting feedback:', e);
+    return { success: false, error: e.message || 'Unknown error' };
+  }
+};
+
+/**
+ * Submit vibe check feedback (post-match)
+ */
+export const submitVibeCheck = async (
+  userId: string,
+  isHappy: boolean,
+  wasFinisherTilting?: boolean,
+  gameVersion: string = '1.0.0'
+): Promise<{ success: boolean; error?: string }> => {
+  if (!supabaseAnonKey) {
+    console.warn('No Supabase key, cannot submit vibe check');
+    return { success: false, error: 'No database connection' };
+  }
+
+  // SECURITY: Validate inputs
+  if (!userId || typeof userId !== 'string' || userId.length > 100) {
+    return { success: false, error: 'Invalid user ID' };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('player_feedback')
+      .insert({
+        user_id: userId,
+        category: isHappy ? 'Compliment' : 'Balance',
+        message: isHappy ? 'Match vibe: Happy' : 'Match vibe: Salty',
+        game_version: gameVersion,
+        was_finisher_tilting: wasFinisherTilting !== undefined ? wasFinisherTilting : null,
+        created_at: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error('Error submitting vibe check:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('Exception submitting vibe check:', e);
+    return { success: false, error: e.message || 'Unknown error' };
   }
 };

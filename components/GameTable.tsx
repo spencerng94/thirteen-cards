@@ -1,19 +1,37 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { Card as CardType, GameState, Player, Suit, Rank, PlayTurn, BackgroundTheme, AiDifficulty, GameStatus, SocketEvents, UserProfile, Emote, HubTab } from '../types';
 import { Card, CardCoverStyle } from './Card';
-import { InstructionsModal } from './InstructionsModal';
 import { BoardSurface } from './UserHub';
 import { audioService } from '../services/audio';
 import { sortCards, validateMove, getComboType, findAllValidCombos, canPlayAnyMove } from '../utils/gameLogic';
 import { socket } from '../services/socket';
-import { DEFAULT_AVATARS, fetchEmotes } from '../services/supabase';
+import { DEFAULT_AVATARS, fetchEmotes, fetchChatPresets, ChatPreset, getFriends } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 import { PlayerProfileModal } from './PlayerProfileModal';
+import { QuickChatWheel } from './QuickChatWheel';
+import { ChatBubble, ChatStyle } from './ChatBubble';
+import { SocialFilter } from './GameSettings';
+import { QuickMoveReward } from './QuickMoveReward';
 
 interface ActiveEmote {
   id: string;
   playerId: string;
   emote: string;
+}
+
+interface ActiveChat {
+  id: string;
+  playerId: string;
+  phrase: string;
+  style: ChatStyle;
+}
+
+interface QuickMoveRewardData {
+  id: string;
+  playerId: string;
+  gold: number;
+  xp: number;
+  isStreak: boolean;
 }
 
 const EMOTE_COOLDOWN = 2000;
@@ -46,21 +64,46 @@ const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
   );
 };
 
-const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; turnDuration?: number; sleeveEffectsEnabled?: boolean; className?: string; onPlayerClick?: (player: Player) => void; isCurrentPlayer?: boolean }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, turnDuration, sleeveEffectsEnabled, className = '', onPlayerClick, isCurrentPlayer = false }) => {
+const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top' | 'left' | 'right'; isTurn: boolean; remoteEmotes: Emote[]; coverStyle: CardCoverStyle; turnEndTime?: number; turnDuration?: number; sleeveEffectsEnabled?: boolean; className?: string; onPlayerClick?: (player: Player) => void; isCurrentPlayer?: boolean; onCurrentPlayerClick?: () => void; isMuted?: boolean }> = ({ player, position, isTurn, remoteEmotes, coverStyle, turnEndTime, turnDuration, sleeveEffectsEnabled, className = '', onPlayerClick, isCurrentPlayer = false, onCurrentPlayerClick, isMuted = false }) => {
   const isFinished = !!player.finishedRank;
   const [timeLeft, setTimeLeft] = useState(0);
+  const [progress, setProgress] = useState(100);
+  const lastTickTime = useRef<number>(0);
+  const wasInWarningPhase = useRef<boolean>(false);
 
   useEffect(() => {
     if (!isTurn || !turnEndTime || isFinished || !turnDuration) {
       setTimeLeft(0);
+      setProgress(100);
+      wasInWarningPhase.current = false;
       return;
     }
     const update = () => {
-      const remaining = Math.max(0, Math.ceil((turnEndTime - Date.now()) / 1000));
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((turnEndTime - now) / 1000));
+      const elapsed = turnDuration - (turnEndTime - now);
+      const progressPercent = Math.max(0, Math.min(100, (elapsed / turnDuration) * 100));
       setTimeLeft(remaining);
+      setProgress(progressPercent);
+      
+      // Play ticking sound when in warning phase (5 seconds or less)
+      if (remaining <= 5 && remaining > 0) {
+        const isNowInWarningPhase = true;
+        if (!wasInWarningPhase.current) {
+          wasInWarningPhase.current = true;
+          audioService.playTicking();
+        }
+        // Play ticking sound every second in warning phase
+        if (now - lastTickTime.current >= 1000) {
+          audioService.playTicking();
+          lastTickTime.current = now;
+        }
+      } else {
+        wasInWarningPhase.current = false;
+      }
     };
     update();
-    const interval = setInterval(update, 1000);
+    const interval = setInterval(update, 50); // Update more frequently for smoother animation
     return () => clearInterval(interval);
   }, [isTurn, turnEndTime, isFinished, turnDuration]);
   
@@ -75,6 +118,7 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
   };
 
   const showTimer = isTurn && !isFinished && timeLeft > 0 && !!turnDuration;
+  const isWarningPhase = showTimer && timeLeft <= 5;
 
   return (
     <div className={`relative flex transition-all duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isFinished ? 'scale-100' : 'opacity-100'} 
@@ -87,20 +131,57 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
             <div className="relative w-16 h-16 sm:w-24 sm:h-24 landscape:w-24 landscape:h-24">
                 {isTurn && !isFinished && (
                   <div className="absolute inset-0 pointer-events-none">
-                    <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${showTimer && timeLeft <= 3 ? 'border-rose-500' : 'border-yellow-500/60 shadow-[0_0_15px_rgba(234,179,8,0.4)]'} animate-turn-ping-slow`}></div>
-                    <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${showTimer && timeLeft <= 3 ? 'border-rose-500/50' : 'border-yellow-500/30'} animate-turn-ping-slow [animation-delay:1.5s]`}></div>
+                    <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${isWarningPhase ? 'border-rose-500' : 'border-yellow-500/60 shadow-[0_0_15px_rgba(234,179,8,0.4)]'} animate-turn-ping-slow`}></div>
+                    <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${isWarningPhase ? 'border-rose-500/50' : 'border-yellow-500/30'} animate-turn-ping-slow [animation-delay:1.5s]`}></div>
                   </div>
                 )}
                 
+                {/* Circular Progress Bar SVG */}
+                {showTimer && (
+                  <svg 
+                    className="absolute inset-0 w-full h-full transform -rotate-90 pointer-events-none"
+                    viewBox="0 0 100 100"
+                  >
+                    {/* Background circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.1)"
+                      strokeWidth="8"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke={isWarningPhase ? '#ef4444' : '#eab308'}
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 45}`}
+                      strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress / 100)}`}
+                      className={`transition-all duration-100 ease-linear ${isWarningPhase ? 'drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-timer-pulse' : ''}`}
+                    />
+                  </svg>
+                )}
+                
                 <div 
-                  className={`w-full h-full aspect-square rounded-full border-2 transition-all duration-200 ease-out overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (showTimer && timeLeft <= 3 ? 'border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.4)]') + ' scale-110' : 'border-white/10'} ${getGlowClass()} ${!isCurrentPlayer && !player.isBot && onPlayerClick ? 'cursor-pointer hover:scale-105 hover:border-white/30' : ''}`}
-                  onClick={() => !isCurrentPlayer && !player.isBot && onPlayerClick && onPlayerClick(player)}
+                  className={`w-full h-full aspect-square rounded-full border-2 transition-all duration-200 ease-out overflow-hidden bg-black/60 shadow-2xl flex items-center justify-center shrink-0 ${isTurn ? (isWarningPhase ? 'border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.4)]') + ' scale-110' : player.isBot ? 'border-cyan-500/60 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-white/10'} ${getGlowClass()} ${(isCurrentPlayer && onCurrentPlayerClick) || (!isCurrentPlayer && !player.isBot && onPlayerClick) ? 'cursor-pointer hover:scale-105 hover:border-white/30' : ''} ${isWarningPhase ? 'animate-timer-pulse' : ''}`}
+                  onClick={() => {
+                    if (isCurrentPlayer && onCurrentPlayerClick) {
+                      onCurrentPlayerClick();
+                    } else if (!isCurrentPlayer && !player.isBot && onPlayerClick) {
+                      onPlayerClick(player);
+                    }
+                  }}
                 >
                     <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="lg" />
-                    {showTimer && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <span className={`text-2xl font-black italic ${timeLeft <= 3 ? 'text-rose-500 animate-pulse' : 'text-white'}`}>{timeLeft}</span>
-                        </div>
+                    {player.isBot && (
+                      <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-cyan-500/90 text-white text-[6px] sm:text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border border-cyan-400/50 shadow-lg whitespace-nowrap z-20">
+                        CPU
+                      </div>
                     )}
                 </div>
 
@@ -116,17 +197,27 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
                         <span className="text-[8px] font-black text-white uppercase tracking-tighter text-center leading-none shadow-lg">Offline</span>
                     </div>
                 )}
+                {player.isAfk && !isFinished && (
+                    <div className="absolute inset-0 bg-red-900/60 backdrop-blur-[2px] rounded-full flex items-center justify-center z-10 border-2 border-red-600/50">
+                        <span className="text-[8px] font-black text-red-300 uppercase tracking-tighter text-center leading-none shadow-lg">AFK</span>
+                    </div>
+                )}
             </div>
 
             <div className={`bg-black/60 backdrop-blur-md px-3 py-0.5 sm:px-4 sm:py-1 rounded-full border min-w-[75px] sm:min-w-[95px] landscape:w-24 landscape:min-w-0 landscape:px-0 text-center shadow-lg mt-1.5 transition-all duration-300 
               ${isFinished ? 'opacity-40 border-white/20' : 
                 player.isOffline ? 'border-amber-500/50' : 
+                player.isBot ? 'border-cyan-500/40 bg-cyan-950/30' :
                 (isTurn ? 'border-yellow-500/50 bg-yellow-950/40 shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'border-white/5')}`}>
-                <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest truncate max-w-[65px] sm:max-w-[85px] landscape:max-w-[88px] inline-block transition-colors duration-300
+                <div className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest transition-colors duration-300 flex items-center justify-center gap-1
                   ${player.isOffline ? 'text-amber-500' : 
+                    player.isBot ? 'text-cyan-400' :
                     (isTurn && !isFinished ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'text-white/90')}`}>
-                  {player.name}
-                </span>
+                  <span className="truncate max-w-[65px] sm:max-w-[85px] landscape:max-w-[88px]">{player.name}</span>
+                  {isMuted && !isCurrentPlayer && (
+                    <span className="text-[10px] sm:text-xs flex-shrink-0" title="Muted">🔇</span>
+                  )}
+                </div>
             </div>
         </div>
 
@@ -242,22 +333,30 @@ interface GameTableProps {
   onOpenSettings: () => void;
   profile: UserProfile | null;
   playAnimationsEnabled?: boolean;
+  socialFilter?: SocialFilter;
+  sessionMuted?: string[];
+  setSessionMuted?: (muted: string[]) => void;
 }
 
 export const GameTable: React.FC<GameTableProps> = ({ 
-  gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true
+  gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true, socialFilter = 'UNMUTED', sessionMuted = [], setSessionMuted
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showEmotePicker, setShowEmotePicker] = useState(false);
   const [activeEmotes, setActiveEmotes] = useState<ActiveEmote[]>([]);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
-  const [showInstructions, setShowInstructions] = useState(false);
   const [handRows, setHandRows] = useState<1 | 2>(1);
   const [showBombEffect, setShowBombEffect] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const lastEmoteSentAt = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
   const [selectedPlayerProfile, setSelectedPlayerProfile] = useState<Player | null>(null);
+  const [showChatWheel, setShowChatWheel] = useState(false);
+  const [chatPresets, setChatPresets] = useState<ChatPreset[]>([]);
+  const [activeChats, setActiveChats] = useState<ActiveChat[]>([]);
+  const lastChatSentAt = useRef<number>(0);
+  const [friendsList, setFriendsList] = useState<string[]>([]);
+  const [quickMoveRewards, setQuickMoveRewards] = useState<QuickMoveRewardData[]>([]);
   
   // Track emote usage for statistics
   const trackEmoteUsage = useCallback((emote: string) => {
@@ -323,6 +422,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     }); 
   }, [myHand]);
   useEffect(() => { if (typeof fetchEmotes === 'function') fetchEmotes().then(setRemoteEmotes); }, []);
+  useEffect(() => { if (typeof fetchChatPresets === 'function') fetchChatPresets().then(setChatPresets); }, []);
 
   useEffect(() => {
     const handleReceiveEmote = ({ playerId, emote }: { playerId: string; emote: string }) => {
@@ -334,6 +434,96 @@ export const GameTable: React.FC<GameTableProps> = ({
     socket.on(SocketEvents.RECEIVE_EMOTE, handleReceiveEmote);
     return () => { socket.off(SocketEvents.RECEIVE_EMOTE, handleReceiveEmote); };
   }, []);
+
+  // Fetch friends list for Friends Only filter
+  useEffect(() => {
+    const loadFriends = async () => {
+      if (myId && myId !== 'guest' && myId !== 'me' && profile) {
+        try {
+          const friends = await getFriends(myId);
+          const friendIds = friends.map(f => f.friend_id);
+          setFriendsList(friendIds);
+        } catch (e) {
+          console.error('Error loading friends:', e);
+        }
+      }
+    };
+    if (socialFilter === 'FRIENDS_ONLY') {
+      loadFriends();
+    }
+  }, [myId, profile, socialFilter]);
+
+  // Combine sessionMuted with AFK-muted players from game state
+  const allMutedPlayers = useMemo(() => {
+    const afkMuted = gameState.players.filter(p => p.mutedByAfk).map(p => p.id);
+    return Array.from(new Set([...sessionMuted, ...afkMuted]));
+  }, [sessionMuted, gameState.players]);
+
+  // Filter existing chats when mute settings change
+  useEffect(() => {
+    setActiveChats(prev => prev.filter(chat => {
+      // Check if player is muted (session mute or AFK mute)
+      if (allMutedPlayers.includes(chat.playerId)) {
+        return false;
+      }
+      
+      // Check global social filter
+      if (socialFilter === 'MUTED') {
+        return false;
+      }
+      
+      if (socialFilter === 'FRIENDS_ONLY') {
+        if (!friendsList.includes(chat.playerId)) {
+          return false;
+        }
+      }
+      
+      return true;
+    }));
+  }, [allMutedPlayers, socialFilter, friendsList]);
+
+  useEffect(() => {
+    const handleReceiveChat = ({ playerId, phrase, style }: { playerId: string; phrase: string; style: ChatStyle }) => {
+      // Filter based on mute settings
+      // Check if player is muted (session mute or AFK mute)
+      if (allMutedPlayers.includes(playerId)) {
+        return; // Don't show chat from muted player
+      }
+      
+      // Check global social filter
+      if (socialFilter === 'MUTED') {
+        return; // Don't show any chats
+      }
+      
+      if (socialFilter === 'FRIENDS_ONLY') {
+        if (!friendsList.includes(playerId)) {
+          return; // Don't show chat from non-friends
+        }
+      }
+      
+      const id = Math.random().toString();
+      setActiveChats(prev => [...prev, { id, playerId, phrase, style }]);
+      if (style === 'wiggle') {
+        audioService.playSqueakyToy();
+      }
+      setTimeout(() => setActiveChats(prev => prev.filter(c => c.id !== id)), 3000);
+    };
+    socket.on(SocketEvents.RECEIVE_CHAT, handleReceiveChat);
+    return () => { socket.off(SocketEvents.RECEIVE_CHAT, handleReceiveChat); };
+  }, [allMutedPlayers, socialFilter, friendsList]);
+
+  // Listen for quick move rewards
+  useEffect(() => {
+    const handleQuickMoveReward = ({ gold, xp, isStreak }: { gold: number; xp: number; isStreak: boolean }) => {
+      const id = Math.random().toString();
+      setQuickMoveRewards(prev => [...prev, { id, playerId: myId, gold, xp, isStreak }]);
+      // Play sounds
+      audioService.playCoinClink();
+      audioService.playXpRising();
+    };
+    socket.on(SocketEvents.QUICK_MOVE_REWARD, handleQuickMoveReward);
+    return () => { socket.off(SocketEvents.QUICK_MOVE_REWARD, handleQuickMoveReward); };
+  }, [myId]);
 
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
   const myIndex = gameState.players.findIndex((p) => p.id === myId);
@@ -379,6 +569,31 @@ export const GameTable: React.FC<GameTableProps> = ({
     trackEmoteUsage(triggerCode);
     setTimeout(() => setActiveEmotes(prev => prev.filter(e => e.id !== id)), 3000); 
   }, [gameState.roomId, myId, trackEmoteUsage]);
+
+  const handleSelectChatPhrase = useCallback((preset: ChatPreset) => {
+    if (Date.now() - lastChatSentAt.current < 2000) return;
+    lastChatSentAt.current = Date.now();
+    
+    socket.emit(SocketEvents.SEND_CHAT, { 
+      roomId: gameState.roomId, 
+      phrase: preset.phrase, 
+      style: preset.style 
+    });
+    
+    // Show locally
+    const id = Math.random().toString();
+    setActiveChats(prev => [...prev, { id, playerId: myId, phrase: preset.phrase, style: preset.style }]);
+    if (preset.style === 'wiggle') {
+      audioService.playSqueakyToy();
+    }
+    setTimeout(() => setActiveChats(prev => prev.filter(c => c.id !== id)), 3000);
+  }, [gameState.roomId, myId]);
+
+  const handleAvatarClick = useCallback(() => {
+    if (isMyTurn && !isFinished) {
+      setShowChatWheel(true);
+    }
+  }, [isMyTurn, isFinished]);
 
   const getPlayerPosition = useCallback((index: number) => { 
     const relativeIndex = (index - myIndex + gameState.players.length) % gameState.players.length; 
@@ -481,14 +696,15 @@ export const GameTable: React.FC<GameTableProps> = ({
   }, [lastMovePlayerPosition, playAnimationsEnabled]);
 
   const showMyTimer = isMyTurn && timeLeft > 0 && !!gameState.turnDuration;
+  const isMyWarningPhase = showMyTimer && timeLeft <= 5;
 
   const turnIndicatorUI = (
     <div className={`flex flex-col items-center gap-2 transition-all duration-300 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors duration-200 ${showMyTimer && timeLeft <= 3 ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-satisfying-turn-glow'}`}>
+        <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors duration-200 ${isMyWarningPhase ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-satisfying-turn-glow'}`}>
             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">
             {isLeader && gameState.isFirstTurnOfGame && iHave3Spades ? '3♠ YOUR TURN' : (isLeader ? 'YOUR LEAD' : 'Your Turn')}
             </span>
-            {showMyTimer && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${timeLeft <= 3 ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
+            {showMyTimer && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${isMyWarningPhase ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
         </div>
         {noMovesPossible && selectedCardIds.size === 0 && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
     </div>
@@ -542,7 +758,6 @@ export const GameTable: React.FC<GameTableProps> = ({
     <div className={`fixed inset-0 w-full h-full bg-[#030303] overflow-hidden select-none ${isShaking ? 'animate-shake' : ''}`}>
       <BoardSurface themeId={backgroundTheme} />
       <BombOverlay active={showBombEffect} />
-      {showInstructions && <InstructionsModal onClose={() => setShowInstructions(false)} />}
 
       {/* Player Profile Modal */}
       {selectedPlayerProfile && profile && !selectedPlayerProfile.isBot && (
@@ -553,10 +768,67 @@ export const GameTable: React.FC<GameTableProps> = ({
           currentUserId={myId}
           onClose={() => setSelectedPlayerProfile(null)}
           onRefreshProfile={() => {}}
+          isMuted={allMutedPlayers.includes(selectedPlayerProfile.id)}
+          onToggleMute={(playerId) => {
+            if (setSessionMuted) {
+              // Only allow toggling session mutes, not AFK mutes
+              const isAfkMuted = gameState.players.find(p => p.id === playerId)?.mutedByAfk;
+              if (isAfkMuted) return; // Can't unmute AFK players manually
+              
+              setSessionMuted(
+                sessionMuted.includes(playerId)
+                  ? sessionMuted.filter(id => id !== playerId)
+                  : [...sessionMuted, playerId]
+              );
+            }
+          }}
         />
       )}
 
       {activeEmotes.map(ae => { const playerIdx = gameState.players.findIndex((p) => p.id === ae.playerId); if (playerIdx === -1) return null; return <EmoteBubble key={ae.id} emote={ae.emote} remoteEmotes={remoteEmotes} position={getPlayerPosition(playerIdx) as any} />; })}
+
+      {/* Quick Move Rewards */}
+      {quickMoveRewards.map(reward => {
+        const playerIdx = gameState.players.findIndex((p) => p.id === reward.playerId);
+        if (playerIdx === -1) return null;
+        return (
+          <QuickMoveReward
+            key={reward.id}
+            gold={reward.gold}
+            xp={reward.xp}
+            isStreak={reward.isStreak}
+            position={getPlayerPosition(playerIdx) as any}
+            onComplete={() => setQuickMoveRewards(prev => prev.filter(r => r.id !== reward.id))}
+          />
+        );
+      })}
+
+      {/* Chat Bubbles */}
+      {activeChats.map(ac => {
+        const playerIdx = gameState.players.findIndex((p) => p.id === ac.playerId);
+        if (playerIdx === -1) return null;
+        return (
+          <ChatBubble
+            key={ac.id}
+            text={ac.phrase}
+            style={ac.style}
+            position={getPlayerPosition(playerIdx) as any}
+            isVisible={true}
+          />
+        );
+      })}
+
+      {/* Quick Chat Wheel */}
+      {showChatWheel && (
+        <QuickChatWheel
+          isOpen={showChatWheel}
+          onClose={() => setShowChatWheel(false)}
+          onSelectPhrase={handleSelectChatPhrase}
+          presets={chatPresets}
+          unlockedBundles={[]} // TODO: Extract from profile when bundle system is implemented
+          lastUsedAt={lastChatSentAt.current}
+        />
+      )}
 
       <div className="fixed top-4 left-4 z-[250] hidden landscape:flex flex-col gap-4 pointer-events-none items-start">
           {lastMove && (
@@ -650,14 +922,14 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 flex justify-center">
           <div className={`${isMyTurn ? 'opacity-100 translate-y-0' : (isFinished ? 'opacity-60 scale-90 translate-y-4' : 'opacity-0 translate-y-20')}`}>
             {me && (
-                <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" isCurrentPlayer={true} />
+                <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} />
             )}
           </div>
       </div>
 
       <div className={`fixed bottom-[180px] left-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex justify-center ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {leftOpponent && (
-              <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />
+              <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} />
           )}
       </div>
 
@@ -671,30 +943,59 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       <div className={`fixed bottom-[180px] right-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex justify-center ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {rightOpponent && (
-              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />
+              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} />
           )}
       </div>
 
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
         <div className="flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
+            {/* Quick Chat Button */}
             <div className="relative">
-            <button onClick={() => setShowEmotePicker(!showEmotePicker)} className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg></button>
-            {showEmotePicker && ( 
-                <div className="absolute top-full right-0 mt-3 p-4 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl z-[300] grid grid-cols-3 gap-3 min-w-[200px] sm:min-w-[240px] animate-in fade-in zoom-in-95 duration-150"> 
-                {unlockedAvatars.map(emoji => ( 
-                    <button 
-                    key={emoji} 
-                    onClick={() => sendEmote(emoji)} 
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 hover:bg-white/15 transition-all duration-150 flex items-center justify-center p-2 group/emote-btn overflow-hidden"
-                    >
-                    <VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="md" className="group-hover/emote-btn:scale-105 transition-transform duration-200" />
-                    </button> 
-                ))} 
-                </div> 
-            )}
+              <button 
+                onClick={() => setShowChatWheel(true)} 
+                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showChatWheel ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
+                title="Quick Chat"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </button>
             </div>
-            <button onClick={onOpenSettings} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-200 shadow-xl hover:scale-105"><SettingsIcon /></button>
-            <button onClick={() => setShowInstructions(true)} className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-200 shadow-xl hover:scale-105"><span className="text-lg font-black">?</span></button>
+            
+            {/* Emote Button */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowEmotePicker(!showEmotePicker)} 
+                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
+                title="Emotes"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+              {showEmotePicker && ( 
+                <div className="absolute top-full right-0 mt-3 p-4 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl z-[300] grid grid-cols-3 gap-3 min-w-[200px] sm:min-w-[240px] animate-in fade-in zoom-in-95 duration-150"> 
+                  {unlockedAvatars.map(emoji => ( 
+                    <button 
+                      key={emoji} 
+                      onClick={() => sendEmote(emoji)} 
+                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 hover:bg-white/15 transition-all duration-150 flex items-center justify-center p-2 group/emote-btn overflow-hidden"
+                    >
+                      <VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="md" className="group-hover/emote-btn:scale-105 transition-transform duration-200" />
+                    </button> 
+                  ))} 
+                </div> 
+              )}
+            </div>
+            
+            {/* Settings Button */}
+            <button 
+              onClick={onOpenSettings} 
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-200 shadow-xl hover:scale-105"
+              title="Settings"
+            >
+              <SettingsIcon />
+            </button>
         </div>
 
         <div className="hidden landscape:block absolute top-14 right-0 min-w-max transition-all duration-300">
@@ -704,15 +1005,15 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
         <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''} ${topOpponent && !topOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
-          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />)}
+          {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(topOpponent.player.id)} />)}
         </div>
         
         <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isMyTurn ? '-translate-y-32 z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16 z-[60]' : '')} landscape:hidden ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
-          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />)}
+          {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} />)}
         </div>
         
         <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} landscape:hidden ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
-          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} />)}
+          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} />)}
         </div>
       </div>
 
@@ -761,7 +1062,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-300 landscape:hidden
                 ${isMyTurn ? '-top-[95px]' : (isFinished ? '-top-[55px]' : 'top-20 opacity-0')}`}>
               {me && (
-                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} isCurrentPlayer={true} />
+                  <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} />
               )}
             </div>
 
@@ -816,6 +1117,12 @@ export const GameTable: React.FC<GameTableProps> = ({
           100% { transform: scale(1.6); opacity: 0; }
         }
         .animate-turn-ping-slow { animation: turn-ping-slow 3s cubic-bezier(0, 0, 0.2, 1) infinite; }
+        
+        @keyframes timerPulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.05); opacity: 0.9; }
+        }
+        .animate-timer-pulse { animation: timerPulse 0.5s ease-in-out infinite; }
 
         @keyframes startCardHint {
           0%, 100% { transform: translateY(0); }
@@ -862,6 +1169,22 @@ export const GameTable: React.FC<GameTableProps> = ({
         .animate-play-from-left { animation: playFromLeft 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
         .animate-play-from-right { animation: playFromRight 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
         .animate-play-bounce { animation: playBounce 0.4s ease-out forwards; will-change: transform; }
+        
+        @keyframes shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        
+        @keyframes heartbeat {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(-3deg); }
+          75% { transform: rotate(3deg); }
+        }
       `}} />
     </div>
   );

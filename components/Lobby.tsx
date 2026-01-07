@@ -107,7 +107,17 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(`${playerName.toUpperCase()}'S MATCH`);
   const [isPublic, setIsPublic] = useState(true);
-  const [localTurnTimer, setLocalTurnTimer] = useState(turnTimerSetting);
+  // For public rooms, default to 30s. For private, use setting or default to 30s
+  const [localTurnTimer, setLocalTurnTimer] = useState(isPublic ? 30 : turnTimerSetting || 30);
+  
+  // Update timer when isPublic changes
+  useEffect(() => {
+    if (isPublic) {
+      setLocalTurnTimer(30); // Public rooms always 30s
+    } else {
+      setLocalTurnTimer(turnTimerSetting || 30);
+    }
+  }, [isPublic, turnTimerSetting]);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
@@ -416,17 +426,21 @@ export const Lobby: React.FC<LobbyProps> = ({
                                         <span className="text-sm font-black text-white uppercase tracking-wider">Turn Timer</span>
                                         <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Time per move before auto-pass</span>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner">
-                                        {[0, 30, 60, 90].map(val => (
+                                    <div className="grid grid-cols-3 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner">
+                                        {[15, 30, 60].map(val => (
                                             <button 
                                                 key={val} 
                                                 onClick={() => setLocalTurnTimer(val)}
-                                                className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'}`}
+                                                disabled={isPublic} // Disable for public rooms (always 30s)
+                                                className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'} ${isPublic && val !== 30 ? 'opacity-40 cursor-not-allowed' : ''}`}
                                             >
-                                                {val === 0 ? 'OFF' : `${val}S`}
+                                                {`${val}S`}
                                             </button>
                                         ))}
                                     </div>
+                                    {isPublic && (
+                                        <span className="text-[9px] text-yellow-400/70 uppercase tracking-tight">Public matches use 30s timer</span>
+                                    )}
                                 </div>
                             </div>
 
@@ -518,20 +532,25 @@ export const Lobby: React.FC<LobbyProps> = ({
                         {gameState.players.map(p => {
                             const isMe = p.id === myId;
                             return (
-                            <div key={p.id} className={`relative group flex items-center justify-between p-5 rounded-[2.5rem] bg-black/40 border-2 transition-all duration-200 ${isMe ? 'border-yellow-500/40 shadow-[inset_0_0_30px_rgba(234,179,8,0.05)]' : 'border-white/5 hover:border-white/10'}`}>
+                            <div key={p.id} className={`relative group flex items-center justify-between p-5 rounded-[2.5rem] bg-black/40 border-2 transition-all duration-200 ${isMe ? 'border-yellow-500/40 shadow-[inset_0_0_30px_rgba(234,179,8,0.05)]' : p.isBot ? 'border-cyan-500/40 shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]' : 'border-white/5 hover:border-white/10'}`}>
                                 <div className="flex items-center gap-5">
                                     <div className="relative">
-                                        <div className="w-16 h-16 rounded-[1.5rem] bg-black border border-white/10 flex items-center justify-center overflow-hidden shadow-2xl group-hover:scale-105 transition-transform duration-200">
+                                        <div className={`w-16 h-16 rounded-[1.5rem] bg-black border flex items-center justify-center overflow-hidden shadow-2xl group-hover:scale-105 transition-transform duration-200 ${p.isBot ? 'border-cyan-500/60 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-white/10'}`}>
                                             <VisualEmote trigger={p.avatar} remoteEmotes={remoteEmotes} size="md" />
+                                            {p.isBot && (
+                                              <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-cyan-500/90 text-white text-[6px] font-black uppercase tracking-wider px-1 py-0.5 rounded-full border border-cyan-400/50 shadow-lg whitespace-nowrap">
+                                                CPU
+                                              </div>
+                                            )}
                                         </div>
                                         {p.isHost && (
                                         <div className="absolute -top-2 -left-2 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-xs border-4 border-black shadow-lg z-10">👑</div>
                                         )}
                                     </div>
                                     <div className="flex flex-col min-w-0">
-                                        <span className={`text-sm font-black uppercase tracking-[0.15em] truncate ${isMe ? 'text-yellow-500' : 'text-white'}`}>{p.name}</span>
+                                        <span className={`text-sm font-black uppercase tracking-[0.15em] truncate ${isMe ? 'text-yellow-500' : p.isBot ? 'text-cyan-400' : 'text-white'}`}>{p.name}</span>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${p.isOffline ? 'bg-rose-500' : 'bg-emerald-500'} animate-pulse`}></div>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${p.isOffline ? 'bg-rose-500' : p.isBot ? 'bg-cyan-500' : 'bg-emerald-500'} animate-pulse`}></div>
                                             <span className="text-[8px] font-bold text-white/20 uppercase tracking-[0.2em]">{p.isBot ? 'CPU RECON' : (isMe ? 'LOCAL AGENT' : 'LINKED AGENT')}</span>
                                         </div>
                                     </div>

@@ -4,6 +4,8 @@ import { ShibaSlamFinisher } from './ShibaSlamFinisher';
 import { EtherealBladeFinisher } from './EtherealBladeFinisher';
 import { SaltShakeFinisher } from './SaltShakeFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
+import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
+import { KissMyShibaFinisher } from './KissMyShibaFinisher';
 
 interface FinisherPreviewProps {
   finisherKey: string;
@@ -64,6 +66,26 @@ export const FinisherPreview: React.FC<FinisherPreviewProps> = ({
     } else if (finisherKey === 'sanctum_snap') {
       return (
         <SanctumSnapFinisher
+          key={replayKey}
+          onComplete={handleComplete}
+          onReplay={handleReplay}
+          isPreview={true}
+          winnerName="GUEST"
+        />
+      );
+    } else if (finisherKey === 'seductive_finish') {
+      return (
+        <SeductiveFinishFinisher
+          key={replayKey}
+          onComplete={handleComplete}
+          onReplay={handleReplay}
+          isPreview={true}
+          winnerName="GUEST"
+        />
+      );
+    } else if (finisherKey === 'kiss_my_shiba') {
+      return (
+        <KissMyShibaFinisher
           key={replayKey}
           onComplete={handleComplete}
           onReplay={handleReplay}

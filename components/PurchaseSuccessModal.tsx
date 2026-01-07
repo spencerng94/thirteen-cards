@@ -10,7 +10,7 @@ import { Emote } from '../types';
 
 interface PurchaseSuccessModalProps {
   itemName: string;
-  itemType: 'SLEEVES' | 'AVATARS' | 'BOARDS' | 'ITEMS' | 'FINISHERS';
+  itemType: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'ITEMS' | 'FINISHERS' | 'QUICK_CHATS';
   price: number;
   currency: 'GOLD' | 'GEMS';
   onClose: () => void;
@@ -92,7 +92,7 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
           <BoardPreview themeId={themeId} unlocked={true} active={false} />
         </div>
       );
-    } else if (itemType === 'AVATARS' && avatarTrigger) {
+    } else if (itemType === 'EMOTES' && avatarTrigger) {
       return (
         <div className="relative w-32 h-32 sm:w-40 sm:h-40">
           <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/20 via-pink-500/20 to-transparent rounded-3xl blur-xl"></div>

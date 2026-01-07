@@ -207,6 +207,58 @@ class AudioService {
     });
   }
 
+  playGemPurchase() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+
+    const now = this.context.currentTime;
+    
+    // Ascending arpeggio for excitement
+    const arpeggio = [523.25, 659.25, 783.99, 987.77, 1174.66, 1318.51, 1567.98];
+    
+    arpeggio.forEach((freq, i) => {
+      const osc = this.context!.createOscillator();
+      const gain = this.context!.createGain();
+      
+      osc.type = i < 3 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, now + i * 0.06);
+      
+      const volume = 0.12 - (i * 0.01);
+      gain.gain.setValueAtTime(0, now + i * 0.06);
+      gain.gain.linearRampToValueAtTime(volume, now + i * 0.06 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.06 + 0.4);
+      
+      osc.connect(gain);
+      gain.connect(this.context!.destination);
+      osc.start(now + i * 0.06);
+      osc.stop(now + i * 0.06 + 0.4);
+    });
+
+    // Add a satisfying "pop" at the end
+    const pop = this.context.createOscillator();
+    const popGain = this.context.createGain();
+    const popFilter = this.context.createBiquadFilter();
+    
+    pop.type = 'sine';
+    pop.frequency.setValueAtTime(800, now + 0.4);
+    pop.frequency.exponentialRampToValueAtTime(200, now + 0.5);
+    
+    popFilter.type = 'lowpass';
+    popFilter.frequency.setValueAtTime(2000, now + 0.4);
+    popFilter.frequency.exponentialRampToValueAtTime(400, now + 0.5);
+    
+    popGain.gain.setValueAtTime(0, now + 0.4);
+    popGain.gain.linearRampToValueAtTime(0.15, now + 0.42);
+    popGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+    
+    pop.connect(popFilter);
+    popFilter.connect(popGain);
+    popGain.connect(this.context.destination);
+    pop.start(now + 0.4);
+    pop.stop(now + 0.5);
+  }
+
   playEmote() {
     if (!this.enabled) return;
     this.initContext();
@@ -316,6 +368,176 @@ class AudioService {
     gain.connect(this.context.destination);
     osc.start();
     osc.stop(now + 0.12);
+  }
+
+  playSqueakyToy() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+    
+    const now = this.context.currentTime;
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    
+    // Squeaky toy sound - high frequency that drops
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(200, now + 0.3);
+    
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.2, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    
+    osc.connect(gain);
+    gain.connect(this.context.destination);
+    osc.start(now);
+    osc.stop(now + 0.3);
+  }
+
+  playAchievement() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+
+    const now = this.context.currentTime;
+    
+    // Achievement sound - triumphant fanfare
+    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98, 1975.53];
+    
+    notes.forEach((freq, i) => {
+      const osc = this.context!.createOscillator();
+      const gain = this.context!.createGain();
+      
+      osc.type = i < 4 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, now + i * 0.1);
+      
+      const volume = 0.15 - (i * 0.015);
+      gain.gain.setValueAtTime(0, now + i * 0.1);
+      gain.gain.linearRampToValueAtTime(volume, now + i * 0.1 + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.1 + 0.6);
+      
+      osc.connect(gain);
+      gain.connect(this.context!.destination);
+      osc.start(now + i * 0.1);
+      osc.stop(now + i * 0.1 + 0.6);
+    });
+
+    // Add a satisfying "ding" at the end
+    const ding = this.context.createOscillator();
+    const dingGain = this.context.createGain();
+    
+    ding.type = 'sine';
+    ding.frequency.setValueAtTime(800, now + 0.7);
+    ding.frequency.exponentialRampToValueAtTime(1200, now + 0.8);
+    
+    dingGain.gain.setValueAtTime(0, now + 0.7);
+    dingGain.gain.linearRampToValueAtTime(0.2, now + 0.72);
+    dingGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+    
+    ding.connect(dingGain);
+    dingGain.connect(this.context.destination);
+    ding.start(now + 0.7);
+    ding.stop(now + 0.8);
+  }
+
+  playTicking() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+
+    const now = this.context.currentTime;
+    
+    // Ticking clock sound - short, sharp click
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.05);
+    
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1000, now);
+    filter.Q.setValueAtTime(5, now);
+    
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.08, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+    
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.context.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
+
+  playCoinClink() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+
+    const now = this.context.currentTime;
+    
+    // Coin clinking sound - metallic chime
+    const coins = [880, 1108.73, 1318.51]; // A5, C#6, E6
+    
+    coins.forEach((freq, i) => {
+      const osc = this.context!.createOscillator();
+      const gain = this.context!.createGain();
+      const filter = this.context!.createBiquadFilter();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + i * 0.05);
+      
+      // Metallic filter
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(freq, now + i * 0.05);
+      filter.Q.setValueAtTime(10, now + i * 0.05);
+      
+      gain.gain.setValueAtTime(0, now + i * 0.05);
+      gain.gain.linearRampToValueAtTime(0.12, now + i * 0.05 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.05 + 0.3);
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.context!.destination);
+      osc.start(now + i * 0.05);
+      osc.stop(now + i * 0.05 + 0.3);
+    });
+  }
+
+  playXpRising() {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.context) return;
+
+    const now = this.context.currentTime;
+    
+    // Rising whistle sound for XP
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.4);
+    
+    // Whistle-like filter
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(400, now);
+    filter.frequency.exponentialRampToValueAtTime(1200, now + 0.4);
+    filter.Q.setValueAtTime(15, now);
+    
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
+    gain.gain.linearRampToValueAtTime(0.1, now + 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+    
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.context.destination);
+    osc.start(now);
+    osc.stop(now + 0.4);
   }
 }
 

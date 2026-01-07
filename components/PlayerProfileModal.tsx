@@ -12,6 +12,8 @@ interface PlayerProfileModalProps {
   currentUserId: string;
   onClose: () => void;
   onRefreshProfile?: () => void;
+  isMuted?: boolean;
+  onToggleMute?: (playerId: string) => void;
 }
 
 export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
@@ -20,7 +22,9 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   playerAvatar,
   currentUserId,
   onClose,
-  onRefreshProfile
+  onRefreshProfile,
+  isMuted = false,
+  onToggleMute
 }) => {
   const [playerProfile, setPlayerProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -201,6 +205,36 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
             {isFriend && (
               <div className="w-full py-3 px-6 bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-bold rounded-xl text-center">
                 ✓ Friends
+              </div>
+            )}
+
+            {/* Mute/Unmute Button */}
+            {onToggleMute && playerId !== currentUserId && playerId !== 'guest' && (
+              <button
+                onClick={() => onToggleMute(playerId)}
+                className={`w-full py-3 px-6 font-bold rounded-xl transition-all duration-300 shadow-lg mt-3 flex items-center justify-center gap-2 ${
+                  isMuted
+                    ? 'bg-red-600/90 hover:bg-red-700 text-white border-2 border-red-500/50 hover:shadow-red-500/50'
+                    : 'bg-white/10 hover:bg-white/20 text-white/90 border-2 border-white/20 hover:border-white/30'
+                }`}
+              >
+                {isMuted ? (
+                  <>
+                    <span className="text-lg">🔇</span>
+                    <span>Unmute Player</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Mute Player</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {isMuted && (
+              <div className="w-full py-2 px-6 bg-red-600/20 border border-red-500/30 text-red-300 text-sm font-semibold rounded-xl text-center mt-2 flex items-center justify-center gap-2">
+                <span>🔇</span>
+                <span>This player is muted</span>
               </div>
             )}
 

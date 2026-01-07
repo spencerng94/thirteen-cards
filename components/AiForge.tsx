@@ -40,8 +40,17 @@ export const AiForge: React.FC = () => {
     setGeneratedImageUrl(null);
 
     try {
+      /* Get API key from aistudio global object or environment variable */
+      // In Vite, environment variables must be prefixed with VITE_ to be exposed to client
+      // However, since we're using aistudio.hasSelectedApiKey(), the key should come from the aistudio context
+      const apiKey = (window as any).aistudio?.getApiKey?.() || import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
+      
+      if (!apiKey) {
+        throw new Error("API key not found. Please configure your API key.");
+      }
+      
       /* Create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key */
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-image-preview',
         contents: {
