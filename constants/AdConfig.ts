@@ -12,6 +12,10 @@
 // 🔧 TO GO LIVE: Change this to true when ready to use production ads
 export const IS_PRODUCTION = false;
 
+// Enable mock mode for development (bypasses actual ad SDK, instantly rewards)
+// Set to true to test Supabase logic without waiting for ads
+export const ENABLE_MOCK_ADS = import.meta.env.DEV && import.meta.env.VITE_MOCK_ADS === 'true';
+
 // Google Test Ad Unit ID for Rewarded Video Ads (Google's official test ad)
 export const TEST_REWARDED_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { InventoryGrid } from './InventoryGrid';
 import { BoardSurface } from './UserHub';
-import { processGemTransaction } from '../services/supabase';
+import { claimAdRewardGems } from '../services/supabase';
 import { adService, AdPlacement } from '../services/adService';
 import { audioService } from '../services/audio';
 import { CurrencyIcon } from './Store';
@@ -42,9 +42,9 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
       await adService.showRewardedAd(placement, async (amount) => {
         // SECURITY: This callback is ONLY triggered AFTER AdMob's onUserEarnedReward event fires
         // This ensures server-side verification - we never award gems without AdMob confirming the reward
-        // Call process_gem_transaction with source 'ad_reward'
-        const result = await processGemTransaction(profile.id, 20, 'ad_reward');
-        if (result.success) {
+        // Call secure RPC function that uses auth.uid() server-side to prevent spoofing
+        const result = await claimAdRewardGems();
+        if (result.success && result.newGemBalance !== undefined) {
           audioService.playPurchase();
           setShowGemRain(true);
           setToastMessage('Boba secured! +20 Gems');
@@ -52,7 +52,12 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
           setShowToast(true);
           onRefresh();
         } else {
-          setToastMessage(result.error || 'Failed to process reward');
+          // Handle cooldown or other errors
+          if (result.error === 'Cooldown active' && result.cooldownRemaining) {
+            setToastMessage(`Please wait ${result.cooldownRemaining}s before claiming again`);
+          } else {
+            setToastMessage(result.error || 'Failed to process reward');
+          }
           setToastType('error');
           setShowToast(true);
         }

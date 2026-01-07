@@ -132,12 +132,17 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
         console.log(`💰 Premium pricing for "${emoteName}" (${triggerCode}): ${finalPrice} gems`);
       }
       
+      // Normalize fallback emoji - ensure it's a valid string
+      // The database migration will normalize old Apple emoji characters
+      // This is just a safety check to ensure we always have a valid fallback
+      const fallbackEmoji = (e.fallback_emoji || '👤').trim() || '👤';
+      
       return {
         id: e.id,
         name: emoteName,
         file_path: e.file_path,
         trigger_code: e.shortcode || e.trigger_code || '', // Map shortcode to trigger_code
-        fallback_emoji: e.fallback_emoji || '👤',
+        fallback_emoji: fallbackEmoji,
         price: finalPrice
       };
     });
@@ -200,6 +205,7 @@ const getDefaultProfile = async (id: string, avatar: string = ':cool:', baseUser
   return {
     id, username, wins: 0, games_played: 0, currency: 500, coins: 500, gems: 0, xp: 0, level: 1,
     unlocked_sleeves: ['RED', 'BLUE'], unlocked_avatars: [...DEFAULT_AVATARS.filter(a => a !== ':smile:')], unlocked_boards: ['EMERALD'],
+    unlocked_phrases: getDefaultChatPresetIds(), // Initialize with default quick chats
     avatar_url: avatar, sfx_enabled: true, turbo_enabled: true, sleeve_effects_enabled: true,
     play_animations_enabled: true, turn_timer_setting: 0, undo_count: 0, finish_dist: [0, 0, 0, 0],
     total_chops: 0, total_cards_left_sum: 0, current_streak: 0, longest_streak: 0,
@@ -222,6 +228,7 @@ export const fetchGuestProfile = (): UserProfile => {
     return {
       id: 'guest', username, wins: 0, games_played: 0, currency: 500, coins: 500, gems: 0, xp: 0, level: 1,
       unlocked_sleeves: ['RED', 'BLUE'], unlocked_avatars: [...DEFAULT_AVATARS.filter(a => a !== ':smile:')], unlocked_boards: ['EMERALD'],
+      unlocked_phrases: getDefaultChatPresetIds(), // Initialize with default quick chats
       avatar_url: ':cool:', sfx_enabled: true, turbo_enabled: true, sleeve_effects_enabled: true,
       play_animations_enabled: true, turn_timer_setting: 0, undo_count: 0, finish_dist: [0, 0, 0, 0],
       total_chops: 0, total_cards_left_sum: 0, current_streak: 0, longest_streak: 0,
@@ -238,6 +245,22 @@ export const fetchGuestProfile = (): UserProfile => {
   const profile = { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
   if (!profile.inventory || !profile.inventory.items || Object.keys(profile.inventory.items).length === 0) {
     profile.inventory = { items: { XP_2X_10M: 1, GOLD_2X_10M: 1 }, active_boosters: profile.inventory?.active_boosters || {} };
+  }
+  
+  // Ensure unlocked_phrases exists and includes default quick chats for legacy guest accounts
+  if (!profile.unlocked_phrases || profile.unlocked_phrases.length === 0) {
+    profile.unlocked_phrases = getDefaultChatPresetIds();
+    // Save the updated profile back to localStorage
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(profile));
+  } else {
+    // Merge default IDs with existing ones (avoid duplicates)
+    const defaultIds = getDefaultChatPresetIds();
+    const existingIds = new Set(profile.unlocked_phrases);
+    const missingDefaults = defaultIds.filter(id => !existingIds.has(id));
+    if (missingDefaults.length > 0) {
+      profile.unlocked_phrases = [...profile.unlocked_phrases, ...missingDefaults];
+      localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(profile));
+    }
   }
   
   return profile;
@@ -260,6 +283,30 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
         console.warn('Failed to sync legacy user level:', err)
       );
     }
+    
+    // Ensure unlocked_phrases exists and includes default quick chats for legacy accounts
+    const defaultIds = getDefaultChatPresetIds();
+    if (!profile.unlocked_phrases || profile.unlocked_phrases.length === 0) {
+      // Legacy account with no unlocked phrases - initialize with defaults
+      profile.unlocked_phrases = defaultIds;
+      // Silently update in background (don't await to avoid blocking)
+      updateProfileSettings(userId, { unlocked_phrases: defaultIds }).catch(err => 
+        console.warn('Failed to initialize legacy user unlocked_phrases:', err)
+      );
+    } else {
+      // Check if any default IDs are missing and add them
+      const existingIds = new Set(profile.unlocked_phrases);
+      const missingDefaults = defaultIds.filter(id => !existingIds.has(id));
+      if (missingDefaults.length > 0) {
+        const updatedPhrases = [...profile.unlocked_phrases, ...missingDefaults];
+        profile.unlocked_phrases = updatedPhrases;
+        // Silently update in background (don't await to avoid blocking)
+        updateProfileSettings(userId, { unlocked_phrases: updatedPhrases }).catch(err => 
+          console.warn('Failed to add missing default phrases to legacy user:', err)
+        );
+      }
+    }
+    
     return profile;
   }
   // New user - generate username with discriminator from Google metadata
@@ -451,7 +498,7 @@ export const activateBooster = async (userId: string, itemId: string) => {
 /**
  * Passive Revenue Service: Claim 250 Gold every 4 hours.
  */
-export const claimAdReward = async (userId: string) => {
+export const claimPassiveRevenue = async (userId: string) => {
   const profile = userId === 'guest' ? fetchGuestProfile() : await fetchProfile(userId);
   if (!profile) return { success: false, reason: 'Profile missing' };
   
@@ -473,8 +520,68 @@ export const claimAdReward = async (userId: string) => {
 };
 
 /**
+ * Securely claim ad reward (gems) using RPC function
+ * This uses auth.uid() server-side to prevent spoofing
+ * Includes 30-second cooldown to prevent botting
+ * 
+ * @returns Result with success status and new gem balance
+ */
+export const claimAdRewardGems = async (): Promise<{ success: boolean; newGemBalance?: number; error?: string; cooldownRemaining?: number }> => {
+  if (!supabaseAnonKey) {
+    // For guest users, update local storage
+    const guestProfile = fetchGuestProfile();
+    const newGems = (guestProfile.gems || 0) + 20;
+    guestProfile.gems = newGems;
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestProfile));
+    return { success: true, newGemBalance: newGems };
+  }
+
+  try {
+    // Call the secure RPC function (no parameters needed - uses auth.uid() server-side)
+    const { data, error } = await supabase.rpc('claim_ad_reward');
+
+    if (error) {
+      return { 
+        success: false, 
+        error: error.message || 'Failed to claim ad reward' 
+      };
+    }
+
+    if (!data) {
+      return { 
+        success: false, 
+        error: 'No data returned from claim_ad_reward' 
+      };
+    }
+
+    // Handle cooldown error
+    if (!data.success && data.error === 'Cooldown active') {
+      return {
+        success: false,
+        error: data.error,
+        cooldownRemaining: data.cooldown_remaining,
+        newGemBalance: data.current_balance
+      };
+    }
+
+    // Return success with new balance
+    return {
+      success: data.success || false,
+      newGemBalance: data.new_balance,
+      error: data.error
+    };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || 'Unknown error occurred' 
+    };
+  }
+};
+
+/**
  * Reward user for watching a rewarded ad
  * This function can be called as an RPC in Supabase or directly
+ * @deprecated Use claimAdReward() instead for better security
  */
 export const rewardUserForAd = async (userId: string, gemAmount: number = 20): Promise<{ success: boolean; newGemBalance?: number; error?: string }> => {
   if (!supabaseAnonKey || userId === 'guest') {
@@ -1460,6 +1567,11 @@ const DEFAULT_CHAT_PRESETS: ChatPreset[] = [
   { id: 'default-8', phrase: 'Unlucky', style: 'standard', price: 0 },
 ];
 
+// Helper function to get default chat preset IDs
+const getDefaultChatPresetIds = (): string[] => {
+  return DEFAULT_CHAT_PRESETS.map(p => p.id);
+};
+
 export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
   // Always include default presets
   const defaultPresets = [...DEFAULT_CHAT_PRESETS];
@@ -1489,12 +1601,30 @@ export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
       created_at: p.created_at
     })) as ChatPreset[];
     
-    // Combine default presets with database presets (avoid duplicates by ID)
-    const presetMap = new Map<string, ChatPreset>();
-    defaultPresets.forEach(p => presetMap.set(p.id, p));
-    dbPresets.forEach(p => presetMap.set(p.id, p));
+    // Combine default presets with database presets
+    // Deduplicate by phrase text (case-insensitive) to avoid duplicate phrases
+    const seenPhrases = new Set<string>();
+    const uniquePresets: ChatPreset[] = [];
     
-    return Array.from(presetMap.values());
+    // First, add default presets (they take priority)
+    defaultPresets.forEach(p => {
+      const phraseKey = p.phrase.toLowerCase().trim();
+      if (!seenPhrases.has(phraseKey)) {
+        seenPhrases.add(phraseKey);
+        uniquePresets.push(p);
+      }
+    });
+    
+    // Then, add database presets (skip if phrase already exists)
+    dbPresets.forEach(p => {
+      const phraseKey = p.phrase.toLowerCase().trim();
+      if (!seenPhrases.has(phraseKey)) {
+        seenPhrases.add(phraseKey);
+        uniquePresets.push(p);
+      }
+    });
+    
+    return uniquePresets;
   } catch (e) {
     console.error('Exception fetching chat presets:', e);
     return defaultPresets;

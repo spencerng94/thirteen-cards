@@ -340,7 +340,12 @@ const App: React.FC = () => {
       if (state.status === GameStatus.PLAYING) {
         setView('GAME_TABLE');
       } else if (state.status === GameStatus.FINISHED) {
-        if (prevStatus === GameStatus.PLAYING || view === 'GAME_TABLE') {
+        // Check if we were just playing or already on game table
+        // Also prevent duplicate processing if we already processed this finished state
+        const alreadyProcessed = prevStatus === GameStatus.FINISHED;
+        const shouldShowVictory = (prevStatus === GameStatus.PLAYING || view === 'GAME_TABLE' || prevStatus === null || prevStatus === undefined) && !alreadyProcessed;
+        
+        if (shouldShowVictory) {
           const myRank = state.players.find(p => p.id === myPersistentId)?.finishedRank || 4;
           // Extract speed bonuses
           const mySpeedBonus = state.speedBonuses?.[myPersistentId] || { gold: 0, xp: 0 };
@@ -366,8 +371,18 @@ const App: React.FC = () => {
             event_stats: result.updatedStats || prev.event_stats
           } : null);
 
-          if (view === 'GAME_TABLE') triggerMatchEndTransition();
-          else setView('VICTORY');
+          // Always show victory screen when game finishes
+          if (view === 'GAME_TABLE') {
+            triggerMatchEndTransition();
+          } else {
+            // If not on GAME_TABLE, go directly to victory screen
+            setView('VICTORY');
+          }
+        } else if (view !== 'VICTORY' && !alreadyProcessed) {
+          // Fallback: If game is finished but we're not on victory screen, show it
+          // This handles edge cases where the transition check above might have failed
+          console.warn('Game finished but victory screen not shown - forcing transition', { prevStatus, view, alreadyProcessed, status: state.status });
+          setView('VICTORY');
         }
       } else if (state.status === GameStatus.LOBBY) {
         setView('LOBBY');

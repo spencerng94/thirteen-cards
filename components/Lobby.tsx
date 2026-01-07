@@ -107,15 +107,15 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(`${playerName.toUpperCase()}'S MATCH`);
   const [isPublic, setIsPublic] = useState(true);
-  // For public rooms, default to 30s. For private, use setting or default to 30s
-  const [localTurnTimer, setLocalTurnTimer] = useState(isPublic ? 30 : turnTimerSetting || 30);
+  // For public rooms, default to 30s. For private, use setting or default to 30s (0 means no timer)
+  const [localTurnTimer, setLocalTurnTimer] = useState(isPublic ? 30 : (turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30));
   
   // Update timer when isPublic changes
   useEffect(() => {
     if (isPublic) {
       setLocalTurnTimer(30); // Public rooms always 30s
     } else {
-      setLocalTurnTimer(turnTimerSetting || 30);
+      setLocalTurnTimer(turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30);
     }
   }, [isPublic, turnTimerSetting]);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -426,15 +426,15 @@ export const Lobby: React.FC<LobbyProps> = ({
                                         <span className="text-sm font-black text-white uppercase tracking-wider">Turn Timer</span>
                                         <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Time per move before auto-pass</span>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner">
-                                        {[15, 30, 60].map(val => (
+                                    <div className="grid grid-cols-4 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner">
+                                        {[0, 15, 30, 60].map(val => (
                                             <button 
                                                 key={val} 
                                                 onClick={() => setLocalTurnTimer(val)}
                                                 disabled={isPublic} // Disable for public rooms (always 30s)
                                                 className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'} ${isPublic && val !== 30 ? 'opacity-40 cursor-not-allowed' : ''}`}
                                             >
-                                                {`${val}S`}
+                                                {val === 0 ? 'OFF' : `${val}S`}
                                             </button>
                                         ))}
                                     </div>

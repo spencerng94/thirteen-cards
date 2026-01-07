@@ -625,6 +625,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     const cards = myHand.filter((c) => selectedCardIds.has(c.id)); 
     const res = validateMove(cards, playPile, !!gameState.isFirstTurnOfGame, myHand);
     if (res.isValid) { 
+      audioService.playPlay();
       onPlayCards(cards); 
     } 
   }, [selectedCardIds, isMyTurn, myHand, playPile, gameState.isFirstTurnOfGame, onPlayCards]);
@@ -632,7 +633,10 @@ export const GameTable: React.FC<GameTableProps> = ({
   const handleDynamicAction = useCallback(() => {
     if (!isMyTurn) return;
     if (selectedCardIds.size === 0) {
-      if (!isLeader) onPassTurn();
+      if (!isLeader) {
+        audioService.playPass();
+        onPassTurn();
+      }
     } else {
       setSelectedCardIds(new Set());
     }
@@ -826,6 +830,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           onSelectPhrase={handleSelectChatPhrase}
           presets={chatPresets}
           unlockedBundles={[]} // TODO: Extract from profile when bundle system is implemented
+          unlockedPhrases={profile?.unlocked_phrases || []}
           lastUsedAt={lastChatSentAt.current}
         />
       )}

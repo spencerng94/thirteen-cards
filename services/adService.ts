@@ -3,7 +3,7 @@
  * Follows best practices: pre-loading, reloading, and secure reward handling
  */
 
-import { REWARDED_AD_UNIT_ID, ADMOB_APP_ID } from '../constants/AdConfig';
+import { REWARDED_AD_UNIT_ID, ADMOB_APP_ID, ENABLE_MOCK_ADS } from '../constants/AdConfig';
 
 export type AdPlacement = 'inventory' | 'shop' | 'victory';
 
@@ -116,6 +116,14 @@ export class AdService {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
+
+    // Mock mode: Skip SDK initialization for fast development testing
+    if (ENABLE_MOCK_ADS) {
+      console.log('🎭 Mock Ad Mode Enabled - Ads will instantly reward for testing');
+      this.isInitialized = true;
+      this.isAdLoaded = true;
+      return;
+    }
 
     try {
       // Load Google Mobile Ads SDK script if not already loaded
@@ -269,6 +277,13 @@ export class AdService {
     this.setState('loading', 'shop'); // Use 'shop' as default for loading state
 
     try {
+      // Mock mode: Instantly "load" the ad
+      if (ENABLE_MOCK_ADS) {
+        this.isAdLoaded = true;
+        this.setState('idle', 'shop');
+        return;
+      }
+
       if (this.rewardedAd) {
         await this.rewardedAd.load();
         this.isAdLoaded = true;
@@ -329,6 +344,21 @@ export class AdService {
     this.setState('playing', placement);
 
     try {
+      // Mock mode: Instantly reward (no 30-second wait)
+      if (ENABLE_MOCK_ADS) {
+        // Simulate instant ad completion
+        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UI feedback
+        // Simulate reward callback (this is the secure path - only called after "ad" completes)
+        if (this.onUserEarnedRewardCallback) {
+          this.onUserEarnedRewardCallback({ amount: this.getRewardAmount(placement), type: 'gems' });
+        }
+        // Simulate ad closed
+        if (this.onAdClosedCallback) {
+          this.onAdClosedCallback();
+        }
+        return true;
+      }
+
       if (this.rewardedAd) {
         await this.rewardedAd.show();
       } else {

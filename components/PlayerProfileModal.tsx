@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, Emote } from '../types';
-import { fetchProfile, addFriend, getFriends, calculateLevel } from '../services/supabase';
+import { fetchProfile, addFriend, getFriends, calculateLevel, fetchEmotes } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 import { getAvatarName } from '../services/supabase';
 
@@ -41,24 +41,46 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
       }
 
       setLoading(true);
+      setError(null);
+      setPlayerProfile(null);
+      
       try {
         // Fetch remote emotes
         const emotes = await fetchEmotes();
         setRemoteEmotes(emotes || []);
 
         // Fetch player profile
-        const profile = await fetchProfile(playerId);
-        setPlayerProfile(profile);
-
-        // Check if already friends
+        // fetchProfile returns null if profile doesn't exist (not an error)
+        const profile = await fetchProfile(playerId, undefined, undefined);
+        
         if (profile) {
-          const friends = await getFriends(currentUserId);
-          const friendIds = friends.map(f => f.friend_id);
-          setIsFriend(friendIds.includes(playerId));
+          setPlayerProfile(profile);
+          // Check if already friends
+          try {
+            const friends = await getFriends(currentUserId);
+            const friendIds = friends.map(f => f.friend_id);
+            setIsFriend(friendIds.includes(playerId));
+          } catch (friendError) {
+            console.warn('Error checking friends list:', friendError);
+            // Don't set error for friend check failure - it's not critical
+          }
+        } else {
+          // Profile doesn't exist - this is normal for bots or new players
+          // Set a more helpful error message
+          setError('Profile not found. This player may not have a profile yet.');
+          setPlayerProfile(null);
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('Error loading player profile:', e);
-        setError('Failed to load profile');
+        // Provide more specific error messages
+        if (e?.message) {
+          setError(`Failed to load profile: ${e.message}`);
+        } else if (e?.error?.message) {
+          setError(`Failed to load profile: ${e.error.message}`);
+        } else {
+          setError('Failed to load profile. Please try again.');
+        }
+        setPlayerProfile(null);
       } finally {
         setLoading(false);
       }
