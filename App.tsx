@@ -291,7 +291,7 @@ const AppContent: React.FC = () => {
     authStatusRef.current = { hasSession, authChecked };
   }, [hasSession, authChecked]);
 
-  // STORAGE-FIRST CHECK: Check localStorage for auth token immediately and create mock session
+  // STORAGE-FIRST CHECK: Check localStorage for auth token and try to get real session first
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
     
@@ -302,36 +302,55 @@ const AppContent: React.FC = () => {
       try {
         const parsed = JSON.parse(storedToken);
         if (parsed?.currentSession?.access_token) {
-          console.log('App: STORAGE-FIRST - Found auth token in localStorage, creating mock session');
+          console.log('App: STORAGE-FIRST - Found auth token in localStorage, trying to get real session first...');
           
-          // Trust the Storage: Set all flags immediately
-          setHasSession(true);
-          setAuthChecked(true);
-          setIsGuest(false);
-          setIsProcessingOAuth(false);
-          
-          // Mock the Session: Create a mock session object from localStorage data
-          const mockSession = {
-            access_token: parsed.currentSession.access_token,
-            refresh_token: parsed.currentSession.refresh_token || '',
-            expires_in: parsed.currentSession.expires_in || 3600,
-            expires_at: parsed.currentSession.expires_at || parsed.expires_at,
-            token_type: parsed.currentSession.token_type || 'bearer',
-            user: parsed.currentSession.user || {
-              id: 'pending',
-              email: null,
-              user_metadata: {}
+          // Try to get real session from Supabase first (with retries)
+          const tryGetRealSession = async () => {
+            for (let retry = 0; retry < 5; retry++) {
+              const { data, error } = await supabase.auth.getSession();
+              if (data?.session && data.session.user?.id && data.session.user.id !== 'pending') {
+                console.log(`App: STORAGE-FIRST - Real session found on retry ${retry + 1}`);
+                setSession(data.session);
+                setHasSession(true);
+                setAuthChecked(true);
+                setIsGuest(false);
+                setIsProcessingOAuth(false);
+                return true;
+              }
+              if (retry < 4) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+              }
             }
+            return false;
           };
           
-          console.log('App: STORAGE-FIRST - Setting mock session to allow UI to render');
-          setSession(mockSession);
-          
-          // Let Supabase catch up in the background
-          supabase.auth.getSession().then(({ data }) => {
-            if (data?.session && data.session.user?.id !== 'pending') {
-              console.log('App: STORAGE-FIRST - Real session loaded, replacing mock');
-              setSession(data.session);
+          tryGetRealSession().then((hasRealSession) => {
+            if (hasRealSession) {
+              // Real session found - profile loading will be triggered by useEffect
+              console.log('App: STORAGE-FIRST - Real session set, profile will load automatically');
+            } else {
+              // Only create mock session if we can't get a real one
+              // But check if we have user data in the stored token
+              if (parsed.currentSession.user && parsed.currentSession.user.id && parsed.currentSession.user.id !== 'pending') {
+                console.log('App: STORAGE-FIRST - Using user data from stored token');
+                const sessionWithUser = {
+                  access_token: parsed.currentSession.access_token,
+                  refresh_token: parsed.currentSession.refresh_token || '',
+                  expires_in: parsed.currentSession.expires_in || 3600,
+                  expires_at: parsed.currentSession.expires_at || parsed.expires_at,
+                  token_type: parsed.currentSession.token_type || 'bearer',
+                  user: parsed.currentSession.user
+                };
+                setSession(sessionWithUser);
+                setHasSession(true);
+                setAuthChecked(true);
+                setIsGuest(false);
+                setIsProcessingOAuth(false);
+                // Profile loading will be triggered by the useEffect that watches for session changes
+              } else {
+                console.log('App: STORAGE-FIRST - No valid user data in token, waiting for real session...');
+                // Don't set flags yet - let the normal auth flow handle it
+              }
             }
           });
         }
@@ -1516,6 +1535,17 @@ const AppContent: React.FC = () => {
     }
   }, [session, authChecked]);
   
+  // Load profile when we get a valid session but no profile yet
+  useEffect(() => {
+    if (session?.user?.id && session.user.id !== 'pending' && !profile && !isGuest && hasSession) {
+      console.log('App: Valid session found but no profile, loading profile...');
+      const userId = session.user.id;
+      supabase.from('profiles').select('id').eq('id', userId).maybeSingle().then(({ data: existingProfile }) => {
+        loadProfile(userId, !existingProfile);
+      });
+    }
+  }, [session, profile, isGuest, hasSession]);
+  
   // EMERGENCY BYPASS: If authChecked is still false after 5 seconds, force it to true and default to guest
   useEffect(() => {
     const emergencyTimeout = setTimeout(() => {
@@ -1555,10 +1585,23 @@ const AppContent: React.FC = () => {
   }
   
   // Only show auth screen if we're sure there's no session AND not a guest AND not hasSession
-  // Silence Step 28b: If we have hasSession=true, trust it and let Supabase catch up in background
-  if (!session && !isGuest && !hasSession) {
-    console.log('App: Step 28 - No session and not guest, showing auth screen');
+  // But also check if session has a valid user ID (not 'pending')
+  const hasValidSession = session && session.user && session.user.id && session.user.id !== 'pending';
+  
+  if (!hasValidSession && !isGuest && !hasSession) {
+    console.log('App: Step 28 - No valid session and not guest, showing auth screen');
     return <AuthScreen onPlayAsGuest={() => setIsGuest(true)} />;
+  }
+  
+  // If we have hasSession but invalid session, wait for real session or show loading
+  if (hasSession && !hasValidSession && !isGuest) {
+    console.log('App: Step 28c - hasSession true but invalid session, waiting for real session...');
+    return (
+      <LoadingScreen
+        status={loadingStatus || 'Loading profile...'}
+        showGuestButton={false}
+      />
+    );
   }
   
   console.log('App: Step 29 - Rendering main app content');
