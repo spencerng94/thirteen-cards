@@ -473,10 +473,6 @@ const AppContent: React.FC = () => {
           manualRecoveryInProgressRef.current = false;
           localStorage.removeItem('thirteen_manual_recovery');
           setIsProcessingOAuth(false);
-        } else {
-          manualRecoveryInProgressRef.current = false;
-          localStorage.removeItem('thirteen_manual_recovery');
-          setIsProcessingOAuth(false);
         }
       } catch (error) {
         console.error('MANUAL RECOVERY: Error parsing hash:', error);
