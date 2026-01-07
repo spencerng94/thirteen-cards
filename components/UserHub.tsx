@@ -4166,6 +4166,11 @@ export const UserHub: React.FC<UserHubProps> = ({
                 <div className="flex-1 overflow-y-auto p-6 sm:p-8 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                     {activeTab === 'PROFILE' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {/* PLAYER PROFILE Header */}
+                            <div className="mb-4">
+                                <h2 className="text-lg sm:text-xl font-black text-white uppercase tracking-wider">Player Profile</h2>
+                            </div>
+                            
                             {/* Premium Profile Header */}
                             <div className="relative">
                                 {/* Background gradient effect */}
@@ -4176,9 +4181,9 @@ export const UserHub: React.FC<UserHubProps> = ({
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-yellow-500/10 to-transparent rounded-full blur-3xl"></div>
                                     <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-emerald-500/10 to-transparent rounded-full blur-2xl"></div>
                                     
-                                    <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                                    <div className="relative flex flex-col items-center gap-6">
                                         {/* Clickable Avatar */}
-                            <button 
+                                        <button 
                                             onClick={() => setShowEmotePicker(true)}
                                             className="relative group shrink-0"
                                         >
@@ -4186,15 +4191,10 @@ export const UserHub: React.FC<UserHubProps> = ({
                                             <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-white/[0.12] to-white/[0.06] backdrop-blur-2xl border-2 border-white/20 flex items-center justify-center overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)] group-hover:scale-105 group-hover:border-yellow-500/40 group-hover:shadow-[0_12px_40px_rgba(234,179,8,0.3)] transition-all duration-300">
                                                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent"></div>
                                                 <VisualEmote 
-                                                trigger={playerAvatar} 
-                                                remoteEmotes={remoteEmotes} 
-                                                size="xl" 
-                                            />
-                                            {/* Debug: Log avatar trigger */}
-                                            {console.log(`🖼️ UserHub: Rendering avatar with trigger: "${playerAvatar}"`, {
-                                                hasRemoteEmote: remoteEmotes.some(e => e.trigger_code === playerAvatar),
-                                                remoteEmote: remoteEmotes.find(e => e.trigger_code === playerAvatar)
-                                            })}
+                                                    trigger={playerAvatar} 
+                                                    remoteEmotes={remoteEmotes} 
+                                                    size="xl" 
+                                                />
                                             </div>
                                             {/* Edit indicator */}
                                             <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full border-2 border-black/20 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -4203,13 +4203,13 @@ export const UserHub: React.FC<UserHubProps> = ({
                                                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                                 </svg>
                                             </div>
-                            </button>
+                                        </button>
                                         
-                                        {/* User Info - Consolidated with Progress Bar on Right */}
-                                        <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+                                        {/* User Info - Centered */}
+                                        <div className="w-full flex flex-col items-center gap-4">
                                             {/* Name and Level */}
-                                            <div className="flex-1 text-center sm:text-left">
-                                                <div className="flex items-center gap-3 mb-2 justify-center sm:justify-start flex-wrap">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="flex items-center justify-center">
                                                     {profile && !isGuest && profile.username ? (
                                                         <div className="flex items-center gap-2">
                                                             <CopyUsername 
@@ -4218,7 +4218,7 @@ export const UserHub: React.FC<UserHubProps> = ({
                                                             />
                                                         </div>
                                                     ) : (
-                                                        <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                                                        <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight text-center">
                                                             {playerName}
                                                         </h2>
                                                     )}
@@ -4228,9 +4228,9 @@ export const UserHub: React.FC<UserHubProps> = ({
                                                 </div>
                                             </div>
                                             
-                                            {/* XP Progress Bar - Right Side */}
-                                            <div className="w-full sm:w-auto sm:flex-1 space-y-1.5 min-w-[200px]">
-                                                <div className="flex justify-between items-center text-xs">
+                                            {/* XP Progress Bar - Full Width */}
+                                            <div className="w-full space-y-1.5 px-2">
+                                                <div className="flex justify-center items-center text-xs">
                                                     <span className="text-white/50 font-medium">
                                                         {(() => {
                                                             const currentLevelXp = getXpForLevel(currentLevel);

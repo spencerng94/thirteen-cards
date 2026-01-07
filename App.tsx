@@ -180,6 +180,7 @@ const App: React.FC = () => {
   const aiThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitializingRef = useRef(false);
   const authListenerSetupRef = useRef(false);
+  const didInitRef = useRef(false); // Guard to ensure auth check only runs once
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -283,15 +284,32 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Initialization Guard: Use didInitRef to ensure auth check only runs exactly once
+    if (didInitRef.current) {
+      console.log('App: Auth already initialized, skipping duplicate init');
+      return;
+    }
+    
     // Prevent multiple initializations
     if (isInitializingRef.current) {
       console.log('App: Already initializing, skipping duplicate init');
       return;
     }
     
+    didInitRef.current = true;
     isInitializingRef.current = true;
     console.log('App: Step 9 - Starting auth check...');
     setLoadingStatus('Checking credentials...');
+    
+    // Timeout safety: after 6s, force authChecked to true so user can at least click 'Enter as Guest'
+    const timeoutId = setTimeout(() => {
+      if (!authChecked) {
+        console.warn('App: Auth Timeout - forcing authChecked to true after 6s');
+        setAuthChecked(true);
+        setShowGuestHint(true);
+        setLoadingStatus('You can enter as Guest.');
+      }
+    }, 6000);
     
     // Explicit session recovery: Check for session immediately
     const checkSession = async () => {
@@ -303,7 +321,7 @@ const App: React.FC = () => {
           console.log('App: Step 10b - No session found (error), forcing guest mode');
           setSession(null);
           setLoadingStatus('Network hiccup. You can enter as Guest.');
-          setAuthChecked(false);
+          setAuthChecked(true); // Force result so user can proceed
           setIsGuest(false);
           isInitializingRef.current = false;
           return;
@@ -334,7 +352,7 @@ const App: React.FC = () => {
           console.log('App: Step 18 - No session found in URL');
           setLoadingStatus('Preparing guest profile...');
           setSession(null);
-          setAuthChecked(true);
+          setAuthChecked(true); // Force result so user can proceed
           setIsGuest(true);
           console.log('App: Step 12 - No user session, will show auth screen or guest mode');
           isInitializingRef.current = false;
@@ -344,7 +362,7 @@ const App: React.FC = () => {
         console.log('App: Step 10b - No session found (catch), forcing guest mode');
         setLoadingStatus('Network hiccup. You can enter as Guest.');
         setSession(null);
-        setAuthChecked(false);
+        setAuthChecked(true); // Force result so user can proceed
         setIsGuest(false);
         isInitializingRef.current = false;
       }
@@ -352,22 +370,17 @@ const App: React.FC = () => {
     
     checkSession();
 
-    // Timeout safety: after 6s, reveal guest entry hint (do not auto-switch)
-    const hintTimeoutId = setTimeout(() => {
-      if (!authChecked && !isGuest) {
-        console.warn('App: Auth Timeout - still loading after 6s; showing guest entry hint');
-        setShowGuestHint(true);
-      }
-    }, 6000);
-
     // Set up auth state change listener only once
     if (!authListenerSetupRef.current) {
       console.log('App: Step 16 - Setting up auth state change listener...');
       authListenerSetupRef.current = true;
       
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('App: Auth Event Received:', event, session ? 'Session exists' : 'No session');
         console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
+        
         setSession(session);
+        
         if (session?.user) {
           setIsGuest(false);
           setAuthChecked(true); // Explicitly set authChecked when session is detected
@@ -382,22 +395,31 @@ const App: React.FC = () => {
           } else {
             loadProfile(session.user.id, false);
           }
-        } else if (!isGuest) {
-          setProfile(null);
-          initialSyncCompleteRef.current = false;
+        } else {
+          // Force a Result: If the event is INITIAL_SESSION and no session is found, 
+          // call setAuthChecked(true) immediately so the app doesn't hang
+          if (event === 'INITIAL_SESSION') {
+            console.log('App: INITIAL_SESSION with no session - forcing authChecked to true');
+            setAuthChecked(true);
+            setIsGuest(true);
+            setLoadingStatus('Ready to play');
+          } else if (!isGuest) {
+            setProfile(null);
+            initialSyncCompleteRef.current = false;
+          }
         }
       });
       
       return () => {
         console.log('App: Step 18 - Cleaning up auth state change listener');
-        clearTimeout(hintTimeoutId);
+        clearTimeout(timeoutId);
         subscription.unsubscribe();
         authListenerSetupRef.current = false;
         isInitializingRef.current = false;
       };
     } else {
       return () => {
-        clearTimeout(hintTimeoutId);
+        clearTimeout(timeoutId);
       };
     }
   }, []); // Empty dependency array - only run once on mount

@@ -178,7 +178,7 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
       {!imageLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/5 rounded-full border border-white/10">
           <span className={`${textClass} leading-none select-none opacity-50`}>
-            {emoteData?.fallback_emoji || EMOJI_FALLBACK[trigger] || '👤'}
+            {EMOJI_FALLBACK[trigger] || emoteData?.fallback_emoji || '👤'}
           </span>
         </div>
       )}
