@@ -901,9 +901,17 @@ const FreeGemsCard: React.FC<{
       const adShown = await adService.showRewardedAd(placement, async (amount) => {
         // Call secure RPC function that uses auth.uid() server-side
         console.log('Store: Reward callback triggered, amount:', amount);
+        console.log('Store: About to call claimAdRewardGems...');
         try {
-          const result = await claimAdRewardGems();
+          // Add timeout to prevent hanging
+          const result = await Promise.race([
+            claimAdRewardGems(),
+            new Promise<{ success: false; error: string }>((resolve) => 
+              setTimeout(() => resolve({ success: false, error: 'Request timeout after 10 seconds' }), 10000)
+            )
+          ]);
           console.log('Store: claimAdRewardGems result:', result);
+          console.log('Store: Result success:', result.success, 'Error:', result.error);
           
           if (result.success) {
           // Play success sound
@@ -911,6 +919,7 @@ const FreeGemsCard: React.FC<{
           
           // Update weekly gem total
           if (result.weeklyGems !== undefined) {
+            console.log('Store: Updating weekly gems from', previousWeeklyGems, 'to', result.weeklyGems);
             const wasUnderCap = previousWeeklyGems < 500;
             const nowAtCap = result.weeklyGems >= 500;
             
@@ -923,23 +932,30 @@ const FreeGemsCard: React.FC<{
               setToastType('success');
               setShowToast(true);
             }
+          } else {
+            console.warn('Store: No weeklyGems in result:', result);
           }
           
           // Handle reward display based on type
           if (result.rewardType === 'gems' && result.newGemBalance !== undefined) {
+            console.log('Store: Showing gem reward modal, amount:', result.rewardAmount || 20);
             setRewardAmount(result.rewardAmount || 20);
             setRewardType('gems');
             setShowSuccessModal(true);
             onGemRain();
           } else if (result.rewardType === 'coins' && result.newCoinBalance !== undefined) {
+            console.log('Store: Showing coin reward toast, amount:', result.rewardAmount || 50);
             setRewardAmount(result.rewardAmount || 50);
             setRewardType('coins');
             setToastMessage(`Gold secured! +${result.rewardAmount || 50} Coins`);
             setToastType('success');
             setShowToast(true);
+          } else {
+            console.warn('Store: No valid reward type in result:', result);
           }
           
           // Refresh profile to get updated balances
+          console.log('Store: Calling onRefresh to update profile');
           onRefresh();
           
           // Set state to rewarded
