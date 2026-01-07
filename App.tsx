@@ -402,7 +402,7 @@ const AppContent: React.FC = () => {
           (async () => {
             try {
               const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('setSession timeout after 10 seconds')), 10000);
+                setTimeout(() => reject(new Error('setSession timeout after 5 seconds')), 5000);
               });
               
               const result: any = await Promise.race([
@@ -457,11 +457,46 @@ const AppContent: React.FC = () => {
                 // Fallback to normal OAuth bypass logic will run on next render
               }
             } catch (err: any) {
-              console.error('MANUAL RECOVERY: Error setting session:', err);
+              console.error('MANUAL RECOVERY: Error setting session (timeout or error):', err);
+              
+              // Fallback: Check if Supabase automatically created a session
+              console.log('MANUAL RECOVERY: Checking if Supabase auto-created session...');
+              try {
+                const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+                if (!sessionError && sessionData?.session) {
+                  console.log('MANUAL RECOVERY: FALLBACK SUCCESS - Found auto-created session');
+                  setSession(sessionData.session);
+                  setAuthChecked(true);
+                  setHasSession(true);
+                  setIsGuest(false);
+                  setIsProcessingOAuth(false);
+                  window.history.replaceState({}, document.title, '/');
+                  
+                  const meta = sessionData.session.user?.user_metadata || {};
+                  const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+                  if (!playerName) setPlayerName(googleName.toUpperCase());
+                  
+                  transferGuestData(sessionData.session.user.id).then(() => {
+                    supabase.from('profiles').select('id').eq('id', sessionData.session.user.id).maybeSingle().then(({ data: existingProfile }) => {
+                      loadProfile(sessionData.session.user.id, !existingProfile);
+                    });
+                  });
+                  
+                  isInitializingRef.current = false;
+                } else {
+                  console.warn('MANUAL RECOVERY: No auto-created session found, clearing hash and resetting');
+                  // Clear hash and reset - user can retry
+                  window.history.replaceState({}, document.title, '/');
+                  setIsProcessingOAuth(false);
+                }
+              } catch (fallbackErr) {
+                console.error('MANUAL RECOVERY: Fallback getSession also failed:', fallbackErr);
+                window.history.replaceState({}, document.title, '/');
+                setIsProcessingOAuth(false);
+              }
+              
               manualRecoveryInProgressRef.current = false;
               localStorage.removeItem('thirteen_manual_recovery');
-              setIsProcessingOAuth(false);
-              // Fallback to normal OAuth bypass logic will run on next render
             }
           })();
           
