@@ -55,66 +55,87 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
     }
 
     try {
-      await adService.showRewardedAd(placement, async (amount) => {
+      console.log('InventoryModal: Starting to show ad, placement:', placement);
+      const adShown = await adService.showRewardedAd(placement, async (amount) => {
         // SECURITY: This callback is ONLY triggered AFTER AdMob's onUserEarnedReward event fires
         // This ensures server-side verification - we never award gems without AdMob confirming the reward
-        // Call secure RPC function that uses auth.uid() server-side to prevent spoofing
-        const result = await claimAdRewardGems();
-        if (result.success) {
-          audioService.playPurchase();
+        console.log('InventoryModal: Reward callback triggered, amount:', amount);
+        try {
+          // Call secure RPC function that uses auth.uid() server-side to prevent spoofing
+          const result = await claimAdRewardGems();
+          console.log('InventoryModal: claimAdRewardGems result:', result);
           
-          // Update weekly gem total
-          if (result.weeklyGems !== undefined) {
-            const wasUnderCap = previousWeeklyGems < 500;
-            const nowAtCap = result.weeklyGems >= 500;
+          if (result.success) {
+            audioService.playPurchase();
             
-            setWeeklyGemTotal(result.weeklyGems);
-            setIsCapReached(result.hitCap || false);
+            // Update weekly gem total
+            if (result.weeklyGems !== undefined) {
+              const wasUnderCap = previousWeeklyGems < 500;
+              const nowAtCap = result.weeklyGems >= 500;
+              
+              setWeeklyGemTotal(result.weeklyGems);
+              setIsCapReached(result.hitCap || false);
+              
+              // Show cap transition toast if user just hit the cap
+              if (wasUnderCap && nowAtCap && result.hitCap) {
+                setToastMessage('Gem Limit Reached - Earning Gold Now!');
+                setToastType('success');
+                setShowToast(true);
+              }
+            }
             
-            // Show cap transition toast if user just hit the cap
-            if (wasUnderCap && nowAtCap && result.hitCap) {
-              setToastMessage('Gem Limit Reached - Earning Gold Now!');
+            // Handle reward display based on type
+            if (result.rewardType === 'gems' && result.newGemBalance !== undefined) {
+              setShowGemRain(true);
+              setToastMessage(`Boba secured! +${result.rewardAmount || 20} Gems`);
+              setToastType('success');
+              setShowToast(true);
+            } else if (result.rewardType === 'coins' && result.newCoinBalance !== undefined) {
+              setToastMessage(`Gold secured! +${result.rewardAmount || 50} Coins`);
               setToastType('success');
               setShowToast(true);
             }
-          }
-          
-          // Handle reward display based on type
-          if (result.rewardType === 'gems' && result.newGemBalance !== undefined) {
-            setShowGemRain(true);
-            setToastMessage(`Boba secured! +${result.rewardAmount || 20} Gems`);
-            setToastType('success');
-            setShowToast(true);
-          } else if (result.rewardType === 'coins' && result.newCoinBalance !== undefined) {
-            setToastMessage(`Gold secured! +${result.rewardAmount || 50} Coins`);
-            setToastType('success');
-            setShowToast(true);
-          }
-          
-          onRefresh();
-        } else {
-          // Handle cooldown or other errors
-          if (result.error === 'Cooldown active' && result.cooldownRemaining) {
-            setToastMessage(`Please wait ${result.cooldownRemaining}s before claiming again`);
+            
+            onRefresh();
           } else {
-            setToastMessage(result.error || 'Failed to process reward');
+            // Handle cooldown or other errors
+            console.error('InventoryModal: claimAdRewardGems failed:', result.error);
+            if (result.error === 'Cooldown active' && result.cooldownRemaining) {
+              setToastMessage(`Please wait ${result.cooldownRemaining}s before claiming again`);
+            } else {
+              setToastMessage(result.error || 'Failed to process reward');
+            }
+            setToastType('error');
+            setShowToast(true);
           }
+        } catch (rewardError: any) {
+          console.error('InventoryModal: Error in reward callback:', rewardError);
+          setToastMessage('Failed to process reward. Please try again.');
           setToastType('error');
           setShowToast(true);
         }
       }, () => {
         // Early close callback - user closed ad early
+        console.log('InventoryModal: Ad closed early');
         setToastMessage('No ads available right now. Take a boba break and try again later!');
         setToastType('error');
         setShowToast(true);
       });
+      
+      console.log('InventoryModal: showRewardedAd returned:', adShown);
+      if (!adShown) {
+        console.warn('InventoryModal: Ad was not shown successfully');
+        setToastMessage('No ads available right now. Take a boba break and try again later!');
+        setToastType('error');
+        setShowToast(true);
+      }
     } catch (error: any) {
-      console.error('Ad error:', error);
+      console.error('InventoryModal: Ad error:', error);
       // Handle ad loading/showing errors
       if (error.message?.includes('failed to load') || error.message?.includes('not available')) {
         setToastMessage('No ads available right now. Take a boba break and try again later!');
       } else {
-        setToastMessage('No ads available right now. Take a boba break and try again later!');
+        setToastMessage(error.message || 'No ads available right now. Take a boba break and try again later!');
       }
       setToastType('error');
       setShowToast(true);

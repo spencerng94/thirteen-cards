@@ -80,6 +80,7 @@ export class AdService {
   private onAdFailedToShowCallback: ((error: Error) => void) | null = null;
   private rewardEarned: boolean = false;
   private isWeb: boolean = false;
+  private eventListenersSetup: boolean = false;
 
   private constructor() {
     // Detect platform immediately
@@ -364,10 +365,17 @@ export class AdService {
   /**
    * Setup event listeners for rewarded ad
    * Null Pointer Fix: All calls wrapped in null checks
+   * Prevents duplicate registrations
    */
   private setupAdEventListeners(): void {
     // Always set up callbacks first (needed for mock/simulation mode)
     this.setupRewardCallbacks();
+
+    // Prevent duplicate event listener registrations
+    if (this.eventListenersSetup) {
+      console.log('AdService: Event listeners already set up, skipping duplicate registration');
+      return;
+    }
 
     // Null Pointer Fix: Check rewardedAd exists
     if (!this.rewardedAd) {
@@ -393,6 +401,8 @@ export class AdService {
       if (this.onAdFailedToShowCallback) {
         this.rewardedAd.addEventListener('adFailedToShow', this.onAdFailedToShowCallback);
       }
+      this.eventListenersSetup = true;
+      console.log('AdService: Event listeners set up successfully');
     }
   }
 
@@ -496,10 +506,12 @@ export class AdService {
     try {
       // Mock mode: Instantly reward (no 30-second wait)
       if (ENABLE_MOCK_ADS) {
+        console.log('AdService: MOCK MODE - Simulating ad completion');
         // Simulate instant ad completion
         await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UI feedback
         // Simulate reward callback (this is the secure path - only called after "ad" completes)
         if (this.onUserEarnedRewardCallback) {
+          console.log('AdService: MOCK MODE - Triggering reward callback');
           this.onUserEarnedRewardCallback({ amount: this.getRewardAmount(placement), type: 'gems' });
         }
         // Simulate ad closed
@@ -511,12 +523,14 @@ export class AdService {
 
       // Null Pointer Fix: Check rewardedAd exists and has show method
       if (this.rewardedAd && this.rewardedAd.show && typeof this.rewardedAd.show === 'function') {
+        console.log('AdService: Attempting to show real ad');
         await this.rewardedAd.show().catch((error: any) => {
           // If show fails, fall back to simulation
-          console.warn('Ad show failed, using simulation:', error);
+          console.warn('AdService: Ad show failed, using simulation:', error);
           // Simulate reward after delay
           setTimeout(() => {
             if (this.onUserEarnedRewardCallback) {
+              console.log('AdService: SIMULATION - Triggering reward callback after show failure');
               this.onUserEarnedRewardCallback({ amount: this.getRewardAmount(placement), type: 'gems' });
             }
             if (this.onAdClosedCallback) {
@@ -526,10 +540,12 @@ export class AdService {
         });
       } else {
         // Simulation mode - wait for "ad" to complete
+        console.log('AdService: SIMULATION MODE - No rewardedAd.show() available, simulating ad');
         // In simulation, we always complete successfully for testing
         await new Promise(resolve => setTimeout(resolve, 3000));
         // Simulate reward
         if (this.onUserEarnedRewardCallback) {
+          console.log('AdService: SIMULATION - Triggering reward callback');
           this.onUserEarnedRewardCallback({ amount: this.getRewardAmount(placement), type: 'gems' });
         }
         if (this.onAdClosedCallback) {

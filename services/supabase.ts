@@ -1253,10 +1253,22 @@ export const claimAdRewardGems = async (): Promise<{
   }
 
   try {
+    // Check if we have a valid session first
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session?.user?.id) {
+      console.error('claimAdRewardGems: No valid session found');
+      return { 
+        success: false, 
+        error: 'No valid session. Please sign in again.' 
+      };
+    }
+    
+    console.log('claimAdRewardGems: Calling RPC with user ID:', sessionData.session.user.id);
     // Call the secure RPC function (no parameters needed - uses auth.uid() server-side)
     const { data, error } = await supabase.rpc('claim_ad_reward');
 
     if (error) {
+      console.error('claimAdRewardGems: RPC error:', error);
       return { 
         success: false, 
         error: error.message || 'Failed to claim ad reward' 
@@ -1264,11 +1276,14 @@ export const claimAdRewardGems = async (): Promise<{
     }
 
     if (!data) {
+      console.error('claimAdRewardGems: No data returned from RPC');
       return { 
         success: false, 
         error: 'No data returned from claim_ad_reward' 
       };
     }
+    
+    console.log('claimAdRewardGems: RPC returned data:', data);
 
     // Handle cooldown error
     if (!data.success && data.error === 'Cooldown active') {
