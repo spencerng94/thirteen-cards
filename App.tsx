@@ -367,212 +367,17 @@ const AppContent: React.FC = () => {
       return;
     }
     
+    // BYPASS STRATEGY: Let global listener handle OAuth, just set processing flag if hash exists
     const hash = window.location.hash;
     const hasAccessToken = hash.includes('access_token');
     const hasIdToken = hash.includes('id_token');
     
     if (hasAccessToken || hasIdToken) {
-      console.log('MANUAL RECOVERY: Attempting to force session from hash...');
-      console.log('App: Step 6 - Immediate hash extraction detected');
-      
-      // FIRST: Check if global handler already processed it
-      const globalSession = globalAuthState.getSession();
-      if (globalSession) {
-        console.log('MANUAL RECOVERY: Global handler already processed session, using it');
-        setSession(globalSession);
-        setAuthChecked(true);
-        setHasSession(true);
-        setIsGuest(false);
-        setIsProcessingOAuth(false);
-        window.history.replaceState({}, document.title, '/');
-        manualRecoveryInProgressRef.current = false;
-        localStorage.removeItem('thirteen_manual_recovery');
-        return;
-      }
-      
-      // Wait a bit for global handler to finish (it runs before React mount)
-      // Check again after short delay - use async IIFE to handle this properly
-      (async () => {
-        // Give global handler 2 seconds to process
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        const delayedGlobalSession = globalAuthState.getSession();
-        if (delayedGlobalSession) {
-          console.log('MANUAL RECOVERY: Global handler processed session after delay, using it');
-          setSession(delayedGlobalSession);
-          setAuthChecked(true);
-          setHasSession(true);
-          setIsGuest(false);
-          setIsProcessingOAuth(false);
-          window.history.replaceState({}, document.title, '/');
-          manualRecoveryInProgressRef.current = false;
-          localStorage.removeItem('thirteen_manual_recovery');
-          return;
-        }
-        
-        // Also check Supabase's getSession in case it was set but not in global state
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (!sessionError && sessionData?.session) {
-          console.log('MANUAL RECOVERY: Found session via getSession(), using it');
-          setSession(sessionData.session);
-          setAuthChecked(true);
-          setHasSession(true);
-          setIsGuest(false);
-          setIsProcessingOAuth(false);
-          window.history.replaceState({}, document.title, '/');
-          manualRecoveryInProgressRef.current = false;
-          localStorage.removeItem('thirteen_manual_recovery');
-          return;
-        }
-        
-        // If global handler didn't process it, try manual recovery
-        console.log('MANUAL RECOVERY: Global handler did not process, trying manual recovery...');
-        
-        // Set processing flag immediately to block UI (persist in localStorage for remounts)
-        manualRecoveryInProgressRef.current = true;
-        localStorage.setItem('thirteen_manual_recovery', 'true');
-        setIsProcessingOAuth(true);
-        setLoadingStatus('Completing sign in...');
-        
-        // Parse hash parameters manually
-        try {
-          const hashParams = new URLSearchParams(hash.substring(1));
-          const accessToken = hashParams.get('access_token');
-          const refreshToken = hashParams.get('refresh_token');
-          const idToken = hashParams.get('id_token');
-          
-          if (accessToken) {
-          console.log('MANUAL RECOVERY: Found access_token in hash, setting session manually...');
-          
-          // Manual setSession - bypasses automatic listener
-          // NOTE: Only use accessToken, not idToken (idToken is for verification, not auth)
-          console.log('MANUAL RECOVERY: Calling setSession with tokens...', {
-            hasAccessToken: !!accessToken,
-            hasRefreshToken: !!refreshToken
-          });
-          
-          // Add timeout to prevent hanging - wrap in async function for better error handling
-          (async () => {
-            try {
-              const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('setSession timeout after 5 seconds')), 5000);
-              });
-              
-              const result: any = await Promise.race([
-                supabase.auth.setSession({
-                  access_token: accessToken,
-                  refresh_token: refreshToken || ''
-                }),
-                timeoutPromise
-              ]);
-              
-              const { data, error } = result;
-              console.log('MANUAL RECOVERY: setSession response:', {
-                hasError: !!error,
-                errorMessage: error?.message,
-                hasData: !!data,
-                hasSession: !!data?.session,
-                sessionUserId: data?.session?.user?.id
-              });
-              
-              manualRecoveryInProgressRef.current = false;
-              localStorage.removeItem('thirteen_manual_recovery');
-              
-              if (!error && data?.session) {
-                console.log('MANUAL RECOVERY: SUCCESS - Session set manually from hash');
-                
-                // NUCLEAR STATE FLIP: Immediately set flags
-                setSession(data.session);
-                setAuthChecked(true);
-                setHasSession(true);
-                setIsGuest(false);
-                setIsProcessingOAuth(false);
-                
-                // Cleanup URL: Remove hash to prevent reprocessing
-                window.history.replaceState({}, document.title, '/');
-                console.log('MANUAL RECOVERY: URL hash cleaned up');
-                
-                // Process the session
-                const meta = data.session.user?.user_metadata || {};
-                const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-                if (!playerName) setPlayerName(googleName.toUpperCase());
-                
-                transferGuestData(data.session.user.id).then(() => {
-                  supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle().then(({ data: existingProfile }) => {
-                    loadProfile(data.session.user.id, !existingProfile);
-                  });
-                });
-                
-                isInitializingRef.current = false;
-              } else {
-                console.warn('MANUAL RECOVERY: setSession failed:', error);
-                setIsProcessingOAuth(false);
-                // Fallback to normal OAuth bypass logic will run on next render
-              }
-            } catch (err: any) {
-              console.error('MANUAL RECOVERY: Error setting session (timeout or error):', err);
-              
-              // Fallback: Check if Supabase automatically created a session
-              console.log('MANUAL RECOVERY: Checking if Supabase auto-created session...');
-              try {
-                const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-                if (!sessionError && sessionData?.session) {
-                  console.log('MANUAL RECOVERY: FALLBACK SUCCESS - Found auto-created session');
-                  setSession(sessionData.session);
-                  setAuthChecked(true);
-                  setHasSession(true);
-                  setIsGuest(false);
-                  setIsProcessingOAuth(false);
-                  window.history.replaceState({}, document.title, '/');
-                  
-                  const meta = sessionData.session.user?.user_metadata || {};
-                  const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-                  if (!playerName) setPlayerName(googleName.toUpperCase());
-                  
-                  transferGuestData(sessionData.session.user.id).then(() => {
-                    supabase.from('profiles').select('id').eq('id', sessionData.session.user.id).maybeSingle().then(({ data: existingProfile }) => {
-                      loadProfile(sessionData.session.user.id, !existingProfile);
-                    });
-                  });
-                  
-                  isInitializingRef.current = false;
-                } else {
-                  console.warn('MANUAL RECOVERY: No auto-created session found, clearing hash and resetting');
-                  // Clear hash and reset - user can retry
-                  window.history.replaceState({}, document.title, '/');
-                  setIsProcessingOAuth(false);
-                }
-              } catch (fallbackErr) {
-                console.error('MANUAL RECOVERY: Fallback getSession also failed:', fallbackErr);
-                window.history.replaceState({}, document.title, '/');
-                setIsProcessingOAuth(false);
-              }
-              
-              manualRecoveryInProgressRef.current = false;
-              localStorage.removeItem('thirteen_manual_recovery');
-            }
-          })();
-          
-            // Exit early - don't run fallback logic while manual recovery is processing
-            return;
-          } else {
-            // No accessToken found - reset flags and let normal flow handle it
-            console.warn('MANUAL RECOVERY: No accessToken found in hash, only idToken:', !!idToken);
-            manualRecoveryInProgressRef.current = false;
-            localStorage.removeItem('thirteen_manual_recovery');
-            setIsProcessingOAuth(false);
-          }
-        } catch (error) {
-          console.error('MANUAL RECOVERY: Error parsing hash:', error);
-          manualRecoveryInProgressRef.current = false;
-          localStorage.removeItem('thirteen_manual_recovery');
-          setIsProcessingOAuth(false);
-          // Continue to fallback logic below
-        }
-      })();
-      
-      // Exit early - don't run fallback logic while waiting for global handler
-      return;
+      console.log('App: BYPASS - OAuth hash detected, setting processing flag');
+      console.log('App: Global listener will handle setSession and verification');
+      setIsProcessingOAuth(true);
+      setLoadingStatus('Completing sign in...');
+      // Don't clear hash here - global listener will handle it after verification
     }
     
     // Check if manual recovery is in progress from previous mount
@@ -1046,6 +851,68 @@ const AppContent: React.FC = () => {
       console.log('App: Step 25 - Guest profile loaded');
     }
   }, [isGuest, session, playerName]);
+
+  // BYPASS STRATEGY: Check for SESSION VERIFIED from global listener
+  useEffect(() => {
+    // Check if global listener verified the session
+    const sessionVerified = localStorage.getItem('thirteen_session_verified') === 'true';
+    const globalSession = globalAuthState.getSession();
+    
+    if (sessionVerified && globalSession) {
+      console.log('App: BYPASS - SESSION VERIFIED detected, forcing state update');
+      
+      // State Force: Manually set flags without waiting for onAuthStateChange
+      setSession(globalSession);
+      setHasSession(true);
+      setAuthChecked(true);
+      setIsGuest(false);
+      setIsProcessingOAuth(false);
+      
+      // URL Cleanup: Clear hash only after verification
+      window.history.replaceState({}, document.title, '/');
+      console.log('App: BYPASS - Hash cleared after verification');
+      
+      // Clear the verification flag
+      localStorage.removeItem('thirteen_session_verified');
+      localStorage.removeItem('thirteen_manual_recovery');
+      manualRecoveryInProgressRef.current = false;
+      
+      // Process the session
+      const meta = globalSession.user?.user_metadata || {};
+      const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+      if (!playerName) setPlayerName(googleName.toUpperCase());
+      
+      transferGuestData(globalSession.user.id).then(() => {
+        supabase.from('profiles').select('id').eq('id', globalSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
+          loadProfile(globalSession.user.id, !existingProfile);
+        });
+      });
+      
+      isInitializingRef.current = false;
+    }
+  }, [playerName, playerAvatar]); // Only depend on these, check on every render for verification flag
+  
+  // Emergency Timeout: If isProcessingOAuth is true for more than 4 seconds, force isGuest to true
+  useEffect(() => {
+    if (!isProcessingOAuth) return;
+    
+    const emergencyTimeout = setTimeout(() => {
+      if (isProcessingOAuth) {
+        console.warn('App: EMERGENCY TIMEOUT - isProcessingOAuth stuck for 4+ seconds, forcing guest mode');
+        setIsProcessingOAuth(false);
+        setAuthChecked(true);
+        setIsGuest(true);
+        setHasSession(false);
+        // Clear any stale flags
+        localStorage.removeItem('thirteen_manual_recovery');
+        localStorage.removeItem('thirteen_session_verified');
+        // Clear hash to prevent retry loops
+        window.history.replaceState({}, document.title, '/');
+      }
+    }, 4000);
+    
+    return () => clearTimeout(emergencyTimeout);
+  }, [isProcessingOAuth]);
 
   useEffect(() => {
     const userId = session?.user?.id || (isGuest ? 'guest' : null);

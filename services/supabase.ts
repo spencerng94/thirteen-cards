@@ -197,7 +197,8 @@ const sanitizeUrl = (url: string): string => {
   }
 };
 
-// Manual Hash Parsing: Extract tokens from URL hash and set session manually
+// BYPASS STRATEGY: Manual Hash Parsing with Verification
+// Capture tokens, set session, verify immediately, log 'SESSION VERIFIED' if successful
 const parseHashAndSetSession = async (): Promise<boolean> => {
   const hash = window.location.hash;
   if (!hash) {
@@ -220,26 +221,43 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
       console.log('GLOBAL: Manual Hash Parsing - Token type:', tokenType);
       console.log('GLOBAL: Manual Hash Parsing - Expires in:', expiresIn, 'seconds');
       
-      // Use setSession to manually set the session (bypasses automatic listener)
-      const { data, error } = await supabase.auth.setSession({
+      // BYPASS STEP 1: Capture and Store - Call setSession with tokens
+      console.log('GLOBAL: BYPASS - Calling setSession with tokens...');
+      const { data: setSessionData, error: setSessionError } = await supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken || ''
       });
       
-      if (error) {
-        console.error('GLOBAL: Manual Hash Parsing - Error setting session:', error);
+      if (setSessionError) {
+        console.error('GLOBAL: BYPASS - Error setting session:', setSessionError);
         return false;
       }
       
-      if (data?.session) {
-        console.log('GLOBAL: Manual Hash Parsing SUCCESS - Session set manually');
-        globalAuthState.setSession(data.session);
+      // BYPASS STEP 2: Verification - Immediately verify with getSession
+      console.log('GLOBAL: BYPASS - Verifying session with getSession()...');
+      const { data: verifyData, error: verifyError } = await supabase.auth.getSession();
+      
+      if (verifyError) {
+        console.error('GLOBAL: BYPASS - Error verifying session:', verifyError);
+        return false;
+      }
+      
+      if (verifyData?.session) {
+        console.log('GLOBAL: BYPASS - SESSION VERIFIED');
+        console.log('SESSION VERIFIED'); // This log is checked by App.tsx
+        
+        // Store in global state
+        globalAuthState.setSession(verifyData.session);
         globalAuthState.setAuthChecked(true);
         globalAuthState.setHasSession(true);
+        
+        // Set flag in localStorage for App.tsx to detect
+        localStorage.setItem('thirteen_session_verified', 'true');
+        
         return true;
       }
       
-      console.warn('GLOBAL: Manual Hash Parsing - setSession returned no session');
+      console.warn('GLOBAL: BYPASS - Verification failed: getSession returned no session');
       return false;
     } else {
       console.log('GLOBAL: Manual Hash Parsing - No access_token in hash');
@@ -333,15 +351,15 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
     console.log('GLOBAL: Processing OAuth, preventing App restart from interrupting...');
     isProcessingAuth = true;
     
-    // MANUAL HASH PARSING: Try to parse hash and set session manually first
+    // BYPASS STRATEGY: Parse hash, set session, verify immediately
     // Wrap in async IIFE to avoid top-level await build error
     (async () => {
       const manualSuccess = await parseHashAndSetSession();
       if (manualSuccess) {
-        console.log('GLOBAL: Manual Hash Parsing SUCCESS - Session set, skipping hard recovery');
+        console.log('GLOBAL: BYPASS SUCCESS - Session verified, App.tsx will detect SESSION VERIFIED flag');
         isProcessingAuth = false;
       } else {
-        console.log('GLOBAL: Manual Hash Parsing failed, trying Hard Recovery...');
+        console.log('GLOBAL: BYPASS failed, trying Hard Recovery...');
         // HARD RECOVERY: Force session refresh immediately with retry loop
         forceSessionRecovery().then((session) => {
           if (session) {
@@ -349,6 +367,8 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
             globalAuthState.setSession(session);
             globalAuthState.setAuthChecked(true);
             globalAuthState.setHasSession(true);
+            // Also set verification flag for App.tsx
+            localStorage.setItem('thirteen_session_verified', 'true');
             isProcessingAuth = false;
           } else {
             console.warn('GLOBAL: Hard Recovery - No session recovered, will wait for onAuthStateChange');
