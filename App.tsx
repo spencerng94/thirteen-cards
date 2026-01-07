@@ -375,20 +375,73 @@ const AppContent: React.FC = () => {
       console.log('MANUAL RECOVERY: Attempting to force session from hash...');
       console.log('App: Step 6 - Immediate hash extraction detected');
       
-      // Set processing flag immediately to block UI (persist in localStorage for remounts)
-      manualRecoveryInProgressRef.current = true;
-      localStorage.setItem('thirteen_manual_recovery', 'true');
-      setIsProcessingOAuth(true);
-      setLoadingStatus('Completing sign in...');
+      // FIRST: Check if global handler already processed it
+      const globalSession = globalAuthState.getSession();
+      if (globalSession) {
+        console.log('MANUAL RECOVERY: Global handler already processed session, using it');
+        setSession(globalSession);
+        setAuthChecked(true);
+        setHasSession(true);
+        setIsGuest(false);
+        setIsProcessingOAuth(false);
+        window.history.replaceState({}, document.title, '/');
+        manualRecoveryInProgressRef.current = false;
+        localStorage.removeItem('thirteen_manual_recovery');
+        return;
+      }
       
-      // Parse hash parameters manually
-      try {
-        const hashParams = new URLSearchParams(hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
-        const idToken = hashParams.get('id_token');
+      // Wait a bit for global handler to finish (it runs before React mount)
+      // Check again after short delay - use async IIFE to handle this properly
+      (async () => {
+        // Give global handler 2 seconds to process
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
-        if (accessToken) {
+        const delayedGlobalSession = globalAuthState.getSession();
+        if (delayedGlobalSession) {
+          console.log('MANUAL RECOVERY: Global handler processed session after delay, using it');
+          setSession(delayedGlobalSession);
+          setAuthChecked(true);
+          setHasSession(true);
+          setIsGuest(false);
+          setIsProcessingOAuth(false);
+          window.history.replaceState({}, document.title, '/');
+          manualRecoveryInProgressRef.current = false;
+          localStorage.removeItem('thirteen_manual_recovery');
+          return;
+        }
+        
+        // Also check Supabase's getSession in case it was set but not in global state
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (!sessionError && sessionData?.session) {
+          console.log('MANUAL RECOVERY: Found session via getSession(), using it');
+          setSession(sessionData.session);
+          setAuthChecked(true);
+          setHasSession(true);
+          setIsGuest(false);
+          setIsProcessingOAuth(false);
+          window.history.replaceState({}, document.title, '/');
+          manualRecoveryInProgressRef.current = false;
+          localStorage.removeItem('thirteen_manual_recovery');
+          return;
+        }
+        
+        // If global handler didn't process it, try manual recovery
+        console.log('MANUAL RECOVERY: Global handler did not process, trying manual recovery...');
+        
+        // Set processing flag immediately to block UI (persist in localStorage for remounts)
+        manualRecoveryInProgressRef.current = true;
+        localStorage.setItem('thirteen_manual_recovery', 'true');
+        setIsProcessingOAuth(true);
+        setLoadingStatus('Completing sign in...');
+        
+        // Parse hash parameters manually
+        try {
+          const hashParams = new URLSearchParams(hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+          const idToken = hashParams.get('id_token');
+          
+          if (accessToken) {
           console.log('MANUAL RECOVERY: Found access_token in hash, setting session manually...');
           
           // Manual setSession - bypasses automatic listener
@@ -500,22 +553,26 @@ const AppContent: React.FC = () => {
             }
           })();
           
-          // Exit early - don't run fallback logic while manual recovery is processing
-          return;
-        } else {
-          // No accessToken found - reset flags and let normal flow handle it
-          console.warn('MANUAL RECOVERY: No accessToken found in hash, only idToken:', !!idToken);
+            // Exit early - don't run fallback logic while manual recovery is processing
+            return;
+          } else {
+            // No accessToken found - reset flags and let normal flow handle it
+            console.warn('MANUAL RECOVERY: No accessToken found in hash, only idToken:', !!idToken);
+            manualRecoveryInProgressRef.current = false;
+            localStorage.removeItem('thirteen_manual_recovery');
+            setIsProcessingOAuth(false);
+          }
+        } catch (error) {
+          console.error('MANUAL RECOVERY: Error parsing hash:', error);
           manualRecoveryInProgressRef.current = false;
           localStorage.removeItem('thirteen_manual_recovery');
           setIsProcessingOAuth(false);
+          // Continue to fallback logic below
         }
-      } catch (error) {
-        console.error('MANUAL RECOVERY: Error parsing hash:', error);
-        manualRecoveryInProgressRef.current = false;
-        localStorage.removeItem('thirteen_manual_recovery');
-        setIsProcessingOAuth(false);
-        // Continue to fallback logic below
-      }
+      })();
+      
+      // Exit early - don't run fallback logic while waiting for global handler
+      return;
     }
     
     // Check if manual recovery is in progress from previous mount
