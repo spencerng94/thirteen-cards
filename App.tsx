@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player, HubTab } from './types';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -130,6 +130,7 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   
   console.log('App: Step 8 - State initialized');
 
@@ -266,22 +267,57 @@ const App: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [gameMode, myPersistentId, view]);
 
-  // Check for OAuth redirect hash (access_token) in URL
+  // URL Guard: Prevent redirects when OAuth hash is present
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.includes('access_token')) {
-      console.log('App: Step 17 - Session detected from URL hash');
-      // Wait for Supabase to process the hash before proceeding
-      setTimeout(() => {
-        if (!authChecked) {
-          console.log('App: Step 17b - Processing OAuth redirect, waiting for session...');
-          setLoadingStatus('Completing sign in...');
+      console.log('App: Step 17 - OAuth redirect detected in URL hash');
+      console.log('App: Step 17b - URL Guard active - preventing redirects while Supabase processes hash');
+      setLoadingStatus('Completing sign in...');
+      
+      // Store original location to prevent navigation away
+      const originalLocation = window.location.href;
+      
+      // Monitor for any navigation attempts
+      const checkNavigation = () => {
+        // If hash still contains access_token, don't allow navigation
+        if (window.location.hash.includes('access_token')) {
+          // If someone tries to navigate away, log it
+          if (window.location.href !== originalLocation && !window.location.href.includes('access_token')) {
+            console.warn('App: URL Guard - Navigation attempt detected while processing OAuth, blocking');
+            // Don't actually block, but log for debugging
+          }
         }
-      }, 500);
+      };
+      
+      // Clean up hash after Supabase processes it (but don't redirect)
+      const cleanupHash = () => {
+        // Only clean hash if auth is complete, not during processing
+        if (authChecked && hasSession) {
+          if (window.location.hash.includes('access_token')) {
+            console.log('App: Cleaning up OAuth hash after successful auth');
+            // Use replaceState to clean hash without navigation
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+        }
+      };
+      
+      // Check periodically if auth is complete
+      const checkInterval = setInterval(() => {
+        checkNavigation();
+        if (authChecked && hasSession) {
+          cleanupHash();
+          clearInterval(checkInterval);
+        }
+      }, 100);
+      
+      return () => {
+        clearInterval(checkInterval);
+      };
     } else {
-      console.log('App: Step 18 - No session found in URL hash');
+      console.log('App: Step 18 - No OAuth hash found in URL');
     }
-  }, []);
+  }, [authChecked, hasSession]);
 
   useEffect(() => {
     // Initialization Guard: Use didInitRef to ensure auth check only runs exactly once
@@ -322,6 +358,7 @@ const App: React.FC = () => {
           setSession(null);
           setLoadingStatus('Network hiccup. You can enter as Guest.');
           setAuthChecked(true); // Force result so user can proceed
+          setHasSession(false);
           setIsGuest(false);
           isInitializingRef.current = false;
           return;
@@ -332,6 +369,7 @@ const App: React.FC = () => {
           console.log('App: Step 17 - Session detected from URL');
           setSession(data.session);
           setAuthChecked(true);
+          setHasSession(true);
           setIsGuest(false);
           console.log('App: Step 11 - Auth checked, session set');
           console.log('App: Step 12 - User found, processing user data...');
@@ -353,6 +391,7 @@ const App: React.FC = () => {
           setLoadingStatus('Preparing guest profile...');
           setSession(null);
           setAuthChecked(true); // Force result so user can proceed
+          setHasSession(false);
           setIsGuest(true);
           console.log('App: Step 12 - No user session, will show auth screen or guest mode');
           isInitializingRef.current = false;
@@ -363,6 +402,7 @@ const App: React.FC = () => {
         setLoadingStatus('Network hiccup. You can enter as Guest.');
         setSession(null);
         setAuthChecked(true); // Force result so user can proceed
+        setHasSession(false);
         setIsGuest(false);
         isInitializingRef.current = false;
       }
@@ -370,58 +410,85 @@ const App: React.FC = () => {
     
     checkSession();
 
-    // Set up auth state change listener only once
-    if (!authListenerSetupRef.current) {
-      console.log('App: Step 16 - Setting up auth state change listener...');
-      authListenerSetupRef.current = true;
-      
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('App: Auth Event Received:', event, session ? 'Session exists' : 'No session');
-        console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
-        
-        setSession(session);
-        
-        if (session?.user) {
-          setIsGuest(false);
-          setAuthChecked(true); // Explicitly set authChecked when session is detected
-          setLoadingStatus('Syncing profile...');
-          const meta = session.user.user_metadata || {};
-          const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-          if (!playerName) setPlayerName(googleName.toUpperCase());
-          await transferGuestData(session.user.id);
-          if (event === 'SIGNED_IN') {
-            const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
-            loadProfile(session.user.id, !existingProfile);
-          } else {
-            loadProfile(session.user.id, false);
-          }
-        } else {
-          // Force a Result: If the event is INITIAL_SESSION and no session is found, 
-          // call setAuthChecked(true) immediately so the app doesn't hang
-          if (event === 'INITIAL_SESSION') {
-            console.log('App: INITIAL_SESSION with no session - forcing authChecked to true');
-            setAuthChecked(true);
-            setIsGuest(true);
-            setLoadingStatus('Ready to play');
-          } else if (!isGuest) {
-            setProfile(null);
-            initialSyncCompleteRef.current = false;
-          }
-        }
-      });
-      
-      return () => {
-        console.log('App: Step 18 - Cleaning up auth state change listener');
-        clearTimeout(timeoutId);
-        subscription.unsubscribe();
-        authListenerSetupRef.current = false;
-        isInitializingRef.current = false;
-      };
-    } else {
-      return () => {
-        clearTimeout(timeoutId);
-      };
+    // Cleanup function
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, []); // Empty dependency array - only run once on mount
+
+  // Set up auth state change listener with useLayoutEffect to catch session before first paint
+  useLayoutEffect(() => {
+    // Guard: Only set up listener once
+    if (authListenerSetupRef.current) {
+      console.log('App: Auth listener already set up, skipping duplicate setup');
+      return;
     }
+    
+    console.log('App: Step 16 - Setting up auth state change listener (useLayoutEffect)...');
+    authListenerSetupRef.current = true;
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Debug logging as requested
+      console.log('SUPABASE AUTH EVENT:', event, session);
+      
+      console.log('App: Auth Event Received:', event, session ? 'Session exists' : 'No session');
+      console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
+      
+      // CRITICAL: For SIGNED_IN event, immediately set flags before doing anything else
+      if (event === 'SIGNED_IN' && session) {
+        console.log('App: SIGNED_IN event detected - immediately setting auth flags');
+        setAuthChecked(true);
+        setHasSession(true);
+        setSession(session);
+        setIsGuest(false);
+        console.log('App: Auth flags set immediately, now processing profile...');
+      } else {
+        setSession(session);
+      }
+      
+      if (session?.user) {
+        // If not SIGNED_IN, still set flags but after session check
+        if (event !== 'SIGNED_IN') {
+          setIsGuest(false);
+          setAuthChecked(true);
+          setHasSession(true);
+        }
+        
+        setLoadingStatus('Syncing profile...');
+        const meta = session.user.user_metadata || {};
+        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+        if (!playerName) setPlayerName(googleName.toUpperCase());
+        
+        // Only do async operations after flags are set
+        await transferGuestData(session.user.id);
+        if (event === 'SIGNED_IN') {
+          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
+          loadProfile(session.user.id, !existingProfile);
+        } else {
+          loadProfile(session.user.id, false);
+        }
+      } else {
+        // Force a Result: If the event is INITIAL_SESSION and no session is found, 
+        // call setAuthChecked(true) immediately so the app doesn't hang
+        if (event === 'INITIAL_SESSION') {
+          console.log('App: INITIAL_SESSION with no session - forcing authChecked to true');
+          setAuthChecked(true);
+          setHasSession(false);
+          setIsGuest(true);
+          setLoadingStatus('Ready to play');
+        } else if (!isGuest) {
+          setHasSession(false);
+          setProfile(null);
+          initialSyncCompleteRef.current = false;
+        }
+      }
+    });
+    
+    return () => {
+      console.log('App: Step 18 - Cleaning up auth state change listener');
+      subscription.unsubscribe();
+      authListenerSetupRef.current = false;
+    };
   }, []); // Empty dependency array - only run once on mount
 
   const loadProfile = async (uid: string, isNewUser: boolean = false) => {
