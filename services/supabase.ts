@@ -75,6 +75,134 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : createMockSupabase();
 
+// ============================================================================
+// GLOBAL AUTH LISTENER - Runs outside React lifecycle to catch OAuth redirects
+// ============================================================================
+// This listener processes auth state changes BEFORE React components mount,
+// preventing the session from being lost when the App component restarts.
+
+const GLOBAL_SESSION_KEY = 'thirteen_global_session';
+const GLOBAL_AUTH_CHECKED_KEY = 'thirteen_global_auth_checked';
+const GLOBAL_HAS_SESSION_KEY = 'thirteen_global_has_session';
+
+// Singleton flag to ensure hash is only processed once
+let isProcessingAuth = false;
+let globalAuthListenerSetup = false;
+
+// Global session storage (outside React state)
+export const globalAuthState = {
+  session: null as any,
+  authChecked: false,
+  hasSession: false,
+  getSession: () => {
+    try {
+      const stored = localStorage.getItem(GLOBAL_SESSION_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  },
+  setSession: (session: any) => {
+    globalAuthState.session = session;
+    if (session) {
+      localStorage.setItem(GLOBAL_SESSION_KEY, JSON.stringify(session));
+      localStorage.setItem(GLOBAL_HAS_SESSION_KEY, 'true');
+    } else {
+      localStorage.removeItem(GLOBAL_SESSION_KEY);
+      localStorage.removeItem(GLOBAL_HAS_SESSION_KEY);
+    }
+  },
+  setAuthChecked: (checked: boolean) => {
+    globalAuthState.authChecked = checked;
+    localStorage.setItem(GLOBAL_AUTH_CHECKED_KEY, checked ? 'true' : 'false');
+  },
+  setHasSession: (has: boolean) => {
+    globalAuthState.hasSession = has;
+    localStorage.setItem(GLOBAL_HAS_SESSION_KEY, has ? 'true' : 'false');
+  },
+  clear: () => {
+    globalAuthState.session = null;
+    globalAuthState.authChecked = false;
+    globalAuthState.hasSession = false;
+    localStorage.removeItem(GLOBAL_SESSION_KEY);
+    localStorage.removeItem(GLOBAL_AUTH_CHECKED_KEY);
+    localStorage.removeItem(GLOBAL_HAS_SESSION_KEY);
+  }
+};
+
+// Initialize from localStorage on module load
+if (typeof window !== 'undefined') {
+  const storedSession = globalAuthState.getSession();
+  if (storedSession) {
+    globalAuthState.session = storedSession;
+    globalAuthState.hasSession = true;
+    console.log('GLOBAL: Session restored from localStorage before mount');
+  }
+  globalAuthState.authChecked = localStorage.getItem(GLOBAL_AUTH_CHECKED_KEY) === 'true';
+  globalAuthState.hasSession = localStorage.getItem(GLOBAL_HAS_SESSION_KEY) === 'true';
+}
+
+// Set up global auth listener immediately (outside React)
+if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAuthListenerSetup) {
+  globalAuthListenerSetup = true;
+  
+  console.log('GLOBAL: Setting up auth listener BEFORE React mount...');
+  
+  // Check for OAuth hash immediately
+  const hash = window.location.hash;
+  if (hash.includes('access_token')) {
+    console.log('GLOBAL: OAuth redirect detected in hash BEFORE React mount');
+    console.log('GLOBAL: Processing hash, preventing App restart from interrupting...');
+    isProcessingAuth = true;
+  }
+  
+  // Set up listener that runs outside React lifecycle
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+    console.log('GLOBAL: SUPABASE AUTH EVENT (outside React):', event, session);
+    
+    // CRITICAL: Save session immediately to global state and localStorage
+    if (event === 'SIGNED_IN' && session) {
+      console.log('GLOBAL: Session caught before mount - SIGNED_IN event');
+      globalAuthState.setSession(session);
+      globalAuthState.setAuthChecked(true);
+      globalAuthState.setHasSession(true);
+      isProcessingAuth = false;
+      console.log('GLOBAL: Session saved to global state and localStorage');
+    } else if (session) {
+      // Other events with session
+      globalAuthState.setSession(session);
+      globalAuthState.setHasSession(true);
+      console.log('GLOBAL: Session updated (event:', event, ')');
+    } else if (event === 'SIGNED_OUT') {
+      globalAuthState.clear();
+      console.log('GLOBAL: Session cleared (SIGNED_OUT)');
+    } else if (event === 'INITIAL_SESSION' && !session) {
+      globalAuthState.setAuthChecked(true);
+      globalAuthState.setHasSession(false);
+      console.log('GLOBAL: INITIAL_SESSION with no session - auth checked');
+    }
+  });
+  
+  // Also check for existing session immediately
+  supabase.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
+    if (!error && data?.session) {
+      console.log('GLOBAL: Existing session found before mount');
+      globalAuthState.setSession(data.session);
+      globalAuthState.setAuthChecked(true);
+      globalAuthState.setHasSession(true);
+    } else if (!isProcessingAuth) {
+      // Only set authChecked if we're not processing OAuth
+      globalAuthState.setAuthChecked(true);
+      globalAuthState.setHasSession(false);
+    }
+  });
+  
+  // Keep subscription alive (don't unsubscribe)
+  // This ensures the listener persists even if React components unmount
+  // Store subscription in a way that prevents garbage collection
+  (window as any).__thirteen_auth_subscription = subscription;
+}
+
 // Log Supabase connection status on initialization (only in development or if there's an issue)
 if (typeof window !== 'undefined') {
   const hasKey = !!supabaseAnonKey;

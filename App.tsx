@@ -19,7 +19,7 @@ const InventoryModal = lazy(() => import('./components/InventoryModal').then(m =
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings } from './services/supabase';
+import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState } from './services/supabase';
 import { supabase as supabaseClient } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeToast } from './components/WelcomeToast';
@@ -320,6 +320,45 @@ const App: React.FC = () => {
   }, [authChecked, hasSession]);
 
   useEffect(() => {
+    // CRITICAL: Check global auth state FIRST (before any React lifecycle)
+    // This catches sessions that were processed outside React
+    const globalSession = globalAuthState.getSession();
+    if (globalSession) {
+      console.log('GLOBAL: Session caught before mount - using global session');
+      console.log('App: Step 9a - Global session found, setting state immediately');
+      setSession(globalSession);
+      setAuthChecked(globalAuthState.authChecked);
+      setHasSession(globalAuthState.hasSession);
+      setIsGuest(false);
+      setLoadingStatus('Syncing profile...');
+      
+      // Process the global session
+      const meta = globalSession.user?.user_metadata || {};
+      const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+      if (!playerName) setPlayerName(googleName.toUpperCase());
+      
+      // Load profile asynchronously
+      transferGuestData(globalSession.user.id).then(() => {
+        supabase.from('profiles').select('id').eq('id', globalSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
+          loadProfile(globalSession.user.id, !existingProfile);
+        });
+      });
+      
+      isInitializingRef.current = false;
+      return;
+    }
+    
+    // If global auth was checked but no session, use that state
+    if (globalAuthState.authChecked && !globalSession) {
+      console.log('App: Step 9b - Global auth checked, no session - using guest mode');
+      setAuthChecked(true);
+      setHasSession(false);
+      setIsGuest(true);
+      setLoadingStatus('Preparing guest profile...');
+      isInitializingRef.current = false;
+      return;
+    }
+    
     // Initialization Guard: Use didInitRef to ensure auth check only runs exactly once
     if (didInitRef.current) {
       console.log('App: Auth already initialized, skipping duplicate init');

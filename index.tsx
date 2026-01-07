@@ -38,12 +38,15 @@ try {
   const root = ReactDOM.createRoot(rootElement);
   console.log('App: Step 4 - React root created, rendering app with ErrorBoundary...');
   
+  // NOTE: React.StrictMode is temporarily disabled for OAuth testing
+  // StrictMode causes double-mounting which can interrupt OAuth redirects
+  // Re-enable after OAuth is confirmed working
   root.render(
-    <React.StrictMode>
+    // <React.StrictMode>
       <ErrorBoundary>
         <App />
       </ErrorBoundary>
-    </React.StrictMode>
+    // </React.StrictMode>
   );
   
   console.log('App: Step 5 - App rendered successfully!');
