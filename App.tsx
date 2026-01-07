@@ -388,72 +388,91 @@ const AppContent: React.FC = () => {
         const refreshToken = hashParams.get('refresh_token');
         const idToken = hashParams.get('id_token');
         
-        if (accessToken || idToken) {
-          console.log('MANUAL RECOVERY: Found tokens in hash, setting session manually...');
+        if (accessToken) {
+          console.log('MANUAL RECOVERY: Found access_token in hash, setting session manually...');
           
           // Manual setSession - bypasses automatic listener
+          // NOTE: Only use accessToken, not idToken (idToken is for verification, not auth)
           console.log('MANUAL RECOVERY: Calling setSession with tokens...', {
             hasAccessToken: !!accessToken,
-            hasIdToken: !!idToken,
             hasRefreshToken: !!refreshToken
           });
           
-          supabase.auth.setSession({
-            access_token: accessToken || idToken || '',
-            refresh_token: refreshToken || ''
-          }).then(({ data, error }) => {
-            console.log('MANUAL RECOVERY: setSession response:', {
-              hasError: !!error,
-              errorMessage: error?.message,
-              hasData: !!data,
-              hasSession: !!data?.session,
-              sessionUserId: data?.session?.user?.id
-            });
-            
-            manualRecoveryInProgressRef.current = false;
-            localStorage.removeItem('thirteen_manual_recovery');
-            
-            if (!error && data?.session) {
-              console.log('MANUAL RECOVERY: SUCCESS - Session set manually from hash');
-              
-              // NUCLEAR STATE FLIP: Immediately set flags
-              setSession(data.session);
-              setAuthChecked(true);
-              setHasSession(true);
-              setIsGuest(false);
-              setIsProcessingOAuth(false);
-              
-              // Cleanup URL: Remove hash to prevent reprocessing
-              window.history.replaceState({}, document.title, '/');
-              console.log('MANUAL RECOVERY: URL hash cleaned up');
-              
-              // Process the session
-              const meta = data.session.user?.user_metadata || {};
-              const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-              if (!playerName) setPlayerName(googleName.toUpperCase());
-              
-              transferGuestData(data.session.user.id).then(() => {
-                supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle().then(({ data: existingProfile }) => {
-                  loadProfile(data.session.user.id, !existingProfile);
-                });
+          // Add timeout to prevent hanging - wrap in async function for better error handling
+          (async () => {
+            try {
+              const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('setSession timeout after 10 seconds')), 10000);
               });
               
-              isInitializingRef.current = false;
-            } else {
-              console.warn('MANUAL RECOVERY: setSession failed:', error);
+              const result: any = await Promise.race([
+                supabase.auth.setSession({
+                  access_token: accessToken,
+                  refresh_token: refreshToken || ''
+                }),
+                timeoutPromise
+              ]);
+              
+              const { data, error } = result;
+              console.log('MANUAL RECOVERY: setSession response:', {
+                hasError: !!error,
+                errorMessage: error?.message,
+                hasData: !!data,
+                hasSession: !!data?.session,
+                sessionUserId: data?.session?.user?.id
+              });
+              
+              manualRecoveryInProgressRef.current = false;
+              localStorage.removeItem('thirteen_manual_recovery');
+              
+              if (!error && data?.session) {
+                console.log('MANUAL RECOVERY: SUCCESS - Session set manually from hash');
+                
+                // NUCLEAR STATE FLIP: Immediately set flags
+                setSession(data.session);
+                setAuthChecked(true);
+                setHasSession(true);
+                setIsGuest(false);
+                setIsProcessingOAuth(false);
+                
+                // Cleanup URL: Remove hash to prevent reprocessing
+                window.history.replaceState({}, document.title, '/');
+                console.log('MANUAL RECOVERY: URL hash cleaned up');
+                
+                // Process the session
+                const meta = data.session.user?.user_metadata || {};
+                const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+                if (!playerName) setPlayerName(googleName.toUpperCase());
+                
+                transferGuestData(data.session.user.id).then(() => {
+                  supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle().then(({ data: existingProfile }) => {
+                    loadProfile(data.session.user.id, !existingProfile);
+                  });
+                });
+                
+                isInitializingRef.current = false;
+              } else {
+                console.warn('MANUAL RECOVERY: setSession failed:', error);
+                setIsProcessingOAuth(false);
+                // Fallback to normal OAuth bypass logic will run on next render
+              }
+            } catch (err: any) {
+              console.error('MANUAL RECOVERY: Error setting session:', err);
+              manualRecoveryInProgressRef.current = false;
+              localStorage.removeItem('thirteen_manual_recovery');
               setIsProcessingOAuth(false);
               // Fallback to normal OAuth bypass logic will run on next render
             }
-          }).catch((err) => {
-            console.error('MANUAL RECOVERY: Error setting session:', err);
-            manualRecoveryInProgressRef.current = false;
-            localStorage.removeItem('thirteen_manual_recovery');
-            setIsProcessingOAuth(false);
-            // Fallback to normal OAuth bypass logic will run on next render
-          });
+          })();
           
           // Exit early - don't run fallback logic while manual recovery is processing
           return;
+        } else {
+          // No accessToken found - reset flags and let normal flow handle it
+          console.warn('MANUAL RECOVERY: No accessToken found in hash, only idToken:', !!idToken);
+          manualRecoveryInProgressRef.current = false;
+          localStorage.removeItem('thirteen_manual_recovery');
+          setIsProcessingOAuth(false);
         } else {
           manualRecoveryInProgressRef.current = false;
           localStorage.removeItem('thirteen_manual_recovery');
