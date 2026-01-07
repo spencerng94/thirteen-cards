@@ -50,11 +50,87 @@ const getRandomEmote = (): string => {
   return shuffled[Math.floor(Math.random() * shuffled.length)];
 };
 
+// Helper function to check environment variables
+const checkSupabaseEnv = (): { isValid: boolean; missing: string[] } => {
+  const getEnv = (key: string): string | undefined => {
+    try {
+      if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+        return (import.meta as any).env[key];
+      }
+    } catch (e) {}
+    try {
+      if (typeof process !== 'undefined' && process.env) {
+        return process.env[key];
+      }
+    } catch (e) {}
+    return undefined;
+  };
+
+  const supabaseUrl = getEnv('VITE_SUPABASE_URL');
+  const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
+  const missing: string[] = [];
+  
+  // Note: supabaseUrl has a fallback in supabase.ts, but we still want to warn if it's missing
+  // The critical one is the anon key
+  if (!supabaseAnonKey) {
+    missing.push('VITE_SUPABASE_ANON_KEY');
+  }
+  
+  // Warn about missing URL but don't block (has fallback)
+  if (!supabaseUrl) {
+    console.warn('App: WARNING - VITE_SUPABASE_URL is missing, using fallback URL');
+  }
+  
+  return {
+    isValid: missing.length === 0,
+    missing,
+  };
+};
+
 const App: React.FC = () => {
+  console.log('App: Step 6 - App component initializing...');
+  
+  // Check Supabase environment variables early
+  const envCheck = checkSupabaseEnv();
+  if (!envCheck.isValid) {
+    console.error('App: ERROR - Missing environment variables:', envCheck.missing);
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        backgroundColor: '#000',
+        color: '#ff4444',
+        fontFamily: 'monospace',
+        textAlign: 'center',
+      }}>
+        <h1 style={{ fontSize: '32px', marginBottom: '20px' }}>⚠️ Missing Environment Variables</h1>
+        <p style={{ fontSize: '18px', marginBottom: '10px' }}>
+          The following required environment variables are missing:
+        </p>
+        <ul style={{ listStyle: 'none', padding: 0, fontSize: '16px' }}>
+          {envCheck.missing.map(key => (
+            <li key={key} style={{ margin: '10px 0', color: '#ffaa00' }}>{key}</li>
+          ))}
+        </ul>
+        <p style={{ marginTop: '20px', fontSize: '14px', color: '#aaa' }}>
+          Please configure these in your Vercel environment variables or .env file.
+        </p>
+      </div>
+    );
+  }
+  
+  console.log('App: Step 7 - Environment variables check passed');
+  
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  
+  console.log('App: Step 8 - State initialized');
 
   const [view, setView] = useState<ViewState>('WELCOME');
   const [gameMode, setGameMode] = useState<GameMode>(null);
@@ -185,24 +261,38 @@ const App: React.FC = () => {
   }, [gameMode, myPersistentId, view]);
 
   useEffect(() => {
+    console.log('App: Step 9 - Starting auth check...');
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('App: Step 10 - Session retrieved:', session ? 'Session exists' : 'No session');
       setSession(session);
       setAuthChecked(true);
+      console.log('App: Step 11 - Auth checked, session set');
       if (session?.user) {
+        console.log('App: Step 12 - User found, processing user data...');
         setIsGuest(false);
         const meta = session.user.user_metadata || {};
         // Use Google metadata: full_name, name, or display_name
         const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
         if (!playerName) setPlayerName(googleName.toUpperCase());
+        console.log('App: Step 13 - Transferring guest data...');
         await transferGuestData(session.user.id);
         // Check if this is a new user (no profile exists yet)
+        console.log('App: Step 14 - Checking if user is new...');
         const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
         const isNewUser = !existingProfile;
+        console.log('App: Step 15 - Loading profile, isNewUser:', isNewUser);
         loadProfile(session.user.id, isNewUser);
+      } else {
+        console.log('App: Step 12 - No user session, will show auth screen or guest mode');
       }
+    }).catch((error) => {
+      console.error('App: ERROR - Failed to get session:', error);
+      setAuthChecked(true);
     });
 
+    console.log('App: Step 16 - Setting up auth state change listener...');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
       setSession(session);
       if (session?.user) {
         setIsGuest(false);
@@ -223,16 +313,22 @@ const App: React.FC = () => {
         initialSyncCompleteRef.current = false;
       }
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('App: Step 18 - Cleaning up auth state change listener');
+      subscription.unsubscribe();
+    };
   }, [isGuest, playerName, playerAvatar]);
 
   const loadProfile = async (uid: string, isNewUser: boolean = false) => {
+    console.log('App: Step 19 - Loading profile for user:', uid, 'isNewUser:', isNewUser);
     loadingProfileInProgressRef.current = true;
     initialSyncCompleteRef.current = false;
     const meta = session?.user?.user_metadata || {};
     // Use Google metadata: full_name, name, or display_name
     const baseUsername = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+    console.log('App: Step 20 - Fetching profile data...');
     const data = await fetchProfile(uid, playerAvatar, baseUsername);
+    console.log('App: Step 21 - Profile data fetched:', data ? 'Profile exists' : 'No profile');
     if (data) {
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       
@@ -256,15 +352,18 @@ const App: React.FC = () => {
       if (data.play_animations_enabled !== undefined) setPlayAnimationsEnabled(data.play_animations_enabled);
       if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
       setProfile(data);
+      console.log('App: Step 22 - Profile set in state');
     }
     setTimeout(() => { 
       initialSyncCompleteRef.current = true;
-      loadingProfileInProgressRef.current = false; 
+      loadingProfileInProgressRef.current = false;
+      console.log('App: Step 23 - Initial sync complete');
     }, 800);
   };
 
   useEffect(() => {
     if (isGuest && !session) {
+      console.log('App: Step 24 - Loading guest profile...');
       const data = fetchGuestProfile();
       setProfile(data);
       if (data.username && !playerName) setPlayerName(data.username);
@@ -277,6 +376,7 @@ const App: React.FC = () => {
       if (data.play_animations_enabled !== undefined) setPlayAnimationsEnabled(data.play_animations_enabled);
       if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
       initialSyncCompleteRef.current = true;
+      console.log('App: Step 25 - Guest profile loaded');
     }
   }, [isGuest, session, playerName]);
 
@@ -541,9 +641,24 @@ const App: React.FC = () => {
 
   const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); setGameMode(null); setView('WELCOME'); setMpGameState(null); setSpGameState(null); localStorage.removeItem(SESSION_KEY); setGameSettingsOpen(false); };
 
+  console.log('App: Step 26 - Rendering decision:', { authChecked, isGuest, hasSession: !!session, hasProfile: !!profile });
+  
   // Allow guest mode even if auth check is still in progress
-  if (!authChecked && !isGuest) return null;
-  if (!session && !isGuest) return <AuthScreen onPlayAsGuest={() => setIsGuest(true)} />;
+  if (!authChecked && !isGuest) {
+    console.log('App: Step 27 - Waiting for auth check, showing loading...');
+    return (
+      <div className="min-h-screen bg-black text-white font-sans flex items-center justify-center">
+        <div className="text-yellow-400 text-lg">Loading...</div>
+      </div>
+    );
+  }
+  
+  if (!session && !isGuest) {
+    console.log('App: Step 28 - No session and not guest, showing auth screen');
+    return <AuthScreen onPlayAsGuest={() => setIsGuest(true)} />;
+  }
+  
+  console.log('App: Step 29 - Rendering main app content');
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
