@@ -849,6 +849,7 @@ const AppContent: React.FC = () => {
         
         // Guest-to-Permanent Migration: Check for guest progress and migrate
         // Only migrate if isMigrating flag is set (user clicked "Link Account")
+        // Only award 50 gem bonus for SIGNED_UP (new signup), not SIGNED_IN (existing account)
         const isMigrating = localStorage.getItem('thirteen_is_migrating') === 'true';
         if ((event === 'SIGNED_UP' || event === 'SIGNED_IN') && isMigrating) {
           const guestProgress = getGuestProgress();
@@ -856,11 +857,16 @@ const AppContent: React.FC = () => {
             console.log('Guest migration: Found guest progress:', guestProgress);
             setLoadingStatus('Migrating your progress...');
             
+            // Only pass isSignup=true for SIGNED_UP events (new signup)
+            // SIGNED_IN events (signing into existing account) should not get the bonus
+            const isSignup = event === 'SIGNED_UP';
+            
             const migrationResult = await migrateGuestData(
               session.user.id,
               guestProgress.gems,
               guestProgress.xp,
-              guestProgress.coins
+              guestProgress.coins,
+              isSignup
             );
             
             // Clear migration flag

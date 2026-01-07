@@ -1,13 +1,14 @@
 -- Create RPC function to migrate guest data to permanent account
 -- SECURITY: Only allows migration for accounts created in the last 5 minutes
 -- This prevents users from repeatedly adding guest gems to old accounts
--- Includes one-time 50 gem signup bonus for linking account
+-- Includes one-time 50 gem signup bonus for linking account (only for new signups)
 
 CREATE OR REPLACE FUNCTION migrate_guest_data(
   user_id UUID,
   guest_gems INTEGER DEFAULT 0,
   guest_xp INTEGER DEFAULT 0,
-  guest_coins INTEGER DEFAULT 0
+  guest_coins INTEGER DEFAULT 0,
+  is_signup BOOLEAN DEFAULT false
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -57,8 +58,9 @@ BEGIN
     );
   END IF;
 
-  -- Calculate bonus gems (50 if bonus not claimed)
-  IF NOT bonus_claimed THEN
+  -- Calculate bonus gems (50 if bonus not claimed AND this is a signup, not a signin)
+  -- Only award bonus for new signups, not when signing into existing linked accounts
+  IF NOT bonus_claimed AND is_signup THEN
     bonus_gems := 50;
   END IF;
 
@@ -68,12 +70,13 @@ BEGIN
   migrated_coins := guest_coins;
 
   -- Migrate guest data: add gems (including bonus), xp, and coins to the profile
+  -- Only mark bonus as claimed if we actually awarded it (is_signup=true and bonus_gems > 0)
   UPDATE profiles
   SET 
     gems = COALESCE(gems, 0) + guest_gems + bonus_gems,
     xp = COALESCE(xp, 0) + guest_xp,
     coins = COALESCE(coins, 0) + guest_coins,
-    signup_bonus_claimed = true
+    signup_bonus_claimed = CASE WHEN bonus_gems > 0 THEN true ELSE signup_bonus_claimed END
   WHERE id = user_id
   RETURNING gems INTO new_gems;
 
@@ -90,5 +93,5 @@ END;
 $$;
 
 -- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION migrate_guest_data(UUID, INTEGER, INTEGER, INTEGER) TO authenticated;
-GRANT EXECUTE ON FUNCTION migrate_guest_data(UUID, INTEGER, INTEGER, INTEGER) TO anon;
+GRANT EXECUTE ON FUNCTION migrate_guest_data(UUID, INTEGER, INTEGER, INTEGER, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION migrate_guest_data(UUID, INTEGER, INTEGER, INTEGER, BOOLEAN) TO anon;

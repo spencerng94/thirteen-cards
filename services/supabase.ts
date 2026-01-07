@@ -880,12 +880,14 @@ export const clearGuestProgress = (): void => {
 /**
  * Migrate guest data to permanent account
  * Calls Supabase RPC function that checks if account is new (created in last 5 minutes)
+ * @param isSignup - true if this is a new signup (SIGNED_UP), false if signing into existing account (SIGNED_IN)
  */
 export const migrateGuestData = async (
   userId: string,
   gems: number,
   xp: number,
-  coins: number
+  coins: number,
+  isSignup: boolean = false
 ): Promise<{ 
   success: boolean; 
   error?: string;
@@ -905,6 +907,7 @@ export const migrateGuestData = async (
       guest_gems: gems,
       guest_xp: xp,
       guest_coins: coins,
+      is_signup: isSignup,
     });
 
     if (error) {

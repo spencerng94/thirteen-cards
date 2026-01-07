@@ -574,16 +574,9 @@ export class AdService {
    * Get reward amount based on placement
    */
   private getRewardAmount(placement: AdPlacement): number {
-    switch (placement) {
-      case 'inventory':
-        return 20; // 20 gems for inventory placement
-      case 'shop':
-        return 50; // 50 gems for shop placement
-      case 'victory':
-        return 5; // 5 gems (or double gold handled separately)
-      default:
-        return 20;
-    }
+    // All placements give 20 gems (or coins when weekly cap is reached)
+    // The actual reward amount is determined by the RPC function based on weekly cap
+    return 20;
   }
 
   /**
