@@ -863,11 +863,13 @@ const AppContent: React.FC = () => {
       const globalSession = globalAuthState.getSession();
       
       // Also check Supabase directly in case global state is out of sync
+      // This is critical - even if setSession hangs, getSession might find the session
       const { data: sessionData } = await supabase.auth.getSession();
       const activeSession = globalSession || sessionData?.session;
       
-      if (sessionVerified && activeSession) {
-        console.log('App: BYPASS - SESSION VERIFIED detected, forcing state update');
+      // If we have a session (from any source) and we're processing OAuth, use it
+      if (activeSession && isProcessingOAuth && !session) {
+        console.log('App: BYPASS - Found session via getSession() (verification flag:', sessionVerified, '), using it');
         
         // State Force: Manually set flags without waiting for onAuthStateChange
         setSession(activeSession);
@@ -876,11 +878,11 @@ const AppContent: React.FC = () => {
         setIsGuest(false);
         setIsProcessingOAuth(false);
         
-        // URL Cleanup: Clear hash only after verification
+        // URL Cleanup: Clear hash only after we have a session
         window.history.replaceState({}, document.title, '/');
-        console.log('App: BYPASS - Hash cleared after verification');
+        console.log('App: BYPASS - Hash cleared after session found');
         
-        // Clear the verification flag
+        // Clear the verification flag and recovery flags
         localStorage.removeItem('thirteen_session_verified');
         localStorage.removeItem('thirteen_manual_recovery');
         manualRecoveryInProgressRef.current = false;
@@ -897,21 +899,10 @@ const AppContent: React.FC = () => {
         });
         
         isInitializingRef.current = false;
-        return true; // Verification found
-      } else if (sessionData?.session && !session && !isGuest && isProcessingOAuth) {
-        // Fallback: If Supabase has a session but we don't, use it (might be verified but flag not set)
-        console.log('App: BYPASS - Found session via getSession() fallback, using it');
-        setSession(sessionData.session);
-        setHasSession(true);
-        setAuthChecked(true);
-        setIsGuest(false);
-        setIsProcessingOAuth(false);
-        window.history.replaceState({}, document.title, '/');
-        localStorage.removeItem('thirteen_manual_recovery');
-        manualRecoveryInProgressRef.current = false;
         return true; // Session found
       }
-      return false; // No verification yet
+      
+      return false; // No session yet
     };
     
     // Check immediately
@@ -933,24 +924,40 @@ const AppContent: React.FC = () => {
     };
   }, [isProcessingOAuth, authChecked, session, isGuest, playerName, playerAvatar]); // Check frequently when processing
   
-  // Emergency Timeout: If isProcessingOAuth is true for more than 4 seconds WITHOUT verification, force isGuest to true
+  // Emergency Timeout: If isProcessingOAuth is true for more than 8 seconds WITHOUT session, force isGuest to true
+  // Increased to 8 seconds to give setSession more time to complete
   useEffect(() => {
     if (!isProcessingOAuth) return;
     
-    const emergencyTimeout = setTimeout(() => {
-      // Only force guest mode if still processing AND no session was verified
+    const emergencyTimeout = setTimeout(async () => {
+      // Only force guest mode if still processing AND no session exists
       if (isProcessingOAuth) {
+        // Do a final check for session via getSession() before forcing guest
+        const { data: sessionData } = await supabase.auth.getSession();
         const sessionVerified = localStorage.getItem('thirteen_session_verified') === 'true';
         const globalSession = globalAuthState.getSession();
-        const hasSession = session || globalSession;
+        const hasSession = session || globalSession || sessionData?.session;
         
-        // If session was verified or exists, don't force guest mode
+        // If session exists (from any source), don't force guest mode
         if (sessionVerified || hasSession) {
           console.log('App: EMERGENCY TIMEOUT - Session exists, skipping guest mode force');
+          // If we found a session but haven't set state yet, set it now
+          if (hasSession && !session) {
+            const activeSession = session || globalSession || sessionData?.session;
+            if (activeSession) {
+              console.log('App: EMERGENCY TIMEOUT - Found session, setting state now');
+              setSession(activeSession);
+              setHasSession(true);
+              setAuthChecked(true);
+              setIsGuest(false);
+              setIsProcessingOAuth(false);
+              window.history.replaceState({}, document.title, '/');
+            }
+          }
           return;
         }
         
-        console.warn('App: EMERGENCY TIMEOUT - isProcessingOAuth stuck for 4+ seconds with no session, forcing guest mode');
+        console.warn('App: EMERGENCY TIMEOUT - isProcessingOAuth stuck for 8+ seconds with no session, forcing guest mode');
         setIsProcessingOAuth(false);
         setAuthChecked(true);
         setIsGuest(true);
@@ -961,7 +968,7 @@ const AppContent: React.FC = () => {
         // Clear hash to prevent retry loops
         window.history.replaceState({}, document.title, '/');
       }
-    }, 4000);
+    }, 8000); // Increased from 4 to 8 seconds
     
     return () => clearTimeout(emergencyTimeout);
   }, [isProcessingOAuth, session]);

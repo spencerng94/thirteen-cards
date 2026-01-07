@@ -223,13 +223,56 @@ const parseHashAndSetSession = async (): Promise<boolean> => {
       
       // BYPASS STEP 1: Capture and Store - Call setSession with tokens
       console.log('GLOBAL: BYPASS - Calling setSession with tokens...');
-      const { data: setSessionData, error: setSessionError } = await supabase.auth.setSession({
+      
+      // Wrap setSession in a timeout to prevent hanging
+      const setSessionPromise = supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken || ''
       });
       
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('setSession timeout after 3 seconds')), 3000)
+      );
+      
+      let setSessionResult;
+      try {
+        setSessionResult = await Promise.race([setSessionPromise, timeoutPromise]);
+        console.log('GLOBAL: BYPASS - setSession completed');
+      } catch (error: any) {
+        console.error('GLOBAL: BYPASS - setSession failed or timed out:', error.message);
+        // Even if setSession times out, try getSession - Supabase might have processed it internally
+        console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession timeout...');
+        const { data: fallbackData } = await supabase.auth.getSession();
+        if (fallbackData?.session) {
+          console.log('GLOBAL: BYPASS - Fallback SUCCESS: getSession found session despite setSession timeout');
+          globalAuthState.setSession(fallbackData.session);
+          globalAuthState.setAuthChecked(true);
+          globalAuthState.setHasSession(true);
+          localStorage.setItem('thirteen_session_verified', 'true');
+          console.log('GLOBAL: BYPASS - SESSION VERIFIED (via fallback)');
+          console.log('SESSION VERIFIED'); // This log is checked by App.tsx
+          return true;
+        }
+        return false;
+      }
+      
+      const { error: setSessionError } = setSessionResult as any;
+      
       if (setSessionError) {
         console.error('GLOBAL: BYPASS - Error setting session:', setSessionError);
+        // Try getSession as fallback even on error
+        console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession error...');
+        const { data: fallbackData } = await supabase.auth.getSession();
+        if (fallbackData?.session) {
+          console.log('GLOBAL: BYPASS - Fallback SUCCESS: getSession found session despite setSession error');
+          globalAuthState.setSession(fallbackData.session);
+          globalAuthState.setAuthChecked(true);
+          globalAuthState.setHasSession(true);
+          localStorage.setItem('thirteen_session_verified', 'true');
+          console.log('GLOBAL: BYPASS - SESSION VERIFIED (via fallback)');
+          console.log('SESSION VERIFIED'); // This log is checked by App.tsx
+          return true;
+        }
         return false;
       }
       
