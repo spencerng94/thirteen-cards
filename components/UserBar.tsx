@@ -29,17 +29,24 @@ export const UserBar: React.FC<UserBarProps> = ({
   avatar,
   remoteEmotes = [] 
 }) => {
-  if (!profile) return null;
+  // User Bar Visibility: Render even if profile is loading, using placeholders
+  const isLoading = !profile;
+  const displayProfile = profile || {
+    xp: 0,
+    coins: 0,
+    gems: 0,
+    level: 1
+  } as Partial<UserProfile>;
 
-  const currentLevel = calculateLevel(profile.xp);
+  const currentLevel = isLoading ? 1 : calculateLevel(displayProfile.xp || 0);
   const nextLevelXp = getXpForLevel(currentLevel + 1);
   const currentLevelXp = getXpForLevel(currentLevel);
   // Defensive check: ensure XP is at least the floor of current level (fixes legacy user issues)
-  const safeXp = Math.max(currentLevelXp, profile.xp || 0);
+  const safeXp = Math.max(currentLevelXp, displayProfile.xp || 0);
   const range = Math.max(1, nextLevelXp - currentLevelXp);
   const progress = Math.min(100, Math.max(0, ((safeXp - currentLevelXp) / range) * 100));
   
-  const showSecurityPrompt = isGuest && (profile.coins >= 1000 || currentLevel >= 2);
+  const showSecurityPrompt = !isLoading && isGuest && ((displayProfile.coins || 0) >= 1000 || currentLevel >= 2);
 
   return (
     <div 
@@ -93,7 +100,7 @@ export const UserBar: React.FC<UserBarProps> = ({
             <CurrencyIcon type="GOLD" size="sm" />
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">
-            {profile.coins > 999 ? (profile.coins / 1000).toFixed(1) + 'k' : profile.coins}
+            {isLoading ? '---' : (displayProfile.coins || 0) > 999 ? ((displayProfile.coins || 0) / 1000).toFixed(1) + 'k' : (displayProfile.coins || 0)}
           </span>
         </button>
 
@@ -107,7 +114,7 @@ export const UserBar: React.FC<UserBarProps> = ({
             <CurrencyIcon type="GEMS" size="sm" />
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-pink-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(236,72,153,0.4)]">
-            {(profile.gems || 0) > 999 ? ((profile.gems || 0) / 1000).toFixed(1) + 'k' : (profile.gems || 0)}
+            {isLoading ? '---' : (displayProfile.gems || 0) > 999 ? ((displayProfile.gems || 0) / 1000).toFixed(1) + 'k' : (displayProfile.gems || 0)}
           </span>
         </button>
       </div>

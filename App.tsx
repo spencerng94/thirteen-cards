@@ -933,8 +933,102 @@ const AppContent: React.FC = () => {
     // Use Google metadata: full_name, name, or display_name
     const baseUsername = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
     console.log('App: Step 20 - Fetching profile data...');
-    const data = await fetchProfile(uid, playerAvatar, baseUsername);
+    let data = await fetchProfile(uid, playerAvatar, baseUsername);
     console.log('App: Step 21 - Profile data fetched:', data ? 'Profile exists' : 'No profile');
+    
+    // Check or Create: If no profile found, create a default one immediately
+    if (!data) {
+      console.log('App: No profile found, creating default profile...');
+      try {
+        const defaultProfile: UserProfile = {
+          id: uid,
+          username: 'New Player#0000',
+          wins: 0,
+          games_played: 0,
+          currency: 500,
+          coins: 500,
+          gems: 500,
+          xp: 0,
+          level: 1,
+          unlocked_sleeves: ['RED', 'BLUE'],
+          unlocked_avatars: [':cool:', ':blush:', ':annoyed:'],
+          unlocked_boards: ['EMERALD'],
+          unlocked_phrases: [],
+          avatar_url: playerAvatar,
+          sfx_enabled: true,
+          turbo_enabled: true,
+          sleeve_effects_enabled: true,
+          play_animations_enabled: true,
+          turn_timer_setting: 0,
+          undo_count: 0,
+          finish_dist: [0, 0, 0, 0],
+          total_chops: 0,
+          total_cards_left_sum: 0,
+          current_streak: 0,
+          longest_streak: 0,
+          inventory: { items: { XP_2X_10M: 1, GOLD_2X_10M: 1 }, active_boosters: {} },
+          event_stats: {
+            daily_games_played: 0,
+            daily_wins: 0,
+            weekly_games_played: 0,
+            weekly_wins: 0,
+            weekly_bombs_played: 0,
+            weekly_chops_performed: 0,
+            weekly_challenge_progress: {},
+            total_hands_played: 0,
+            new_player_login_days: 1,
+            claimed_events: [],
+            ready_to_claim: []
+          }
+        };
+        
+        // Upsert the default profile
+        await supabase.from('profiles').upsert(defaultProfile);
+        console.log('App: Default profile created successfully');
+        data = defaultProfile;
+      } catch (error) {
+        console.error('App: Failed to create default profile:', error);
+        // Still set a minimal profile so UI can render
+        data = {
+          id: uid,
+          username: 'New Player#0000',
+          wins: 0,
+          games_played: 0,
+          currency: 500,
+          coins: 500,
+          gems: 500,
+          xp: 0,
+          level: 1,
+          unlocked_sleeves: ['RED', 'BLUE'],
+          unlocked_avatars: [':cool:'],
+          unlocked_boards: ['EMERALD'],
+          unlocked_phrases: [],
+          avatar_url: playerAvatar,
+          turn_timer_setting: 0,
+          undo_count: 0,
+          finish_dist: [0, 0, 0, 0],
+          total_chops: 0,
+          total_cards_left_sum: 0,
+          current_streak: 0,
+          longest_streak: 0,
+          inventory: { items: {}, active_boosters: {} },
+          event_stats: {
+            daily_games_played: 0,
+            daily_wins: 0,
+            weekly_games_played: 0,
+            weekly_wins: 0,
+            weekly_bombs_played: 0,
+            weekly_chops_performed: 0,
+            weekly_challenge_progress: {},
+            total_hands_played: 0,
+            new_player_login_days: 1,
+            claimed_events: [],
+            ready_to_claim: []
+          }
+        } as UserProfile;
+      }
+    }
+    
     if (data) {
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       
@@ -961,6 +1055,8 @@ const AppContent: React.FC = () => {
         localStorage.setItem('thirteen_auto_pass_enabled', data.auto_pass_enabled ? 'true' : 'false');
       }
       if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
+      
+      // State Sync: Ensure profile is set so hasProfile becomes true
       setProfile(data);
       console.log('App: Step 22 - Profile set in state');
     }
