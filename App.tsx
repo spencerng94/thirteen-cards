@@ -354,11 +354,13 @@ const AppContent: React.FC = () => {
       }
       
       console.log('App: OAuth redirect detected (code exchange in progress), waiting for Supabase to complete...');
+      console.log('App: STOPPING all redirects and safety timeouts - waiting for code exchange');
       setIsProcessingOAuth(true);
       setLoadingStatus('Signing you in...');
       oauthExchangeInProgressRef.current = true;
       
       // Explicitly exchange code for session if code parameter exists
+      // CRITICAL: Only set authChecked to true AFTER this promise resolves
       const waitForOAuthExchange = async () => {
         try {
           // If code is in search params, explicitly exchange it for a session
@@ -366,8 +368,10 @@ const AppContent: React.FC = () => {
             const code = searchParams.get('code');
             if (code) {
               console.log('App: Exchanging OAuth code for session...');
+              console.log('App: AWAITING exchangeCodeForSession - will not set authChecked until this completes');
               
               try {
+                // CRITICAL: AWAIT this call - do not proceed until it resolves
                 const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
                 
                 if (exchangeError) {
@@ -582,18 +586,19 @@ const AppContent: React.FC = () => {
     checkAuth();
   }, []); // Empty deps - only run once on mount
 
-  // Safety timeout: If authChecked is still false after 3 seconds, set it to true
+  // Safety timeout: If authChecked is still false after 10 seconds, set it to true
   // This prevents the app from hanging forever if getSession() doesn't complete
-  // BUT: Don't fire if we're processing an OAuth redirect OR if URL contains code parameter
+  // CRITICAL: STOP all safety timeouts if OAuth code is present in URL
   useEffect(() => {
     // Check if URL contains code parameter (OAuth code exchange in progress)
     const searchParams = new URLSearchParams(window.location.search);
     const hasOAuthCode = searchParams.has('code');
     
-    // Don't set safety timeout if OAuth is processing OR if code parameter is present
+    // CRITICAL: If code is present, STOP all redirects and safety timeouts
+    // The exchangeCodeForSession call must complete before authChecked becomes true
     if (isProcessingOAuth || hasOAuthCode) {
       console.log('App: Skipping safety timeout - OAuth code exchange in progress');
-      return;
+      return; // Don't set any timeout - wait for exchange to complete
     }
     
     const safetyTimeout = setTimeout(() => {
@@ -797,7 +802,7 @@ const AppContent: React.FC = () => {
       console.log('App: Step 18 - Cleaning up auth state change listener');
       try {
         if (subscription && typeof subscription.unsubscribe === 'function') {
-          subscription.unsubscribe();
+        subscription.unsubscribe();
         }
       } catch (error) {
         console.error('App: Error unsubscribing from auth listener:', error);
@@ -1426,10 +1431,27 @@ const AppContent: React.FC = () => {
   }
   
   // 2. If authChecked && !session && !isGuest, show Landing/Sign-In Screen
+  // CRITICAL: Do NOT show landing screen if OAuth code is present in URL
+  // The code exchange must complete first
+  const searchParams = new URLSearchParams(window.location.search);
+  const hasOAuthCode = searchParams.has('code');
   const hasValidSession = session && session.user && session.user.id && session.user.id !== 'pending';
-  if (authChecked && !hasValidSession && !isGuest) {
+  
+  // Middleware/Protected Route Fix: Don't redirect if code is present, even if session is null
+  if (authChecked && !hasValidSession && !isGuest && !hasOAuthCode && !isProcessingOAuth) {
     console.log('App: Showing landing/sign-in screen - no session and user has not chosen guest mode');
     return <AuthScreen onPlayAsGuest={handlePlayAsGuest} />;
+  }
+  
+  // If code is present but no session yet, keep showing loading screen
+  if (hasOAuthCode && !hasValidSession && !isProcessingOAuth) {
+    console.log('App: OAuth code present but exchange not started yet - showing loading screen');
+    return (
+      <LoadingScreen
+        status="Completing sign-in..."
+        showGuestButton={false}
+      />
+    );
   }
   
   // 3. If session || isGuest, show Main Game App
@@ -1450,7 +1472,7 @@ const AppContent: React.FC = () => {
         }
       }}
     >
-      <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
       {isTransitioning && <GameEndTransition />}
       {view === 'WELCOME' && (
         <WelcomeScreen 
