@@ -458,9 +458,12 @@ const AppContent: React.FC = () => {
     let subscription: { unsubscribe: () => void } | null = null;
     
     try {
+      // CRITICAL: onAuthStateChange returns { data: { subscription } }
+      // The callback fires immediately with INITIAL_SESSION event
+      console.log('App: Calling supabase.auth.onAuthStateChange...');
       const authStateChangeResult = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
       // Debug logging as requested
-      console.log('SUPABASE AUTH EVENT:', event, session);
+      console.log('✅ SUPABASE AUTH EVENT FIRED:', event, session ? `User: ${session.user?.id}` : 'No session');
       
       console.log('App: Auth Event Received:', event, session ? 'Session exists' : 'No session');
       console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
@@ -628,19 +631,72 @@ const AppContent: React.FC = () => {
     });
     
       // Extract subscription from the result
+      console.log('App: onAuthStateChange result:', authStateChangeResult);
       if (authStateChangeResult?.data?.subscription) {
         subscription = authStateChangeResult.data.subscription;
+        console.log('✅ Auth state change listener set up successfully, subscription active');
+      } else {
+        console.error('❌ Failed to get subscription from onAuthStateChange result');
       }
+      
+      // CRITICAL: Manually trigger initial session check if listener didn't fire
+      // Sometimes onAuthStateChange doesn't fire INITIAL_SESSION immediately
+      // So we check manually after a short delay
+      setTimeout(async () => {
+        // Only check if authChecked is still false (listener didn't fire)
+        if (!authChecked) {
+          console.log('App: Listener may not have fired INITIAL_SESSION, checking manually...');
+          try {
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (!sessionError && sessionData?.session) {
+              console.log('App: ✅ Found session via manual check, triggering INITIAL_SESSION logic');
+              // Manually trigger INITIAL_SESSION logic
+              setAuthChecked(true);
+              setSession(sessionData.session);
+              setHasSession(true);
+              setIsGuest(false);
+              setIsProcessingOAuth(false);
+              isInitializingRef.current = false;
+            } else if (!sessionError && !sessionData?.session) {
+              console.log('App: No session found via manual check, setting authChecked');
+              setAuthChecked(true);
+              setHasSession(false);
+              setIsProcessingOAuth(false);
+              isInitializingRef.current = false;
+            } else if (sessionError) {
+              console.error('App: Error in manual session check:', sessionError);
+              // Still set authChecked to prevent infinite loading
+              setAuthChecked(true);
+              setIsProcessingOAuth(false);
+              isInitializingRef.current = false;
+            }
+          } catch (err: any) {
+            if (err?.name !== 'AbortError') {
+              console.error('App: Exception in manual session check:', err);
+              // Still set authChecked to prevent infinite loading
+              setAuthChecked(true);
+              setIsProcessingOAuth(false);
+              isInitializingRef.current = false;
+            }
+          }
+        } else {
+          console.log('App: ✅ authChecked already true, listener must have fired');
+        }
+      }, 1000); // 1 second delay to let listener fire first
+      
     } catch (error) {
       console.error('App: Error setting up auth state change listener:', error);
       authListenerSetupRef.current = false;
+      // Fallback: Set authChecked if listener setup fails
+      setAuthChecked(true);
     }
     
     return () => {
       console.log('App: Step 18 - Cleaning up auth state change listener');
       try {
         if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
+          subscription.unsubscribe();
+          console.log('✅ Auth listener unsubscribed');
         }
       } catch (error) {
         console.error('App: Error unsubscribing from auth listener:', error);

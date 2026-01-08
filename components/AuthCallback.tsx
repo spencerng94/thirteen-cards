@@ -24,12 +24,16 @@ export const AuthCallback: React.FC = () => {
 
   useEffect(() => {
     const handleOAuthCallback = async () => {
+      console.log('🔵 AuthCallback: Component mounted, starting OAuth callback handler');
+      console.log('🔵 AuthCallback: Current URL:', window.location.href);
       try {
         // Extract code from URL query parameters
         const searchParams = new URLSearchParams(window.location.search);
         const code = searchParams.get('code');
         const errorParam = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
+        
+        console.log('🔵 AuthCallback: Extracted params - code:', code ? 'present' : 'missing', 'error:', errorParam || 'none');
 
         // Check for OAuth errors
         if (errorParam) {
