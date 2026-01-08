@@ -322,6 +322,31 @@ const AppContent: React.FC = () => {
     
     didInitRef.current = true;
     isInitializingRef.current = true;
+    
+    // Check for OAuth redirect hash at the very top
+    const hash = window.location.hash;
+    const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
+    const hasOAuthError = hash.includes('error');
+    
+    if (hasOAuthError) {
+      // OAuth error - clear hash and show landing screen
+      console.log('App: OAuth error detected in URL hash');
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      setAuthChecked(true);
+      setIsProcessingOAuth(false);
+      setLoadingStatus('Ready to play');
+      isInitializingRef.current = false;
+      return;
+    }
+    
+    if (hasOAuthHash) {
+      console.log('App: OAuth redirect detected in URL hash, waiting for Supabase to process...');
+      setIsProcessingOAuth(true);
+      setLoadingStatus('Signing you in...');
+      // Don't call getSession() immediately - wait for onAuthStateChange to fire
+      return;
+    }
+    
     console.log('App: Initializing auth check...');
     setLoadingStatus('Checking credentials...');
     
@@ -390,14 +415,10 @@ const AppContent: React.FC = () => {
 
   // Safety timeout: If authChecked is still false after 3 seconds, set it to true
   // This prevents the app from hanging forever if getSession() doesn't complete
-  // BUT: Don't fire if we're processing an OAuth redirect (hash contains access_token)
+  // BUT: Don't fire if we're processing an OAuth redirect
   useEffect(() => {
-    // Check if we're in the middle of an OAuth redirect
-    const hash = window.location.hash;
-    const isOAuthRedirect = hash.includes('access_token') || hash.includes('code=');
-    
-    // Don't set safety timeout if OAuth redirect is in progress
-    if (isOAuthRedirect) {
+    // Don't set safety timeout if OAuth is processing
+    if (isProcessingOAuth) {
       return;
     }
     
@@ -413,16 +434,9 @@ const AppContent: React.FC = () => {
     return () => {
       clearTimeout(safetyTimeout);
     };
-  }, [authChecked]);
+  }, [authChecked, isProcessingOAuth]);
 
-  // Clean up OAuth hash after Supabase processes it
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.includes('access_token') && authChecked) {
-      // Clear hash once auth is complete
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    }
-  }, [authChecked]);
+  // Note: OAuth hash cleanup is now handled in the SIGNED_IN event handler above
 
   // Set up auth state change listener - only once with empty deps
   useEffect(() => {
@@ -448,6 +462,15 @@ const AppContent: React.FC = () => {
         setHasSession(true);
         setSession(session);
         setIsGuest(false);
+        setIsProcessingOAuth(false);
+        
+        // Clean the OAuth hash from URL once SIGNED_IN is triggered
+        const hash = window.location.hash;
+        if (hash.includes('access_token') || hash.includes('code=')) {
+          console.log('App: Cleaning OAuth hash from URL');
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+        
         console.log('App: Auth flags set immediately, now processing profile...');
       } else {
         setSession(session);
@@ -1087,8 +1110,22 @@ const AppContent: React.FC = () => {
   }, [session, profile, isGuest, hasSession, loadProfile]);
   
   // Conditional Rendering: Show appropriate screen based on auth state
-  // 1. If !authChecked, show Loading Spinner
-      if (!authChecked) {
+  // 1. If processing OAuth or !authChecked, show Loading Spinner
+  const hash = window.location.hash;
+  const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
+  const hasOAuthError = hash.includes('error');
+  
+  // If OAuth error, don't show loading - let it fall through to landing screen
+  if ((isProcessingOAuth || hasOAuthHash) && !hasOAuthError) {
+    return (
+      <LoadingScreen
+        status="Signing you in..."
+        showGuestButton={false}
+      />
+    );
+  }
+  
+  if (!authChecked && !hasOAuthError) {
     return (
       <LoadingScreen
         status={loadingStatus}
