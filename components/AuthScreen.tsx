@@ -59,6 +59,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
   const signInWithGoogle = async () => {
     setLoading(true);
     setError(null);
+    
     try {
       // OAuth 'Clean Slate': Clear any existing session first
       console.log('AuthScreen: OAuth Clean Slate - Clearing existing session before OAuth flow');
@@ -70,7 +71,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
           // Wait a moment for sign-out to complete
           await new Promise(resolve => setTimeout(resolve, 500));
         }
-      } catch (signOutError) {
+      } catch (signOutError: any) {
         console.warn('AuthScreen: Error clearing session before OAuth:', signOutError);
         // Continue with OAuth even if sign-out fails
       }
@@ -87,7 +88,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
       });
       
       // Trigger Google OAuth with PKCE flow
-      const { data, error } = await supabase.auth.signInWithOAuth({ 
+      // Note: signInWithOAuth may redirect immediately, which can cause the promise
+      // to be interrupted. We handle this gracefully.
+      const oauthPromise = supabase.auth.signInWithOAuth({ 
         provider: 'google',
         options: {
           redirectTo,
@@ -99,19 +102,39 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         }
       });
       
-      if (error) {
-        console.error('AuthScreen: OAuth error from Supabase:', error);
-        throw error;
-      }
+      // Handle the promise - it might redirect before resolving (this is normal)
+      oauthPromise
+        .then(({ data, error }: { data: any; error: any }) => {
+          if (error) {
+            console.error('AuthScreen: OAuth error from Supabase:', error);
+            setError(error.message || 'OAuth sign-in failed');
+            setLoading(false);
+          } else {
+            console.log('AuthScreen: OAuth flow initiated successfully', { data });
+            // If we get here without redirect, the redirect should happen soon
+            // Don't reset loading as redirect is expected
+          }
+        })
+        .catch((oauthError: any) => {
+          // Only show error if it's not a redirect interruption
+          if (oauthError?.code !== 'AUTH_REDIRECT' && 
+              !oauthError?.message?.includes('redirect')) {
+            console.error('AuthScreen: OAuth promise rejected:', oauthError);
+            setError(oauthError?.message || 'Failed to initiate OAuth sign-in');
+            setLoading(false);
+          } else {
+            console.log('AuthScreen: OAuth redirect initiated (promise interrupted - this is normal)');
+          }
+        });
       
-      console.log('AuthScreen: OAuth flow initiated successfully', { data });
-      
-      // Note: For PKCE flow, Supabase will redirect the browser automatically
-      // The redirect should happen immediately after this call
+      // For PKCE flow, Supabase will redirect the browser automatically
+      // The redirect typically happens immediately, so the promise may never resolve
+      // This is expected behavior - we don't await it to avoid blocking
       
     } catch (err: any) {
       console.error('AuthScreen: OAuth error:', err);
-      setError(err.message || 'Failed to sign in with Google. Please try again.');
+      const errorMessage = err?.message || err?.error?.message || 'Failed to sign in with Google. Please try again.';
+      setError(errorMessage);
       setLoading(false); // Reset loading state so button isn't stuck
     }
   };

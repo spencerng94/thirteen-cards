@@ -22,6 +22,14 @@ window.addEventListener('error', (event) => {
 // Add error handler for unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason);
+  // Prevent the default browser behavior (console error)
+  // This is especially important for OAuth flows where redirects might interrupt promises
+  if (event.reason?.message?.includes('OAuth') || 
+      event.reason?.message?.includes('redirect') ||
+      event.reason?.code === 'AUTH_REDIRECT') {
+    console.warn('OAuth redirect detected - this is expected behavior');
+    event.preventDefault(); // Prevent unhandled rejection error
+  }
 });
 
 console.log('App: Step 2 - Setting up root element...');
