@@ -148,6 +148,7 @@ const AppContent: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [isProcessingOAuth, setIsProcessingOAuth] = useState(false); // Block state updates during OAuth
+  const [showLastResortUI, setShowLastResortUI] = useState(false); // Show "Syncing your account..." UI
   
   console.log('App: Step 8 - State initialized');
 
@@ -355,22 +356,58 @@ const AppContent: React.FC = () => {
     // Debug Storage: Check if token exists in localStorage
     const supabaseStorageKeys = Object.keys(localStorage).filter(key => key.startsWith('sb-'));
     console.log('App: 🔍 Storage Debug - Supabase keys found:', supabaseStorageKeys.length);
+    
+    let hasCodeVerifier = false;
+    let hasAccessToken = false;
+    let codeVerifierKey: string | null = null;
+    
     supabaseStorageKeys.forEach(key => {
       try {
         const value = localStorage.getItem(key);
         if (value) {
+          // Check for code-verifier (can be in the key name or value)
+          if (key.includes('verifier') || key.includes('code-verifier') || key.includes('code_verifier')) {
+            hasCodeVerifier = true;
+            codeVerifierKey = key;
+            console.log(`App: 🔍 Storage[${key}]: Found code-verifier!`);
+          }
+          
           const parsed = JSON.parse(value);
+          const hasToken = !!parsed?.access_token;
+          const hasRefresh = !!parsed?.refresh_token;
+          
+          if (hasToken) hasAccessToken = true;
+          
           console.log(`App: 🔍 Storage[${key}]:`, {
-            hasAccessToken: !!parsed?.access_token,
-            hasRefreshToken: !!parsed?.refresh_token,
+            hasAccessToken: hasToken,
+            hasRefreshToken: hasRefresh,
             expiresAt: parsed?.expires_at,
-            expiresIn: parsed?.expires_in
+            expiresIn: parsed?.expires_in,
+            isCodeVerifier: key.includes('verifier')
           });
         }
       } catch (e) {
+        // Check if it's a plain string code-verifier
+        if (key.includes('verifier') || key.includes('code-verifier') || key.includes('code_verifier')) {
+          hasCodeVerifier = true;
+          codeVerifierKey = key;
+          console.log(`App: 🔍 Storage[${key}]: Found code-verifier (non-JSON)!`);
+        }
         console.log(`App: 🔍 Storage[${key}]:`, 'Could not parse');
       }
     });
+    
+    // DETECTION OF STUCK STATE: If code-verifier exists but no access-token, and NOT in redirect
+    const isInRedirect = window.location.search.includes('code=') || 
+                         window.location.hash.includes('code=') ||
+                         window.location.pathname === '/auth/callback';
+    
+    if (hasCodeVerifier && !hasAccessToken && !isInRedirect && codeVerifierKey) {
+      console.warn('App: 🚨 STUCK STATE DETECTED - Ghost code-verifier found without access-token!');
+      console.warn('App: 🧹 Clearing ghost verifier key:', codeVerifierKey);
+      localStorage.removeItem(codeVerifierKey);
+      console.log('App: ✅ Ghost verifier cleared');
+    }
     
     setLoadingStatus('Checking credentials...');
     
@@ -410,6 +447,20 @@ const AppContent: React.FC = () => {
           return;
         }
         
+        // MANUAL RECOVERY: If refreshSession() failed, signOut() to purge buggy state
+        if (refreshError || !refreshData?.session) {
+          console.warn('App: ⚠️ refreshSession() failed, attempting manual recovery with signOut()...');
+          console.warn('App: ⚠️ refreshError:', refreshError?.message);
+          try {
+            await supabase.auth.signOut();
+            console.log('App: ✅ signOut() completed - buggy state purged');
+            // Clear the sessionStorage flag too
+            sessionStorage.removeItem('thirteen_oauth_redirect');
+          } catch (signOutError) {
+            console.error('App: ❌ signOut() failed:', signOutError);
+          }
+        }
+        
         // Strategy 2: If refreshSession failed, try getSession()
         console.log('App: 🔥 Strategy 2 - refreshSession() failed, trying getSession()...');
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -432,7 +483,7 @@ const AppContent: React.FC = () => {
           const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', sessionData.session.user.id).maybeSingle();
           if (!existingProfile) {
             setLoadingStatus('Creating profile...');
-          } else {
+        } else {
             setLoadingStatus('Loading profile...');
           }
           return;
@@ -453,7 +504,7 @@ const AppContent: React.FC = () => {
               setSession(finalSessionData.session);
               setHasSession(true);
               setIsGuest(false);
-              setIsProcessingOAuth(false);
+          setIsProcessingOAuth(false);
               setAuthChecked(true);
               isInitializingRef.current = false;
               
@@ -472,6 +523,20 @@ const AppContent: React.FC = () => {
               return;
             }
           }
+        }
+        
+        // LAST RESORT: If we just came from /auth/callback and STILL don't have a session
+        if (isAfterCallback && !sessionData?.session) {
+          console.error('App: 🚨 LAST RESORT - Came from callback but no session found!');
+          console.error('App: 🚨 This indicates a stuck state that needs user intervention');
+          
+          // Set a flag to show the "Syncing your account..." UI
+          setLoadingStatus('Syncing your account...');
+          setIsProcessingOAuth(true);
+          setShowLastResortUI(true);
+          // Don't set authChecked yet - let the UI handle it
+          isInitializingRef.current = false;
+          return;
         }
         
         // If all strategies failed, log and wait for onAuthStateChange
@@ -494,7 +559,7 @@ const AppContent: React.FC = () => {
         if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
           console.warn('App: Exception caught AbortError - will rely on onAuthStateChange listener');
           if (!isMountedRef.current) return;
-          isInitializingRef.current = false;
+        isInitializingRef.current = false;
           return;
         }
         
@@ -569,12 +634,46 @@ const AppContent: React.FC = () => {
     
     // Fix: Properly handle the subscription to avoid 'Y is not a function' error
     let subscription: { unsubscribe: () => void } | null = null;
+    let initialSessionTimeout: ReturnType<typeof setTimeout> | null = null;
     
     try {
       // CRITICAL: onAuthStateChange returns { data: { subscription } }
       // The callback fires immediately with INITIAL_SESSION event
       console.log('App: Calling supabase.auth.onAuthStateChange...');
+      
+      // onAuthStateChange Guard: Check if INITIAL_SESSION fires within 2 seconds
+      let initialSessionFired = false;
+      initialSessionTimeout = setTimeout(() => {
+        if (!initialSessionFired && !authChecked && isMountedRef.current) {
+          console.warn('App: ⚠️ INITIAL_SESSION did not fire within 2 seconds, trying manual getUser()...');
+          // Try manual getUser() as fallback
+          supabase.auth.getUser().then(({ data, error }) => {
+            if (!error && data?.user && isMountedRef.current) {
+              console.log('App: ✅ Manual getUser() found user:', data.user.id);
+              // Try getSession() again
+              supabase.auth.getSession().then(({ data: sessionData }) => {
+                if (sessionData?.session && isMountedRef.current) {
+                  console.log('App: ✅ Session found after manual getUser() trigger');
+                  setSession(sessionData.session);
+                  setHasSession(true);
+                  setAuthChecked(true);
+                  setIsGuest(false);
+                  setIsProcessingOAuth(false);
+                  setShowLastResortUI(false);
+                  isInitializingRef.current = false;
+                }
+              });
+            }
+          });
+        }
+      }, 2000); // 2 second timeout
+      
       const authStateChangeResult = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+      // Mark INITIAL_SESSION as fired
+      if (event === 'INITIAL_SESSION') {
+        initialSessionFired = true;
+        clearTimeout(initialSessionTimeout);
+      }
       // Debug logging as requested
       console.log('✅ SUPABASE AUTH EVENT FIRED:', event, session ? `User: ${session.user?.id}` : 'No session');
       
@@ -810,6 +909,10 @@ const AppContent: React.FC = () => {
         if (subscription && typeof subscription.unsubscribe === 'function') {
           subscription.unsubscribe();
           console.log('✅ Auth listener unsubscribed');
+        }
+        // Clear the INITIAL_SESSION timeout if component unmounts
+        if (initialSessionTimeout) {
+          clearTimeout(initialSessionTimeout);
         }
       } catch (error) {
         console.error('App: Error unsubscribing from auth listener:', error);
@@ -1434,6 +1537,38 @@ const AppContent: React.FC = () => {
         status={loadingStatus}
         showGuestButton={false}
       />
+    );
+  }
+  
+  // LAST RESORT UI: Show "Syncing your account..." with "Try Again" button
+  if (showLastResortUI) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-gray-900 rounded-lg p-6 border border-yellow-500/30">
+          <h2 className="text-2xl font-bold text-yellow-400 mb-4 text-center">Syncing your account...</h2>
+          <p className="text-gray-300 mb-6 text-center">
+            We're having trouble syncing your account. This usually happens when there's a stuck authentication state.
+          </p>
+          <button
+            onClick={async () => {
+              console.log('App: 🔄 Try Again clicked - clearing all site data and redirecting to login');
+              // Clear all site data
+              localStorage.clear();
+              sessionStorage.clear();
+              // Sign out from Supabase
+              await supabase.auth.signOut();
+              // Redirect to login
+              window.location.href = window.location.origin;
+            }}
+            className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-6 rounded-lg transition-colors"
+          >
+            Try Again
+          </button>
+          <p className="text-xs text-gray-500 mt-4 text-center">
+            This will clear all site data and redirect you to the login screen.
+          </p>
+        </div>
+      </div>
     );
   }
   
