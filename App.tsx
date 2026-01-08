@@ -144,7 +144,7 @@ const AppContent: React.FC = () => {
   console.log('App: Step 7 - Environment variables check passed');
   
   // Use SessionProvider for auth state
-  const { session, user, loading: sessionLoading } = useSession();
+  const { session, user, loading: sessionLoading, forceSession } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   
@@ -930,11 +930,32 @@ const AppContent: React.FC = () => {
   
   // Show loading screen while SessionProvider is initializing
   if (sessionLoading && !hasActiveSession) {
+    // Check if we just came back from auth/callback (browser might be blocking cookies)
+    const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
+    
     return (
-      <LoadingScreen
-        status="Checking credentials..."
-        showGuestButton={false}
-      />
+      <div className="relative">
+        <LoadingScreen
+          status="Checking credentials..."
+          showGuestButton={false}
+          onEnterGuest={handlePlayAsGuest}
+        />
+        {cameFromAuthCallback && (
+          <div className="absolute inset-0 flex items-center justify-center z-20">
+            <div className="flex flex-col items-center gap-4 mt-32">
+              <button
+                onClick={forceSession}
+                className="px-6 py-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm transition-colors shadow-lg"
+              >
+                Complete Sign In
+              </button>
+              <p className="text-amber-300/70 text-xs text-center max-w-xs">
+                If sign-in seems stuck, click to manually complete the process
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
   
@@ -943,7 +964,29 @@ const AppContent: React.FC = () => {
   
   if (!hasValidSession && !isGuest) {
     console.log('App: No session - showing landing/sign-in screen');
-    return <AuthScreen onPlayAsGuest={handlePlayAsGuest} />;
+    // Check if we just came back from auth/callback (browser might be blocking cookies)
+    const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
+    
+    return (
+      <div className="relative">
+        <AuthScreen onPlayAsGuest={handlePlayAsGuest} />
+        {cameFromAuthCallback && (
+          <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20">
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={forceSession}
+                className="px-6 py-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm transition-colors shadow-lg"
+              >
+                Complete Sign In
+              </button>
+              <p className="text-amber-300/70 text-xs text-center max-w-xs">
+                If sign-in seems stuck, click to manually complete the process
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
   
   // 3. If session || isGuest, show Main Game App

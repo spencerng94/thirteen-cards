@@ -27,7 +27,7 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
         flowType: 'pkce', // Use PKCE flow for secure OAuth
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: false // Disabled - we handle exchange manually in /auth/callback route
       }
     })
   : (() => {
