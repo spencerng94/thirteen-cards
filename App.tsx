@@ -209,6 +209,7 @@ const AppContent: React.FC = () => {
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
   const aiThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true); // Strict Mode guard - prevents dual initialization
   const isInitializingRef = useRef(false);
   const authListenerSetupRef = useRef(false);
   const didInitRef = useRef(false); // Guard to ensure auth check only runs once
@@ -319,10 +320,16 @@ const AppContent: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [gameMode, myPersistentId, view]);
 
-  // EVENT-DRIVEN AUTH: Single source of truth - getSession() in useLayoutEffect
-  // This runs once on mount and immediately checks for a session
+  // AGGRESSIVE AUTH INITIALIZATION: Multiple strategies to ensure session is detected
+  // This runs once on mount and aggressively checks for a session
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
+    
+    // Strict Mode Guard: Prevent dual initialization from breaking Supabase websocket
+    if (!isMountedRef.current) {
+      console.log('App: Component unmounted, skipping auth initialization');
+      return;
+    }
     
     // Guard: Only run once
     if (didInitRef.current) {
@@ -332,95 +339,183 @@ const AppContent: React.FC = () => {
     didInitRef.current = true;
     isInitializingRef.current = true;
     
-    // SIMPLIFIED: OAuth code exchange is now handled by dedicated /auth/callback route
-    // App.tsx only needs to check for existing sessions and rely on onAuthStateChange
-    // This prevents AbortError from component re-renders during code exchange
+    // Check if we're on homepage after a redirect (from /auth/callback)
+    const isHomepageAfterRedirect = window.location.pathname === '/' || window.location.pathname === '';
+    const hasNoQueryParams = !window.location.search && !window.location.hash;
+    const isAfterCallback = document.referrer.includes('/auth/callback') || 
+                            sessionStorage.getItem('thirteen_oauth_redirect') === 'true';
     
-    console.log('App: Initializing auth check...');
+    console.log('App: 🔥 AGGRESSIVE auth initialization starting...', {
+      isHomepageAfterRedirect,
+      hasNoQueryParams,
+      isAfterCallback,
+      referrer: document.referrer
+    });
+    
+    // Debug Storage: Check if token exists in localStorage
+    const supabaseStorageKeys = Object.keys(localStorage).filter(key => key.startsWith('sb-'));
+    console.log('App: 🔍 Storage Debug - Supabase keys found:', supabaseStorageKeys.length);
+    supabaseStorageKeys.forEach(key => {
+      try {
+        const value = localStorage.getItem(key);
+        if (value) {
+          const parsed = JSON.parse(value);
+          console.log(`App: 🔍 Storage[${key}]:`, {
+            hasAccessToken: !!parsed?.access_token,
+            hasRefreshToken: !!parsed?.refresh_token,
+            expiresAt: parsed?.expires_at,
+            expiresIn: parsed?.expires_in
+          });
+        }
+      } catch (e) {
+        console.log(`App: 🔍 Storage[${key}]:`, 'Could not parse');
+      }
+    });
+    
     setLoadingStatus('Checking credentials...');
     
-    // Manual check: Call getSession() immediately to get definitive answer
-    // CRITICAL: Filter out AbortError and trust onAuthStateChange for session updates
-    const checkAuth = async () => {
+    // AGGRESSIVE SESSION CHECK: Try multiple methods
+    const aggressiveAuthCheck = async () => {
+      if (!isMountedRef.current) {
+        console.log('App: Component unmounted during auth check, aborting');
+        return;
+      }
+      
       try {
-        const { data, error } = await supabase.auth.getSession();
+        // Strategy 1: Try refreshSession() first (more aggressive, wakes up stuck sessions)
+        console.log('App: 🔥 Strategy 1 - Calling refreshSession()...');
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         
-        // Filter out AbortError - don't let it stop initialization
-        if (error) {
-          // Check if it's an AbortError - if so, silently return and let onAuthStateChange handle it
-          if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-            console.warn('App: getSession() aborted - will rely on onAuthStateChange listener');
-            // Keep loading state true - onAuthStateChange will set authChecked when ready
-            // DO NOT set authChecked here - let the listener handle it
-            return;
-          }
-          
-          // For non-AbortError, log but still don't set authChecked immediately
-          // Let onAuthStateChange listener handle it
-          console.error('App: Error getting session (non-AbortError):', error);
-          // Keep loading state - listener will handle authChecked
-          return;
-        }
-        
-        // If we got a session, set it immediately
-        if (data?.session) {
-          console.log('App: Session found via getSession():', data.session.user.id);
-          setSession(data.session);
+        if (!refreshError && refreshData?.session) {
+          console.log('App: ✅ refreshSession() SUCCESS - Session found:', refreshData.session.user.id);
+          setSession(refreshData.session);
           setHasSession(true);
           setIsGuest(false);
           setIsProcessingOAuth(false);
+          setAuthChecked(true);
+          isInitializingRef.current = false;
           
           // Process session
-          const meta = data.session.user.user_metadata || {};
+          const meta = refreshData.session.user.user_metadata || {};
           const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
           if (!playerName) setPlayerName(googleName.toUpperCase());
           
-          await transferGuestData(data.session.user.id);
-          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle();
-          // loadProfile will be called by useEffect that watches for session changes
-          // Store flag to trigger profile load
+          await transferGuestData(refreshData.session.user.id);
+          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', refreshData.session.user.id).maybeSingle();
           if (!existingProfile) {
             setLoadingStatus('Creating profile...');
           } else {
             setLoadingStatus('Loading profile...');
           }
-          
-          // Set authChecked after processing session
-          setAuthChecked(true);
-          isInitializingRef.current = false;
-        } else {
-          // No session found - but don't set authChecked yet
-          // Let onAuthStateChange listener handle INITIAL_SESSION event
-          console.log('App: No session found - waiting for onAuthStateChange listener');
-          // Keep loading state - listener will set authChecked on INITIAL_SESSION
+          return;
         }
         
+        // Strategy 2: If refreshSession failed, try getSession()
+        console.log('App: 🔥 Strategy 2 - refreshSession() failed, trying getSession()...');
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (!sessionError && sessionData?.session) {
+          console.log('App: ✅ getSession() SUCCESS - Session found:', sessionData.session.user.id);
+          setSession(sessionData.session);
+          setHasSession(true);
+          setIsGuest(false);
+          setIsProcessingOAuth(false);
+          setAuthChecked(true);
+          isInitializingRef.current = false;
+          
+          // Process session
+          const meta = sessionData.session.user.user_metadata || {};
+          const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+          if (!playerName) setPlayerName(googleName.toUpperCase());
+          
+          await transferGuestData(sessionData.session.user.id);
+          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', sessionData.session.user.id).maybeSingle();
+          if (!existingProfile) {
+            setLoadingStatus('Creating profile...');
+          } else {
+            setLoadingStatus('Loading profile...');
+          }
+          return;
+        }
+        
+        // Strategy 3: Force event trigger with getUser() (especially after callback redirect)
+        if (isAfterCallback || isHomepageAfterRedirect) {
+          console.log('App: 🔥 Strategy 3 - After callback detected, calling getUser() to force event trigger...');
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          
+          if (!userError && userData?.user) {
+            console.log('App: ✅ getUser() SUCCESS - User found:', userData.user.id);
+            // getUser() doesn't return session, but it confirms user exists
+            // Try getSession() again after getUser()
+            const { data: finalSessionData } = await supabase.auth.getSession();
+            if (finalSessionData?.session) {
+              console.log('App: ✅ Session found after getUser() trigger');
+              setSession(finalSessionData.session);
+              setHasSession(true);
+              setIsGuest(false);
+              setIsProcessingOAuth(false);
+              setAuthChecked(true);
+              isInitializingRef.current = false;
+              
+              // Process session
+              const meta = finalSessionData.session.user.user_metadata || {};
+              const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+              if (!playerName) setPlayerName(googleName.toUpperCase());
+              
+              await transferGuestData(finalSessionData.session.user.id);
+              const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', finalSessionData.session.user.id).maybeSingle();
+              if (!existingProfile) {
+                setLoadingStatus('Creating profile...');
+              } else {
+                setLoadingStatus('Loading profile...');
+              }
+              return;
+            }
+          }
+        }
+        
+        // If all strategies failed, log and wait for onAuthStateChange
+        console.log('App: ⚠️ All aggressive auth strategies failed, waiting for onAuthStateChange listener...');
+        console.log('App: ⚠️ refreshError:', refreshError?.message);
+        console.log('App: ⚠️ sessionError:', sessionError?.message);
+        
+        // Filter out AbortError - don't let it stop initialization
+        const hasAbortError = (refreshError?.name === 'AbortError' || refreshError?.message?.includes('aborted')) ||
+                              (sessionError?.name === 'AbortError' || sessionError?.message?.includes('aborted'));
+        
+        if (hasAbortError) {
+          console.warn('App: AbortError detected in auth check - will rely on onAuthStateChange listener');
+        }
+        
+        // Don't set authChecked here - let onAuthStateChange handle it
         isInitializingRef.current = false;
       } catch (error: any) {
         // CRITICAL: Filter out AbortError - don't let it crash the app
         if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
-          console.warn('App: getSession() caught AbortError - will rely on onAuthStateChange listener');
-          // Keep loading state true - onAuthStateChange will set authChecked when ready
-          // DO NOT set authChecked here - let the listener handle it
+          console.warn('App: Exception caught AbortError - will rely on onAuthStateChange listener');
+          if (!isMountedRef.current) return;
+          isInitializingRef.current = false;
           return;
         }
         
-        // For other errors, log but still don't set authChecked immediately
-        console.error('App: Exception getting session (non-AbortError):', error);
-        // Keep loading state - listener will handle authChecked
-        // DO NOT set authChecked here - let onAuthStateChange handle it
+        console.error('App: Exception in aggressive auth check (non-AbortError):', error);
+        if (!isMountedRef.current) return;
+        isInitializingRef.current = false;
+        // Don't set authChecked here - let onAuthStateChange handle it
       }
     };
     
-    // Call immediately - don't wait for listener
-    // Even if it fails with AbortError, onAuthStateChange will handle session
-    checkAuth();
+    // Call immediately - aggressive check
+    aggressiveAuthCheck();
+    
+    // Cleanup: Set mounted flag to false on unmount
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []); // Empty deps - only run once on mount
 
   // Safety timeout: If authChecked is still false after 10 seconds, set it to true
-  // This prevents the app from hanging forever if getSession() doesn't complete
-  // Note: OAuth code exchange is handled by /auth/callback route, so we don't need
-  // to check for code parameter here anymore
+  // INITIALIZATION GATE: Do NOT use setTimeout safety trigger if we are on homepage after redirect
   useEffect(() => {
     // Don't set safety timeout if OAuth is processing
     if (isProcessingOAuth) {
@@ -428,8 +523,19 @@ const AppContent: React.FC = () => {
       return;
     }
     
+    // INITIALIZATION GATE: Skip safety timeout if we're on homepage after redirect
+    // This prevents forcing authChecked before onAuthStateChange has a chance to fire
+    const isHomepageAfterRedirect = (window.location.pathname === '/' || window.location.pathname === '') &&
+                                    (document.referrer.includes('/auth/callback') || 
+                                     sessionStorage.getItem('thirteen_oauth_redirect') === 'true');
+    
+    if (isHomepageAfterRedirect) {
+      console.log('App: Skipping safety timeout - on homepage after OAuth redirect, waiting for onAuthStateChange');
+      return;
+    }
+    
     const safetyTimeout = setTimeout(() => {
-      if (!authChecked) {
+      if (!authChecked && isMountedRef.current) {
         console.warn('App: Safety timeout - authChecked still false after 10 seconds, forcing to true');
         setAuthChecked(true);
         setLoadingStatus('Ready to play');
@@ -445,7 +551,14 @@ const AppContent: React.FC = () => {
   // Note: OAuth hash cleanup is now handled in the SIGNED_IN event handler above
 
   // Set up auth state change listener - only once with empty deps
+  // STRICT MODE GUARD: Use mounted flag to prevent dual-initialization from breaking Supabase websocket
   useEffect(() => {
+    // Strict Mode Guard: Prevent dual initialization
+    if (!isMountedRef.current) {
+      console.log('App: Component unmounted, skipping listener setup');
+      return;
+    }
+    
     // Guard: Only set up listener once
     if (authListenerSetupRef.current) {
       return;
@@ -703,7 +816,7 @@ const AppContent: React.FC = () => {
       }
       authListenerSetupRef.current = false;
     };
-  }, []); // Empty dependency array - only run once
+  }, []); // Empty dependency array - only run once, Strict Mode guard prevents dual initialization
 
   // Fix render loop: Wrap loadProfile in useCallback to prevent recreation on every render
   const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false) => {

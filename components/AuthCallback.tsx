@@ -98,10 +98,15 @@ export const AuthCallback: React.FC = () => {
 
         // Clean the code from URL
         window.history.replaceState(null, '', window.location.pathname);
+        
+        // Set flag to indicate we're redirecting from OAuth callback
+        // This helps App.tsx know to skip safety timeout and wait for onAuthStateChange
+        sessionStorage.setItem('thirteen_oauth_redirect', 'true');
 
         // Small delay to show success message, then redirect to home
         setTimeout(() => {
           // Use window.location.origin to redirect to home page
+          // This will trigger App.tsx to aggressively check for session
           window.location.href = window.location.origin;
         }, 1000);
 
