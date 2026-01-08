@@ -142,12 +142,21 @@ const DEFAULT_TURN_DURATION_MS = 60000;
 
 const app = express();
 const httpServer = createServer(app);
-const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
+const allowedOrigins = [
+  "https://playthirteen.app",
+  "https://thirteen-cards.vercel.app",
+  "http://localhost:5173"
+];
 
-app.use(cors({ origin: allowedOrigin, credentials: true }));
+// If FRONTEND_URL env var is set, add it to the list (for backwards compatibility)
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 
 const io = new Server(httpServer, {
-  cors: { origin: allowedOrigin, methods: ["GET", "POST"], credentials: true }
+  cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true }
 });
 
 const rooms: Record<string, GameRoom> = {};
