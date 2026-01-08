@@ -878,15 +878,15 @@ const AppContent: React.FC = () => {
         redirectTo 
       });
       
-      // Trigger Google OAuth with PKCE flow
+      // Trigger Google OAuth with PKCE flow (Supabase standard)
       const { data, error } = await supabase.auth.signInWithOAuth({ 
         provider: 'google',
         options: {
-          redirectTo,
+          redirectTo: `${window.location.origin}/auth/callback`,
           skipBrowserRedirect: false, // Ensure browser redirect happens
           queryParams: {
-            prompt: 'select_account',
-            access_type: 'offline'
+            access_type: 'offline',
+            prompt: 'consent'
           }
         }
       });

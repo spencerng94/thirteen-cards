@@ -88,17 +88,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         redirectTo 
       });
       
-      // Trigger Google OAuth with PKCE flow
+      // Trigger Google OAuth with PKCE flow (Supabase standard)
       // Note: signInWithOAuth may redirect immediately, which can cause the promise
       // to be interrupted. We handle this gracefully.
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+      console.log('AuthScreen: OAuth config:', {
+        provider: 'google',
+        redirectTo: redirectUrl,
+        flowType: 'pkce',
+        queryParams: { access_type: 'offline', prompt: 'consent' }
+      });
+      
       const oauthPromise = supabase.auth.signInWithOAuth({ 
         provider: 'google',
         options: {
-          redirectTo,
+          redirectTo: redirectUrl,
           skipBrowserRedirect: false, // Ensure browser redirect happens
           queryParams: {
-            prompt: 'select_account',
-            access_type: 'offline'
+            access_type: 'offline',
+            prompt: 'consent'
           }
         }
       });

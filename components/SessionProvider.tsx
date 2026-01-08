@@ -140,6 +140,66 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     
     listenerSetupRef.current = true;
     console.log('SessionProvider: Setting up auth state change listener...');
+    
+    // Check for tokens in URL hash (Implicit flow)
+    // This handles cases where user lands on home page with tokens in hash
+    const checkHashForTokens = async () => {
+      const hash = window.location.hash.substring(1); // Remove #
+      console.log('SessionProvider: Checking for tokens in hash:', hash ? 'hash present' : 'no hash');
+      
+      if (!hash) return;
+      
+      const hashParams = new URLSearchParams(hash);
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const errorParam = hashParams.get('error');
+      const errorDescription = hashParams.get('error_description');
+      
+      console.log('SessionProvider: Hash params:', {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        error: errorParam || 'none'
+      });
+      
+      if (errorParam) {
+        console.error('SessionProvider: OAuth error in hash:', errorParam, errorDescription);
+        // Clean hash and continue
+        window.history.replaceState(null, '', window.location.pathname);
+        return;
+      }
+      
+      if (accessToken) {
+        console.log('SessionProvider: Found tokens in URL hash, setting session manually...');
+        try {
+          const { data: sessionData, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || ''
+          });
+          
+          if (!error && sessionData?.session) {
+            console.log('SessionProvider: ✅ Session set from hash, user:', sessionData.session.user.id);
+            setSession(sessionData.session);
+            setUser(sessionData.session.user);
+            localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+            setLoading(false);
+            
+            // Clean the hash from URL
+            window.history.replaceState(null, '', window.location.pathname);
+          } else if (error) {
+            console.error('SessionProvider: Error setting session from hash:', error);
+            // Clean hash even on error
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        } catch (err) {
+          console.error('SessionProvider: Exception setting session from hash:', err);
+          // Clean hash even on error
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+    };
+    
+    // Check hash immediately
+    checkHashForTokens();
 
     // Set up onAuthStateChange listener with retry logic
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

@@ -24,10 +24,10 @@ const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        flowType: 'pkce', // Use PKCE flow for secure OAuth
+        flowType: 'pkce', // PKCE is the standard flow - we'll handle hash/query params manually
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: false // Disabled - we handle exchange manually in /auth/callback route
+        detectSessionInUrl: true // Re-enable to let Supabase handle it, but we'll also check manually
       }
     })
   : (() => {
