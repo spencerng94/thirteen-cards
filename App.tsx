@@ -340,26 +340,33 @@ const AppContent: React.FC = () => {
     setLoadingStatus('Checking credentials...');
     
     // Manual check: Call getSession() immediately to get definitive answer
+    // CRITICAL: Filter out AbortError and trust onAuthStateChange for session updates
     const checkAuth = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
         
+        // Filter out AbortError - don't let it stop initialization
         if (error) {
-          console.error('App: Error getting session:', error);
-          setSession(null);
-          setHasSession(false);
-          setAuthChecked(true);
-          // DO NOT set isGuest - let user choose
-          setIsProcessingOAuth(false);
-          isInitializingRef.current = false;
+          // Check if it's an AbortError - if so, silently return and let onAuthStateChange handle it
+          if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+            console.warn('App: getSession() aborted - will rely on onAuthStateChange listener');
+            // Keep loading state true - onAuthStateChange will set authChecked when ready
+            // DO NOT set authChecked here - let the listener handle it
+            return;
+          }
+          
+          // For non-AbortError, log but still don't set authChecked immediately
+          // Let onAuthStateChange listener handle it
+          console.error('App: Error getting session (non-AbortError):', error);
+          // Keep loading state - listener will handle authChecked
           return;
         }
         
+        // If we got a session, set it immediately
         if (data?.session) {
-          console.log('App: Session found:', data.session.user.id);
+          console.log('App: Session found via getSession():', data.session.user.id);
           setSession(data.session);
           setHasSession(true);
-          setAuthChecked(true);
           setIsGuest(false);
           setIsProcessingOAuth(false);
           
@@ -374,31 +381,39 @@ const AppContent: React.FC = () => {
           // Store flag to trigger profile load
           if (!existingProfile) {
             setLoadingStatus('Creating profile...');
-        } else {
+          } else {
             setLoadingStatus('Loading profile...');
           }
-        } else {
-          console.log('App: No session found - showing landing screen');
-          setSession(null);
-          setHasSession(false);
+          
+          // Set authChecked after processing session
           setAuthChecked(true);
-          // DO NOT set isGuest - let user choose
-          setIsProcessingOAuth(false);
+          isInitializingRef.current = false;
+        } else {
+          // No session found - but don't set authChecked yet
+          // Let onAuthStateChange listener handle INITIAL_SESSION event
+          console.log('App: No session found - waiting for onAuthStateChange listener');
+          // Keep loading state - listener will set authChecked on INITIAL_SESSION
         }
         
         isInitializingRef.current = false;
       } catch (error: any) {
-        console.error('App: Exception getting session:', error);
-        setSession(null);
-        setHasSession(false);
-        setAuthChecked(true);
-        // DO NOT set isGuest - let user choose
-        setIsProcessingOAuth(false);
-        isInitializingRef.current = false;
+        // CRITICAL: Filter out AbortError - don't let it crash the app
+        if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+          console.warn('App: getSession() caught AbortError - will rely on onAuthStateChange listener');
+          // Keep loading state true - onAuthStateChange will set authChecked when ready
+          // DO NOT set authChecked here - let the listener handle it
+          return;
+        }
+        
+        // For other errors, log but still don't set authChecked immediately
+        console.error('App: Exception getting session (non-AbortError):', error);
+        // Keep loading state - listener will handle authChecked
+        // DO NOT set authChecked here - let onAuthStateChange handle it
       }
     };
     
     // Call immediately - don't wait for listener
+    // Even if it fails with AbortError, onAuthStateChange will handle session
     checkAuth();
   }, []); // Empty deps - only run once on mount
 
@@ -452,11 +467,12 @@ const AppContent: React.FC = () => {
       
       // CRITICAL: For SIGNED_IN event, immediately set flags before doing anything else
       // This is especially important for OAuth code exchange completion
+      // This is the "Race Fix" - trust onAuthStateChange to set session/authChecked
       if (event === 'SIGNED_IN' && session) {
-        console.log('App: SIGNED_IN event detected - immediately setting auth flags');
+        console.log('App: SIGNED_IN event detected - immediately setting auth flags (Race Fix)');
         console.log('App: OAuth code exchange completed successfully');
         
-        // Set auth flags immediately
+        // Set auth flags immediately - this is the primary source of truth
         setAuthChecked(true);
         setHasSession(true);
         setSession(session);
@@ -474,7 +490,22 @@ const AppContent: React.FC = () => {
           window.history.replaceState(null, '', window.location.pathname);
         }
         
-        console.log('App: Auth flags set immediately, now processing profile...');
+        console.log('App: Auth flags set immediately via SIGNED_IN event, now processing profile...');
+      } else if (event === 'INITIAL_SESSION') {
+        // Handle INITIAL_SESSION event - set authChecked even if no session
+        // This ensures authChecked is set even if getSession() was aborted
+        console.log('App: INITIAL_SESSION event - setting authChecked (Race Fix)');
+        setAuthChecked(true);
+        setSession(session);
+        if (session) {
+          setHasSession(true);
+          setIsGuest(false);
+        } else {
+          setHasSession(false);
+          // DO NOT set isGuest - let user choose
+        }
+        setIsProcessingOAuth(false);
+        isInitializingRef.current = false;
       } else {
         setSession(session);
       }
@@ -586,14 +617,9 @@ const AppContent: React.FC = () => {
           setIsProcessingOAuth(false);
           setLoadingStatus('Ready to play');
           initialSyncCompleteRef.current = false;
-        } else if (event === 'INITIAL_SESSION') {
-          // If INITIAL_SESSION with no session, show landing screen (don't auto-guest)
-          console.log('App: INITIAL_SESSION with no session - showing landing screen');
-          setAuthChecked(true);
-          setHasSession(false);
-          // DO NOT set isGuest - let user choose
-          setLoadingStatus('Ready to play');
         } else {
+          // INITIAL_SESSION is now handled above in the main event handler
+          // This else block handles other events (TOKEN_REFRESHED, etc.)
           setHasSession((prev) => prev ? prev : false);
           setProfile(null);
           initialSyncCompleteRef.current = false;
