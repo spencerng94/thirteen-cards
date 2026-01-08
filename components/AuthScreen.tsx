@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
-import { supabase } from '../services/supabase';
+import { supabase } from '../src/lib/supabase';
 import { BrandLogo } from './BrandLogo';
 
 interface AuthScreenProps {

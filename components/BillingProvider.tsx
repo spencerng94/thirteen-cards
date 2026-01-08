@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Purchases, PurchasesPackage, CustomerInfo } from '@revenuecat/purchases-capacitor';
-import { supabase, fetchProfile } from '../services/supabase';
+import { supabase } from '../src/lib/supabase';
+import { fetchProfile } from '../services/supabase';
 
 // Helper to get environment variables
 const getEnv = (key: string): string | undefined => {

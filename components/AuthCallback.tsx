@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabase';
+import { supabase } from '../src/lib/supabase';
 import { LoadingScreen } from './LoadingScreen';
 
 /**

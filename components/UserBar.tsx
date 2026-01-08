@@ -3,6 +3,7 @@ import { UserProfile, Emote, HubTab } from '../types';
 import { calculateLevel, getXpForLevel } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 import { CurrencyIcon } from './Store';
+import { useGemBalance } from '../hooks/useGemBalance';
 
 /* FIXED: Added onOpenGemPacks to UserBarProps interface */
 interface UserBarProps {
@@ -29,6 +30,9 @@ export const UserBar: React.FC<UserBarProps> = ({
   avatar,
   remoteEmotes = [] 
 }) => {
+  // Use realtime gem balance hook (only for authenticated users, not guests)
+  const { gemCount: realtimeGemCount } = useGemBalance();
+  
   // User Bar Visibility: Render even if profile is loading, using placeholders
   const isLoading = !profile;
   const displayProfile = profile || {
@@ -37,6 +41,11 @@ export const UserBar: React.FC<UserBarProps> = ({
     gems: 0,
     level: 1
   } as Partial<UserProfile>;
+  
+  // Use realtime gem count if available and user is not a guest, otherwise fall back to profile
+  const displayGems = (!isGuest && realtimeGemCount !== null) 
+    ? realtimeGemCount 
+    : (displayProfile.gems || 0);
 
   const currentLevel = isLoading ? 1 : calculateLevel(displayProfile.xp || 0);
   const nextLevelXp = getXpForLevel(currentLevel + 1);
@@ -114,7 +123,7 @@ export const UserBar: React.FC<UserBarProps> = ({
             <CurrencyIcon type="GEMS" size="sm" />
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-pink-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(236,72,153,0.4)]">
-            {isLoading ? '---' : (displayProfile.gems || 0) > 999 ? ((displayProfile.gems || 0) / 1000).toFixed(1) + 'k' : (displayProfile.gems || 0)}
+            {isLoading ? '---' : displayGems > 999 ? (displayGems / 1000).toFixed(1) + 'k' : displayGems}
           </span>
         </button>
       </div>

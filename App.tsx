@@ -25,8 +25,9 @@ const InventoryModal = lazy(() => import('./components/InventoryModal').then(m =
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
-import { supabase, recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState, getGuestProgress, migrateGuestData, clearGuestProgress, persistSupabaseAuthTokenBruteforce } from './services/supabase';
-import { supabase as supabaseClient } from './services/supabase';
+import { recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState, getGuestProgress, migrateGuestData, clearGuestProgress, persistSupabaseAuthTokenBruteforce } from './services/supabase';
+import { supabase } from './src/lib/supabase';
+import { useSession } from './components/SessionProvider';
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeToast } from './components/WelcomeToast';
 import { Toast } from './components/Toast';
@@ -142,13 +143,13 @@ const AppContent: React.FC = () => {
   
   console.log('App: Step 7 - Environment variables check passed');
   
-  const [session, setSession] = useState<any>(null);
+  // Use SessionProvider for auth state
+  const { session, user, loading: sessionLoading } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
-  const [isProcessingOAuth, setIsProcessingOAuth] = useState(false); // Block state updates during OAuth
-  const [showLastResortUI, setShowLastResortUI] = useState(false); // Show "Syncing your account..." UI
+  
+  // HARD LANDING LOGIC: Check has_active_session flag
+  const hasActiveSession = localStorage.getItem('has_active_session') === 'true';
   
   console.log('App: Step 8 - State initialized');
 
@@ -210,12 +211,6 @@ const AppContent: React.FC = () => {
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
   const aiThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isMountedRef = useRef(true); // Strict Mode guard - prevents dual initialization
-  const isInitializingRef = useRef(false);
-  const authListenerSetupRef = useRef(false);
-  const didInitRef = useRef(false); // Guard to ensure auth check only runs once
-  const manualRecoveryInProgressRef = useRef(false); // Guard to prevent multiple manual recovery attempts
-  const authStatusRef = useRef({ hasSession: false, authChecked: false });
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -321,685 +316,18 @@ const AppContent: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [gameMode, myPersistentId, view]);
 
-  // AGGRESSIVE AUTH INITIALIZATION: Multiple strategies to ensure session is detected
-  // This runs once on mount and aggressively checks for a session
-  useLayoutEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // Strict Mode Guard: Prevent dual initialization from breaking Supabase websocket
-    if (!isMountedRef.current) {
-      console.log('App: Component unmounted, skipping auth initialization');
-      return;
-    }
-    
-    // Guard: Only run once
-    if (didInitRef.current) {
-      return;
-    }
-    
-    didInitRef.current = true;
-    isInitializingRef.current = true;
-    
-    // Check if we're on homepage after a redirect (from /auth/callback)
-    const isHomepageAfterRedirect = window.location.pathname === '/' || window.location.pathname === '';
-    const hasNoQueryParams = !window.location.search && !window.location.hash;
-    const isAfterCallback = document.referrer.includes('/auth/callback') || 
-                            sessionStorage.getItem('thirteen_oauth_redirect') === 'true';
-    
-    console.log('App: 🔥 AGGRESSIVE auth initialization starting...', {
-      isHomepageAfterRedirect,
-      hasNoQueryParams,
-      isAfterCallback,
-      referrer: document.referrer
-    });
-    
-    // Debug Storage: Check if token exists in localStorage
-    const supabaseStorageKeys = Object.keys(localStorage).filter(key => key.startsWith('sb-'));
-    console.log('App: 🔍 Storage Debug - Supabase keys found:', supabaseStorageKeys.length);
-    
-    let hasCodeVerifier = false;
-    let hasAccessToken = false;
-    let codeVerifierKey: string | null = null;
-    
-    supabaseStorageKeys.forEach(key => {
-      try {
-        const value = localStorage.getItem(key);
-        if (value) {
-          // Check for code-verifier (can be in the key name or value)
-          if (key.includes('verifier') || key.includes('code-verifier') || key.includes('code_verifier')) {
-            hasCodeVerifier = true;
-            codeVerifierKey = key;
-            console.log(`App: 🔍 Storage[${key}]: Found code-verifier!`);
-          }
-          
-          const parsed = JSON.parse(value);
-          const hasToken = !!parsed?.access_token;
-          const hasRefresh = !!parsed?.refresh_token;
-          
-          if (hasToken) hasAccessToken = true;
-          
-          console.log(`App: 🔍 Storage[${key}]:`, {
-            hasAccessToken: hasToken,
-            hasRefreshToken: hasRefresh,
-            expiresAt: parsed?.expires_at,
-            expiresIn: parsed?.expires_in,
-            isCodeVerifier: key.includes('verifier')
-          });
-        }
-      } catch (e) {
-        // Check if it's a plain string code-verifier
-        if (key.includes('verifier') || key.includes('code-verifier') || key.includes('code_verifier')) {
-          hasCodeVerifier = true;
-          codeVerifierKey = key;
-          console.log(`App: 🔍 Storage[${key}]: Found code-verifier (non-JSON)!`);
-        }
-        console.log(`App: 🔍 Storage[${key}]:`, 'Could not parse');
-      }
-    });
-    
-    // DETECTION OF STUCK STATE: If code-verifier exists but no access-token, and NOT in redirect
-    const isInRedirect = window.location.search.includes('code=') || 
-                         window.location.hash.includes('code=') ||
-                         window.location.pathname === '/auth/callback';
-    
-    if (hasCodeVerifier && !hasAccessToken && !isInRedirect && codeVerifierKey) {
-      console.warn('App: 🚨 STUCK STATE DETECTED - Ghost code-verifier found without access-token!');
-      console.warn('App: 🧹 Clearing ghost verifier key:', codeVerifierKey);
-      localStorage.removeItem(codeVerifierKey);
-      console.log('App: ✅ Ghost verifier cleared');
-    }
-    
-    setLoadingStatus('Checking credentials...');
-    
-    // AGGRESSIVE SESSION CHECK: Try multiple methods
-    const aggressiveAuthCheck = async () => {
-      if (!isMountedRef.current) {
-        console.log('App: Component unmounted during auth check, aborting');
-        return;
-      }
-      
-      // MANUAL STATE OVERRIDE: If we just came from /auth/callback, add 500ms delay
-      // Sometimes the browser needs a moment to write the session to localStorage before we can read it
-      if (isAfterCallback) {
-        console.log('App: ⏳ Coming from callback - waiting 500ms for browser to write session to localStorage...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        console.log('App: ✅ 500ms delay complete, proceeding with auth check');
-      }
-      
-      try {
-        // Strategy 1: Try refreshSession() first (more aggressive, wakes up stuck sessions)
-        console.log('App: 🔥 Strategy 1 - Calling refreshSession()...');
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (!refreshError && refreshData?.session) {
-          console.log('App: ✅ refreshSession() SUCCESS - Session found:', refreshData.session.user.id);
-          setSession(refreshData.session);
-          setHasSession(true);
-          setIsGuest(false);
-          setIsProcessingOAuth(false);
-          setAuthChecked(true);
-          isInitializingRef.current = false;
-          
-          // Process session
-          const meta = refreshData.session.user.user_metadata || {};
-          const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-          if (!playerName) setPlayerName(googleName.toUpperCase());
-          
-          await transferGuestData(refreshData.session.user.id);
-          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', refreshData.session.user.id).maybeSingle();
-          if (!existingProfile) {
-            setLoadingStatus('Creating profile...');
-          } else {
-            setLoadingStatus('Loading profile...');
-          }
-          return;
-        }
-        
-        // MANUAL RECOVERY: If refreshSession() failed, signOut() to purge buggy state
-        if (refreshError || !refreshData?.session) {
-          console.warn('App: ⚠️ refreshSession() failed, attempting manual recovery with signOut()...');
-          console.warn('App: ⚠️ refreshError:', refreshError?.message);
-          try {
-            await supabase.auth.signOut();
-            console.log('App: ✅ signOut() completed - buggy state purged');
-            // Clear the sessionStorage flag too
-            sessionStorage.removeItem('thirteen_oauth_redirect');
-          } catch (signOutError) {
-            console.error('App: ❌ signOut() failed:', signOutError);
-          }
-        }
-        
-        // Strategy 2: If refreshSession failed, try getSession()
-        console.log('App: 🔥 Strategy 2 - refreshSession() failed, trying getSession()...');
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
-        if (!sessionError && sessionData?.session) {
-          console.log('App: ✅ getSession() SUCCESS - Session found:', sessionData.session.user.id);
-          setSession(sessionData.session);
-          setHasSession(true);
-          setIsGuest(false);
-          setIsProcessingOAuth(false);
-          setAuthChecked(true);
-          isInitializingRef.current = false;
-          
-          // Process session
-          const meta = sessionData.session.user.user_metadata || {};
-          const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-          if (!playerName) setPlayerName(googleName.toUpperCase());
-          
-          await transferGuestData(sessionData.session.user.id);
-          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', sessionData.session.user.id).maybeSingle();
-          if (!existingProfile) {
-            setLoadingStatus('Creating profile...');
-        } else {
-            setLoadingStatus('Loading profile...');
-          }
-          return;
-        }
-        
-        // Strategy 3: Force event trigger with getUser() (especially after callback redirect)
-        if (isAfterCallback || isHomepageAfterRedirect) {
-          console.log('App: 🔥 Strategy 3 - After callback detected, calling getUser() to force event trigger...');
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          
-          if (!userError && userData?.user) {
-            console.log('App: ✅ getUser() SUCCESS - User found:', userData.user.id);
-            // getUser() doesn't return session, but it confirms user exists
-            // Try getSession() again after getUser()
-            const { data: finalSessionData } = await supabase.auth.getSession();
-            if (finalSessionData?.session) {
-              console.log('App: ✅ Session found after getUser() trigger');
-              setSession(finalSessionData.session);
-              setHasSession(true);
-              setIsGuest(false);
-          setIsProcessingOAuth(false);
-              setAuthChecked(true);
-              isInitializingRef.current = false;
-              
-              // Process session
-              const meta = finalSessionData.session.user.user_metadata || {};
-              const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-              if (!playerName) setPlayerName(googleName.toUpperCase());
-              
-              await transferGuestData(finalSessionData.session.user.id);
-              const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', finalSessionData.session.user.id).maybeSingle();
-              if (!existingProfile) {
-                setLoadingStatus('Creating profile...');
-              } else {
-                setLoadingStatus('Loading profile...');
-              }
-              return;
-            }
-          }
-        }
-        
-        // LAST RESORT: If we just came from /auth/callback and STILL don't have a session
-        if (isAfterCallback && !sessionData?.session) {
-          console.error('App: 🚨 LAST RESORT - Came from callback but no session found!');
-          console.error('App: 🚨 This indicates a stuck state that needs user intervention');
-          
-          // Set a flag to show the "Syncing your account..." UI
-          setLoadingStatus('Syncing your account...');
-          setIsProcessingOAuth(true);
-          setShowLastResortUI(true);
-          // Don't set authChecked yet - let the UI handle it
-          isInitializingRef.current = false;
-          return;
-        }
-        
-        // If all strategies failed, log and wait for onAuthStateChange
-        console.log('App: ⚠️ All aggressive auth strategies failed, waiting for onAuthStateChange listener...');
-        console.log('App: ⚠️ refreshError:', refreshError?.message);
-        console.log('App: ⚠️ sessionError:', sessionError?.message);
-        
-        // Filter out AbortError - don't let it stop initialization
-        const hasAbortError = (refreshError?.name === 'AbortError' || refreshError?.message?.includes('aborted')) ||
-                              (sessionError?.name === 'AbortError' || sessionError?.message?.includes('aborted'));
-        
-        if (hasAbortError) {
-          console.warn('App: AbortError detected in auth check - will rely on onAuthStateChange listener');
-        }
-        
-        // FINAL FAIL-SAFE: If authChecked is still false after all attempts, but auth-token exists in localStorage
-        // Force authChecked to true and try to render the game anyway
-        // The game components will naturally handle a null user if they have to
-        if (!authChecked) {
-          const hasAuthToken = supabaseStorageKeys.some(key => {
-            try {
-              const value = localStorage.getItem(key);
-              if (value) {
-                const parsed = JSON.parse(value);
-                return !!parsed?.access_token;
-              }
-            } catch (e) {
-              // Check if key name contains 'auth-token'
-              return key.includes('auth-token');
-            }
-            return false;
-          });
-          
-          if (hasAuthToken) {
-            console.warn('App: 🚨 FINAL FAIL-SAFE - authChecked is false but auth-token exists in localStorage');
-            console.warn('App: 🚨 Forcing authChecked to true - game components will handle null user if needed');
-            setAuthChecked(true);
-            isInitializingRef.current = false;
-            setLoadingStatus('Ready to play');
-            return;
-          }
-        }
-        
-        // Don't set authChecked here - let onAuthStateChange handle it
-        isInitializingRef.current = false;
-      } catch (error: any) {
-        // CRITICAL: Filter out AbortError - don't let it crash the app
-        if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
-          console.warn('App: Exception caught AbortError - will rely on onAuthStateChange listener');
-          if (!isMountedRef.current) return;
-          
-          // FINAL FAIL-SAFE: Even on AbortError, check for auth-token
-          const hasAuthToken = supabaseStorageKeys.some(key => {
-            try {
-              const value = localStorage.getItem(key);
-              if (value) {
-                const parsed = JSON.parse(value);
-                return !!parsed?.access_token;
-              }
-            } catch (e) {
-              return key.includes('auth-token');
-            }
-            return false;
-          });
-          
-          if (hasAuthToken) {
-            console.warn('App: 🚨 FINAL FAIL-SAFE (AbortError) - Forcing authChecked to true');
-            setAuthChecked(true);
-            isInitializingRef.current = false;
-            setLoadingStatus('Ready to play');
-          } else {
-            isInitializingRef.current = false;
-          }
-          return;
-        }
-        
-        console.error('App: Exception in aggressive auth check (non-AbortError):', error);
-        if (!isMountedRef.current) return;
-        
-        // FINAL FAIL-SAFE: Even on exception, check for auth-token
-        const hasAuthToken = supabaseStorageKeys.some(key => {
-          try {
-            const value = localStorage.getItem(key);
-            if (value) {
-              const parsed = JSON.parse(value);
-              return !!parsed?.access_token;
-            }
-          } catch (e) {
-            return key.includes('auth-token');
-          }
-          return false;
-        });
-        
-        if (hasAuthToken) {
-          console.warn('App: 🚨 FINAL FAIL-SAFE (Exception) - Forcing authChecked to true');
-          setAuthChecked(true);
-          isInitializingRef.current = false;
-          setLoadingStatus('Ready to play');
-        } else {
-          isInitializingRef.current = false;
-        }
-        // Don't set authChecked here - let onAuthStateChange handle it
-      }
-    };
-    
-    // Call immediately - aggressive check
-    aggressiveAuthCheck();
-    
-    // Cleanup: Set mounted flag to false on unmount
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []); // Empty deps - only run once on mount
+  // SIMPLIFIED AUTH: SessionProvider handles all auth state
+  // App.tsx just checks has_active_session flag and uses session from provider
 
-  // Safety timeout: If authChecked is still false after 10 seconds, set it to true
-  // INITIALIZATION GATE: Do NOT use setTimeout safety trigger if we are on homepage after redirect
+  // Load profile when session changes (from SessionProvider)
   useEffect(() => {
-    // Don't set safety timeout if OAuth is processing
-    if (isProcessingOAuth) {
-      console.log('App: Skipping safety timeout - OAuth processing in progress');
-      return;
+    if (session?.user?.id && !isGuest) {
+      const userId = session.user.id;
+      supabase.from('profiles').select('id').eq('id', userId).maybeSingle().then(({ data: existingProfile }) => {
+        loadProfile(userId, !existingProfile);
+      });
     }
-    
-    // INITIALIZATION GATE: Skip safety timeout if we're on homepage after redirect
-    // This prevents forcing authChecked before onAuthStateChange has a chance to fire
-    const isHomepageAfterRedirect = (window.location.pathname === '/' || window.location.pathname === '') &&
-                                    (document.referrer.includes('/auth/callback') || 
-                                     sessionStorage.getItem('thirteen_oauth_redirect') === 'true');
-    
-    if (isHomepageAfterRedirect) {
-      console.log('App: Skipping safety timeout - on homepage after OAuth redirect, waiting for onAuthStateChange');
-      return;
-    }
-    
-    const safetyTimeout = setTimeout(() => {
-      if (!authChecked && isMountedRef.current) {
-        console.warn('App: Safety timeout - authChecked still false after 10 seconds, forcing to true');
-        setAuthChecked(true);
-        setLoadingStatus('Ready to play');
-        isInitializingRef.current = false;
-      }
-    }, 10000); // 10 seconds to allow for slower operations
-
-    return () => {
-      clearTimeout(safetyTimeout);
-    };
-  }, [authChecked, isProcessingOAuth]);
-
-  // Note: OAuth hash cleanup is now handled in the SIGNED_IN event handler above
-
-  // Set up auth state change listener - only once with empty deps
-  // STRICT MODE GUARD: Use mounted flag to prevent dual-initialization from breaking Supabase websocket
-  useEffect(() => {
-    // Strict Mode Guard: Prevent dual initialization
-    if (!isMountedRef.current) {
-      console.log('App: Component unmounted, skipping listener setup');
-      return;
-    }
-    
-    // Guard: Only set up listener once
-    if (authListenerSetupRef.current) {
-      return;
-    }
-    
-    console.log('App: Setting up auth state change listener...');
-    authListenerSetupRef.current = true;
-    
-    // Fix: Properly handle the subscription to avoid 'Y is not a function' error
-    let subscription: { unsubscribe: () => void } | null = null;
-    let initialSessionTimeout: ReturnType<typeof setTimeout> | null = null;
-    
-    try {
-      // CRITICAL: onAuthStateChange returns { data: { subscription } }
-      // The callback fires immediately with INITIAL_SESSION event
-      console.log('App: Calling supabase.auth.onAuthStateChange...');
-      
-      // onAuthStateChange Guard: Check if INITIAL_SESSION fires within 2 seconds
-      let initialSessionFired = false;
-      initialSessionTimeout = setTimeout(() => {
-        if (!initialSessionFired && !authChecked && isMountedRef.current) {
-          console.warn('App: ⚠️ INITIAL_SESSION did not fire within 2 seconds, trying manual getUser()...');
-          // Try manual getUser() as fallback
-          supabase.auth.getUser().then(({ data, error }) => {
-            if (!error && data?.user && isMountedRef.current) {
-              console.log('App: ✅ Manual getUser() found user:', data.user.id);
-              // Try getSession() again
-              supabase.auth.getSession().then(({ data: sessionData }) => {
-                if (sessionData?.session && isMountedRef.current) {
-                  console.log('App: ✅ Session found after manual getUser() trigger');
-                  setSession(sessionData.session);
-                  setHasSession(true);
-                  setAuthChecked(true);
-                  setIsGuest(false);
-                  setIsProcessingOAuth(false);
-                  setShowLastResortUI(false);
-                  isInitializingRef.current = false;
-                }
-              });
-            }
-          });
-        }
-      }, 2000); // 2 second timeout
-      
-      const authStateChangeResult = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
-      // Mark INITIAL_SESSION as fired
-      if (event === 'INITIAL_SESSION') {
-        initialSessionFired = true;
-        clearTimeout(initialSessionTimeout);
-      }
-      // Debug logging as requested
-      console.log('✅ SUPABASE AUTH EVENT FIRED:', event, session ? `User: ${session.user?.id}` : 'No session');
-      
-      console.log('App: Auth Event Received:', event, session ? 'Session exists' : 'No session');
-      console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
-      
-      // CRITICAL: For SIGNED_IN event, immediately set flags before doing anything else
-      // This is especially important for OAuth code exchange completion
-      // This is the "Race Fix" - trust onAuthStateChange to set session/authChecked
-      if (event === 'SIGNED_IN' && session) {
-        console.log('App: SIGNED_IN event detected - immediately setting auth flags (Race Fix)');
-        console.log('App: OAuth code exchange completed successfully');
-        
-        // Set auth flags immediately - this is the primary source of truth
-        setAuthChecked(true);
-        setHasSession(true);
-        setSession(session);
-        setIsGuest(false);
-        setIsProcessingOAuth(false);
-        isInitializingRef.current = false;
-        
-        // Clean the OAuth parameters from URL once SIGNED_IN is triggered
-        const hash = window.location.hash;
-        const searchParams = new URLSearchParams(window.location.search);
-        const hasOAuthParams = hash.includes('access_token') || hash.includes('code=') || searchParams.has('code');
-        
-        if (hasOAuthParams) {
-          console.log('App: Cleaning OAuth parameters from URL');
-          window.history.replaceState(null, '', window.location.pathname);
-        }
-        
-        console.log('App: Auth flags set immediately via SIGNED_IN event, now processing profile...');
-      } else if (event === 'INITIAL_SESSION') {
-        // Handle INITIAL_SESSION event - set authChecked even if no session
-        // This ensures authChecked is set even if getSession() was aborted
-        console.log('App: INITIAL_SESSION event - setting authChecked (Race Fix)');
-        setAuthChecked(true);
-        setSession(session);
-        if (session) {
-          setHasSession(true);
-          setIsGuest(false);
-        } else {
-          setHasSession(false);
-          // DO NOT set isGuest - let user choose
-        }
-        setIsProcessingOAuth(false);
-        isInitializingRef.current = false;
-      } else {
-        setSession(session);
-      }
-      
-      if (session?.user) {
-        // If not SIGNED_IN, still set flags but after session check
-        if (event !== 'SIGNED_IN') {
-          setIsGuest(false);
-          setAuthChecked(true);
-          setHasSession(true);
-        }
-        
-        setLoadingStatus('Syncing profile...');
-        const meta = session.user.user_metadata || {};
-        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-        setPlayerName((prev) => prev || googleName.toUpperCase());
-        
-        // Only do async operations after flags are set
-        await transferGuestData(session.user.id);
-        
-        // Guest-to-Permanent Migration: Check for guest progress and migrate
-        // Only migrate if isMigrating flag is set (user clicked "Link Account")
-        // Only award 50 gem bonus for SIGNED_UP (new signup), not SIGNED_IN (existing account)
-        const isMigrating = localStorage.getItem('thirteen_is_migrating') === 'true';
-        if ((event === 'SIGNED_UP' || event === 'SIGNED_IN') && isMigrating) {
-          const guestProgress = getGuestProgress();
-          if (guestProgress && (guestProgress.gems > 0 || guestProgress.xp > 0 || guestProgress.coins > 0)) {
-            console.log('Guest migration: Found guest progress:', guestProgress);
-            setLoadingStatus('Migrating your progress...');
-            
-            // Only pass isSignup=true for SIGNED_UP events (new signup)
-            // SIGNED_IN events (signing into existing account) should not get the bonus
-            const isSignup = event === 'SIGNED_UP';
-            
-            const migrationResult = await migrateGuestData(
-              session.user.id,
-              guestProgress.gems,
-              guestProgress.xp,
-              guestProgress.coins,
-              isSignup
-            );
-            
-            // Clear migration flag
-            localStorage.removeItem('thirteen_is_migrating');
-            
-            if (migrationResult.success) {
-              console.log('Guest migration: Successfully migrated progress');
-              clearGuestProgress();
-              
-              // Show success modal with breakdown
-              if (migrationResult.migratedGems !== undefined || migrationResult.bonusGems !== undefined) {
-                setMigrationSuccessData({
-                  show: true,
-                  migratedGems: migrationResult.migratedGems || 0,
-                  bonusGems: migrationResult.bonusGems || 0,
-                  migratedXp: migrationResult.migratedXp || 0,
-                  migratedCoins: migrationResult.migratedCoins || 0,
-                  newGemBalance: migrationResult.newGemBalance || 0,
-                });
-              } else {
-                // Fallback to toast if breakdown data not available
-                setMigrationToast({
-                  show: true,
-                  message: 'Progress successfully synced to your new account!',
-                  type: 'success'
-                });
-                setTimeout(() => {
-                  setMigrationToast({ show: false, message: '', type: 'success' });
-                }, 4000);
-              }
-            } else {
-              console.warn('Guest migration: Failed to migrate:', migrationResult.error);
-              // Don't show error toast for expected failures (account too old)
-              if (migrationResult.error?.includes('not new')) {
-                // Account is older than 5 minutes, clear guest data silently
-                clearGuestProgress();
-              } else {
-                setMigrationToast({
-                  show: true,
-                  message: 'Could not migrate progress. Your account may be too old.',
-                  type: 'error'
-                });
-                setTimeout(() => {
-                  setMigrationToast({ show: false, message: '', type: 'error' });
-                }, 4000);
-              }
-            }
-          } else {
-            // No guest progress to migrate, just clear the flag
-            localStorage.removeItem('thirteen_is_migrating');
-          }
-        }
-        
-        if (event === 'SIGNED_IN') {
-          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
-          loadProfile(session.user.id, !existingProfile);
-        } else {
-          loadProfile(session.user.id, false);
-        }
-      } else {
-        // Handle SIGNED_OUT event explicitly
-        if (event === 'SIGNED_OUT') {
-          console.log('App: SIGNED_OUT event - clearing all state');
-          setSession(null);
-          setHasSession(false);
-          setAuthChecked(true);
-          // DO NOT set isGuest - show landing screen instead
-          setProfile(null);
-          setIsProcessingOAuth(false);
-          setLoadingStatus('Ready to play');
-          initialSyncCompleteRef.current = false;
-        } else {
-          // INITIAL_SESSION is now handled above in the main event handler
-          // This else block handles other events (TOKEN_REFRESHED, etc.)
-          setHasSession((prev) => prev ? prev : false);
-          setProfile(null);
-          initialSyncCompleteRef.current = false;
-        }
-      }
-    });
-    
-      // Extract subscription from the result
-      console.log('App: onAuthStateChange result:', authStateChangeResult);
-      if (authStateChangeResult?.data?.subscription) {
-        subscription = authStateChangeResult.data.subscription;
-        console.log('✅ Auth state change listener set up successfully, subscription active');
-      } else {
-        console.error('❌ Failed to get subscription from onAuthStateChange result');
-      }
-      
-      // CRITICAL: Manually trigger initial session check if listener didn't fire
-      // Sometimes onAuthStateChange doesn't fire INITIAL_SESSION immediately
-      // So we check manually after a short delay
-      setTimeout(async () => {
-        // Only check if authChecked is still false (listener didn't fire)
-        if (!authChecked) {
-          console.log('App: Listener may not have fired INITIAL_SESSION, checking manually...');
-          try {
-            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-            if (!sessionError && sessionData?.session) {
-              console.log('App: ✅ Found session via manual check, triggering INITIAL_SESSION logic');
-              // Manually trigger INITIAL_SESSION logic
-              setAuthChecked(true);
-              setSession(sessionData.session);
-              setHasSession(true);
-              setIsGuest(false);
-              setIsProcessingOAuth(false);
-              isInitializingRef.current = false;
-            } else if (!sessionError && !sessionData?.session) {
-              console.log('App: No session found via manual check, setting authChecked');
-              setAuthChecked(true);
-              setHasSession(false);
-              setIsProcessingOAuth(false);
-              isInitializingRef.current = false;
-            } else if (sessionError) {
-              console.error('App: Error in manual session check:', sessionError);
-              // Still set authChecked to prevent infinite loading
-              setAuthChecked(true);
-              setIsProcessingOAuth(false);
-              isInitializingRef.current = false;
-            }
-          } catch (err: any) {
-            if (err?.name !== 'AbortError') {
-              console.error('App: Exception in manual session check:', err);
-              // Still set authChecked to prevent infinite loading
-              setAuthChecked(true);
-              setIsProcessingOAuth(false);
-              isInitializingRef.current = false;
-            }
-          }
-        } else {
-          console.log('App: ✅ authChecked already true, listener must have fired');
-        }
-      }, 1000); // 1 second delay to let listener fire first
-      
-    } catch (error) {
-      console.error('App: Error setting up auth state change listener:', error);
-      authListenerSetupRef.current = false;
-      // Fallback: Set authChecked if listener setup fails
-      setAuthChecked(true);
-    }
-    
-    return () => {
-      console.log('App: Step 18 - Cleaning up auth state change listener');
-      try {
-        if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
-          console.log('✅ Auth listener unsubscribed');
-        }
-        // Clear the INITIAL_SESSION timeout if component unmounts
-        if (initialSessionTimeout) {
-          clearTimeout(initialSessionTimeout);
-        }
-      } catch (error) {
-        console.error('App: Error unsubscribing from auth listener:', error);
-      }
-      authListenerSetupRef.current = false;
-    };
-  }, []); // Empty dependency array - only run once, Strict Mode guard prevents dual initialization
+  }, [session, profile, isGuest, loadProfile]);
 
   // Fix render loop: Wrap loadProfile in useCallback to prevent recreation on every render
   const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false) => {
@@ -1166,7 +494,7 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     const userId = session?.user?.id || (isGuest ? 'guest' : null);
-    if (!authChecked || !userId || !profile || !initialSyncCompleteRef.current || isLoggingOutRef.current) return;
+    if (!userId || !profile || !initialSyncCompleteRef.current || isLoggingOutRef.current) return;
     const updates: Partial<UserProfile> = {};
     if (playerAvatar !== profile.avatar_url) updateProfileAvatar(userId, playerAvatar);
     if (cardCoverStyle !== profile.active_sleeve) { updates.active_sleeve = cardCoverStyle; updates.equipped_sleeve = cardCoverStyle; }
@@ -1184,7 +512,7 @@ const AppContent: React.FC = () => {
       updateProfileSettings(userId, updates);
       setProfile(prev => prev ? { ...prev, ...updates } : null);
     }
-  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, autoPassEnabled, turnTimerSetting, session, authChecked, profile, isGuest]);
+  }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, autoPassEnabled, turnTimerSetting, session, profile, isGuest]);
 
   // Explicit Guest Action: This is the ONLY place where setIsGuest(true) should be called
   const handlePlayAsGuest = useCallback(() => {
@@ -1238,14 +566,14 @@ const AppContent: React.FC = () => {
         console.error('App: Error clearing localStorage:', error);
       }
       
-      // Step 4: Reset all React states
+      // Step 4: Clear has_active_session flag
+      console.log('App: Clearing has_active_session flag...');
+      localStorage.removeItem('has_active_session');
+      
+      // Step 5: Reset all React states
       console.log('App: Resetting React states...');
-      setSession(null);
-      setHasSession(false);
-      setAuthChecked(true);
       setProfile(null);
       setIsGuest(false);
-      setIsProcessingOAuth(false);
       setLoadingStatus('Ready to play');
       initialSyncCompleteRef.current = false;
       
@@ -1595,70 +923,35 @@ const AppContent: React.FC = () => {
     }
   }, [session, profile, isGuest, hasSession, loadProfile]);
   
-  // Conditional Rendering: Show appropriate screen based on auth state
-  // 1. If processing OAuth or !authChecked, show Loading Spinner
-  const hash = window.location.hash;
-  const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
-  const hasOAuthError = hash.includes('error');
+  // Conditional Rendering: Simplified - SessionProvider handles all auth state
   
-  // If OAuth error, don't show loading - let it fall through to landing screen
-  if ((isProcessingOAuth || hasOAuthHash) && !hasOAuthError) {
+  // SIMPLIFIED AUTH RENDERING: If listener says we have a user, show game. If not, show login.
+  // HARD LANDING: If has_active_session flag exists, bypass loading and show game immediately
+  if (hasActiveSession && !sessionLoading) {
+    console.log('App: 🚀 HARD LANDING - has_active_session flag found, bypassing loading checks');
+    // Still check if we have session from provider, but don't block rendering
+    if (session?.user) {
+      console.log('App: ✅ Session confirmed from provider, rendering game');
+    } else {
+      console.log('App: ⚠️ has_active_session flag but no session yet - rendering anyway, game will handle null user');
+    }
+  }
+  
+  // Show loading screen while SessionProvider is initializing
+  if (sessionLoading && !hasActiveSession) {
     return (
       <LoadingScreen
-        status="Signing you in..."
+        status="Checking credentials..."
         showGuestButton={false}
       />
     );
   }
   
-  if (!authChecked && !hasOAuthError) {
-    return (
-      <LoadingScreen
-        status={loadingStatus}
-        showGuestButton={false}
-      />
-    );
-  }
-  
-  // LAST RESORT UI: Show "Syncing your account..." with "Try Again" button
-  if (showLastResortUI) {
-    return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full bg-gray-900 rounded-lg p-6 border border-yellow-500/30">
-          <h2 className="text-2xl font-bold text-yellow-400 mb-4 text-center">Syncing your account...</h2>
-          <p className="text-gray-300 mb-6 text-center">
-            We're having trouble syncing your account. This usually happens when there's a stuck authentication state.
-          </p>
-          <button
-            onClick={async () => {
-              console.log('App: 🔄 Try Again clicked - clearing all site data and redirecting to login');
-              // Clear all site data
-              localStorage.clear();
-              sessionStorage.clear();
-              // Sign out from Supabase
-              await supabase.auth.signOut();
-              // Redirect to login
-              window.location.href = window.location.origin;
-            }}
-            className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-6 rounded-lg transition-colors"
-          >
-            Try Again
-          </button>
-          <p className="text-xs text-gray-500 mt-4 text-center">
-            This will clear all site data and redirect you to the login screen.
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  // 2. If authChecked && !session && !isGuest, show Landing/Sign-In Screen
-  // SIMPLIFIED: OAuth code exchange is handled by /auth/callback route
-  // App.tsx only needs to check for existing sessions
+  // SIMPLIFIED: If session exists, show game. If not, show login.
   const hasValidSession = session && session.user && session.user.id && session.user.id !== 'pending';
   
-  if (authChecked && !hasValidSession && !isGuest && !isProcessingOAuth) {
-    console.log('App: Showing landing/sign-in screen - no session and user has not chosen guest mode');
+  if (!hasValidSession && !isGuest) {
+    console.log('App: No session - showing landing/sign-in screen');
     return <AuthScreen onPlayAsGuest={handlePlayAsGuest} />;
   }
   

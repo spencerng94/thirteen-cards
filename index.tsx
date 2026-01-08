@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import { SessionProvider } from './components/SessionProvider';
 import './index.css';
 
 console.log('App: Step 1 - Starting initialization...');
@@ -89,7 +90,9 @@ try {
       <ErrorBoundary>
         <BrowserRouter>
           <AuthGuard>
-            <App />
+            <SessionProvider>
+              <App />
+            </SessionProvider>
           </AuthGuard>
         </BrowserRouter>
       </ErrorBoundary>
