@@ -905,14 +905,14 @@ const AppContent: React.FC = () => {
   
   // Load profile when we get a valid session but no profile yet
   useEffect(() => {
-    if (session?.user?.id && session.user.id !== 'pending' && !profile && !isGuest && hasSession) {
+    if (session?.user?.id && session.user.id !== 'pending' && !profile && !isGuest && !!session) {
       console.log('App: Valid session found but no profile, loading profile...');
       const userId = session.user.id;
       supabase.from('profiles').select('id').eq('id', userId).maybeSingle().then(({ data: existingProfile }) => {
         loadProfile(userId, !existingProfile);
       });
     }
-  }, [session, profile, isGuest, hasSession, loadProfile]);
+  }, [session, profile, isGuest, loadProfile]);
   
   // Conditional Rendering: Simplified - SessionProvider handles all auth state
   
