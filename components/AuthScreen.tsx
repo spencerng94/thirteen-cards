@@ -77,10 +77,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
       }
       
       // Determine redirect URL based on platform
+      // For web: Use dedicated /auth/callback route to handle code exchange
       const isNative = Capacitor.isNativePlatform();
       const redirectTo = isNative 
         ? 'com.playthirteen.app://' // Custom scheme for native apps
-        : window.location.origin; // Web origin
+        : `${window.location.origin}/auth/callback`; // Dedicated callback route for web
       
       console.log('AuthScreen: Initiating Google OAuth flow...', { 
         platform: isNative ? 'native' : 'web',

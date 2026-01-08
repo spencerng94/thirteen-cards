@@ -8,6 +8,7 @@ import { Lobby } from './components/Lobby';
 import { TutorialMode } from './components/TutorialMode';
 import { GameEndTransition } from './components/GameEndTransition';
 import { AuthScreen } from './components/AuthScreen';
+import { AuthCallback } from './components/AuthCallback';
 import { GameSettings, SocialFilter } from './components/GameSettings';
 import { LegalView } from './components/LegalView';
 import { StatusBar } from '@capacitor/status-bar';
@@ -41,123 +42,11 @@ const SESSION_KEY = 'thirteen_active_session';
 const PERSISTENT_ID_KEY = 'thirteen_persistent_uuid';
 
 // ============================================================================
-// GLOBAL OAUTH EXCHANGE SINGLETON - Outside component lifecycle
+// OAUTH CODE EXCHANGE MOVED TO /auth/callback ROUTE
 // ============================================================================
-// This ensures the OAuth exchange cannot be aborted by component re-renders
-// or React Strict Mode double-mounting
-let globalOAuthExchangeInProgress = false;
-let globalOAuthExchangePromise: Promise<any> | null = null;
-let globalOAuthExchangeController: AbortController | null = null;
-
-/**
- * Global OAuth Code Exchange Handler
- * This runs outside the React component lifecycle to prevent AbortError
- * from component unmounts or re-renders
- */
-const handleOAuthCodeExchange = async (
-  code: string,
-  supabase: any,
-  callbacks: {
-    onSuccess: (session: any) => void;
-    onError: (error: any) => void;
-    onAbort: () => void;
-  }
-): Promise<void> => {
-  // Lock: Prevent duplicate exchanges
-  if (globalOAuthExchangeInProgress) {
-    console.log('App: OAuth exchange already in progress globally, waiting for existing exchange...');
-    if (globalOAuthExchangePromise) {
-      try {
-        await globalOAuthExchangePromise;
-      } catch (e) {
-        // Ignore - will be handled by original exchange
-      }
-    }
-    return;
-  }
-
-  globalOAuthExchangeInProgress = true;
-  console.log('App: Starting global OAuth code exchange (singleton pattern)');
-
-  // Create abort controller for this exchange
-  globalOAuthExchangeController = new AbortController();
-
-  // Create the exchange promise
-  globalOAuthExchangePromise = (async () => {
-    try {
-      console.log('App: Calling exchangeCodeForSession (protected from re-renders)...');
-      
-      // Attempt the exchange
-      const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-
-      if (exchangeError) {
-        // Handle AbortError with retry logic
-        if (exchangeError.name === 'AbortError' || exchangeError.message?.includes('aborted')) {
-          console.warn('App: OAuth exchange was aborted - attempting to fetch session as fallback...');
-          
-          // Retry: The exchange might have succeeded in the background
-          // Try fetching the session directly
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-          
-          if (sessionError || !sessionData?.session) {
-            console.error('App: Fallback session fetch also failed:', sessionError);
-            callbacks.onAbort();
-            return;
-          }
-          
-          console.log('App: Fallback successful - session found after abort:', sessionData.session.user.id);
-          callbacks.onSuccess(sessionData.session);
-          return;
-        }
-        
-        console.error('App: Error exchanging code for session:', exchangeError);
-        callbacks.onError(exchangeError);
-        return;
-      }
-
-      if (exchangeData?.session) {
-        console.log('App: Code exchange successful - Session obtained:', exchangeData.session.user.id);
-        callbacks.onSuccess(exchangeData.session);
-      } else {
-        console.error('App: Exchange completed but no session in response');
-        callbacks.onError(new Error('No session in exchange response'));
-      }
-    } catch (error: any) {
-      // Handle AbortError in catch block
-      if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
-        console.warn('App: OAuth exchange caught AbortError - attempting fallback...');
-        
-        // Retry: Try fetching session as fallback
-        try {
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-          
-          if (sessionError || !sessionData?.session) {
-            console.error('App: Fallback session fetch failed:', sessionError);
-            callbacks.onAbort();
-            return;
-          }
-          
-          console.log('App: Fallback successful - session found:', sessionData.session.user.id);
-          callbacks.onSuccess(sessionData.session);
-        } catch (fallbackError) {
-          console.error('App: Fallback also failed:', fallbackError);
-          callbacks.onAbort();
-        }
-      } else {
-        console.error('App: Exception during OAuth exchange:', error);
-        callbacks.onError(error);
-      }
-    } finally {
-      // Reset global state
-      globalOAuthExchangeInProgress = false;
-      globalOAuthExchangePromise = null;
-      globalOAuthExchangeController = null;
-    }
-  })();
-
-  // Wait for the exchange to complete
-  await globalOAuthExchangePromise;
-};
+// The OAuth code exchange is now handled by AuthCallback.tsx component
+// which runs on a dedicated route, preventing AbortError from component re-renders.
+// App.tsx now only needs to check for existing sessions and rely on onAuthStateChange.
 
 // All in-house emote trigger codes (excluding premium/remote-only emotes)
 const IN_HOUSE_EMOTES = [':smile:', ':blush:', ':cool:', ':annoyed:', ':heart_eyes:', ':money_mouth_face:', ':robot:', ':devil:', ':girly:'];
@@ -325,7 +214,6 @@ const AppContent: React.FC = () => {
   const didInitRef = useRef(false); // Guard to ensure auth check only runs once
   const manualRecoveryInProgressRef = useRef(false); // Guard to prevent multiple manual recovery attempts
   const authStatusRef = useRef({ hasSession: false, authChecked: false });
-  const oauthExchangeInProgressRef = useRef(false); // Guard to prevent multiple OAuth exchanges
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -444,179 +332,9 @@ const AppContent: React.FC = () => {
     didInitRef.current = true;
     isInitializingRef.current = true;
     
-    // Check for OAuth code parameter in URL search (PKCE flow)
-    const searchParams = new URLSearchParams(window.location.search);
-    const hasOAuthCode = searchParams.has('code');
-    
-    // Check for OAuth redirect hash (implicit flow)
-    const hash = window.location.hash;
-    const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
-    const hasOAuthError = hash.includes('error') || searchParams.has('error');
-    
-    if (hasOAuthError) {
-      // OAuth error - clear hash and show landing screen
-      console.log('App: OAuth error detected in URL');
-      window.history.replaceState(null, '', window.location.pathname);
-      setAuthChecked(true);
-      setIsProcessingOAuth(false);
-      setLoadingStatus('Ready to play');
-      isInitializingRef.current = false;
-      return;
-    }
-    
-    // Check if OAuth code exchange is in progress
-    // CRITICAL: Use global singleton pattern to prevent AbortError from component re-renders
-    if (hasOAuthCode || hasOAuthHash) {
-      console.log('App: OAuth redirect detected (code exchange in progress), waiting for Supabase to complete...');
-      console.log('App: STOPPING all redirects and safety timeouts - waiting for code exchange');
-      setIsProcessingOAuth(true);
-      setLoadingStatus('Signing you in...');
-      oauthExchangeInProgressRef.current = true;
-      
-      // Use global singleton function to handle exchange (prevents AbortError from re-renders)
-      const waitForOAuthExchange = async () => {
-        try {
-          // If code is in search params, use global singleton to exchange it
-          if (hasOAuthCode) {
-            const code = searchParams.get('code');
-            if (code) {
-              console.log('App: Using global singleton to exchange OAuth code (protected from re-renders)...');
-              
-              // Use global singleton function - this persists across component re-renders
-              await handleOAuthCodeExchange(code, supabase, {
-                onSuccess: async (session: any) => {
-                  console.log('App: Global exchange successful - Session obtained:', session.user.id);
-                  setSession(session);
-                  setHasSession(true);
-                  setAuthChecked(true);
-                  setIsGuest(false);
-                  setIsProcessingOAuth(false);
-                  oauthExchangeInProgressRef.current = false;
-                  
-                  // Clean OAuth code from URL after successful exchange
-                  window.history.replaceState(null, '', window.location.pathname);
-                  
-                  // Process session
-                  const meta = session.user.user_metadata || {};
-                  const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-                  if (!playerName) setPlayerName(googleName.toUpperCase());
-                  
-                  await transferGuestData(session.user.id);
-                  const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
-                  if (!existingProfile) {
-                    setLoadingStatus('Creating profile...');
-                  } else {
-                    setLoadingStatus('Loading profile...');
-                  }
-                  
-                  isInitializingRef.current = false;
-                },
-                onError: (error: any) => {
-                  console.error('App: Global exchange error:', error);
-                  setSession(null);
-                  setHasSession(false);
-                  setAuthChecked(true);
-                  setIsProcessingOAuth(false);
-                  oauthExchangeInProgressRef.current = false;
-                  isInitializingRef.current = false;
-                  // Clean code from URL even on error
-                  window.history.replaceState(null, '', window.location.pathname);
-                },
-                onAbort: () => {
-                  console.warn('App: Global exchange was aborted - will rely on onAuthStateChange');
-                  oauthExchangeInProgressRef.current = false;
-                  setIsProcessingOAuth(false);
-                  // Don't set authChecked - let onAuthStateChange handle it if session exists
-                  // Clean code from URL
-                  window.history.replaceState(null, '', window.location.pathname);
-                }
-              });
-              
-              return; // Exit early after code exchange
-            }
-          }
-          
-          // Fallback: If no code in search params, use getSession() for hash-based flow
-          console.log('App: Calling getSession() to wait for OAuth code exchange...');
-          const { data, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('App: Error getting session after OAuth:', error);
-            setSession(null);
-            setHasSession(false);
-            setAuthChecked(true);
-            setIsProcessingOAuth(false);
-            oauthExchangeInProgressRef.current = false;
-            isInitializingRef.current = false;
-            return;
-          }
-          
-          if (data?.session) {
-            console.log('App: OAuth exchange complete - Session found:', data.session.user.id);
-            setSession(data.session);
-            setHasSession(true);
-            setAuthChecked(true);
-            setIsGuest(false);
-            setIsProcessingOAuth(false);
-            oauthExchangeInProgressRef.current = false;
-            
-            // Clean OAuth parameters from URL
-            window.history.replaceState(null, '', window.location.pathname);
-            
-            // Process session
-            const meta = data.session.user.user_metadata || {};
-            const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-            if (!playerName) setPlayerName(googleName.toUpperCase());
-            
-            await transferGuestData(data.session.user.id);
-            const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle();
-            if (!existingProfile) {
-              setLoadingStatus('Creating profile...');
-            } else {
-              setLoadingStatus('Loading profile...');
-            }
-          } else {
-            console.log('App: OAuth exchange complete but no session found');
-            setSession(null);
-            setHasSession(false);
-            setAuthChecked(true);
-            setIsProcessingOAuth(false);
-            oauthExchangeInProgressRef.current = false;
-          }
-          
-          isInitializingRef.current = false;
-        } catch (error: any) {
-          // Handle AbortError gracefully - don't treat it as a real error
-          if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
-            console.warn('App: OAuth exchange was aborted (this may be normal)');
-            oauthExchangeInProgressRef.current = false;
-            setIsProcessingOAuth(false);
-            // Don't set authChecked - let onAuthStateChange handle it
-            // Clean code from URL
-            if (hasOAuthCode) {
-              window.history.replaceState(null, '', window.location.pathname);
-            }
-            return;
-          }
-          
-          console.error('App: Exception during OAuth exchange:', error);
-          setSession(null);
-          setHasSession(false);
-          setAuthChecked(true);
-          setIsProcessingOAuth(false);
-          oauthExchangeInProgressRef.current = false;
-          isInitializingRef.current = false;
-          // Clean code from URL on error
-          if (hasOAuthCode) {
-            window.history.replaceState(null, '', window.location.pathname);
-          }
-        }
-      };
-      
-      // Wait for OAuth exchange to complete
-      waitForOAuthExchange();
-      return;
-    }
+    // SIMPLIFIED: OAuth code exchange is now handled by dedicated /auth/callback route
+    // App.tsx only needs to check for existing sessions and rely on onAuthStateChange
+    // This prevents AbortError from component re-renders during code exchange
     
     console.log('App: Initializing auth check...');
     setLoadingStatus('Checking credentials...');
@@ -686,17 +404,13 @@ const AppContent: React.FC = () => {
 
   // Safety timeout: If authChecked is still false after 10 seconds, set it to true
   // This prevents the app from hanging forever if getSession() doesn't complete
-  // CRITICAL: STOP all safety timeouts if OAuth code is present in URL
+  // Note: OAuth code exchange is handled by /auth/callback route, so we don't need
+  // to check for code parameter here anymore
   useEffect(() => {
-    // Check if URL contains code parameter (OAuth code exchange in progress)
-    const searchParams = new URLSearchParams(window.location.search);
-    const hasOAuthCode = searchParams.has('code');
-    
-    // CRITICAL: If code is present, STOP all redirects and safety timeouts
-    // The exchangeCodeForSession call must complete before authChecked becomes true
-    if (isProcessingOAuth || hasOAuthCode) {
-      console.log('App: Skipping safety timeout - OAuth code exchange in progress');
-      return; // Don't set any timeout - wait for exchange to complete
+    // Don't set safety timeout if OAuth is processing
+    if (isProcessingOAuth) {
+      console.log('App: Skipping safety timeout - OAuth processing in progress');
+      return;
     }
     
     const safetyTimeout = setTimeout(() => {
@@ -706,7 +420,7 @@ const AppContent: React.FC = () => {
         setLoadingStatus('Ready to play');
         isInitializingRef.current = false;
       }
-    }, 10000); // Increased from 3 to 10 seconds to allow for slower OAuth handshakes
+    }, 10000); // 10 seconds to allow for slower operations
 
     return () => {
       clearTimeout(safetyTimeout);
@@ -1529,27 +1243,13 @@ const AppContent: React.FC = () => {
   }
   
   // 2. If authChecked && !session && !isGuest, show Landing/Sign-In Screen
-  // CRITICAL: Do NOT show landing screen if OAuth code is present in URL
-  // The code exchange must complete first
-  const searchParams = new URLSearchParams(window.location.search);
-  const hasOAuthCode = searchParams.has('code');
+  // SIMPLIFIED: OAuth code exchange is handled by /auth/callback route
+  // App.tsx only needs to check for existing sessions
   const hasValidSession = session && session.user && session.user.id && session.user.id !== 'pending';
   
-  // Middleware/Protected Route Fix: Don't redirect if code is present, even if session is null
-  if (authChecked && !hasValidSession && !isGuest && !hasOAuthCode && !isProcessingOAuth) {
+  if (authChecked && !hasValidSession && !isGuest && !isProcessingOAuth) {
     console.log('App: Showing landing/sign-in screen - no session and user has not chosen guest mode');
     return <AuthScreen onPlayAsGuest={handlePlayAsGuest} />;
-  }
-  
-  // If code is present but no session yet, keep showing loading screen
-  if (hasOAuthCode && !hasValidSession && !isProcessingOAuth) {
-    console.log('App: OAuth code present but exchange not started yet - showing loading screen');
-    return (
-      <LoadingScreen
-        status="Completing sign-in..."
-        showGuestButton={false}
-      />
-    );
   }
   
   // 3. If session || isGuest, show Main Game App
@@ -1667,6 +1367,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   const location = useLocation();
+  
+  // OAuth callback route - handles code exchange outside main app lifecycle
+  if (location.pathname === '/auth/callback') {
+    return <AuthCallback />;
+  }
   
   // If we're on a legal route, render LegalView directly
   if (location.pathname === '/terms' || location.pathname === '/privacy') {
