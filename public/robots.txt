@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /app-ads.txt
+Allow: /
+Sitemap: https://playthirteen.app/sitemap.xml
