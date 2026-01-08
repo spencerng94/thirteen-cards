@@ -1382,25 +1382,23 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
       console.log('📦 Session metadata:', JSON.stringify(session.metadata, null, 2));
       
       // Extract metadata from session - support both snake_case and camelCase naming
-      // Standardized fields: user_id, gem_amount, platform
-      const userId = session.metadata?.user_id || session.metadata?.supabaseUserId || session.metadata?.supabase_user_id;
-      const amount = parseInt(session.metadata?.gem_amount || session.metadata?.gemAmount || '0', 10);
+      // Flexible extraction: Check both supabaseUserId/user_id and gemAmount/gem_amount
+      const userId = session.metadata?.supabaseUserId || session.metadata?.user_id;
+      const amount = parseInt(session.metadata?.gemAmount || session.metadata?.gem_amount || '0', 10);
       const platform = session.metadata?.platform || 'web'; // Track platform for analytics
       const paymentIntentId = session.payment_intent;
       
-      // Use the extracted values (maintain existing variable names for compatibility with rest of code)
-      const supabaseUserId = userId;
-      const gemAmount = amount > 0 ? amount : null;
-      
       console.log(`📊 Purchase from platform: ${platform}`);
+      console.log(`📦 Extracted metadata: userId=${userId}, amount=${amount}, paymentIntentId=${paymentIntentId}`);
       
-      if (!supabaseUserId || !gemAmount || isNaN(gemAmount) || !paymentIntentId) {
+      if (!userId || !amount || isNaN(amount) || amount <= 0 || !paymentIntentId) {
         console.error('❌ Missing required fields in Stripe webhook:', {
-          supabaseUserId,
-          gemAmount,
+          userId,
+          amount,
           paymentIntentId,
           hasMetadata: !!session.metadata,
-          metadataKeys: session.metadata ? Object.keys(session.metadata) : []
+          metadataKeys: session.metadata ? Object.keys(session.metadata) : [],
+          metadataValues: session.metadata
         });
         return res.status(400).json({ error: 'Missing required fields in metadata' });
       }
@@ -1413,16 +1411,16 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
 
       try {
         // Diagnostic log as requested
-        console.log('✅ Webhook Verified: Crediting', gemAmount, 'gems to', supabaseUserId);
-        console.log(`📥 Calling add_gems_to_user RPC: userId=${supabaseUserId}, amount=${gemAmount}, session_id=${session.id}`);
+        console.log('✅ Webhook Verified: Crediting', amount, 'gems to', userId);
+        console.log(`📥 Calling add_gems_to_user RPC: amount=${amount}, session_id=${session.id}, user_id=${userId}`);
         
         // Call Supabase RPC function add_gems_to_user
-        // Parameters: user_id (UUID), amount (INTEGER), session_id (TEXT)
-        // Using Supabase Service Role Key (already configured in supabase client initialization)
+        // Function signature: add_gems_to_user(amount, session_id, user_id)
+        // Note: Parameter order matches SQL function definition
         const { data, error: rpcError } = await supabase.rpc('add_gems_to_user', {
-          user_id: supabaseUserId,
-          amount: gemAmount,
-          session_id: session.id
+          amount: amount,
+          session_id: session.id,
+          user_id: userId
         });
 
         if (rpcError) {
@@ -1430,8 +1428,8 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
           return res.status(500).json({ error: rpcError.message || 'Failed to add gems' });
         }
 
-        console.log(`✅ Stripe purchase processed: ${gemAmount} gems for user ${supabaseUserId}`, data);
-        return res.json({ received: true, credited: gemAmount, provider: 'stripe' });
+        console.log(`✅ Stripe purchase processed: ${amount} gems for user ${userId}`, data);
+        return res.json({ received: true, credited: amount, provider: 'stripe' });
       } catch (rpcErr: any) {
         console.error('❌ Exception calling add_gems_to_user:', rpcErr);
         return res.status(500).json({ error: rpcErr.message || 'Failed to process purchase' });

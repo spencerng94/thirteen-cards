@@ -350,10 +350,59 @@ const AppContent: React.FC = () => {
       setIsProcessingOAuth(true);
       setLoadingStatus('Signing you in...');
       
-      // Explicitly call getSession() and wait for it to resolve
-      // This ensures we wait for Supabase to finish the code exchange
+      // Explicitly exchange code for session if code parameter exists
       const waitForOAuthExchange = async () => {
         try {
+          // If code is in search params, explicitly exchange it for a session
+          if (hasOAuthCode) {
+            const code = searchParams.get('code');
+            if (code) {
+              console.log('App: Exchanging OAuth code for session...');
+              const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+              
+              if (exchangeError) {
+                console.error('App: Error exchanging code for session:', exchangeError);
+                setSession(null);
+                setHasSession(false);
+                setAuthChecked(true);
+                setIsProcessingOAuth(false);
+                isInitializingRef.current = false;
+                // Clean code from URL even on error
+                window.history.replaceState(null, '', window.location.pathname);
+                return;
+              }
+              
+              if (exchangeData?.session) {
+                console.log('App: Code exchange successful - Session obtained:', exchangeData.session.user.id);
+                setSession(exchangeData.session);
+                setHasSession(true);
+                setAuthChecked(true);
+                setIsGuest(false);
+                setIsProcessingOAuth(false);
+                
+                // Clean OAuth code from URL after successful exchange
+                window.history.replaceState(null, '', window.location.pathname);
+                
+                // Process session
+                const meta = exchangeData.session.user.user_metadata || {};
+                const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+                if (!playerName) setPlayerName(googleName.toUpperCase());
+                
+                await transferGuestData(exchangeData.session.user.id);
+                const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', exchangeData.session.user.id).maybeSingle();
+                if (!existingProfile) {
+                  setLoadingStatus('Creating profile...');
+                } else {
+                  setLoadingStatus('Loading profile...');
+                }
+                
+                isInitializingRef.current = false;
+                return;
+              }
+            }
+          }
+          
+          // Fallback: If no code in search params, use getSession() for hash-based flow
           console.log('App: Calling getSession() to wait for OAuth code exchange...');
           const { data, error } = await supabase.auth.getSession();
           
@@ -406,6 +455,10 @@ const AppContent: React.FC = () => {
           setAuthChecked(true);
           setIsProcessingOAuth(false);
           isInitializingRef.current = false;
+          // Clean code from URL on error
+          if (hasOAuthCode) {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
         }
       };
       
@@ -496,12 +549,12 @@ const AppContent: React.FC = () => {
     
     const safetyTimeout = setTimeout(() => {
       if (!authChecked) {
-        console.warn('App: Safety timeout - authChecked still false after 3 seconds, forcing to true');
+        console.warn('App: Safety timeout - authChecked still false after 10 seconds, forcing to true');
         setAuthChecked(true);
         setLoadingStatus('Ready to play');
         isInitializingRef.current = false;
       }
-    }, 3000);
+    }, 10000); // Increased from 3 to 10 seconds to allow for slower OAuth handshakes
 
     return () => {
       clearTimeout(safetyTimeout);
