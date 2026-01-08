@@ -328,6 +328,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       }
 
       // Call Render backend to create Stripe Checkout session
+      // Platform-agnostic: sends 'web' for web platform
       const response = await fetch(`${backendUrl}/api/stripe/create-checkout`, {
         method: 'POST',
         headers: {
@@ -335,9 +336,10 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
           'Authorization': `Bearer ${sessionData.session.access_token}`,
         },
         body: JSON.stringify({
-          supabase_user_id: session.user.id,
+          user_id: session.user.id, // Standardized field name
           priceId: pack.priceId,
           gemAmount: pack.gems,
+          platform: 'web', // Track that this is a web purchase
         }),
       });
 

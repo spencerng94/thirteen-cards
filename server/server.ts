@@ -1354,7 +1354,7 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
     }
     
     // Initialize Stripe client
-    const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-11-20.acacia' });
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: '2025-11-17.clover' });
     
     // Verify webhook signature using stripe.webhooks.constructEvent
     // This uses req.body (rawBody) and the signature from headers
@@ -1382,14 +1382,17 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
       console.log('📦 Session metadata:', JSON.stringify(session.metadata, null, 2));
       
       // Extract metadata from session - support both snake_case and camelCase naming
-      // This ensures compatibility whether Stripe sends supabase_user_id or supabaseUserId
-      const userId = session.metadata?.supabaseUserId || session.metadata?.supabase_user_id || session.metadata?.user_id;
-      const amount = parseInt(session.metadata?.gemAmount || session.metadata?.gem_amount || '0', 10);
+      // Standardized fields: user_id, gem_amount, platform
+      const userId = session.metadata?.user_id || session.metadata?.supabaseUserId || session.metadata?.supabase_user_id;
+      const amount = parseInt(session.metadata?.gem_amount || session.metadata?.gemAmount || '0', 10);
+      const platform = session.metadata?.platform || 'web'; // Track platform for analytics
       const paymentIntentId = session.payment_intent;
       
       // Use the extracted values (maintain existing variable names for compatibility with rest of code)
       const supabaseUserId = userId;
       const gemAmount = amount > 0 ? amount : null;
+      
+      console.log(`📊 Purchase from platform: ${platform}`);
       
       if (!supabaseUserId || !gemAmount || isNaN(gemAmount) || !paymentIntentId) {
         console.error('❌ Missing required fields in Stripe webhook:', {
@@ -1538,8 +1541,18 @@ async function handleRevenueCatWebhook(payload: string, authHeader: string, res:
 }
 
 /**
- * Stripe Checkout Session Creation
- * Creates a Stripe checkout session for web payments
+ * Universal Stripe Checkout Session Creation
+ * Platform-agnostic endpoint that handles Web, iOS, and Android checkout
+ * 
+ * Request Body:
+ * {
+ *   user_id: string (Supabase UUID) - REQUIRED
+ *   priceId: string (Stripe Price ID) - REQUIRED
+ *   gemAmount: number (integer) - REQUIRED
+ *   platform: 'web' | 'ios' | 'android' - REQUIRED
+ *   successUrl?: string (optional, defaults based on platform)
+ *   cancelUrl?: string (optional, defaults based on platform)
+ * }
  */
 app.post('/api/stripe/create-checkout', async (req, res) => {
   try {
@@ -1550,13 +1563,60 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
       return res.status(500).json({ error: 'Stripe not configured' });
     }
 
-    const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-11-20.acacia' });
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: '2025-11-17.clover' });
     
-    const { supabase_user_id, priceId, gemAmount } = req.body;
+    // Extract and validate required fields
+    const { user_id, supabase_user_id, priceId, gemAmount, platform, successUrl, cancelUrl } = req.body;
     
-    if (!supabase_user_id || !priceId || !gemAmount) {
-      return res.status(400).json({ error: 'Missing required fields: supabase_user_id, priceId, gemAmount' });
+    // Support both user_id and supabase_user_id for backward compatibility
+    const userId = user_id || supabase_user_id;
+    
+    if (!userId || !priceId || !gemAmount || !platform) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: user_id (or supabase_user_id), priceId, gemAmount, platform' 
+      });
     }
+
+    // Validate platform
+    const validPlatforms = ['web', 'ios', 'android'];
+    if (!validPlatforms.includes(platform)) {
+      return res.status(400).json({ 
+        error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}` 
+      });
+    }
+
+    // Determine redirect URLs based on platform
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    let finalSuccessUrl: string;
+    let finalCancelUrl: string;
+
+    if (successUrl && cancelUrl) {
+      // Use provided URLs if available
+      finalSuccessUrl = successUrl;
+      finalCancelUrl = cancelUrl;
+    } else if (platform === 'web') {
+      // Web: Use HTTP/HTTPS URLs
+      finalSuccessUrl = successUrl || `${frontendUrl}/purchase-success?session_id={CHECKOUT_SESSION_ID}`;
+      finalCancelUrl = cancelUrl || `${frontendUrl}/purchase-cancel`;
+    } else {
+      // Mobile: Use deep links (iOS/Android)
+      // Note: Stripe Checkout on mobile web browsers can redirect to deep links
+      // For native apps, you might use Stripe Payment Sheet instead
+      const deepLinkScheme = 'thirteencards://'; // Your app's custom URL scheme
+      finalSuccessUrl = successUrl || `${deepLinkScheme}purchase-success?session_id={CHECKOUT_SESSION_ID}`;
+      finalCancelUrl = cancelUrl || `${deepLinkScheme}purchase-cancel`;
+    }
+
+    // Standardize metadata - always use these field names
+    // This ensures webhook handler can reliably extract data
+    const metadata = {
+      user_id: userId,                    // Standardized: always user_id
+      gem_amount: gemAmount.toString(),  // Standardized: always gem_amount
+      platform: platform,                 // Track where the sale came from
+      // Also include camelCase versions for compatibility
+      supabaseUserId: userId,
+      gemAmount: gemAmount.toString(),
+    };
 
     // Create Stripe Checkout Session using the Price ID
     const session = await stripe.checkout.sessions.create({
@@ -1566,16 +1626,19 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/purchase-cancel`,
-      metadata: {
-        supabase_user_id: supabase_user_id,
-        gem_amount: gemAmount.toString(),
-      },
+      success_url: finalSuccessUrl,
+      cancel_url: finalCancelUrl,
+      metadata: metadata,
     });
     
-    console.log(`✅ Stripe checkout session created: ${session.id} for user ${supabase_user_id}`);
-    return res.json({ checkoutUrl: session.url });
+    console.log(`✅ Stripe checkout session created: ${session.id}`);
+    console.log(`   User: ${userId}, Platform: ${platform}, Gems: ${gemAmount}`);
+    
+    return res.json({ 
+      checkoutUrl: session.url,
+      sessionId: session.id,
+      platform: platform
+    });
   } catch (error: any) {
     console.error('Stripe checkout creation error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
