@@ -312,7 +312,7 @@ const AppContent: React.FC = () => {
           setSession(null);
           setHasSession(false);
           setAuthChecked(true);
-          setIsGuest(true);
+          // DO NOT set isGuest - let user choose
           setIsProcessingOAuth(false);
           isInitializingRef.current = false;
           return;
@@ -333,13 +333,19 @@ const AppContent: React.FC = () => {
           
           await transferGuestData(data.session.user.id);
           const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle();
-          loadProfile(data.session.user.id, !existingProfile);
+          // loadProfile will be called by useEffect that watches for session changes
+          // Store flag to trigger profile load
+          if (!existingProfile) {
+            setLoadingStatus('Creating profile...');
         } else {
-          console.log('App: No session found');
+            setLoadingStatus('Loading profile...');
+          }
+        } else {
+          console.log('App: No session found - showing landing screen');
           setSession(null);
           setHasSession(false);
           setAuthChecked(true);
-          setIsGuest(true);
+          // DO NOT set isGuest - let user choose
           setIsProcessingOAuth(false);
         }
         
@@ -349,7 +355,7 @@ const AppContent: React.FC = () => {
         setSession(null);
         setHasSession(false);
         setAuthChecked(true);
-        setIsGuest(true);
+        // DO NOT set isGuest - let user choose
         setIsProcessingOAuth(false);
         isInitializingRef.current = false;
       }
@@ -498,18 +504,17 @@ const AppContent: React.FC = () => {
           setSession(null);
           setHasSession(false);
           setAuthChecked(true);
-          setIsGuest(true);
+          // DO NOT set isGuest - show landing screen instead
           setProfile(null);
           setIsProcessingOAuth(false);
           setLoadingStatus('Ready to play');
           initialSyncCompleteRef.current = false;
         } else if (event === 'INITIAL_SESSION') {
-        // Force a Result: If the event is INITIAL_SESSION and no session is found, 
-        // call setAuthChecked(true) immediately so the app doesn't hang
-          console.log('App: INITIAL_SESSION with no session - forcing authChecked to true');
+          // If INITIAL_SESSION with no session, show landing screen (don't auto-guest)
+          console.log('App: INITIAL_SESSION with no session - showing landing screen');
           setAuthChecked(true);
           setHasSession(false);
-          setIsGuest(true);
+          // DO NOT set isGuest - let user choose
           setLoadingStatus('Ready to play');
         } else {
           setHasSession((prev) => prev ? prev : false);
@@ -526,16 +531,15 @@ const AppContent: React.FC = () => {
     };
   }, []); // Empty dependency array - only run once
 
-  const loadProfile = async (uid: string, isNewUser: boolean = false) => {
-    console.log('App: Step 19 - Loading profile for user:', uid, 'isNewUser:', isNewUser);
+  // Fix render loop: Wrap loadProfile in useCallback to prevent recreation on every render
+  const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false) => {
+    console.log('App: Loading profile for user:', uid, 'isNewUser:', isNewUser);
     loadingProfileInProgressRef.current = true;
     initialSyncCompleteRef.current = false;
     const meta = session?.user?.user_metadata || {};
     // Use Google metadata: full_name, name, or display_name
     const baseUsername = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-    console.log('App: Step 20 - Fetching profile data...');
     let data = await fetchProfile(uid, playerAvatar, baseUsername);
-    console.log('App: Step 21 - Profile data fetched:', data ? 'Profile exists' : 'No profile');
     
     // Check or Create: If no profile found, create a default one immediately
     if (!data) {
@@ -659,14 +663,12 @@ const AppContent: React.FC = () => {
       
       // State Sync: Ensure profile is set so hasProfile becomes true
       setProfile(data);
-      console.log('App: Step 22 - Profile set in state');
     }
     setTimeout(() => { 
       initialSyncCompleteRef.current = true;
       loadingProfileInProgressRef.current = false;
-      console.log('App: Step 23 - Initial sync complete');
     }, 800);
-  };
+  }, [session, playerAvatar, playerName]); // Only recreate if these dependencies change
 
   useEffect(() => {
     if (isGuest && !session) {
@@ -713,6 +715,13 @@ const AppContent: React.FC = () => {
       setProfile(prev => prev ? { ...prev, ...updates } : null);
     }
   }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, autoPassEnabled, turnTimerSetting, session, authChecked, profile, isGuest]);
+
+  // Explicit Guest Action: This is the ONLY place where setIsGuest(true) should be called
+  const handlePlayAsGuest = useCallback(() => {
+    console.log('App: User explicitly chose to play as guest');
+    setIsGuest(true);
+    setLoadingStatus('Preparing guest profile...');
+  }, []);
 
   const handleSignOut = async () => {
     // Sign out from Supabase first
@@ -1001,9 +1010,10 @@ const AppContent: React.FC = () => {
         loadProfile(userId, !existingProfile);
       });
     }
-  }, [session, profile, isGuest, hasSession]);
+  }, [session, profile, isGuest, hasSession, loadProfile]);
   
-  // Show loading screen until we have a definitive answer from Supabase
+  // Conditional Rendering: Show appropriate screen based on auth state
+  // 1. If !authChecked, show Loading Spinner
       if (!authChecked) {
     return (
       <LoadingScreen
@@ -1013,27 +1023,15 @@ const AppContent: React.FC = () => {
     );
   }
   
-  // Only show auth screen if we're sure there's no session AND not a guest AND not hasSession
-  // But also check if session has a valid user ID (not 'pending')
+  // 2. If authChecked && !session && !isGuest, show Landing/Sign-In Screen
   const hasValidSession = session && session.user && session.user.id && session.user.id !== 'pending';
-  
-  if (!hasValidSession && !isGuest && !hasSession) {
-    console.log('App: Step 28 - No valid session and not guest, showing auth screen');
-    return <AuthScreen onPlayAsGuest={() => setIsGuest(true)} />;
+  if (authChecked && !hasValidSession && !isGuest) {
+    console.log('App: Showing landing/sign-in screen - no session and user has not chosen guest mode');
+    return <AuthScreen onPlayAsGuest={handlePlayAsGuest} />;
   }
   
-  // If we have hasSession but invalid session, wait for real session or show loading
-  if (hasSession && !hasValidSession && !isGuest) {
-    console.log('App: Step 28c - hasSession true but invalid session, waiting for real session...');
-    return (
-      <LoadingScreen
-        status={loadingStatus || 'Loading profile...'}
-        showGuestButton={false}
-      />
-    );
-  }
-  
-  console.log('App: Step 29 - Rendering main app content');
+  // 3. If session || isGuest, show Main Game App
+  console.log('App: Rendering main app content', { hasSession: !!session, isGuest });
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
