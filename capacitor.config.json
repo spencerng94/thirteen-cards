@@ -1,0 +1,6 @@
+{
+  "appId": "com.playthirteen.app",
+  "appName": "Thirteen",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

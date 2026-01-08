@@ -209,12 +209,13 @@ Welcome to **Thirteen** (the "Game" or "Service"). We respect your privacy and a
 
 By using our Game, you agree to the collection and use of information in accordance with this policy.
 
-## Information We Collect
+## Information Collection
 
 ### Account Information
-When you create an account or sign in using third-party authentication (such as Google), we collect:
+When you create an account or sign in using Google OAuth authentication, we collect:
+- **Email address**: Collected via Google OAuth for account creation and authentication
+- **Name**: Collected via Google OAuth for account creation and personalization
 - Username (display name and unique identifier)
-- Email address (if provided during authentication)
 - User ID and authentication tokens
 
 ### Game Data
@@ -229,6 +230,7 @@ To provide and improve our services, we collect:
 ### Automatically Collected Information
 When you use our Game, we may automatically collect:
 - Device information (device type, operating system, unique device identifiers)
+- Device IDs and Advertising IDs (collected by us and our third-party partners, including Google AdMob, for fraud prevention, analytics, and advertising purposes)
 - IP address
 - Game usage data and analytics
 - Crash reports and error logs
@@ -237,6 +239,7 @@ When you use our Game, we may automatically collect:
 ### Third-Party Advertising Data
 When you view or interact with ads (Google AdMob), we and our advertising partners may collect:
 - Ad identifiers (IDFA, Android Advertising ID)
+- Device IDs for fraud prevention and analytics
 - Ad viewing and interaction history
 - General location data (country/region level, not precise location)
 
@@ -258,9 +261,12 @@ We do **NOT** sell your personal information to third parties.
 
 We may share your information in the following circumstances:
 
-### Service Providers
-- **Supabase**: We use Supabase for user authentication, data storage, and database services. Your account information and game data are stored securely with Supabase.
-- **Google AdMob**: We use Google AdMob to display advertisements. AdMob may collect and use data in accordance with Google's Privacy Policy: https://policies.google.com/privacy
+### Third-Party Services
+Our Game integrates with the following third-party services:
+
+- **Supabase**: We use Supabase for user authentication, data storage, and database services. Your account information and game data (including email addresses and names collected via Google OAuth) are stored securely with Supabase. Supabase's privacy policy: https://supabase.com/privacy
+
+- **Google AdMob**: We use Google AdMob for personalized and non-personalized advertising. AdMob may collect Device IDs, Advertising IDs, and other data in accordance with Google's Privacy Policy: https://policies.google.com/privacy. AdMob uses this data to deliver relevant advertisements, prevent fraud, and provide analytics.
 
 ### Legal Requirements
 We may disclose your information if required by law or in response to valid legal requests, such as subpoenas, court orders, or government investigations.
@@ -290,7 +296,7 @@ You can access your account information and game data through the Game's setting
 You can update your username and certain account preferences through the Game settings.
 
 ### Deletion
-You may request deletion of your account and associated data by contacting us at thethirteengame@gmail.com.
+You may request deletion of your account and associated data by contacting us at support@playthirteen.app. Upon receiving a valid deletion request, we will process it in accordance with applicable data protection laws.
 
 ### Opt-Out of Advertising
 You can opt out of personalized advertising through your device settings:
@@ -302,15 +308,19 @@ Note: Opting out may limit ad personalization but will not eliminate ads entirel
 ### Data Retention
 We retain your information for as long as your account is active or as needed to provide services. We may retain certain information for longer periods as required by law or for legitimate business purposes.
 
+**Account Deletion**: Users can request account deletion and data removal by contacting support@playthirteen.app. We will process deletion requests in accordance with applicable data protection laws and remove personal information from our active systems, except where retention is required by law or for legitimate business purposes.
+
 ## Third-Party Services
 
 Our Game uses the following third-party services that have their own privacy policies:
 
 ### Google AdMob
+We use Google AdMob to display personalized and non-personalized advertisements. AdMob may collect Device IDs, Advertising IDs, and other data to deliver relevant ads, prevent fraud, and provide analytics.
 - Privacy Policy: https://policies.google.com/privacy
 - AdMob may use cookies and similar technologies to deliver personalized ads.
 
 ### Supabase
+We use Supabase for user authentication, data storage, and database services. Supabase securely stores your account information, including email addresses and names collected via Google OAuth.
 - Privacy Policy: https://supabase.com/privacy
 - Supabase provides secure database and authentication services.
 
@@ -348,9 +358,9 @@ If you are located in the European Economic Area (EEA) or United Kingdom, you ha
 
 ## Contact Us
 
-If you have any questions, concerns, or requests regarding this Privacy Policy or our privacy practices, please contact us at:
+If you have any questions, concerns, or requests regarding this Privacy Policy, our privacy practices, or data inquiries (including account deletion requests), please contact us at:
 
-**Email:** thethirteengame@gmail.com
+**Email:** support@playthirteen.app
 
 ## Consent
 

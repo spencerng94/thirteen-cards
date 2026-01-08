@@ -10,6 +10,8 @@ import { GameEndTransition } from './components/GameEndTransition';
 import { AuthScreen } from './components/AuthScreen';
 import { GameSettings, SocialFilter } from './components/GameSettings';
 import { LegalView } from './components/LegalView';
+import { StatusBar } from '@capacitor/status-bar';
+import { useNativeHardware } from './hooks/useNativeHardware';
 
 // Lazy load heavy components for better initial load performance
 const GameTable = lazy(() => import('./components/GameTable').then(m => ({ default: m.GameTable })));
@@ -221,6 +223,23 @@ const AppContent: React.FC = () => {
     return params.get('room');
   }, []);
 
+  // Set up status bar for native Android (immersive dark theme)
+  useEffect(() => {
+    const setupStatusBar = async () => {
+      if (typeof window !== 'undefined' && window.Capacitor) {
+        try {
+          await StatusBar.setBackgroundColor({ color: '#000000' });
+          await StatusBar.setStyle({ style: 'DARK' });
+          await StatusBar.setOverlaysWebView({ overlay: false });
+        } catch (error) {
+          // StatusBar API not available (web environment)
+          console.log('StatusBar API not available:', error);
+        }
+      }
+    };
+    setupStatusBar();
+  }, []);
+
   useEffect(() => {
     if (gameMode !== 'SINGLE_PLAYER' || !spGameState || spGameState.status !== GameStatus.PLAYING) return;
     const currentPlayerId = spGameState.currentPlayerId;
@@ -288,7 +307,7 @@ const AppContent: React.FC = () => {
   }, [gameMode, myPersistentId, view]);
 
   // EVENT-DRIVEN AUTH: Single source of truth - getSession() in useLayoutEffect
-  // This runs once on mount and waits for Supabase to give us a definitive answer
+  // This runs once on mount and immediately checks for a session
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
     
@@ -302,7 +321,7 @@ const AppContent: React.FC = () => {
     console.log('App: Initializing auth check...');
     setLoadingStatus('Checking credentials...');
     
-    // Single source of truth: Call getSession() once
+    // Manual check: Call getSession() immediately to get definitive answer
     const checkAuth = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
@@ -361,8 +380,26 @@ const AppContent: React.FC = () => {
       }
     };
     
+    // Call immediately - don't wait for listener
     checkAuth();
   }, []); // Empty deps - only run once on mount
+
+  // Safety timeout: If authChecked is still false after 3 seconds, set it to true
+  // This prevents the app from hanging forever if getSession() doesn't complete
+  useEffect(() => {
+    const safetyTimeout = setTimeout(() => {
+      if (!authChecked) {
+        console.warn('App: Safety timeout - authChecked still false after 3 seconds, forcing to true');
+        setAuthChecked(true);
+        setLoadingStatus('Ready to play');
+        isInitializingRef.current = false;
+      }
+    }, 3000);
+
+    return () => {
+      clearTimeout(safetyTimeout);
+    };
+  }, [authChecked]);
 
   // Clean up OAuth hash after Supabase processes it
   useEffect(() => {
@@ -971,6 +1008,27 @@ const AppContent: React.FC = () => {
   };
 
   const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); setGameMode(null); setView('WELCOME'); setMpGameState(null); setSpGameState(null); localStorage.removeItem(SESSION_KEY); setGameSettingsOpen(false); };
+
+  // Determine if any modal is open
+  const isModalOpen = hubState.open || gameSettingsOpen || storeOpen || gemPacksOpen || inventoryOpen || friendsOpen || migrationSuccessData?.show || showWelcomeToast || migrationToast.show;
+
+  // Handle native Android hardware back button
+  useNativeHardware({
+    view,
+    isModalOpen,
+    onCloseModal: () => {
+      if (hubState.open) setHubState({ ...hubState, open: false });
+      if (gameSettingsOpen) setGameSettingsOpen(false);
+      if (storeOpen) setStoreOpen(false);
+      if (gemPacksOpen) setGemPacksOpen(false);
+      if (inventoryOpen) setInventoryOpen(false);
+      if (friendsOpen) setFriendsOpen(false);
+      if (migrationSuccessData?.show) setMigrationSuccessData(null);
+      if (showWelcomeToast) setShowWelcomeToast(false);
+      if (migrationToast.show) setMigrationToast({ show: false, message: '', type: 'success' });
+    },
+    onExitRoom: handleExit,
+  });
 
   // Handle guest account linking with migration flag
   const handleLinkAccount = async () => {

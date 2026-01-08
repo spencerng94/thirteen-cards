@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../constants/legalText';
 
@@ -117,6 +117,20 @@ export const LegalView: React.FC = () => {
   const isTerms = location.pathname === '/terms';
   const content = isTerms ? TERMS_OF_SERVICE : PRIVACY_POLICY;
   const title = isTerms ? 'TERMS OF SERVICE' : 'PRIVACY POLICY';
+
+  // Set meta title for SEO
+  useEffect(() => {
+    const pageTitle = isTerms ? 'Terms of Service | Thirteen' : 'Privacy Policy | Thirteen';
+    document.title = pageTitle;
+    
+    // Scroll to top when component mounts or pathname changes
+    window.scrollTo(0, 0);
+    
+    // Cleanup: restore default title when component unmounts
+    return () => {
+      document.title = 'Thirteen';
+    };
+  }, [isTerms, location.pathname]);
 
   return (
     <div className="min-h-screen w-full bg-black relative overflow-hidden">
