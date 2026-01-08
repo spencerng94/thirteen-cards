@@ -1381,12 +1381,15 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
       console.log('📦 Session ID:', session.id);
       console.log('📦 Session metadata:', JSON.stringify(session.metadata, null, 2));
       
-      // Extract metadata from session
-      const supabaseUserId = session.metadata?.supabase_user_id;
-      const gemAmount = session.metadata?.gem_amount 
-        ? parseInt(session.metadata.gem_amount, 10)
-        : null;
+      // Extract metadata from session - support both snake_case and camelCase naming
+      // This ensures compatibility whether Stripe sends supabase_user_id or supabaseUserId
+      const userId = session.metadata?.supabaseUserId || session.metadata?.supabase_user_id || session.metadata?.user_id;
+      const amount = parseInt(session.metadata?.gemAmount || session.metadata?.gem_amount || '0', 10);
       const paymentIntentId = session.payment_intent;
+      
+      // Use the extracted values (maintain existing variable names for compatibility with rest of code)
+      const supabaseUserId = userId;
+      const gemAmount = amount > 0 ? amount : null;
       
       if (!supabaseUserId || !gemAmount || isNaN(gemAmount) || !paymentIntentId) {
         console.error('❌ Missing required fields in Stripe webhook:', {
