@@ -324,15 +324,19 @@ const AppContent: React.FC = () => {
     didInitRef.current = true;
     isInitializingRef.current = true;
     
-    // Check for OAuth redirect hash at the very top
+    // Check for OAuth code parameter in URL search (PKCE flow)
+    const searchParams = new URLSearchParams(window.location.search);
+    const hasOAuthCode = searchParams.has('code');
+    
+    // Check for OAuth redirect hash (implicit flow)
     const hash = window.location.hash;
     const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
-    const hasOAuthError = hash.includes('error');
+    const hasOAuthError = hash.includes('error') || searchParams.has('error');
     
     if (hasOAuthError) {
       // OAuth error - clear hash and show landing screen
-      console.log('App: OAuth error detected in URL hash');
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      console.log('App: OAuth error detected in URL');
+      window.history.replaceState(null, '', window.location.pathname);
       setAuthChecked(true);
       setIsProcessingOAuth(false);
       setLoadingStatus('Ready to play');
@@ -340,11 +344,73 @@ const AppContent: React.FC = () => {
       return;
     }
     
-    if (hasOAuthHash) {
-      console.log('App: OAuth redirect detected in URL hash, waiting for Supabase to process...');
+    // Check if OAuth code exchange is in progress
+    if (hasOAuthCode || hasOAuthHash) {
+      console.log('App: OAuth redirect detected (code exchange in progress), waiting for Supabase to complete...');
       setIsProcessingOAuth(true);
       setLoadingStatus('Signing you in...');
-      // Don't call getSession() immediately - wait for onAuthStateChange to fire
+      
+      // Explicitly call getSession() and wait for it to resolve
+      // This ensures we wait for Supabase to finish the code exchange
+      const waitForOAuthExchange = async () => {
+        try {
+          console.log('App: Calling getSession() to wait for OAuth code exchange...');
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('App: Error getting session after OAuth:', error);
+            setSession(null);
+            setHasSession(false);
+            setAuthChecked(true);
+            setIsProcessingOAuth(false);
+            isInitializingRef.current = false;
+            return;
+          }
+          
+          if (data?.session) {
+            console.log('App: OAuth exchange complete - Session found:', data.session.user.id);
+            setSession(data.session);
+            setHasSession(true);
+            setAuthChecked(true);
+            setIsGuest(false);
+            setIsProcessingOAuth(false);
+            
+            // Clean OAuth parameters from URL
+            window.history.replaceState(null, '', window.location.pathname);
+            
+            // Process session
+            const meta = data.session.user.user_metadata || {};
+            const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+            if (!playerName) setPlayerName(googleName.toUpperCase());
+            
+            await transferGuestData(data.session.user.id);
+            const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle();
+            if (!existingProfile) {
+              setLoadingStatus('Creating profile...');
+            } else {
+              setLoadingStatus('Loading profile...');
+            }
+          } else {
+            console.log('App: OAuth exchange complete but no session found');
+            setSession(null);
+            setHasSession(false);
+            setAuthChecked(true);
+            setIsProcessingOAuth(false);
+          }
+          
+          isInitializingRef.current = false;
+        } catch (error: any) {
+          console.error('App: Exception during OAuth exchange:', error);
+          setSession(null);
+          setHasSession(false);
+          setAuthChecked(true);
+          setIsProcessingOAuth(false);
+          isInitializingRef.current = false;
+        }
+      };
+      
+      // Wait for OAuth exchange to complete
+      waitForOAuthExchange();
       return;
     }
     
@@ -416,10 +482,15 @@ const AppContent: React.FC = () => {
 
   // Safety timeout: If authChecked is still false after 3 seconds, set it to true
   // This prevents the app from hanging forever if getSession() doesn't complete
-  // BUT: Don't fire if we're processing an OAuth redirect
+  // BUT: Don't fire if we're processing an OAuth redirect OR if URL contains code parameter
   useEffect(() => {
-    // Don't set safety timeout if OAuth is processing
-    if (isProcessingOAuth) {
+    // Check if URL contains code parameter (OAuth code exchange in progress)
+    const searchParams = new URLSearchParams(window.location.search);
+    const hasOAuthCode = searchParams.has('code');
+    
+    // Don't set safety timeout if OAuth is processing OR if code parameter is present
+    if (isProcessingOAuth || hasOAuthCode) {
+      console.log('App: Skipping safety timeout - OAuth code exchange in progress');
       return;
     }
     
@@ -461,19 +532,27 @@ const AppContent: React.FC = () => {
       console.log('App: Step 17 - Auth state changed:', event, session ? 'Session exists' : 'No session');
       
       // CRITICAL: For SIGNED_IN event, immediately set flags before doing anything else
+      // This is especially important for OAuth code exchange completion
       if (event === 'SIGNED_IN' && session) {
         console.log('App: SIGNED_IN event detected - immediately setting auth flags');
+        console.log('App: OAuth code exchange completed successfully');
+        
+        // Set auth flags immediately
         setAuthChecked(true);
         setHasSession(true);
         setSession(session);
         setIsGuest(false);
         setIsProcessingOAuth(false);
+        isInitializingRef.current = false;
         
-        // Clean the OAuth hash from URL once SIGNED_IN is triggered
+        // Clean the OAuth parameters from URL once SIGNED_IN is triggered
         const hash = window.location.hash;
-        if (hash.includes('access_token') || hash.includes('code=')) {
-          console.log('App: Cleaning OAuth hash from URL');
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        const searchParams = new URLSearchParams(window.location.search);
+        const hasOAuthParams = hash.includes('access_token') || hash.includes('code=') || searchParams.has('code');
+        
+        if (hasOAuthParams) {
+          console.log('App: Cleaning OAuth parameters from URL');
+          window.history.replaceState(null, '', window.location.pathname);
         }
         
         console.log('App: Auth flags set immediately, now processing profile...');
