@@ -59,6 +59,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
     setLoading(true);
     setError(null);
     try {
+      // OAuth 'Clean Slate': Clear any existing session first
+      console.log('AuthScreen: OAuth Clean Slate - Clearing existing session before OAuth flow');
+      try {
+        const { data: currentSession } = await supabase.auth.getSession();
+        if (currentSession?.session) {
+          console.log('AuthScreen: Found existing session, signing out first...');
+          await supabase.auth.signOut();
+          // Wait a moment for sign-out to complete
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (signOutError) {
+        console.warn('AuthScreen: Error clearing session before OAuth:', signOutError);
+        // Continue with OAuth even if sign-out fails
+      }
+      
+      // Trigger Google OAuth
+      console.log('AuthScreen: Initiating Google OAuth flow...');
       const { error } = await supabase.auth.signInWithOAuth({ 
         provider: 'google',
         options: {
@@ -71,7 +88,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         }
       });
       if (error) throw error;
+      console.log('AuthScreen: OAuth flow initiated successfully');
     } catch (err: any) {
+      console.error('AuthScreen: OAuth error:', err);
       setError(err.message);
       setLoading(false);
     }

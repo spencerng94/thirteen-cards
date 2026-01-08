@@ -5,6 +5,8 @@ import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { checkRateLimit, clearRateLimit } from './rateLimiter';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 // Types Mirroring Client
 enum Suit { Spades = 0, Clubs = 1, Diamonds = 2, Hearts = 3 }
@@ -140,6 +142,23 @@ const CPU_NAMES = ['Skibidi Shiba', 'Six 7', 'Chill Guy', 'Tragic', 'Bet', 'Fr f
 const RECONNECTION_GRACE_PERIOD = 30000; 
 const DEFAULT_TURN_DURATION_MS = 60000; 
 
+// Initialize Supabase client for webhook processing
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
+
+if (!supabase) {
+  console.warn('⚠️ Supabase not configured for webhooks. Payment processing will not work.');
+}
+
+// RevenueCat webhook secret
+const REVENUECAT_WEBHOOK_SECRET = process.env.REVENUECAT_WEBHOOK_SECRET;
+
+// Stripe webhook secret
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+
 const app = express();
 const httpServer = createServer(app);
 const allowedOrigins = [
@@ -154,6 +173,7 @@ if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_UR
 }
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(express.json()); // Parse JSON bodies for webhooks
 
 const io = new Server(httpServer, {
   cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true }
@@ -1076,6 +1096,348 @@ io.on('connection', (socket: Socket) => {
     delete socketToRoom[socket.id];
     delete socketToPlayerId[socket.id];
   });
+});
+
+// ============================================================================
+// PAYMENT WEBHOOKS
+// ============================================================================
+
+/**
+ * Verify RevenueCat webhook signature
+ */
+const verifyRevenueCatSignature = (payload: string, signature: string): boolean => {
+  if (!REVENUECAT_WEBHOOK_SECRET) {
+    console.warn('RevenueCat webhook secret not configured');
+    return false;
+  }
+
+  const hmac = crypto.createHmac('sha256', REVENUECAT_WEBHOOK_SECRET);
+  hmac.update(payload);
+  const expectedSignature = hmac.digest('hex');
+  
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  );
+};
+
+/**
+ * Verify Stripe webhook signature
+ */
+const verifyStripeSignature = (payload: string, signature: string): boolean => {
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.warn('Stripe webhook secret not configured');
+    return false;
+  }
+
+  try {
+    const elements = signature.split(',');
+    const timestamp = elements.find(e => e.startsWith('t='))?.split('=')[1];
+    const signatures = elements.filter(e => e.startsWith('v1=')).map(e => e.split('=')[1]);
+
+    if (!timestamp || signatures.length === 0) {
+      return false;
+    }
+
+    const signedPayload = `${timestamp}.${payload}`;
+    const hmac = crypto.createHmac('sha256', STRIPE_WEBHOOK_SECRET);
+    hmac.update(signedPayload);
+    const expectedSignature = hmac.digest('hex');
+
+    return signatures.some(sig => crypto.timingSafeEqual(
+      Buffer.from(sig),
+      Buffer.from(expectedSignature)
+    ));
+  } catch (error) {
+    console.error('Stripe signature verification error:', error);
+    return false;
+  }
+};
+
+/**
+ * Process gem purchase and credit user
+ */
+const processGemPurchase = async (
+  userId: string,
+  gemAmount: number,
+  provider: 'stripe' | 'revenuecat',
+  providerId: string,
+  metadata?: Record<string, any>
+): Promise<{ success: boolean; error?: string }> => {
+  if (!supabase) {
+    return { success: false, error: 'Supabase not configured' };
+  }
+
+  try {
+    // Check if transaction already exists (prevent double-counting)
+    const { data: existing } = await supabase
+      .from('gem_transactions')
+      .select('id')
+      .eq('provider_id', providerId)
+      .maybeSingle();
+
+    if (existing) {
+      console.log('⚠️ Duplicate transaction detected:', providerId);
+      return { success: true }; // Already processed, return success
+    }
+
+    // Insert transaction record
+    const { error: txError } = await supabase
+      .from('gem_transactions')
+      .insert({
+        user_id: userId,
+        amount: gemAmount,
+        transaction_type: 'purchase',
+        provider_id: providerId,
+        provider: provider,
+        metadata: metadata || {}
+      });
+
+    if (txError) {
+      console.error('Error inserting transaction:', txError);
+      return { success: false, error: txError.message };
+    }
+
+    // Update user's gem balance
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('gems')
+      .eq('id', userId)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('Error fetching profile:', profileError);
+      return { success: false, error: 'User not found' };
+    }
+
+    const newGemBalance = (profile.gems || 0) + gemAmount;
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ gems: newGemBalance })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error updating gems:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    console.log(`✅ Credited ${gemAmount} gems to user ${userId}. New balance: ${newGemBalance}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error processing gem purchase:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+};
+
+/**
+ * RevenueCat Webhook Handler
+ * Handles SUBSCRIBER_ALIAS_UPDATED and PURCHASE events
+ * 
+ * Configure webhook URL in RevenueCat dashboard:
+ * https://your-domain.com/api/webhooks/payments/revenuecat
+ */
+app.post('/api/webhooks/payments/revenuecat', async (req, res) => {
+  try {
+    const signature = req.headers['authorization'] as string;
+    const payload = JSON.stringify(req.body);
+
+    // Verify signature
+    if (!verifyRevenueCatSignature(payload, signature || '')) {
+      console.error('❌ Invalid RevenueCat webhook signature');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    const event = req.body;
+    console.log('📥 RevenueCat webhook received:', event.type);
+
+    // Handle SUBSCRIBER_ALIAS_UPDATED event (user ID linked)
+    if (event.type === 'SUBSCRIBER_ALIAS_UPDATED') {
+      const alias = event.subscriber?.alias;
+      const userId = alias; // RevenueCat alias should be the Supabase user ID
+      
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing user ID in alias' });
+      }
+
+      console.log('✅ Subscriber alias updated for user:', userId);
+      return res.json({ received: true });
+    }
+
+    // Handle PURCHASE event
+    if (event.type === 'PURCHASE') {
+      const transactionId = event.transaction_id;
+      const appUserId = event.app_user_id; // This should be the Supabase user ID
+      const productId = event.product_id;
+      
+      if (!appUserId || !transactionId) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Map product_id to gem amount
+      // You should configure this mapping based on your RevenueCat offerings
+      const GEM_PACK_MAP: Record<string, number> = {
+        'gem_1': 250,
+        'gem_2': 700,
+        'gem_3': 1500,
+        'gem_4': 3200,
+        'gem_5': 8500,
+        'gem_6': 18000,
+      };
+
+      const gemAmount = GEM_PACK_MAP[productId];
+      if (!gemAmount) {
+        console.warn('⚠️ Unknown product ID:', productId);
+        return res.status(400).json({ error: 'Unknown product' });
+      }
+
+      // Process the purchase
+      const result = await processGemPurchase(
+        appUserId,
+        gemAmount,
+        'revenuecat',
+        transactionId,
+        { product_id: productId }
+      );
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      return res.json({ received: true, credited: gemAmount });
+    }
+
+    // Ignore other event types
+    return res.json({ received: true });
+  } catch (error: any) {
+    console.error('❌ RevenueCat webhook error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+/**
+ * Stripe Webhook Handler
+ * Handles checkout.session.completed events
+ * 
+ * Configure webhook URL in Stripe dashboard:
+ * https://your-domain.com/api/webhooks/payments/stripe
+ * 
+ * Required events: checkout.session.completed
+ */
+app.post('/api/webhooks/payments/stripe', async (req, res) => {
+  try {
+    const signature = req.headers['stripe-signature'] as string;
+    const payload = JSON.stringify(req.body);
+
+    // Verify signature
+    if (!verifyStripeSignature(payload, signature || '')) {
+      console.error('❌ Invalid Stripe webhook signature');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    const event = req.body;
+    console.log('📥 Stripe webhook received:', event.type);
+
+    // Handle checkout.session.completed
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const userId = session.client_reference_id; // Supabase user ID
+      const paymentIntentId = session.payment_intent;
+      const amountTotal = session.amount_total; // Amount in cents
+      
+      if (!userId || !paymentIntentId) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Extract gem amount from metadata or line items
+      // You can store gem amount in session metadata when creating checkout
+      const gemAmount = session.metadata?.gem_amount 
+        ? parseInt(session.metadata.gem_amount)
+        : null;
+
+      if (!gemAmount) {
+        console.warn('⚠️ Gem amount not found in session metadata');
+        return res.status(400).json({ error: 'Missing gem amount' });
+      }
+
+      // Process the purchase
+      const result = await processGemPurchase(
+        userId,
+        gemAmount,
+        'stripe',
+        paymentIntentId,
+        {
+          session_id: session.id,
+          amount_total: amountTotal,
+          currency: session.currency
+        }
+      );
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      return res.json({ received: true, credited: gemAmount });
+    }
+
+    // Ignore other event types
+    return res.json({ received: true });
+  } catch (error: any) {
+    console.error('❌ Stripe webhook error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+/**
+ * Stripe Checkout Session Creation
+ * Creates a Stripe checkout session for web payments
+ */
+app.post('/api/stripe/create-checkout', async (req, res) => {
+  try {
+    const Stripe = (await import('stripe')).default;
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    
+    if (!stripeSecretKey) {
+      return res.status(500).json({ error: 'Stripe not configured' });
+    }
+
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-11-20.acacia' });
+    
+    const { userId, packId, gemAmount, price, successUrl, cancelUrl } = req.body;
+    
+    if (!userId || !packId || !gemAmount || !price) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: `${gemAmount.toLocaleString()} Gems`,
+            description: `Gem Pack ${packId}`,
+          },
+          unit_amount: Math.round(price * 100), // Convert to cents
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: successUrl || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/purchase-cancel`,
+      client_reference_id: userId, // Pass Supabase user ID for webhook
+      metadata: {
+        gem_amount: gemAmount.toString(),
+        pack_id: packId,
+        user_id: userId,
+      },
+    });
+    
+    return res.json({ checkoutUrl: session.url });
+  } catch (error: any) {
+    console.error('Stripe checkout creation error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
+  }
 });
 
 const generateRoomCode = (): string => 'ABCD'.split('').map(() => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.floor(Math.random() * 36))).join('');

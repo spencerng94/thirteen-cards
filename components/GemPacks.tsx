@@ -2,9 +2,12 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { CurrencyIcon } from './Store';
 import { GemPurchaseCelebration } from './GemPurchaseCelebration';
-import { processGemTransaction, fetchGemTransactions, GemTransaction, handleGemPurchase } from '../services/supabase';
+import { processGemTransaction, fetchGemTransactions, GemTransaction, handleGemPurchase, fetchProfile } from '../services/supabase';
 import { Toast } from './Toast';
 import { audioService } from '../services/audio';
+import { useBilling } from './BillingProvider';
+import { Capacitor } from '@capacitor/core';
+import { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 
 interface GemPack {
   id: string;
@@ -243,6 +246,20 @@ export const GemPacks: React.FC<{
   const [gemTransactions, setGemTransactions] = useState<GemTransaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [firstPurchaseEligible, setFirstPurchaseEligible] = useState(profile?.first_purchase_eligible ?? true);
+  const [revenueCatPackages, setRevenueCatPackages] = useState<PurchasesPackage[]>([]);
+  
+  const isNative = Capacitor.isNativePlatform();
+  
+  // Get billing context (must be called unconditionally per React rules)
+  // BillingProvider will handle web platforms gracefully (isInitialized will be false)
+  let billing: ReturnType<typeof useBilling> | null = null;
+  try {
+    billing = useBilling();
+  } catch (e) {
+    // BillingProvider not available (component not wrapped)
+    // This is fine - we'll handle it gracefully in the purchase flow
+    billing = null;
+  }
 
   // Sync first_purchase_eligible from profile
   useEffect(() => {
@@ -250,6 +267,23 @@ export const GemPacks: React.FC<{
       setFirstPurchaseEligible(profile.first_purchase_eligible ?? true);
     }
   }, [profile]);
+
+  // Fetch RevenueCat offerings on native platforms
+  useEffect(() => {
+    const loadOfferings = async () => {
+      if (isNative && billing?.isInitialized && billing.fetchOfferings) {
+        try {
+          const packages = await billing.fetchOfferings();
+          setRevenueCatPackages(packages);
+          console.log('GemPacks: Loaded', packages.length, 'RevenueCat packages');
+        } catch (error) {
+          console.error('GemPacks: Failed to load RevenueCat offerings:', error);
+        }
+      }
+    };
+    
+    loadOfferings();
+  }, [isNative, billing?.isInitialized, billing?.fetchOfferings]);
 
   // Fetch gem transaction history
   useEffect(() => {
@@ -293,8 +327,8 @@ export const GemPacks: React.FC<{
     setIsProcessing(true);
     
     try {
-      // Detect if we're on web or mobile
-      const isWeb = typeof window !== 'undefined' && window.navigator.userAgent.indexOf('Mobile') === -1;
+      // Use Capacitor to detect platform
+      const isWeb = !isNative;
       
       if (isWeb) {
         // WEB: Stripe placeholder logic
@@ -354,60 +388,102 @@ export const GemPacks: React.FC<{
           throw new Error(result.error || 'Failed to update gems');
         }
       } else {
-        // MOBILE: In-App Purchase placeholder logic
-        // TODO: Replace with actual IAP integration (React Native IAP, Capacitor IAP, etc.)
-        // Example flow:
-        // 1. Request product details from App Store/Play Store
-        // 2. Initiate purchase
-        // 3. Wait for purchase confirmation
-        // 4. Update gems in Supabase
-        
-        console.log('📱 IAP integration placeholder - would process:', pack);
-        
-        // For now, simulate successful purchase
-        const confirmed = window.confirm(
-          `Purchase ${pack.totalGems.toLocaleString()} gems for ${pack.price}?\n\n` +
-          `(This is a placeholder. In production, IAP will be used.)`
-        );
-        
-        if (!confirmed) {
-          setIsProcessing(false);
-          return;
+        // MOBILE: RevenueCat IAP integration
+        if (!billing || !billing.isInitialized) {
+          throw new Error('Billing system not initialized. Please try again.');
         }
         
-        // Simulate payment processing delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Find matching RevenueCat package by identifier
+        // RevenueCat package identifiers should match pack.id (e.g., 'gem_1', 'gem_2')
+        const revenueCatPack = revenueCatPackages.find(p => p.identifier === pack.id);
         
-        // Call handle_gem_purchase RPC which applies 2x bonus if eligible
-        const result = await handleGemPurchase(profile.id, pack.id, pack.totalGems, pack.price);
+        if (!revenueCatPack) {
+          // Fallback: Try to find by store product ID or use first available package
+          // If no match found, show error
+          console.warn('GemPacks: No RevenueCat package found for:', pack.id);
+          console.log('GemPacks: Available packages:', revenueCatPackages.map(p => p.identifier));
+          
+          // If we have packages but no match, show error
+          if (revenueCatPackages.length > 0) {
+            throw new Error(`Package "${pack.id}" not available. Please try again later.`);
+          } else {
+            // No packages loaded yet, try fetching again
+            const packages = await billing.fetchOfferings();
+            setRevenueCatPackages(packages);
+            const retryPack = packages.find(p => p.identifier === pack.id);
+            
+            if (!retryPack) {
+              throw new Error('Unable to load purchase options. Please try again later.');
+            }
+            
+            // Use the retry pack
+            const purchaseResult = await billing.buyGems(retryPack);
+            
+            if (!purchaseResult.success) {
+              throw new Error(purchaseResult.error || 'Purchase failed');
+            }
+            
+            // Purchase successful - refresh profile to get updated gems from webhook
+            // The webhook should have already updated Supabase, but we refresh to be sure
+            await onRefreshProfile();
+            
+            // Get updated profile to show correct gem count
+            const updatedProfile = await fetchProfile(profile.id);
+            if (updatedProfile) {
+              const actualGems = updatedProfile.gems || 0;
+              const gemsReceived = actualGems - (profile.gems || 0);
+              
+              // Play success sound
+              audioService.playPurchase();
+              
+              // Show celebration
+              setPurchasedGems(gemsReceived);
+              setShowCelebration(true);
+              
+              // Show success toast
+              setToastMessage(`Successfully purchased ${gemsReceived.toLocaleString()} gems!`);
+              setToastType('success');
+              setShowToast(true);
+            }
+            
+            return;
+          }
+        }
         
-        if (result.success && result.newGemBalance !== undefined) {
+        // Purchase the RevenueCat package
+        console.log('GemPacks: Purchasing RevenueCat package:', revenueCatPack.identifier);
+        const purchaseResult = await billing.buyGems(revenueCatPack);
+        
+        if (!purchaseResult.success) {
+          throw new Error(purchaseResult.error || 'Purchase failed');
+        }
+        
+        // Purchase successful - refresh profile to get updated gems from webhook
+        // The webhook should have already updated Supabase, but we refresh to be sure
+        await onRefreshProfile();
+        
+        // Get updated profile to show correct gem count
+        const updatedProfile = await fetchProfile(profile.id);
+        if (updatedProfile) {
+          const actualGems = updatedProfile.gems || 0;
+          const gemsReceived = actualGems - (profile.gems || 0);
+          
           // Update local state to hide badges immediately
-          if (result.first_purchase_eligible !== undefined) {
-            setFirstPurchaseEligible(result.first_purchase_eligible);
+          if (updatedProfile.first_purchase_eligible !== undefined) {
+            setFirstPurchaseEligible(updatedProfile.first_purchase_eligible);
           }
           
           // Play success sound
           audioService.playPurchase();
           
-          // Calculate actual gems received (with bonus if applied)
-          const actualGems = result.bonusApplied ? pack.totalGems * 2 : pack.totalGems;
-          
           // Show celebration
-          setPurchasedGems(actualGems);
+          setPurchasedGems(gemsReceived);
           setShowCelebration(true);
           
-          // Refresh profile immediately to update gem counter in header
-          // This ensures the gem count is fetched fresh from database
-          await onRefreshProfile();
-          
-          // Show success toast with bonus info
-          const bonusText = result.bonusApplied ? ' (2x BONUS applied!)' : '';
-          setToastMessage(`Successfully purchased ${actualGems.toLocaleString()} gems!${bonusText}`);
+          // Show success toast
+          setToastMessage(`Successfully purchased ${gemsReceived.toLocaleString()} gems!`);
           setToastType('success');
           setShowToast(true);
-        } else {
-          throw new Error(result.error || 'Failed to update gems');
         }
       }
     } catch (error: any) {

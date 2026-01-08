@@ -1,10 +1,30 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   base: '/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Plugin to conditionally resolve RevenueCat based on platform
+    {
+      name: 'resolve-revenuecat',
+      resolveId(id) {
+        if (id === '@revenuecat/purchases-capacitor') {
+          // Check if we're building for native (has capacitor config)
+          // For web builds, use stub; for native builds, use real package
+          const isNativeBuild = process.env.CAPACITOR_PLATFORM !== undefined;
+          if (!isNativeBuild) {
+            return path.resolve(__dirname, 'stubs/revenuecat-stub.ts');
+          }
+          // Return undefined to use default resolution for native builds
+          return null;
+        }
+        return null;
+      }
+    }
+  ],
   resolve: {
     alias: {}
   },
@@ -41,6 +61,7 @@ export default defineConfig({
   },
   // Optimize dependencies
   optimizeDeps: {
-    include: ['react', 'react-dom', '@supabase/supabase-js', 'socket.io-client'],
+    include: ['react', 'react-dom', '@supabase/supabase-js', 'socket.io-client', '@revenuecat/purchases-capacitor'],
+    exclude: ['@capacitor/core'], // Capacitor plugins should not be pre-bundled
   },
 });

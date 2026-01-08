@@ -32,6 +32,7 @@ import { Toast } from './components/Toast';
 import { AccountMigrationSuccessModal } from './components/AccountMigrationSuccessModal';
 import { adService } from './services/adService';
 import { LoadingScreen } from './components/LoadingScreen';
+import { BillingProvider } from './components/BillingProvider';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
@@ -448,7 +449,11 @@ const AppContent: React.FC = () => {
     console.log('App: Setting up auth state change listener...');
     authListenerSetupRef.current = true;
     
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+    // Fix: Properly handle the subscription to avoid 'Y is not a function' error
+    let subscription: { unsubscribe: () => void } | null = null;
+    
+    try {
+      const authStateChangeResult = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
       // Debug logging as requested
       console.log('SUPABASE AUTH EVENT:', event, session);
       
@@ -598,10 +603,23 @@ const AppContent: React.FC = () => {
       }
     });
     
+      // Extract subscription from the result
+      if (authStateChangeResult?.data?.subscription) {
+        subscription = authStateChangeResult.data.subscription;
+      }
+    } catch (error) {
+      console.error('App: Error setting up auth state change listener:', error);
+      authListenerSetupRef.current = false;
+    }
+    
     return () => {
       console.log('App: Step 18 - Cleaning up auth state change listener');
-      if (subscription) {
-        subscription.unsubscribe();
+      try {
+        if (subscription && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+        }
+      } catch (error) {
+        console.error('App: Error unsubscribing from auth listener:', error);
       }
       authListenerSetupRef.current = false;
     };
@@ -800,18 +818,81 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleSignOut = async () => {
-    // Sign out from Supabase first
-    if (session) {
-      try {
-        await supabase.auth.signOut();
-      } catch (error) {
-        console.error('Error signing out:', error);
-      }
+    console.log('App: Nuclear sign-out initiated');
+    
+    // Prevent multiple sign-out attempts
+    if (isLoggingOutRef.current) {
+      console.log('App: Sign-out already in progress, skipping');
+      return;
     }
     
-    // HARD RESET: Clear everything and reload to break any loops
-    localStorage.clear();
-    window.location.href = '/';
+    isLoggingOutRef.current = true;
+    
+    try {
+      // Step 1: Sign out from Supabase
+      console.log('App: Signing out from Supabase...');
+      try {
+        await supabase.auth.signOut();
+        console.log('App: ✅ Supabase sign-out complete');
+      } catch (error) {
+        console.error('App: Error signing out from Supabase:', error);
+        // Continue with cleanup even if signOut fails
+      }
+      
+      // Step 2: Sign out from RevenueCat (native only)
+      if (Capacitor.isNativePlatform()) {
+        try {
+          console.log('App: Signing out from RevenueCat...');
+          // Dynamic import to avoid web crashes
+          const { Purchases } = await import('@revenuecat/purchases-capacitor');
+          await Purchases.logOut();
+          console.log('App: ✅ RevenueCat sign-out complete');
+        } catch (error) {
+          console.error('App: Error signing out from RevenueCat:', error);
+          // Continue with cleanup even if RevenueCat logout fails
+        }
+      }
+      
+      // Step 3: Clear all localStorage to remove ghost sessions
+      console.log('App: Clearing localStorage...');
+      try {
+        window.localStorage.clear();
+        console.log('App: ✅ localStorage cleared');
+      } catch (error) {
+        console.error('App: Error clearing localStorage:', error);
+      }
+      
+      // Step 4: Reset all React states
+      console.log('App: Resetting React states...');
+      setSession(null);
+      setHasSession(false);
+      setAuthChecked(true);
+      setProfile(null);
+      setIsGuest(false);
+      setIsProcessingOAuth(false);
+      setLoadingStatus('Ready to play');
+      initialSyncCompleteRef.current = false;
+      
+      // Step 5: Redirect to landing page
+      console.log('App: Redirecting to landing page...');
+      // Use window.location.replace to prevent back button navigation
+      window.location.replace('/');
+      
+    } catch (error) {
+      console.error('App: Unexpected error during sign-out:', error);
+      // Even on error, try to clear and redirect
+      try {
+        window.localStorage.clear();
+        window.location.replace('/');
+      } catch (e) {
+        console.error('App: Failed to perform fallback cleanup:', e);
+      }
+    } finally {
+      // Reset the flag after a delay to allow redirect
+      setTimeout(() => {
+        isLoggingOutRef.current = false;
+      }, 1000);
+    }
   };
 
   const handleOpenStore = (tab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => { 
@@ -1072,10 +1153,27 @@ const AppContent: React.FC = () => {
   // Handle guest account linking with migration flag
   const handleLinkAccount = async () => {
     try {
+      console.log('App: OAuth Clean Slate - Clearing existing session before OAuth flow');
+      
+      // OAuth 'Clean Slate': Clear any existing session first
+      try {
+        const { data: currentSession } = await supabase.auth.getSession();
+        if (currentSession?.session) {
+          console.log('App: Found existing session, signing out first...');
+          await supabase.auth.signOut();
+          // Wait a moment for sign-out to complete
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (signOutError) {
+        console.warn('App: Error clearing session before OAuth:', signOutError);
+        // Continue with OAuth even if sign-out fails
+      }
+      
       // Set migration flag in localStorage so auth listener knows to migrate
       localStorage.setItem('thirteen_is_migrating', 'true');
       
       // Trigger Google OAuth
+      console.log('App: Initiating Google OAuth flow...');
       const { error } = await supabase.auth.signInWithOAuth({ 
         provider: 'google',
         options: {
@@ -1089,11 +1187,13 @@ const AppContent: React.FC = () => {
       });
       
       if (error) {
-        console.error('OAuth error:', error);
+        console.error('App: OAuth error:', error);
         localStorage.removeItem('thirteen_is_migrating');
+      } else {
+        console.log('App: OAuth flow initiated successfully');
       }
     } catch (err: any) {
-      console.error('Failed to initiate OAuth:', err);
+      console.error('App: Failed to initiate OAuth:', err);
       localStorage.removeItem('thirteen_is_migrating');
     }
   };
@@ -1145,7 +1245,16 @@ const AppContent: React.FC = () => {
   console.log('App: Rendering main app content', { hasSession: !!session, isGuest });
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
+    <BillingProvider 
+      session={session} 
+      onGemsUpdate={() => {
+        // Trigger profile refresh when gems are updated via RevenueCat
+        if (session?.user?.id) {
+          handleRefreshProfile();
+        }
+      }}
+    >
+      <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
       {isTransitioning && <GameEndTransition />}
       {view === 'WELCOME' && (
         <WelcomeScreen 
@@ -1236,6 +1345,7 @@ const AppContent: React.FC = () => {
         />
       )}
     </div>
+    </BillingProvider>
   );
 };
 
