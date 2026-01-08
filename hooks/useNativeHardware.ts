@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { App } from '@capacitor/app';
 import { Dialog } from '@capacitor/dialog';
+import { Capacitor } from '@capacitor/core';
 
 interface UseNativeHardwareOptions {
   view: 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
@@ -23,7 +24,7 @@ export const useNativeHardware = ({
 }: UseNativeHardwareOptions) => {
   useEffect(() => {
     // Only set up listener on native platforms
-    if (typeof window === 'undefined' || !window.Capacitor) {
+    if (!Capacitor.isNativePlatform()) {
       return;
     }
 

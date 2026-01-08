@@ -11,6 +11,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { GameSettings, SocialFilter } from './components/GameSettings';
 import { LegalView } from './components/LegalView';
 import { StatusBar } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
 import { useNativeHardware } from './hooks/useNativeHardware';
 
 // Lazy load heavy components for better initial load performance
@@ -226,15 +227,18 @@ const AppContent: React.FC = () => {
   // Set up status bar for native Android (immersive dark theme)
   useEffect(() => {
     const setupStatusBar = async () => {
-      if (typeof window !== 'undefined' && window.Capacitor) {
-        try {
-          await StatusBar.setBackgroundColor({ color: '#000000' });
-          await StatusBar.setStyle({ style: 'DARK' });
-          await StatusBar.setOverlaysWebView({ overlay: false });
-        } catch (error) {
-          // StatusBar API not available (web environment)
-          console.log('StatusBar API not available:', error);
-        }
+      // Only run on native Android platform
+      if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
+        return;
+      }
+      
+      try {
+        await StatusBar.setBackgroundColor({ color: '#000000' });
+        await StatusBar.setStyle({ style: 'DARK' });
+        await StatusBar.setOverlaysWebView({ overlay: false });
+      } catch (error) {
+        // StatusBar API not available or error occurred
+        console.log('StatusBar API error:', error);
       }
     };
     setupStatusBar();
@@ -386,7 +390,17 @@ const AppContent: React.FC = () => {
 
   // Safety timeout: If authChecked is still false after 3 seconds, set it to true
   // This prevents the app from hanging forever if getSession() doesn't complete
+  // BUT: Don't fire if we're processing an OAuth redirect (hash contains access_token)
   useEffect(() => {
+    // Check if we're in the middle of an OAuth redirect
+    const hash = window.location.hash;
+    const isOAuthRedirect = hash.includes('access_token') || hash.includes('code=');
+    
+    // Don't set safety timeout if OAuth redirect is in progress
+    if (isOAuthRedirect) {
+      return;
+    }
+    
     const safetyTimeout = setTimeout(() => {
       if (!authChecked) {
         console.warn('App: Safety timeout - authChecked still false after 3 seconds, forcing to true');
@@ -563,7 +577,9 @@ const AppContent: React.FC = () => {
     
     return () => {
       console.log('App: Step 18 - Cleaning up auth state change listener');
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
       authListenerSetupRef.current = false;
     };
   }, []); // Empty dependency array - only run once
