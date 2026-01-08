@@ -418,6 +418,14 @@ const AppContent: React.FC = () => {
         return;
       }
       
+      // MANUAL STATE OVERRIDE: If we just came from /auth/callback, add 500ms delay
+      // Sometimes the browser needs a moment to write the session to localStorage before we can read it
+      if (isAfterCallback) {
+        console.log('App: ⏳ Coming from callback - waiting 500ms for browser to write session to localStorage...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('App: ✅ 500ms delay complete, proceeding with auth check');
+      }
+      
       try {
         // Strategy 1: Try refreshSession() first (more aggressive, wakes up stuck sessions)
         console.log('App: 🔥 Strategy 1 - Calling refreshSession()...');
@@ -552,6 +560,34 @@ const AppContent: React.FC = () => {
           console.warn('App: AbortError detected in auth check - will rely on onAuthStateChange listener');
         }
         
+        // FINAL FAIL-SAFE: If authChecked is still false after all attempts, but auth-token exists in localStorage
+        // Force authChecked to true and try to render the game anyway
+        // The game components will naturally handle a null user if they have to
+        if (!authChecked) {
+          const hasAuthToken = supabaseStorageKeys.some(key => {
+            try {
+              const value = localStorage.getItem(key);
+              if (value) {
+                const parsed = JSON.parse(value);
+                return !!parsed?.access_token;
+              }
+            } catch (e) {
+              // Check if key name contains 'auth-token'
+              return key.includes('auth-token');
+            }
+            return false;
+          });
+          
+          if (hasAuthToken) {
+            console.warn('App: 🚨 FINAL FAIL-SAFE - authChecked is false but auth-token exists in localStorage');
+            console.warn('App: 🚨 Forcing authChecked to true - game components will handle null user if needed');
+            setAuthChecked(true);
+            isInitializingRef.current = false;
+            setLoadingStatus('Ready to play');
+            return;
+          }
+        }
+        
         // Don't set authChecked here - let onAuthStateChange handle it
         isInitializingRef.current = false;
       } catch (error: any) {
@@ -559,13 +595,57 @@ const AppContent: React.FC = () => {
         if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
           console.warn('App: Exception caught AbortError - will rely on onAuthStateChange listener');
           if (!isMountedRef.current) return;
-        isInitializingRef.current = false;
+          
+          // FINAL FAIL-SAFE: Even on AbortError, check for auth-token
+          const hasAuthToken = supabaseStorageKeys.some(key => {
+            try {
+              const value = localStorage.getItem(key);
+              if (value) {
+                const parsed = JSON.parse(value);
+                return !!parsed?.access_token;
+              }
+            } catch (e) {
+              return key.includes('auth-token');
+            }
+            return false;
+          });
+          
+          if (hasAuthToken) {
+            console.warn('App: 🚨 FINAL FAIL-SAFE (AbortError) - Forcing authChecked to true');
+            setAuthChecked(true);
+            isInitializingRef.current = false;
+            setLoadingStatus('Ready to play');
+          } else {
+            isInitializingRef.current = false;
+          }
           return;
         }
         
         console.error('App: Exception in aggressive auth check (non-AbortError):', error);
         if (!isMountedRef.current) return;
-        isInitializingRef.current = false;
+        
+        // FINAL FAIL-SAFE: Even on exception, check for auth-token
+        const hasAuthToken = supabaseStorageKeys.some(key => {
+          try {
+            const value = localStorage.getItem(key);
+            if (value) {
+              const parsed = JSON.parse(value);
+              return !!parsed?.access_token;
+            }
+          } catch (e) {
+            return key.includes('auth-token');
+          }
+          return false;
+        });
+        
+        if (hasAuthToken) {
+          console.warn('App: 🚨 FINAL FAIL-SAFE (Exception) - Forcing authChecked to true');
+          setAuthChecked(true);
+          isInitializingRef.current = false;
+          setLoadingStatus('Ready to play');
+        } else {
+          isInitializingRef.current = false;
+        }
         // Don't set authChecked here - let onAuthStateChange handle it
       }
     };
@@ -907,7 +987,7 @@ const AppContent: React.FC = () => {
       console.log('App: Step 18 - Cleaning up auth state change listener');
       try {
         if (subscription && typeof subscription.unsubscribe === 'function') {
-          subscription.unsubscribe();
+        subscription.unsubscribe();
           console.log('✅ Auth listener unsubscribed');
         }
         // Clear the INITIAL_SESSION timeout if component unmounts

@@ -52,18 +52,45 @@ if (!rootElement) {
 
 console.log('App: Step 3 - Root element found, creating React root...');
 
+// AuthGuard Component: Delays rendering by 100ms to give browser time to settle cookies
+const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [ready, setReady] = React.useState(false);
+  
+  React.useEffect(() => {
+    // Give browser 100ms 'breather' to settle cookies before checking session
+    const timer = setTimeout(() => {
+      console.log('AuthGuard: 100ms delay complete, rendering app');
+      setReady(true);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-yellow-400 text-lg">Initializing...</div>
+      </div>
+    );
+  }
+  
+  return <>{children}</>;
+};
+
 try {
   const root = ReactDOM.createRoot(rootElement);
-  console.log('App: Step 4 - React root created, rendering app with ErrorBoundary...');
+  console.log('App: Step 4 - React root created, rendering app with ErrorBoundary and AuthGuard...');
   
-  // NOTE: React.StrictMode is temporarily disabled for OAuth testing
+  // NOTE: React.StrictMode is explicitly disabled for Auth
   // StrictMode causes double-mounting which can interrupt OAuth redirects
-  // Re-enable after OAuth is confirmed working
+  // AuthGuard provides additional delay to let browser settle cookies
   root.render(
     // <React.StrictMode>
       <ErrorBoundary>
         <BrowserRouter>
-          <App />
+          <AuthGuard>
+            <App />
+          </AuthGuard>
         </BrowserRouter>
       </ErrorBoundary>
     // </React.StrictMode>

@@ -80,6 +80,9 @@ const createMockSupabase = () => {
   } as any;
 };
 
+// SINGLETON SUPABASE CLIENT: Created outside React component tree
+// This ensures the client is never re-initialized when the app re-renders
+// Prevents AbortErrors from component re-renders breaking the auth state
 // Create Supabase client with PKCE flow for secure OAuth
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey, {
