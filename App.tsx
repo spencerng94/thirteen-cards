@@ -927,9 +927,20 @@ const AppContent: React.FC = () => {
           loadProfile(session.user.id, false);
         }
       } else {
-        // Force a Result: If the event is INITIAL_SESSION and no session is found, 
-        // call setAuthChecked(true) immediately so the app doesn't hang
-        if (event === 'INITIAL_SESSION') {
+        // Handle SIGNED_OUT event explicitly
+        if (event === 'SIGNED_OUT') {
+          console.log('App: SIGNED_OUT event - clearing all state');
+          setSession(null);
+          setHasSession(false);
+          setAuthChecked(true);
+          setIsGuest(true);
+          setProfile(null);
+          setIsProcessingOAuth(false);
+          setLoadingStatus('Ready to play');
+          initialSyncCompleteRef.current = false;
+        } else if (event === 'INITIAL_SESSION') {
+          // Force a Result: If the event is INITIAL_SESSION and no session is found, 
+          // call setAuthChecked(true) immediately so the app doesn't hang
           console.log('App: INITIAL_SESSION with no session - forcing authChecked to true');
           setAuthChecked(true);
           setHasSession(false);
@@ -1262,8 +1273,48 @@ const AppContent: React.FC = () => {
     localStorage.removeItem(SESSION_KEY);
     isLoggingOutRef.current = true;
     initialSyncCompleteRef.current = false;
-    if (session) await supabase.auth.signOut();
-    setIsGuest(false); setProfile(null); setPlayerName(''); setPlayerAvatar(':cool:'); setCardCoverStyle('RED'); setBackgroundTheme('EMERALD'); setSoundEnabled(true); setSpQuickFinish(true); setSleeveEffectsEnabled(true); setPlayAnimationsEnabled(true); setView('WELCOME'); setHubState({ open: false, tab: 'PROFILE' }); setGameSettingsOpen(false); setStoreOpen(false); setGemPacksOpen(false); setInventoryOpen(false); setFriendsOpen(false); setGameMode(null);
+    
+    // Clear global auth state
+    globalAuthState.clear();
+    
+    // Sign out from Supabase (this will trigger SIGNED_OUT event)
+    if (session) {
+      try {
+        await supabase.auth.signOut();
+      } catch (error) {
+        console.error('Error signing out:', error);
+      }
+    }
+    
+    // Clear all state
+    setSession(null);
+    setHasSession(false);
+    setAuthChecked(false);
+    setIsGuest(false);
+    setProfile(null);
+    setPlayerName('');
+    setPlayerAvatar(':cool:');
+    setCardCoverStyle('RED');
+    setBackgroundTheme('EMERALD');
+    setSoundEnabled(true);
+    setSpQuickFinish(true);
+    setSleeveEffectsEnabled(true);
+    setPlayAnimationsEnabled(true);
+    setView('WELCOME');
+    setHubState({ open: false, tab: 'PROFILE' });
+    setGameSettingsOpen(false);
+    setStoreOpen(false);
+    setGemPacksOpen(false);
+    setInventoryOpen(false);
+    setFriendsOpen(false);
+    setGameMode(null);
+    setIsProcessingOAuth(false);
+    
+    // Clear any OAuth-related flags
+    localStorage.removeItem('thirteen_session_verified');
+    localStorage.removeItem('thirteen_manual_recovery');
+    localStorage.removeItem('thirteen_is_migrating');
+    
     setTimeout(() => { isLoggingOutRef.current = false; }, 500);
   };
 

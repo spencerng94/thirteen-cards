@@ -240,265 +240,34 @@ const sanitizeUrl = (url: string): string => {
   }
 };
 
-// BYPASS STRATEGY: Manual Hash Parsing with Verification
-// Capture tokens, set session, verify immediately, log 'SESSION VERIFIED' if successful
-const parseHashAndSetSession = async (): Promise<boolean> => {
-  const hash = window.location.hash;
-  if (!hash) {
-    console.log('GLOBAL: Manual Hash Parsing - No hash found');
-    return false;
-  }
+// SIMPLIFIED OAuth handling: Let Supabase automatically detect and process the hash
+// With detectSessionInUrl: true, Supabase will handle the OAuth redirect automatically
+const waitForSupabaseSession = async (maxWaitMs: number = 5000): Promise<boolean> => {
+  console.log('GLOBAL: Waiting for Supabase to process OAuth hash...');
   
-  console.log('GLOBAL: Manual Hash Parsing - Parsing hash for tokens...');
+  const startTime = Date.now();
+  const checkInterval = 200; // Check every 200ms
   
-  try {
-    // Parse hash parameters
-    const hashParams = new URLSearchParams(hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token');
-    const expiresIn = hashParams.get('expires_in');
-    const tokenType = hashParams.get('token_type') || 'bearer';
-    
-    if (accessToken) {
-      console.log('GLOBAL: Manual Hash Parsing - Found access_token in hash');
-      console.log('GLOBAL: Manual Hash Parsing - Token type:', tokenType);
-      console.log('GLOBAL: Manual Hash Parsing - Expires in:', expiresIn, 'seconds');
-
-      // Immediate state injection for App-level detection
-      if (typeof window !== 'undefined') {
-        (window as any).OAUTH_TOKEN_FOUND = true;
-      }
-
-      // Local Storage brute force to mimic Supabase auth storage
-      persistSupabaseAuthTokenBruteforce(accessToken, refreshToken, expiresIn, tokenType);
-      
-      // BYPASS STEP 1: Capture and Store - Call setSession with tokens
-      console.log('GLOBAL: BYPASS - Calling setSession with tokens...');
-
-      let setSessionTimedOut = false;
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => {
-          setSessionTimedOut = true;
-          reject(new Error('setSession timeout after 3 seconds'));
-        }, 3000)
-      );
-      
-      let setSessionResult;
-      try {
-        const setSessionPromise = supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken || ''
-        });
-        setSessionResult = await Promise.race([setSessionPromise, timeoutPromise]);
-        if (setSessionTimedOut) {
-          console.error('GLOBAL: BYPASS - setSession resolved after timeout with result:', setSessionResult);
-        } else {
-          console.log('GLOBAL: BYPASS - setSession completed');
-        }
-      } catch (error: any) {
-        if (setSessionTimedOut) {
-          console.error('GLOBAL: BYPASS - setSession rejected after timeout with error object:', error);
-          console.error('GLOBAL: BYPASS - setSession timed-out error (full object):', error);
-        } else {
-          console.error('GLOBAL: BYPASS - setSession failed or timed out:', error?.message || error);
-        }
-        // Even if setSession times out, try getSession with retries - Supabase might have processed it internally
-        console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession timeout (with retries)...');
-        
-        // Retry getSession up to 10 times with 500ms delay (total 5s wait)
-        for (let retry = 0; retry < 10; retry++) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          const { data: fallbackData } = await supabase.auth.getSession();
-          if (fallbackData?.session) {
-            console.log(`GLOBAL: BYPASS - Fallback SUCCESS: getSession found session on retry ${retry + 1}`);
-            globalAuthState.setSession(fallbackData.session);
-            globalAuthState.setAuthChecked(true);
-            globalAuthState.setHasSession(true);
-            localStorage.setItem('thirteen_session_verified', 'true');
-            console.log('GLOBAL: BYPASS - SESSION VERIFIED (via fallback)');
-            console.log('SESSION VERIFIED'); // This log is checked by App.tsx
-            return true;
-          }
-          console.log(`GLOBAL: BYPASS - Retry ${retry + 1}/10: No session yet, waiting...`);
-        }
-        
-        // Last resort: Try setSession one more time (Supabase might have initialized by now)
-        console.log('GLOBAL: BYPASS - Last resort: Trying setSession one more time...');
-        try {
-          const manualSessionResult = await Promise.race([
-            supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || ''
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Last resort setSession timeout')), 2000))
-          ]).catch(() => null);
-          
-          if (manualSessionResult) {
-            const { data: finalSessionData } = await supabase.auth.getSession();
-            if (finalSessionData?.session) {
-              console.log('GLOBAL: BYPASS - Last resort setSession SUCCESS');
-              globalAuthState.setSession(finalSessionData.session);
-              globalAuthState.setAuthChecked(true);
-              globalAuthState.setHasSession(true);
-              localStorage.setItem('thirteen_session_verified', 'true');
-              console.log('GLOBAL: BYPASS - SESSION VERIFIED (via last resort)');
-              console.log('SESSION VERIFIED');
-              return true;
-            }
-          }
-        } catch (lastResortError) {
-          console.warn('GLOBAL: BYPASS - Last resort setSession failed:', lastResortError);
-        }
-        
-        console.warn('GLOBAL: BYPASS - Fallback failed: No session found after all retries');
-        return false;
-      }
-      
-      const { error: setSessionError } = setSessionResult as any;
-      
-      if (setSessionError) {
-        console.error('GLOBAL: BYPASS - Error setting session:', setSessionError);
-        // Try getSession as fallback even on error (with retries)
-        console.log('GLOBAL: BYPASS - Attempting getSession() fallback after setSession error (with retries)...');
-        
-        // Retry getSession up to 10 times with 500ms delay (total 5s wait)
-        for (let retry = 0; retry < 10; retry++) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          const { data: fallbackData } = await supabase.auth.getSession();
-          if (fallbackData?.session) {
-            console.log(`GLOBAL: BYPASS - Fallback SUCCESS: getSession found session on retry ${retry + 1}`);
-            globalAuthState.setSession(fallbackData.session);
-            globalAuthState.setAuthChecked(true);
-            globalAuthState.setHasSession(true);
-            localStorage.setItem('thirteen_session_verified', 'true');
-            console.log('GLOBAL: BYPASS - SESSION VERIFIED (via fallback)');
-            console.log('SESSION VERIFIED'); // This log is checked by App.tsx
-            return true;
-          }
-          console.log(`GLOBAL: BYPASS - Retry ${retry + 1}/10: No session yet, waiting...`);
-        }
-        
-        // Last resort: Try setSession one more time (Supabase might have initialized by now)
-        console.log('GLOBAL: BYPASS - Last resort: Trying setSession one more time...');
-        try {
-          const manualSessionResult = await Promise.race([
-            supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || ''
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Last resort setSession timeout')), 2000))
-          ]).catch(() => null);
-          
-          if (manualSessionResult) {
-            const { data: finalSessionData } = await supabase.auth.getSession();
-            if (finalSessionData?.session) {
-              console.log('GLOBAL: BYPASS - Last resort setSession SUCCESS');
-              globalAuthState.setSession(finalSessionData.session);
-              globalAuthState.setAuthChecked(true);
-              globalAuthState.setHasSession(true);
-              localStorage.setItem('thirteen_session_verified', 'true');
-              console.log('GLOBAL: BYPASS - SESSION VERIFIED (via last resort)');
-              console.log('SESSION VERIFIED');
-              return true;
-            }
-          }
-        } catch (lastResortError) {
-          console.warn('GLOBAL: BYPASS - Last resort setSession failed:', lastResortError);
-        }
-        
-        console.warn('GLOBAL: BYPASS - Fallback failed: No session found after all retries');
-        return false;
-      }
-      
-      // BYPASS STEP 2: Verification - Immediately verify with getSession
-      console.log('GLOBAL: BYPASS - Verifying session with getSession()...');
-      const { data: verifyData, error: verifyError } = await supabase.auth.getSession();
-      
-      if (verifyError) {
-        console.error('GLOBAL: BYPASS - Error verifying session:', verifyError);
-        return false;
-      }
-      
-      if (verifyData?.session) {
-        console.log('GLOBAL: BYPASS - SESSION VERIFIED');
-        console.log('SESSION VERIFIED'); // This log is checked by App.tsx
-        
-        // Store in global state
-        globalAuthState.setSession(verifyData.session);
-        globalAuthState.setAuthChecked(true);
-        globalAuthState.setHasSession(true);
-        
-        // Set flag in localStorage for App.tsx to detect
-        localStorage.setItem('thirteen_session_verified', 'true');
-        
-        return true;
-      }
-      
-      console.warn('GLOBAL: BYPASS - Verification failed: getSession returned no session');
-      return false;
-    } else {
-      console.log('GLOBAL: Manual Hash Parsing - No access_token in hash');
-      return false;
-    }
-  } catch (error: any) {
-    console.error('GLOBAL: Manual Hash Parsing - Error parsing hash:', error);
-    return false;
-  }
-};
-
-// Hard Recovery: Force session refresh with PKCE retry loop
-const forceSessionRecovery = async (maxRetries = 3, delayMs = 500): Promise<any> => {
-  console.log('GLOBAL: Hard Recovery - Forcing session refresh...');
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    console.log(`GLOBAL: Hard Recovery attempt ${attempt}/${maxRetries}`);
-    
-    // Force session refresh
+  while (Date.now() - startTime < maxWaitMs) {
     const { data, error } = await supabase.auth.getSession();
     
-    if (!error && data?.session) {
-      console.log('GLOBAL: Hard Recovery SUCCESS - Session found on attempt', attempt);
-      return data.session;
-    }
-    
     if (error) {
-      console.warn('GLOBAL: Hard Recovery - Error on attempt', attempt, ':', error.message);
-    } else {
-      console.log('GLOBAL: Hard Recovery - No session yet on attempt', attempt);
+      console.warn('GLOBAL: Error getting session:', error);
+    } else if (data?.session) {
+      console.log('GLOBAL: Session found! Supabase processed OAuth successfully');
+      globalAuthState.setSession(data.session);
+      globalAuthState.setAuthChecked(true);
+      globalAuthState.setHasSession(true);
+      localStorage.setItem('thirteen_session_verified', 'true');
+      console.log('SESSION VERIFIED');
+      return true;
     }
     
-    // Check localStorage for PKCE session (Supabase stores it there)
-    const supabaseSessionKey = Object.keys(localStorage).find(key => 
-      key.includes('supabase') && key.includes('auth-token')
-    );
-    if (supabaseSessionKey) {
-      console.log('GLOBAL: Hard Recovery - Found Supabase session key in localStorage:', supabaseSessionKey);
-      try {
-        const stored = localStorage.getItem(supabaseSessionKey);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          console.log('GLOBAL: Hard Recovery - Parsed session from localStorage:', !!parsed);
-          // Try to get session again after finding the key
-          const { data: retryData } = await supabase.auth.getSession();
-          if (retryData?.session) {
-            console.log('GLOBAL: Hard Recovery SUCCESS - Session found after localStorage check');
-            return retryData.session;
-          }
-        }
-      } catch (e) {
-        console.warn('GLOBAL: Hard Recovery - Failed to parse localStorage session:', e);
-      }
-    }
-    
-    // Wait before next attempt (except on last attempt)
-    if (attempt < maxRetries) {
-      console.log(`GLOBAL: Hard Recovery - Waiting ${delayMs}ms before next attempt...`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-    }
+    await new Promise(resolve => setTimeout(resolve, checkInterval));
   }
   
-  console.warn('GLOBAL: Hard Recovery FAILED - No session after', maxRetries, 'attempts');
-  return null;
+  console.warn('GLOBAL: Timeout waiting for Supabase to process OAuth hash');
+  return false;
 };
 
 // Set up global auth listener immediately (outside React)
@@ -525,32 +294,19 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
     console.log('GLOBAL: Hash contains access_token:', hash.includes('access_token'));
     console.log('GLOBAL: Hash contains code:', hash.includes('code='));
     console.log('GLOBAL: Search contains code:', search.includes('code='));
-    console.log('GLOBAL: Processing OAuth, preventing App restart from interrupting...');
+    console.log('GLOBAL: Waiting for Supabase to automatically process OAuth hash...');
     isProcessingAuth = true;
     
-    // BYPASS STRATEGY: Parse hash, set session, verify immediately
-    // Wrap in async IIFE to avoid top-level await build error
+    // Let Supabase automatically process the hash (detectSessionInUrl: true handles this)
+    // Just wait for the session to appear
     (async () => {
-      const manualSuccess = await parseHashAndSetSession();
-      if (manualSuccess) {
-        console.log('GLOBAL: BYPASS SUCCESS - Session verified, App.tsx will detect SESSION VERIFIED flag');
+      const success = await waitForSupabaseSession(5000);
+      if (success) {
+        console.log('GLOBAL: OAuth processing complete - Session verified');
         isProcessingAuth = false;
       } else {
-        console.log('GLOBAL: BYPASS failed, trying Hard Recovery...');
-        // HARD RECOVERY: Force session refresh immediately with retry loop
-        forceSessionRecovery().then((session) => {
-          if (session) {
-            console.log('GLOBAL: Hard Recovery SUCCESS - Session recovered from OAuth redirect');
-            globalAuthState.setSession(session);
-            globalAuthState.setAuthChecked(true);
-            globalAuthState.setHasSession(true);
-            // Also set verification flag for App.tsx
-            localStorage.setItem('thirteen_session_verified', 'true');
-            isProcessingAuth = false;
-          } else {
-            console.warn('GLOBAL: Hard Recovery - No session recovered, will wait for onAuthStateChange');
-          }
-        });
+        console.warn('GLOBAL: OAuth processing timeout - Will rely on onAuthStateChange event');
+        // Don't set isProcessingAuth to false here - let onAuthStateChange handle it
       }
     })();
   }
@@ -574,6 +330,14 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
       console.log('GLOBAL: Session updated (event:', event, ')');
     } else if (event === 'SIGNED_OUT') {
       globalAuthState.clear();
+      // Clear all Supabase auth tokens from localStorage
+      if (supabaseProjectId) {
+        const storageKey = `sb-${supabaseProjectId}-auth-token`;
+        localStorage.removeItem(storageKey);
+      }
+      // Clear any other auth-related flags
+      localStorage.removeItem('thirteen_session_verified');
+      localStorage.removeItem('thirteen_manual_recovery');
       console.log('GLOBAL: Session cleared (SIGNED_OUT)');
     } else if (event === 'INITIAL_SESSION' && !session) {
       // If we're processing OAuth, don't set authChecked yet
