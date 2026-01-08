@@ -1231,133 +1231,94 @@ const processGemPurchase = async (
 };
 
 /**
- * RevenueCat Webhook Handler
- * Handles SUBSCRIBER_ALIAS_UPDATED and PURCHASE events
+ * Universal Webhook Handler for Stripe and RevenueCat
+ * Single endpoint that handles both payment providers
  * 
- * Configure webhook URL in RevenueCat dashboard:
- * https://your-domain.com/api/webhooks/payments/revenuecat
+ * Configure webhook URLs:
+ * - Stripe: https://your-domain.com/api/webhooks/incoming-payments
+ * - RevenueCat: https://your-domain.com/api/webhooks/incoming-payments
+ * 
+ * Stripe events: checkout.session.completed
+ * RevenueCat events: INITIAL_PURCHASE, RENEWAL, and custom consumable events
+ * 
+ * Note: This route uses raw body parsing to support Stripe signature verification
  */
-app.post('/api/webhooks/payments/revenuecat', async (req, res) => {
+app.post('/api/webhooks/incoming-payments', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    const signature = req.headers['authorization'] as string;
-    const payload = JSON.stringify(req.body);
+    // Detect provider based on headers
+    const stripeSignature = req.headers['stripe-signature'] as string;
+    const revenueCatAuth = req.headers['authorization'] as string;
+    
+    // Get raw body (Buffer for Stripe, convert to string for RevenueCat)
+    const rawBody = req.body as Buffer;
+    const bodyString = rawBody.toString('utf8');
 
-    // Verify signature
-    if (!verifyRevenueCatSignature(payload, signature || '')) {
-      console.error('❌ Invalid RevenueCat webhook signature');
-      return res.status(401).json({ error: 'Invalid signature' });
+    // Handle Stripe webhook
+    if (stripeSignature) {
+      return await handleStripeWebhook(rawBody, stripeSignature, res);
+    }
+    
+    // Handle RevenueCat webhook
+    if (revenueCatAuth) {
+      return await handleRevenueCatWebhook(bodyString, revenueCatAuth, res);
     }
 
-    const event = req.body;
-    console.log('📥 RevenueCat webhook received:', event.type);
-
-    // Handle SUBSCRIBER_ALIAS_UPDATED event (user ID linked)
-    if (event.type === 'SUBSCRIBER_ALIAS_UPDATED') {
-      const alias = event.subscriber?.alias;
-      const userId = alias; // RevenueCat alias should be the Supabase user ID
-      
-      if (!userId) {
-        return res.status(400).json({ error: 'Missing user ID in alias' });
-      }
-
-      console.log('✅ Subscriber alias updated for user:', userId);
-      return res.json({ received: true });
-    }
-
-    // Handle PURCHASE event
-    if (event.type === 'PURCHASE') {
-      const transactionId = event.transaction_id;
-      const appUserId = event.app_user_id; // This should be the Supabase user ID
-      const productId = event.product_id;
-      
-      if (!appUserId || !transactionId) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-
-      // Map product_id to gem amount
-      // You should configure this mapping based on your RevenueCat offerings
-      const GEM_PACK_MAP: Record<string, number> = {
-        'gem_1': 250,
-        'gem_2': 700,
-        'gem_3': 1500,
-        'gem_4': 3200,
-        'gem_5': 8500,
-        'gem_6': 18000,
-      };
-
-      const gemAmount = GEM_PACK_MAP[productId];
-      if (!gemAmount) {
-        console.warn('⚠️ Unknown product ID:', productId);
-        return res.status(400).json({ error: 'Unknown product' });
-      }
-
-      // Process the purchase
-      const result = await processGemPurchase(
-        appUserId,
-        gemAmount,
-        'revenuecat',
-        transactionId,
-        { product_id: productId }
-      );
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      return res.json({ received: true, credited: gemAmount });
-    }
-
-    // Ignore other event types
-    return res.json({ received: true });
+    // No recognized provider
+    console.error('❌ Unknown webhook provider - missing signature headers');
+    return res.status(400).json({ error: 'Unknown webhook provider' });
   } catch (error: any) {
-    console.error('❌ RevenueCat webhook error:', error);
+    console.error('❌ Webhook processing error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 /**
- * Stripe Webhook Handler
- * Handles checkout.session.completed events
- * 
- * Configure webhook URL in Stripe dashboard:
- * https://your-domain.com/api/webhooks/payments/stripe
- * 
- * Required events: checkout.session.completed
+ * Handle Stripe webhook events
  */
-app.post('/api/webhooks/payments/stripe', async (req, res) => {
+async function handleStripeWebhook(rawBody: Buffer, signature: string, res: express.Response): Promise<express.Response> {
   try {
-    const signature = req.headers['stripe-signature'] as string;
-    const payload = JSON.stringify(req.body);
+    if (!STRIPE_WEBHOOK_SECRET) {
+      console.error('❌ Stripe webhook secret not configured');
+      return res.status(500).json({ error: 'Stripe not configured' });
+    }
 
-    // Verify signature
-    if (!verifyStripeSignature(payload, signature || '')) {
-      console.error('❌ Invalid Stripe webhook signature');
+    // Use Stripe SDK to verify signature (more robust than manual verification)
+    const Stripe = (await import('stripe')).default;
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-11-20.acacia' });
+    
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        signature,
+        STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err: any) {
+      console.error('❌ Stripe signature verification failed:', err.message);
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    const event = req.body;
     console.log('📥 Stripe webhook received:', event.type);
 
     // Handle checkout.session.completed
     if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
+      const session = event.data.object as any;
       const userId = session.client_reference_id; // Supabase user ID
       const paymentIntentId = session.payment_intent;
-      const amountTotal = session.amount_total; // Amount in cents
       
       if (!userId || !paymentIntentId) {
-        return res.status(400).json({ error: 'Missing required fields' });
+        console.error('❌ Missing required fields in Stripe webhook');
+        return res.status(400).json({ error: 'Missing required fields: userId or paymentIntentId' });
       }
 
-      // Extract gem amount from metadata or line items
-      // You can store gem amount in session metadata when creating checkout
+      // Extract gem amount from metadata
       const gemAmount = session.metadata?.gem_amount 
-        ? parseInt(session.metadata.gem_amount)
+        ? parseInt(session.metadata.gem_amount, 10)
         : null;
 
-      if (!gemAmount) {
-        console.warn('⚠️ Gem amount not found in session metadata');
-        return res.status(400).json({ error: 'Missing gem amount' });
+      if (!gemAmount || isNaN(gemAmount)) {
+        console.warn('⚠️ Gem amount not found or invalid in session metadata');
+        return res.status(400).json({ error: 'Missing or invalid gem amount' });
       }
 
       // Process the purchase
@@ -1368,25 +1329,121 @@ app.post('/api/webhooks/payments/stripe', async (req, res) => {
         paymentIntentId,
         {
           session_id: session.id,
-          amount_total: amountTotal,
+          amount_total: session.amount_total,
           currency: session.currency
         }
       );
 
       if (!result.success) {
-        return res.status(500).json({ error: result.error });
+        console.error('❌ Failed to process Stripe purchase:', result.error);
+        return res.status(500).json({ error: result.error || 'Failed to process purchase' });
       }
 
-      return res.json({ received: true, credited: gemAmount });
+      console.log(`✅ Stripe purchase processed: ${gemAmount} gems for user ${userId}`);
+      return res.json({ received: true, credited: gemAmount, provider: 'stripe' });
+    }
+
+    // Ignore other event types (return success to acknowledge receipt)
+    console.log(`ℹ️ Ignoring Stripe event type: ${event.type}`);
+    return res.json({ received: true, provider: 'stripe' });
+  } catch (error: any) {
+    console.error('❌ Stripe webhook handler error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+}
+
+/**
+ * Handle RevenueCat webhook events
+ */
+async function handleRevenueCatWebhook(payload: string, authHeader: string, res: express.Response): Promise<express.Response> {
+  try {
+    // Extract signature from Authorization header (may be "Bearer <signature>" or just the signature)
+    let signature = authHeader;
+    if (authHeader.startsWith('Bearer ')) {
+      signature = authHeader.substring(7);
+    }
+
+    // Verify RevenueCat signature
+    if (!verifyRevenueCatSignature(payload, signature)) {
+      console.error('❌ Invalid RevenueCat webhook signature');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    const event = JSON.parse(payload);
+    console.log('📥 RevenueCat webhook received:', event.type);
+
+    // Handle INITIAL_PURCHASE and RENEWAL events (for consumables)
+    if (event.type === 'INITIAL_PURCHASE' || event.type === 'RENEWAL') {
+      const transactionId = event.transaction_id;
+      const appUserId = event.app_user_id; // Supabase user ID
+      const productId = event.product_id;
+      
+      if (!appUserId || !transactionId) {
+        console.error('❌ Missing required fields in RevenueCat webhook');
+        return res.status(400).json({ error: 'Missing required fields: app_user_id or transaction_id' });
+      }
+
+      // Map product_id to gem amount
+      // Configure this mapping based on your RevenueCat offerings
+      const GEM_PACK_MAP: Record<string, number> = {
+        'gem_1': 250,
+        'gem_2': 700,
+        'gem_3': 1500,
+        'gem_4': 3200,
+        'gem_5': 8500,
+        'gem_6': 18000,
+      };
+
+      // Also check for custom event types (consumables)
+      // RevenueCat may send custom event types for consumable products
+      const gemAmount = GEM_PACK_MAP[productId] || event.gem_amount || null;
+      
+      if (!gemAmount || isNaN(gemAmount)) {
+        console.warn('⚠️ Unknown product ID or missing gem amount:', productId);
+        return res.status(400).json({ error: 'Unknown product or missing gem amount' });
+      }
+
+      // Process the purchase
+      const result = await processGemPurchase(
+        appUserId,
+        gemAmount,
+        'revenuecat',
+        transactionId,
+        { 
+          product_id: productId,
+          event_type: event.type,
+          store: event.store
+        }
+      );
+
+      if (!result.success) {
+        console.error('❌ Failed to process RevenueCat purchase:', result.error);
+        return res.status(500).json({ error: result.error || 'Failed to process purchase' });
+      }
+
+      console.log(`✅ RevenueCat purchase processed: ${gemAmount} gems for user ${appUserId}`);
+      return res.json({ received: true, credited: gemAmount, provider: 'revenuecat' });
+    }
+
+    // Handle SUBSCRIBER_ALIAS_UPDATED (user ID linked) - informational only
+    if (event.type === 'SUBSCRIBER_ALIAS_UPDATED') {
+      const alias = event.subscriber?.alias;
+      const userId = alias; // RevenueCat alias should be the Supabase user ID
+      
+      if (userId) {
+        console.log('✅ Subscriber alias updated for user:', userId);
+      }
+      return res.json({ received: true, provider: 'revenuecat' });
     }
 
     // Ignore other event types
-    return res.json({ received: true });
+    console.log(`ℹ️ Ignoring RevenueCat event type: ${event.type}`);
+    return res.json({ received: true, provider: 'revenuecat' });
   } catch (error: any) {
-    console.error('❌ Stripe webhook error:', error);
+    console.error('❌ RevenueCat webhook handler error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
   }
-});
+}
 
 /**
  * Stripe Checkout Session Creation

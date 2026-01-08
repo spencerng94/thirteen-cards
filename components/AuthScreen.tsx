@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '../services/supabase';
 import { BrandLogo } from './BrandLogo';
 
@@ -74,25 +75,44 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         // Continue with OAuth even if sign-out fails
       }
       
-      // Trigger Google OAuth
-      console.log('AuthScreen: Initiating Google OAuth flow...');
-      const { error } = await supabase.auth.signInWithOAuth({ 
+      // Determine redirect URL based on platform
+      const isNative = Capacitor.isNativePlatform();
+      const redirectTo = isNative 
+        ? 'com.playthirteen.app://' // Custom scheme for native apps
+        : window.location.origin; // Web origin
+      
+      console.log('AuthScreen: Initiating Google OAuth flow...', { 
+        platform: isNative ? 'native' : 'web',
+        redirectTo 
+      });
+      
+      // Trigger Google OAuth with PKCE flow
+      const { data, error } = await supabase.auth.signInWithOAuth({ 
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
-          flowType: 'implicit', // Force implicit flow (no PKCE code exchange)
+          redirectTo,
+          skipBrowserRedirect: false, // Ensure browser redirect happens
           queryParams: {
             prompt: 'select_account',
             access_type: 'offline'
           }
         }
       });
-      if (error) throw error;
-      console.log('AuthScreen: OAuth flow initiated successfully');
+      
+      if (error) {
+        console.error('AuthScreen: OAuth error from Supabase:', error);
+        throw error;
+      }
+      
+      console.log('AuthScreen: OAuth flow initiated successfully', { data });
+      
+      // Note: For PKCE flow, Supabase will redirect the browser automatically
+      // The redirect should happen immediately after this call
+      
     } catch (err: any) {
       console.error('AuthScreen: OAuth error:', err);
-      setError(err.message);
-      setLoading(false);
+      setError(err.message || 'Failed to sign in with Google. Please try again.');
+      setLoading(false); // Reset loading state so button isn't stuck
     }
   };
 

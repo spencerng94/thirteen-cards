@@ -1172,13 +1172,23 @@ const AppContent: React.FC = () => {
       // Set migration flag in localStorage so auth listener knows to migrate
       localStorage.setItem('thirteen_is_migrating', 'true');
       
-      // Trigger Google OAuth
-      console.log('App: Initiating Google OAuth flow...');
-      const { error } = await supabase.auth.signInWithOAuth({ 
+      // Determine redirect URL based on platform
+      const isNative = Capacitor.isNativePlatform();
+      const redirectTo = isNative 
+        ? 'com.playthirteen.app://' // Custom scheme for native apps
+        : window.location.origin; // Web origin
+      
+      console.log('App: Initiating Google OAuth flow for account linking...', { 
+        platform: isNative ? 'native' : 'web',
+        redirectTo 
+      });
+      
+      // Trigger Google OAuth with PKCE flow
+      const { data, error } = await supabase.auth.signInWithOAuth({ 
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
-          flowType: 'implicit',
+          redirectTo,
+          skipBrowserRedirect: false, // Ensure browser redirect happens
           queryParams: {
             prompt: 'select_account',
             access_type: 'offline'
@@ -1190,7 +1200,7 @@ const AppContent: React.FC = () => {
         console.error('App: OAuth error:', error);
         localStorage.removeItem('thirteen_is_migrating');
       } else {
-        console.log('App: OAuth flow initiated successfully');
+        console.log('App: OAuth flow initiated successfully for account linking', { data });
       }
     } catch (err: any) {
       console.error('App: Failed to initiate OAuth:', err);

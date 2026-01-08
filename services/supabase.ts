@@ -80,11 +80,11 @@ const createMockSupabase = () => {
   } as any;
 };
 
-// Create Supabase client with implicit flow (no PKCE) to avoid code exchange issues
+// Create Supabase client with PKCE flow for secure OAuth
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        flowType: 'implicit', // Disable PKCE - tokens come directly in hash
+        flowType: 'pkce', // Use PKCE flow for secure OAuth
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true
