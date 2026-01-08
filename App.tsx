@@ -319,17 +319,8 @@ const AppContent: React.FC = () => {
   // SIMPLIFIED AUTH: SessionProvider handles all auth state
   // App.tsx just checks has_active_session flag and uses session from provider
 
-  // Load profile when session changes (from SessionProvider)
-  useEffect(() => {
-    if (session?.user?.id && !isGuest) {
-      const userId = session.user.id;
-      supabase.from('profiles').select('id').eq('id', userId).maybeSingle().then(({ data: existingProfile }) => {
-        loadProfile(userId, !existingProfile);
-      });
-    }
-  }, [session, profile, isGuest, loadProfile]);
-
   // Fix render loop: Wrap loadProfile in useCallback to prevent recreation on every render
+  // MUST BE DEFINED BEFORE useEffect that uses it
   const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false) => {
     console.log('App: Loading profile for user:', uid, 'isNewUser:', isNewUser);
     loadingProfileInProgressRef.current = true;

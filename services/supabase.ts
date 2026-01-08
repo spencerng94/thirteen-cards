@@ -1,7 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
 import { UserProfile, AiDifficulty, Emote, UserInventory } from '../types';
 import { ITEM_REGISTRY } from '../constants/ItemRegistry';
 import { getWeeklyChallenges } from '../constants/ChallengePool';
+// Import singleton client from src/lib/supabase.ts
+import { supabase } from '../src/lib/supabase';
 
 // Safely access environment variables
 const getEnv = (key: string): string | undefined => {
@@ -57,54 +58,9 @@ export const getAvatarName = (trigger: string, remoteEmotes?: Emote[]) => {
   return remoteEmotes?.find(e => e.trigger_code === trigger)?.name || 'Elite Signature';
 };
 
-const createMockSupabase = () => {
-  const mockPromise = Promise.resolve({ data: null, error: null });
-  const mockChain = {
-    select: () => mockChain, eq: () => mockChain, maybeSingle: () => mockPromise,
-    order: () => mockChain, limit: () => mockChain, update: () => mockChain,
-    upsert: () => mockPromise, insert: () => mockChain, delete: () => mockChain,
-    then: (onFullfilled: any) => mockPromise.then(onFullfilled),
-    catch: (onRejected: any) => mockPromise.catch(onRejected),
-  };
-  return {
-    auth: {
-      getSession: async () => ({ data: { session: null }, error: null }),
-      getUser: async () => ({ data: { user: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null }),
-      signInWithOAuth: async () => ({ data: {}, error: null }),
-      signInWithPassword: async () => ({ data: {}, error: null }),
-      signUp: async () => ({ data: {}, error: null }),
-      signOut: async () => ({ error: null }),
-    },
-    from: () => mockChain,
-  } as any;
-};
-
-// SINGLETON SUPABASE CLIENT: Created outside React component tree
-// This ensures the client is never re-initialized when the app re-renders
-// Prevents AbortErrors from component re-renders breaking the auth state
-// Create Supabase client with PKCE flow for secure OAuth
-export const supabase = (supabaseUrl && supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        flowType: 'pkce', // Use PKCE flow for secure OAuth
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true
-      }
-    })
-  : createMockSupabase();
-
-// Log Supabase config to verify flow type
-if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey) {
-  console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
-  console.log('SUPABASE CONFIG: Auth options:', {
-    flowType: (supabase as any).auth?.flowType,
-    autoRefreshToken: (supabase as any).auth?.autoRefreshToken,
-    persistSession: (supabase as any).auth?.persistSession,
-    detectSessionInUrl: (supabase as any).auth?.detectSessionInUrl
-  });
-}
+// RE-EXPORT SINGLETON CLIENT: The singleton is imported above and re-exported here for backward compatibility
+// This ensures there's only ONE supabase client instance in the entire app
+export { supabase };
 
 // ============================================================================
 // GLOBAL AUTH LISTENER - Runs outside React lifecycle to catch OAuth redirects
