@@ -287,529 +287,94 @@ const AppContent: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [gameMode, myPersistentId, view]);
 
-  useEffect(() => {
-    authStatusRef.current = { hasSession, authChecked };
-  }, [hasSession, authChecked]);
-
-  // STORAGE-FIRST CHECK: Check localStorage for auth token and try to get real session first
+  // EVENT-DRIVEN AUTH: Single source of truth - getSession() in useLayoutEffect
+  // This runs once on mount and waits for Supabase to give us a definitive answer
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
     
-    const authTokenKey = 'sb-spaxxexmyiczdrbikdjp-auth-token';
-    const storedToken = localStorage.getItem(authTokenKey);
-    
-    if (storedToken) {
-      try {
-        const parsed = JSON.parse(storedToken);
-        if (parsed?.currentSession?.access_token) {
-          console.log('App: STORAGE-FIRST - Found auth token in localStorage, trying to get real session first...');
-          
-          // Try to get real session from Supabase first (with retries)
-          const tryGetRealSession = async () => {
-            for (let retry = 0; retry < 5; retry++) {
-              const { data, error } = await supabase.auth.getSession();
-              if (data?.session && data.session.user?.id && data.session.user.id !== 'pending') {
-                console.log(`App: STORAGE-FIRST - Real session found on retry ${retry + 1}`);
-                setSession(data.session);
-                setHasSession(true);
-                setAuthChecked(true);
-                setIsGuest(false);
-                setIsProcessingOAuth(false);
-                return true;
-              }
-              if (retry < 4) {
-                await new Promise(resolve => setTimeout(resolve, 200));
-              }
-            }
-            return false;
-          };
-          
-          tryGetRealSession().then((hasRealSession) => {
-            if (hasRealSession) {
-              // Real session found - profile loading will be triggered by useEffect
-              console.log('App: STORAGE-FIRST - Real session set, profile will load automatically');
-            } else {
-              // Only create mock session if we can't get a real one
-              // But check if we have user data in the stored token
-              if (parsed.currentSession.user && parsed.currentSession.user.id && parsed.currentSession.user.id !== 'pending') {
-                console.log('App: STORAGE-FIRST - Using user data from stored token');
-                const sessionWithUser = {
-                  access_token: parsed.currentSession.access_token,
-                  refresh_token: parsed.currentSession.refresh_token || '',
-                  expires_in: parsed.currentSession.expires_in || 3600,
-                  expires_at: parsed.currentSession.expires_at || parsed.expires_at,
-                  token_type: parsed.currentSession.token_type || 'bearer',
-                  user: parsed.currentSession.user
-                };
-                setSession(sessionWithUser);
-                setHasSession(true);
-                setAuthChecked(true);
-                setIsGuest(false);
-                setIsProcessingOAuth(false);
-                // Profile loading will be triggered by the useEffect that watches for session changes
-              } else {
-                console.log('App: STORAGE-FIRST - No valid user data in token, waiting for real session...');
-                // Don't set flags yet - let the normal auth flow handle it
-              }
-            }
-          });
-        }
-      } catch (e) {
-        console.warn('App: STORAGE-FIRST - Failed to parse stored token:', e);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let detectionInterval: ReturnType<typeof setInterval> | null = null;
-    let forceTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const persistTokensFromHash = () => {
-      const hash = window.location.hash;
-      if (!hash || !hash.includes('access_token')) return;
-      const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get('access_token');
-      if (!accessToken) return;
-      const refreshToken = params.get('refresh_token');
-      const expiresIn = params.get('expires_in');
-      const tokenType = params.get('token_type') || 'bearer';
-      (window as any).OAUTH_TOKEN_FOUND = true;
-      persistSupabaseAuthTokenBruteforce(accessToken, refreshToken, expiresIn, tokenType);
-    };
-
-    const triggerFakeAuth = async () => {
-      if (forceTimeout) return;
-      console.warn('App: Fake auth fallback detected - forcing auth flags after 2s');
-      forceTimeout = setTimeout(async () => {
-        if (authStatusRef.current.hasSession) return;
-        
-        // Try to get session from Supabase with retries (might have been set by brute force localStorage)
-        console.warn('App: Fake auth fallback - checking for session before forcing flags (with retries)...');
-        
-        // Retry up to 10 times with 500ms delay (total 5s wait)
-        for (let retry = 0; retry < 10; retry++) {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const globalSession = globalAuthState.getSession();
-          const foundSession = sessionData?.session || globalSession;
-          
-          if (foundSession) {
-            console.warn(`App: Fake auth fallback - Found session on retry ${retry + 1}! Using it:`, foundSession.user?.id);
-            setSession(foundSession);
-            setAuthChecked(true);
-            setHasSession(true);
-            setIsGuest(false);
-            setIsProcessingOAuth(false);
-            setLoadingStatus('Syncing profile...');
-            
-            // Process the session
-            const meta = foundSession.user?.user_metadata || {};
-            const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-            if (!playerName) setPlayerName(googleName.toUpperCase());
-            
-            transferGuestData(foundSession.user.id).then(() => {
-              supabase.from('profiles').select('id').eq('id', foundSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
-                loadProfile(foundSession.user.id, !existingProfile);
-              });
-            });
-            return; // Exit early if session found
-          }
-          
-          if (retry < 9) {
-            console.log(`App: Fake auth fallback - Retry ${retry + 1}/10: No session yet, waiting...`);
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        }
-        
-        // Last resort: Set flags anyway (brute force)
-        console.warn('App: Fake auth fallback - No session found after 10 retries, but setting flags anyway (brute force)');
-        setAuthChecked(true);
-        setHasSession(true);
-        setIsGuest(false);
-        setIsProcessingOAuth(false);
-        setLoadingStatus('Completing sign in...');
-      }, 2000);
-    };
-
-    persistTokensFromHash();
-
-    if ((window as any).OAUTH_TOKEN_FOUND) {
-      triggerFakeAuth();
-    } else {
-      detectionInterval = setInterval(() => {
-        if ((window as any).OAUTH_TOKEN_FOUND) {
-          persistTokensFromHash();
-          triggerFakeAuth();
-          if (detectionInterval) {
-            clearInterval(detectionInterval);
-            detectionInterval = null;
-          }
-        }
-      }, 250);
-    }
-
-    return () => {
-      if (detectionInterval) clearInterval(detectionInterval);
-      if (forceTimeout) clearTimeout(forceTimeout);
-    };
-  }, []);
-
-  // URL Guard: Wait max 1 second, then clear hash and reload if needed
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.includes('access_token')) {
-      console.log('App: Step 17 - OAuth redirect detected in URL hash');
-      console.log('App: URL Guard - Waiting max 1 second for Supabase to process...');
-      setLoadingStatus('Completing sign in...');
-      
-      let hashCleared = false;
-      
-      // Wait max 1 second, then force clear hash and reload
-      const forceTimeout = setTimeout(() => {
-        if (!hashCleared && window.location.hash.includes('access_token')) {
-          console.warn('App: URL Guard - Timeout after 1s, clearing hash and reloading');
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
-          hashCleared = true;
-          // Force reload to break any loops
-          window.location.reload();
-        }
-      }, 1000);
-      
-      // Check if auth completes before timeout
-      const checkInterval = setInterval(() => {
-        if (authChecked && hasSession) {
-          if (window.location.hash.includes('access_token') && !hashCleared) {
-            console.log('App: URL Guard - Auth complete, cleaning up hash');
-            window.history.replaceState(null, '', window.location.pathname + window.location.search);
-            hashCleared = true;
-            clearTimeout(forceTimeout);
-            clearInterval(checkInterval);
-          }
-        }
-      }, 100);
-      
-      return () => {
-        clearTimeout(forceTimeout);
-        clearInterval(checkInterval);
-      };
-    } else {
-      console.log('App: Step 18 - No OAuth hash found in URL');
-    }
-  }, [authChecked, hasSession]);
-
-  useEffect(() => {
-    // IMMEDIATE HASH EXTRACTION: Manual session recovery at the very top (Step 6)
-    // This bypasses the onAuthStateChange listener which is hanging
-    
-    // Guard: Prevent multiple manual recovery attempts
-    if (manualRecoveryInProgressRef.current) {
-      console.log('MANUAL RECOVERY: Already in progress, skipping...');
-      return;
-    }
-    
-    // Guard: If we already have a session, skip manual recovery
-    if (session && hasSession) {
-      console.log('MANUAL RECOVERY: Session already exists, skipping...');
-      return;
-    }
-    
-    // Guard: Check global auth state - if session was already set there, use it
-    const manualRecoverySession = globalAuthState.getSession();
-    if (manualRecoverySession) {
-      console.log('MANUAL RECOVERY: Global session found, using it instead of parsing hash');
-      setSession(manualRecoverySession);
-      setAuthChecked(true);
-      setHasSession(true);
-      setIsGuest(false);
-      setIsProcessingOAuth(false);
-      window.history.replaceState({}, document.title, '/');
-      return;
-    }
-    
-    // BYPASS STRATEGY: Let global listener handle OAuth, just set processing flag if hash exists
-    const hash = window.location.hash;
-    const hasAccessToken = hash.includes('access_token');
-    const hasIdToken = hash.includes('id_token');
-    
-    if (hasAccessToken || hasIdToken) {
-      console.log('App: BYPASS - OAuth hash detected, setting processing flag');
-      console.log('App: Global listener will handle setSession and verification');
-      setIsProcessingOAuth(true);
-      setLoadingStatus('Completing sign in...');
-      // Don't clear hash here - global listener will handle it after verification
-    }
-    
-    // Check if manual recovery is in progress from previous mount
-    // Only set processing if there's actually a hash to process
-    if (localStorage.getItem('thirteen_manual_recovery') === 'true') {
-      const hasHash = hash.includes('access_token') || hash.includes('id_token') || hash.includes('code=');
-      if (hasHash) {
-        console.log('MANUAL RECOVERY: Detected in-progress recovery from previous mount, hash present');
-        manualRecoveryInProgressRef.current = true;
-        setIsProcessingOAuth(true);
-        setLoadingStatus('Completing sign in...');
-      } else {
-        // No hash means recovery already completed or failed - clear the flag
-        console.log('MANUAL RECOVERY: Detected stale recovery flag (no hash), clearing...');
-        localStorage.removeItem('thirteen_manual_recovery');
-        manualRecoveryInProgressRef.current = false;
-        setIsProcessingOAuth(false);
-      }
-    }
-    
-    // APP-LEVEL BYPASS: If OAuth hash/code is present, force loading screen and block state updates
-    
-    const search = window.location.search;
-    const hasOAuthHash = hash.includes('access_token') || hash.includes('code=');
-    const hasOAuthCode = search.includes('code=');
-    
-    if (hasOAuthHash || hasOAuthCode) {
-      console.log('App: OAuth bypass active - URL contains access_token or code');
-      console.log('App: Forcing loading screen, blocking state updates until session confirmed');
-      setIsProcessingOAuth(true);
-      setLoadingStatus('Completing sign in...');
-      
-      // ESCAPE HATCH: 10-second timeout to prevent infinite loop
-      const escapeHatchTimeout = setTimeout(() => {
-        if (isProcessingOAuth) {
-          console.error('App: ESCAPE HATCH - Auth service timeout after 10 seconds');
-          setError('Auth Service Timeout. Please try refreshing or check your internet.');
-          setIsProcessingOAuth(false);
-          setAuthChecked(true);
-          setHasSession(false);
-          setIsGuest(true);
-          setLoadingStatus('Auth Service Timeout. Please try refreshing or check your internet.');
-          isInitializingRef.current = false;
-        }
-      }, 10000);
-      
-      // Wait for session with timeout
-      const waitForSession = async () => {
-        const maxWaitTime = 10000; // 10 seconds max
-        const checkInterval = 500; // Check every 500ms
-        const startTime = Date.now();
-        
-        while (Date.now() - startTime < maxWaitTime) {
-          const { data, error } = await supabase.auth.getSession();
-          
-          if (!error && data?.session) {
-            console.log('App: OAuth bypass - Session confirmed!');
-            clearTimeout(escapeHatchTimeout);
-            globalAuthState.setSession(data.session);
-            globalAuthState.setAuthChecked(true);
-            globalAuthState.setHasSession(true);
-            setSession(data.session);
-            setAuthChecked(true);
-            setHasSession(true);
-            setIsGuest(false);
-            setIsProcessingOAuth(false);
-            
-            // Process the session
-            const meta = data.session.user.user_metadata || {};
-            const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-            if (!playerName) setPlayerName(googleName.toUpperCase());
-            
-            transferGuestData(data.session.user.id).then(() => {
-              supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle().then(({ data: existingProfile }) => {
-                loadProfile(data.session.user.id, !existingProfile);
-              });
-            });
-            
-            isInitializingRef.current = false;
-            return;
-          }
-          
-          // Check if global session was set by the global listener
-          const sessionFromGlobal = globalAuthState.getSession();
-          if (sessionFromGlobal) {
-            console.log('App: OAuth bypass - Global session found!');
-            clearTimeout(escapeHatchTimeout);
-            setSession(sessionFromGlobal);
-            setAuthChecked(true);
-            setHasSession(true);
-            setIsGuest(false);
-            setIsProcessingOAuth(false);
-            
-            const meta = sessionFromGlobal.user?.user_metadata || {};
-            const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-            if (!playerName) setPlayerName(googleName.toUpperCase());
-            
-            transferGuestData(sessionFromGlobal.user.id).then(() => {
-              supabase.from('profiles').select('id').eq('id', sessionFromGlobal.user.id).maybeSingle().then(({ data: existingProfile }) => {
-                loadProfile(sessionFromGlobal.user.id, !existingProfile);
-              });
-            });
-            
-            isInitializingRef.current = false;
-            return;
-          }
-          
-          // Wait before next check
-          await new Promise(resolve => setTimeout(resolve, checkInterval));
-        }
-        
-        // Timeout - session not found
-        console.warn('App: OAuth bypass - Timeout waiting for session');
-        clearTimeout(escapeHatchTimeout);
-        setIsProcessingOAuth(false);
-        setAuthChecked(true);
-        setHasSession(false);
-        setIsGuest(true);
-        setError('Auth Service Timeout. Please try refreshing or check your internet.');
-        setLoadingStatus('Auth Service Timeout. Please try refreshing or check your internet.');
-        isInitializingRef.current = false;
-      };
-      
-      waitForSession();
-      return; // Exit early, don't proceed with normal auth flow
-    }
-    
-    // CRITICAL: Check global auth state FIRST (before any React lifecycle)
-    // This catches sessions that were processed outside React
-    const globalSession = globalAuthState.getSession();
-    if (globalSession) {
-      console.log('GLOBAL: Session caught before mount - using global session');
-      console.log('App: Step 9a - Global session found, setting state immediately');
-      setSession(globalSession);
-      setAuthChecked(globalAuthState.authChecked);
-      setHasSession(globalAuthState.hasSession);
-      setIsGuest(false);
-      setLoadingStatus('Syncing profile...');
-      
-      // Process the global session
-      const meta = globalSession.user?.user_metadata || {};
-      const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-      if (!playerName) setPlayerName(googleName.toUpperCase());
-      
-      // Load profile asynchronously
-      transferGuestData(globalSession.user.id).then(() => {
-        supabase.from('profiles').select('id').eq('id', globalSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
-          loadProfile(globalSession.user.id, !existingProfile);
-        });
-      });
-      
-      isInitializingRef.current = false;
-      return;
-    }
-    
-    // If global auth was checked but no session, use that state
-    if (globalAuthState.authChecked && !globalSession) {
-      console.log('App: Step 9b - Global auth checked, no session - using guest mode');
-      setAuthChecked(true);
-      setHasSession(false);
-      setIsGuest(true);
-      setLoadingStatus('Preparing guest profile...');
-      isInitializingRef.current = false;
-      return;
-    }
-    
-    // Initialization Guard: Use didInitRef to ensure auth check only runs exactly once
+    // Guard: Only run once
     if (didInitRef.current) {
-      console.log('App: Auth already initialized, skipping duplicate init');
-      return;
-    }
-    
-    // Prevent multiple initializations
-    if (isInitializingRef.current) {
-      console.log('App: Already initializing, skipping duplicate init');
       return;
     }
     
     didInitRef.current = true;
     isInitializingRef.current = true;
-    console.log('App: Step 9 - Starting auth check...');
+    console.log('App: Initializing auth check...');
     setLoadingStatus('Checking credentials...');
     
-    // Timeout safety: after 6s, force authChecked to true so user can at least click 'Enter as Guest'
-    const timeoutId = setTimeout(() => {
-      if (!authChecked) {
-        console.warn('App: Auth Timeout - forcing authChecked to true after 6s');
-        setAuthChecked(true);
-        setShowGuestHint(true);
-        setLoadingStatus('You can enter as Guest.');
-      }
-    }, 6000);
-    
-    // Explicit session recovery: Check for session immediately
-    const checkSession = async () => {
+    // Single source of truth: Call getSession() once
+    const checkAuth = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('App: ERROR - Failed to get session:', error);
-          console.log('App: Step 10b - No session found (error), forcing guest mode');
+          console.error('App: Error getting session:', error);
           setSession(null);
-          setLoadingStatus('Network hiccup. You can enter as Guest.');
-          setAuthChecked(true); // Force result so user can proceed
           setHasSession(false);
-          setIsGuest(false);
+          setAuthChecked(true);
+          setIsGuest(true);
+          setIsProcessingOAuth(false);
           isInitializingRef.current = false;
           return;
         }
         
         if (data?.session) {
-          console.log('App: Step 10a - Session found, user:', data.session.user.id);
-          console.log('App: Step 17 - Session detected from URL');
+          console.log('App: Session found:', data.session.user.id);
           setSession(data.session);
-          setAuthChecked(true);
           setHasSession(true);
+          setAuthChecked(true);
           setIsGuest(false);
-          console.log('App: Step 11 - Auth checked, session set');
-          console.log('App: Step 12 - User found, processing user data...');
-          setLoadingStatus('Syncing profile...');
+          setIsProcessingOAuth(false);
+          
+          // Process session
           const meta = data.session.user.user_metadata || {};
           const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
           if (!playerName) setPlayerName(googleName.toUpperCase());
-          console.log('App: Step 13 - Transferring guest data...');
+          
           await transferGuestData(data.session.user.id);
-          console.log('App: Step 14 - Checking if user is new...');
           const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', data.session.user.id).maybeSingle();
-          const isNewUser = !existingProfile;
-          console.log('App: Step 15 - Loading profile, isNewUser:', isNewUser);
-          loadProfile(data.session.user.id, isNewUser);
-          isInitializingRef.current = false;
+          loadProfile(data.session.user.id, !existingProfile);
         } else {
-          console.log('App: Step 10b - No session found, forcing guest mode');
-          console.log('App: Step 18 - No session found in URL');
-          setLoadingStatus('Preparing guest profile...');
+          console.log('App: No session found');
           setSession(null);
-          setAuthChecked(true); // Force result so user can proceed
           setHasSession(false);
+          setAuthChecked(true);
           setIsGuest(true);
-          console.log('App: Step 12 - No user session, will show auth screen or guest mode');
-          isInitializingRef.current = false;
+          setIsProcessingOAuth(false);
         }
+        
+        isInitializingRef.current = false;
       } catch (error: any) {
-        console.error('App: ERROR - Failed to get session:', error);
-        console.log('App: Step 10b - No session found (catch), forcing guest mode');
-        setLoadingStatus('Network hiccup. You can enter as Guest.');
+        console.error('App: Exception getting session:', error);
         setSession(null);
-        setAuthChecked(true); // Force result so user can proceed
         setHasSession(false);
-        setIsGuest(false);
+        setAuthChecked(true);
+        setIsGuest(true);
+        setIsProcessingOAuth(false);
         isInitializingRef.current = false;
       }
     };
     
-    checkSession();
+    checkAuth();
+  }, []); // Empty deps - only run once on mount
 
-    // Cleanup function
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, []); // Empty dependency array - only run once on mount
+  // Clean up OAuth hash after Supabase processes it
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('access_token') && authChecked) {
+      // Clear hash once auth is complete
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [authChecked]);
 
-  // Set up auth state change listener with useEffect to prevent re-mount loops
-  // Fix the Re-mount Loop: Use empty dependency array so it only runs once
+  // Set up auth state change listener - only once with empty deps
   useEffect(() => {
     // Guard: Only set up listener once
     if (authListenerSetupRef.current) {
-      console.log('App: Auth listener already set up, skipping duplicate setup');
       return;
     }
     
-    console.log('App: Step 16 - Setting up auth state change listener (useEffect)...');
+    console.log('App: Setting up auth state change listener...');
     authListenerSetupRef.current = true;
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
@@ -939,8 +504,8 @@ const AppContent: React.FC = () => {
           setLoadingStatus('Ready to play');
           initialSyncCompleteRef.current = false;
         } else if (event === 'INITIAL_SESSION') {
-          // Force a Result: If the event is INITIAL_SESSION and no session is found, 
-          // call setAuthChecked(true) immediately so the app doesn't hang
+        // Force a Result: If the event is INITIAL_SESSION and no session is found, 
+        // call setAuthChecked(true) immediately so the app doesn't hang
           console.log('App: INITIAL_SESSION with no session - forcing authChecked to true');
           setAuthChecked(true);
           setHasSession(false);
@@ -1126,126 +691,6 @@ const AppContent: React.FC = () => {
     }
   }, [isGuest, session, playerName]);
 
-  // BYPASS STRATEGY: Check for SESSION VERIFIED from global listener
-  // Poll frequently when processing OAuth to catch verification as soon as it happens
-  useEffect(() => {
-    if (!isProcessingOAuth && authChecked) return; // Only check when processing or not yet checked
-    
-    const checkForVerification = async () => {
-      // Check if global listener verified the session
-      const sessionVerified = localStorage.getItem('thirteen_session_verified') === 'true';
-      const globalSession = globalAuthState.getSession();
-      
-      // Also check Supabase directly in case global state is out of sync
-      // This is critical - even if setSession hangs, getSession might find the session
-      const { data: sessionData } = await supabase.auth.getSession();
-      const activeSession = globalSession || sessionData?.session;
-      
-      // If we have a session (from any source) and we're processing OAuth, use it
-      if (activeSession && isProcessingOAuth && !session) {
-        console.log('App: BYPASS - Found session via getSession() (verification flag:', sessionVerified, '), using it');
-        
-        // State Force: Manually set flags without waiting for onAuthStateChange
-        setSession(activeSession);
-        setHasSession(true);
-        setAuthChecked(true);
-        setIsGuest(false);
-        setIsProcessingOAuth(false);
-        
-        // URL Cleanup: Clear hash only after we have a session
-        window.history.replaceState({}, document.title, '/');
-        console.log('App: BYPASS - Hash cleared after session found');
-        
-        // Clear the verification flag and recovery flags
-        localStorage.removeItem('thirteen_session_verified');
-        localStorage.removeItem('thirteen_manual_recovery');
-        manualRecoveryInProgressRef.current = false;
-        
-        // Process the session
-        const meta = activeSession.user?.user_metadata || {};
-        const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-        if (!playerName) setPlayerName(googleName.toUpperCase());
-        
-        transferGuestData(activeSession.user.id).then(() => {
-          supabase.from('profiles').select('id').eq('id', activeSession.user.id).maybeSingle().then(({ data: existingProfile }) => {
-            loadProfile(activeSession.user.id, !existingProfile);
-          });
-        });
-        
-        isInitializingRef.current = false;
-        return true; // Session found
-      }
-      
-      return false; // No session yet
-    };
-    
-    // Check immediately
-    checkForVerification();
-    
-    // If processing OAuth, poll every 500ms to catch verification quickly
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
-    if (isProcessingOAuth && !authChecked) {
-      pollInterval = setInterval(async () => {
-        const verified = await checkForVerification();
-        if (verified && pollInterval) {
-          clearInterval(pollInterval);
-        }
-      }, 500);
-    }
-    
-    return () => {
-      if (pollInterval) clearInterval(pollInterval);
-    };
-  }, [isProcessingOAuth, authChecked, session, isGuest, playerName, playerAvatar]); // Check frequently when processing
-  
-  // Emergency Timeout: If isProcessingOAuth is true for more than 8 seconds WITHOUT session, force isGuest to true
-  // Increased to 8 seconds to give setSession more time to complete
-  useEffect(() => {
-    if (!isProcessingOAuth) return;
-    
-    const emergencyTimeout = setTimeout(async () => {
-      // Only force guest mode if still processing AND no session exists
-      if (isProcessingOAuth) {
-        // Do a final check for session via getSession() before forcing guest
-        const { data: sessionData } = await supabase.auth.getSession();
-        const sessionVerified = localStorage.getItem('thirteen_session_verified') === 'true';
-        const globalSession = globalAuthState.getSession();
-        const hasSession = session || globalSession || sessionData?.session;
-        
-        // If session exists (from any source), don't force guest mode
-        if (sessionVerified || hasSession) {
-          console.log('App: EMERGENCY TIMEOUT - Session exists, skipping guest mode force');
-          // If we found a session but haven't set state yet, set it now
-          if (hasSession && !session) {
-            const activeSession = session || globalSession || sessionData?.session;
-            if (activeSession) {
-              console.log('App: EMERGENCY TIMEOUT - Found session, setting state now');
-              setSession(activeSession);
-              setHasSession(true);
-              setAuthChecked(true);
-              setIsGuest(false);
-              setIsProcessingOAuth(false);
-              window.history.replaceState({}, document.title, '/');
-            }
-          }
-          return;
-        }
-        
-        console.warn('App: EMERGENCY TIMEOUT - isProcessingOAuth stuck for 8+ seconds with no session, forcing guest mode');
-        setIsProcessingOAuth(false);
-        setAuthChecked(true);
-        setIsGuest(true);
-        setHasSession(false);
-        // Clear any stale flags
-        localStorage.removeItem('thirteen_manual_recovery');
-        localStorage.removeItem('thirteen_session_verified');
-        // Clear hash to prevent retry loops
-        window.history.replaceState({}, document.title, '/');
-      }
-    }, 8000); // Increased from 4 to 8 seconds
-    
-    return () => clearTimeout(emergencyTimeout);
-  }, [isProcessingOAuth, session]);
 
   useEffect(() => {
     const userId = session?.user?.id || (isGuest ? 'guest' : null);
@@ -1270,14 +715,7 @@ const AppContent: React.FC = () => {
   }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, autoPassEnabled, turnTimerSetting, session, authChecked, profile, isGuest]);
 
   const handleSignOut = async () => {
-    localStorage.removeItem(SESSION_KEY);
-    isLoggingOutRef.current = true;
-    initialSyncCompleteRef.current = false;
-    
-    // Clear global auth state
-    globalAuthState.clear();
-    
-    // Sign out from Supabase (this will trigger SIGNED_OUT event)
+    // Sign out from Supabase first
     if (session) {
       try {
         await supabase.auth.signOut();
@@ -1286,36 +724,9 @@ const AppContent: React.FC = () => {
       }
     }
     
-    // Clear all state
-    setSession(null);
-    setHasSession(false);
-    setAuthChecked(false);
-    setIsGuest(false);
-    setProfile(null);
-    setPlayerName('');
-    setPlayerAvatar(':cool:');
-    setCardCoverStyle('RED');
-    setBackgroundTheme('EMERALD');
-    setSoundEnabled(true);
-    setSpQuickFinish(true);
-    setSleeveEffectsEnabled(true);
-    setPlayAnimationsEnabled(true);
-    setView('WELCOME');
-    setHubState({ open: false, tab: 'PROFILE' });
-    setGameSettingsOpen(false);
-    setStoreOpen(false);
-    setGemPacksOpen(false);
-    setInventoryOpen(false);
-    setFriendsOpen(false);
-    setGameMode(null);
-    setIsProcessingOAuth(false);
-    
-    // Clear any OAuth-related flags
-    localStorage.removeItem('thirteen_session_verified');
-    localStorage.removeItem('thirteen_manual_recovery');
-    localStorage.removeItem('thirteen_is_migrating');
-    
-    setTimeout(() => { isLoggingOutRef.current = false; }, 500);
+    // HARD RESET: Clear everything and reload to break any loops
+    localStorage.clear();
+    window.location.href = '/';
   };
 
   const handleOpenStore = (tab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => { 
@@ -1580,17 +991,6 @@ const AppContent: React.FC = () => {
       localStorage.removeItem('thirteen_is_migrating');
     }
   };
-
-  console.log('App: Step 26 - Rendering decision:', { authChecked, isGuest, hasSession: !!session, hasProfile: !!profile });
-  
-  // Force render fallback: If session exists but authChecked is false, force it to true
-  useEffect(() => {
-    if (session?.user && !authChecked) {
-      console.log('App: Step 27b - Force render: Session detected but authChecked is false, fixing...');
-      setAuthChecked(true);
-      setIsGuest(false);
-    }
-  }, [session, authChecked]);
   
   // Load profile when we get a valid session but no profile yet
   useEffect(() => {
@@ -1603,40 +1003,12 @@ const AppContent: React.FC = () => {
     }
   }, [session, profile, isGuest, hasSession]);
   
-  // EMERGENCY BYPASS: If authChecked is still false after 5 seconds, force it to true and default to guest
-  useEffect(() => {
-    const emergencyTimeout = setTimeout(() => {
+  // Show loading screen until we have a definitive answer from Supabase
       if (!authChecked) {
-        console.warn('App: EMERGENCY BYPASS - authChecked still false after 5s, forcing guest mode');
-        setAuthChecked(true);
-        setIsGuest(true);
-        setHasSession(false);
-        setIsProcessingOAuth(false);
-        setLoadingStatus('Ready to play');
-      }
-    }, 5000);
-    
-    return () => clearTimeout(emergencyTimeout);
-  }, [authChecked]);
-  
-  // Allow guest mode even if auth check is still in progress
-  // APP-LEVEL BYPASS: Force loading screen during OAuth processing
-  if ((!authChecked && !isGuest) || isProcessingOAuth) {
-    console.log('App: Step 27 - Waiting for auth check, showing loading...', { 
-      authChecked, 
-      isGuest, 
-      isProcessingOAuth 
-    });
     return (
       <LoadingScreen
         status={loadingStatus}
-        showGuestButton={!authChecked && !isGuest && showGuestHint && !isProcessingOAuth}
-        onEnterGuest={() => { 
-          if (!isProcessingOAuth) {
-            setAuthChecked(true); 
-            setIsGuest(true); 
-          }
-        }}
+        showGuestButton={false}
       />
     );
   }
