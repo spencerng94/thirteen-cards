@@ -1256,9 +1256,14 @@ const AppContent: React.FC = () => {
 
   return (
     <BillingProvider 
-      session={session} 
-      onGemsUpdate={() => {
-        // Trigger profile refresh when gems are updated via RevenueCat
+      session={session}
+      profile={profile}
+      onGemsUpdate={(newGems) => {
+        // Update local profile state when gems are updated
+        if (profile) {
+          setProfile({ ...profile, gems: newGems });
+        }
+        // Also trigger full profile refresh to ensure everything is in sync
         if (session?.user?.id) {
           handleRefreshProfile();
         }

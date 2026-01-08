@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Purchases, PurchasesPackage, CustomerInfo } from '@revenuecat/purchases-capacitor';
-import { supabase } from '../services/supabase';
+import { supabase, fetchProfile } from '../services/supabase';
 
 // Helper to get environment variables
 const getEnv = (key: string): string | undefined => {
@@ -18,14 +18,40 @@ const getEnv = (key: string): string | undefined => {
   return undefined;
 };
 
+// Gem pack configuration (used for both web and mobile)
+export interface GemPack {
+  id: string;
+  priceId: string; // Stripe price ID for web
+  price: number; // Price in dollars
+  gems: number; // Number of gems
+  bonusGems?: number; // Bonus gems (for first purchase, etc.)
+}
+
+// Default gem packs with actual Stripe Price IDs
+// These are used for web purchases via Stripe Checkout
+const DEFAULT_GEM_PACKS: GemPack[] = [
+  { id: 'gem_1', priceId: 'price_1SnKGnBkgBBl4oR7dpSEBZi2', price: 1.99, gems: 250 },
+  { id: 'gem_2', priceId: 'price_1SnKJPBkgBBl4oR73f3SbUEB', price: 4.99, gems: 700, bonusGems: 75 },
+  { id: 'gem_3', priceId: 'price_1SnKJlBkgBBl4oR7j1NG2RHA', price: 9.99, gems: 1500, bonusGems: 250 },
+  { id: 'gem_4', priceId: 'price_1SnKK1BkgBBl4oR7syKR0aVL', price: 19.99, gems: 3200, bonusGems: 700 },
+  { id: 'gem_5', priceId: 'price_1SnKKHBkgBBl4oR72Bmxygd1', price: 49.99, gems: 8500, bonusGems: 2250 },
+  { id: 'gem_6', priceId: 'price_1SnKKVBkgBBl4oR7IzVPVDyf', price: 99.99, gems: 18000, bonusGems: 5500 },
+];
+
 interface BillingContextType {
+  // State
+  gemBalance: number | null;
+  availablePackages: PurchasesPackage[] | null; // RevenueCat packages (mobile only)
+  gemPacks: GemPack[]; // Available gem packs (web + mobile)
   isInitialized: boolean;
   isLoading: boolean;
   error: string | null;
-  userGems: number | null;
-  offerings: PurchasesPackage[] | null;
+  
+  // Actions
+  fetchGemBalance: () => Promise<void>;
   fetchOfferings: () => Promise<PurchasesPackage[]>;
-  buyGems: (pack: PurchasesPackage) => Promise<{ success: boolean; customerInfo?: CustomerInfo; error?: string }>;
+  buyGemsWeb: (priceId: string) => Promise<{ success: boolean; checkoutUrl?: string; error?: string }>;
+  buyGemsNative: (pack: PurchasesPackage) => Promise<{ success: boolean; customerInfo?: CustomerInfo; error?: string }>;
   restorePurchases: () => Promise<{ success: boolean; customerInfo?: CustomerInfo; error?: string }>;
 }
 
@@ -42,26 +68,59 @@ export const useBilling = () => {
 interface BillingProviderProps {
   children: ReactNode;
   session: any; // Supabase session
+  profile?: any; // User profile (optional, will fetch if not provided)
   onGemsUpdate?: (newGems: number) => void;
 }
 
 export const BillingProvider: React.FC<BillingProviderProps> = ({ 
   children, 
   session,
+  profile: initialProfile,
   onGemsUpdate 
 }) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userGems, setUserGems] = useState<number | null>(null);
-  const [offerings, setOfferings] = useState<PurchasesPackage[] | null>(null);
+  const [gemBalance, setGemBalance] = useState<number | null>(null);
+  const [availablePackages, setAvailablePackages] = useState<PurchasesPackage[] | null>(null);
   const [hasLoggedIn, setHasLoggedIn] = useState(false);
+  const isNative = Capacitor.isNativePlatform();
+
+  // Fetch gem balance from Supabase profiles table
+  const fetchGemBalance = useCallback(async () => {
+    if (!session?.user?.id) {
+      setGemBalance(null);
+      return;
+    }
+
+    try {
+      console.log('BillingProvider: 💎 Fetching gem balance from Supabase...');
+      const userProfile = await fetchProfile(session.user.id);
+      
+      if (userProfile) {
+        const gems = userProfile.gems ?? 0;
+        setGemBalance(gems);
+        console.log('BillingProvider: ✅ Gem balance fetched:', gems);
+        
+        // Notify parent component of gem update
+        if (onGemsUpdate) {
+          onGemsUpdate(gems);
+        }
+      } else {
+        console.warn('BillingProvider: No profile found for user');
+        setGemBalance(0);
+      }
+    } catch (err: any) {
+      console.error('BillingProvider: ❌ Failed to fetch gem balance:', err);
+      setError(err.message || 'Failed to fetch gem balance');
+    }
+  }, [session?.user?.id, onGemsUpdate]);
 
   // Initialize RevenueCat - only on native platforms
   useEffect(() => {
     const initializeRevenueCat = async () => {
       // Environment Guard: Only run on native platforms
-      if (!Capacitor.isNativePlatform()) {
+      if (!isNative) {
         console.log('BillingProvider: Skipping RevenueCat initialization - not on native platform');
         setIsInitialized(false);
         setIsLoading(false);
@@ -112,13 +171,13 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     };
 
     initializeRevenueCat();
-  }, []);
+  }, [isNative]);
 
   // Identity Sync: Login to RevenueCat when Supabase session is available
   useEffect(() => {
     const syncIdentity = async () => {
       // RevenueCat Guard: Only run on native platforms
-      if (!Capacitor.isNativePlatform()) {
+      if (!isNative) {
         return;
       }
       
@@ -140,10 +199,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
         } else {
           console.log('BillingProvider: ✅ Existing RevenueCat customer logged in');
         }
-
-        // Update gems from customer info if available
-        // Note: RevenueCat doesn't directly store gems, but we can sync from Supabase
-        // This is handled by the parent component via onGemsUpdate callback
       } catch (err: any) {
         console.error('BillingProvider: ❌ RevenueCat login failed:', err);
         setError(err.message || 'Failed to login to RevenueCat');
@@ -151,13 +206,13 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     };
 
     syncIdentity();
-  }, [isInitialized, session, hasLoggedIn]);
+  }, [isInitialized, session, hasLoggedIn, isNative]);
 
   // Cleanup: Logout from RevenueCat when user signs out
   useEffect(() => {
     const handleLogout = async () => {
       // RevenueCat Guard: Only run on native platforms
-      if (!Capacitor.isNativePlatform()) {
+      if (!isNative) {
         return;
       }
       
@@ -167,8 +222,8 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
           console.log('BillingProvider: 🚪 Logging out from RevenueCat');
           await Purchases.logOut();
           setHasLoggedIn(false);
-          setUserGems(null);
-          setOfferings(null);
+          setGemBalance(null);
+          setAvailablePackages(null);
           console.log('BillingProvider: ✅ Logged out from RevenueCat');
         } catch (err: any) {
           console.error('BillingProvider: ❌ RevenueCat logout failed:', err);
@@ -177,12 +232,42 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     };
 
     handleLogout();
-  }, [session, hasLoggedIn, isInitialized]);
+  }, [session, hasLoggedIn, isInitialized, isNative]);
 
-  // Fetch offerings (Gem Packages) from RevenueCat
+  // Fetch gem balance when session changes or profile is provided
+  useEffect(() => {
+    if (initialProfile?.gems !== undefined) {
+      setGemBalance(initialProfile.gems ?? 0);
+    } else if (session?.user?.id) {
+      fetchGemBalance();
+    } else {
+      setGemBalance(null);
+    }
+  }, [session?.user?.id, initialProfile?.gems, fetchGemBalance]);
+
+  // Auto-refresh gem balance when returning from Stripe redirect
+  useEffect(() => {
+    const checkStripeReturn = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isStripeReturn = urlParams.has('session_id') || 
+                            window.location.pathname === '/purchase-success' ||
+                            window.location.pathname === '/purchase-cancel';
+      
+      if (isStripeReturn && session?.user?.id) {
+        console.log('BillingProvider: 🔄 Detected Stripe return, refreshing gem balance...');
+        // Wait a moment for webhook to process, then refresh
+        setTimeout(() => {
+          fetchGemBalance();
+        }, 2000);
+      }
+    };
+
+    checkStripeReturn();
+  }, [session?.user?.id, fetchGemBalance]);
+
+  // Fetch offerings (Gem Packages) from RevenueCat (mobile only)
   const fetchOfferings = useCallback(async (): Promise<PurchasesPackage[]> => {
-    // RevenueCat Guard: Only run on native platforms
-    if (!Capacitor.isNativePlatform()) {
+    if (!isNative) {
       console.warn('BillingProvider: RevenueCat not available on web platform');
       return [];
     }
@@ -198,7 +283,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
 
       if (offeringsData.current !== null) {
         const packages = offeringsData.current.availablePackages;
-        setOfferings(packages);
+        setAvailablePackages(packages);
         console.log('BillingProvider: ✅ Fetched', packages.length, 'packages');
         return packages;
       }
@@ -210,14 +295,78 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       setError(err.message || 'Failed to fetch offerings');
       return [];
     }
-  }, [isInitialized]);
+  }, [isInitialized, isNative]);
 
-  // Purchase a gem pack
-  const buyGems = useCallback(async (
+  // Web: Buy gems using Stripe Checkout
+  const buyGemsWeb = useCallback(async (
+    priceId: string
+  ): Promise<{ success: boolean; checkoutUrl?: string; error?: string }> => {
+    if (isNative) {
+      return { success: false, error: 'Stripe checkout not available on native platform' };
+    }
+
+    if (!session?.user?.id) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    // Find the gem pack by priceId
+    const pack = DEFAULT_GEM_PACKS.find(p => p.priceId === priceId);
+    if (!pack) {
+      return { success: false, error: `Gem pack not found for priceId: ${priceId}` };
+    }
+
+    try {
+      console.log('BillingProvider: 💳 Creating Stripe checkout session for:', priceId);
+      
+      // Get backend URL (Render backend or localhost)
+      const backendUrl = getEnv('VITE_BACKEND_URL') || getEnv('VITE_SERVER_URL') || 'http://localhost:3001';
+      
+      // Get current session token
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.access_token) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      // Call Render backend to create Stripe Checkout session
+      const response = await fetch(`${backendUrl}/api/stripe/create-checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({
+          supabase_user_id: session.user.id,
+          priceId: pack.priceId,
+          gemAmount: pack.gems,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create checkout session');
+      }
+
+      const data = await response.json();
+      console.log('BillingProvider: ✅ Stripe checkout session created');
+
+      // Redirect to Stripe Checkout
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return { success: true, checkoutUrl: data.checkoutUrl };
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (err: any) {
+      console.error('BillingProvider: ❌ Stripe checkout failed:', err);
+      return { success: false, error: err.message || 'Failed to create checkout session' };
+    }
+  }, [isNative, session]);
+
+  // Mobile: Buy gems using RevenueCat
+  const buyGemsNative = useCallback(async (
     pack: PurchasesPackage
   ): Promise<{ success: boolean; customerInfo?: CustomerInfo; error?: string }> => {
-    // RevenueCat Guard: Only run on native platforms
-    if (!Capacitor.isNativePlatform()) {
+    if (!isNative) {
       return { success: false, error: 'RevenueCat not available on web platform' };
     }
     
@@ -236,14 +385,11 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
 
       console.log('BillingProvider: ✅ Purchase successful');
 
-      // Note: The actual gem update should be handled by your backend/webhook
-      // RevenueCat will send a webhook to your server, which should then update Supabase
-      // For now, we'll trigger a profile refresh via the callback
-      if (onGemsUpdate) {
-        // The parent component should refresh the profile to get updated gems
-        // This is a placeholder - actual gem sync happens server-side via webhook
-        onGemsUpdate(0); // Trigger refresh
-      }
+      // Auto-refresh gem balance after successful purchase
+      // The webhook should have updated Supabase, but we refresh to be sure
+      setTimeout(() => {
+        fetchGemBalance();
+      }, 1000);
 
       return { success: true, customerInfo };
     } catch (err: any) {
@@ -256,16 +402,15 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
 
       return { success: false, error: err.message || 'Purchase failed' };
     }
-  }, [isInitialized, session, onGemsUpdate]);
+  }, [isInitialized, session, isNative, fetchGemBalance]);
 
-  // Restore purchases
+  // Restore purchases (mobile only)
   const restorePurchases = useCallback(async (): Promise<{
     success: boolean;
     customerInfo?: CustomerInfo;
     error?: string;
   }> => {
-    // RevenueCat Guard: Only run on native platforms
-    if (!Capacitor.isNativePlatform()) {
+    if (!isNative) {
       return { success: false, error: 'RevenueCat not available on web platform' };
     }
     
@@ -277,21 +422,28 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       console.log('BillingProvider: 🔄 Restoring purchases');
       const customerInfo = await Purchases.restorePurchases();
       console.log('BillingProvider: ✅ Purchases restored');
+      
+      // Refresh gem balance after restore
+      fetchGemBalance();
+      
       return { success: true, customerInfo };
     } catch (err: any) {
       console.error('BillingProvider: ❌ Restore purchases failed:', err);
       return { success: false, error: err.message || 'Restore failed' };
     }
-  }, [isInitialized]);
+  }, [isInitialized, isNative, fetchGemBalance]);
 
   const value: BillingContextType = {
+    gemBalance,
+    availablePackages,
+    gemPacks: DEFAULT_GEM_PACKS,
     isInitialized,
     isLoading,
     error,
-    userGems,
-    offerings,
+    fetchGemBalance,
     fetchOfferings,
-    buyGems,
+    buyGemsWeb,
+    buyGemsNative,
     restorePurchases,
   };
 

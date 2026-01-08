@@ -331,62 +331,34 @@ export const GemPacks: React.FC<{
       const isWeb = !isNative;
       
       if (isWeb) {
-        // WEB: Stripe placeholder logic
-        // TODO: Replace with actual Stripe integration
-        // Example flow:
-        // 1. Create Stripe checkout session
-        // 2. Redirect to Stripe payment page
-        // 3. On return, verify payment via webhook or server endpoint
-        // 4. Update gems in Supabase
-        
-        console.log('🔄 Stripe integration placeholder - would process:', pack);
-        
-        // For now, simulate successful purchase after confirmation
-        // In production, this would be handled by Stripe checkout flow
-        const confirmed = window.confirm(
-          `Purchase ${pack.totalGems.toLocaleString()} gems for ${pack.price}?\n\n` +
-          `(This is a placeholder. In production, Stripe checkout will be used.)`
-        );
-        
-        if (!confirmed) {
-          setIsProcessing(false);
-          return;
+        // WEB: Stripe Checkout integration via BillingProvider
+        if (!billing) {
+          throw new Error('Billing system not available');
         }
-        
-        // Simulate payment processing delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Call handle_gem_purchase RPC which applies 2x bonus if eligible
-        const result = await handleGemPurchase(profile.id, pack.id, pack.totalGems, pack.price);
-        
-        if (result.success && result.newGemBalance !== undefined) {
-          // Update local state to hide badges immediately
-          if (result.first_purchase_eligible !== undefined) {
-            setFirstPurchaseEligible(result.first_purchase_eligible);
-          }
-          
-          // Play success sound
-          audioService.playPurchase();
-          
-          // Calculate actual gems received (with bonus if applied)
-          const actualGems = result.bonusApplied ? pack.totalGems * 2 : pack.totalGems;
-          
-          // Show celebration
-          setPurchasedGems(actualGems);
-          setShowCelebration(true);
-          
-          // Refresh profile immediately to update gem counter in header
-          // This ensures the gem count is fetched fresh from database
-          await onRefreshProfile();
-          
-          // Show success toast with bonus info
-          const bonusText = result.bonusApplied ? ' (2x BONUS applied!)' : '';
-          setToastMessage(`Successfully purchased ${actualGems.toLocaleString()} gems!${bonusText}`);
-          setToastType('success');
-          setShowToast(true);
-        } else {
-          throw new Error(result.error || 'Failed to update gems');
+
+        // Find the gem pack in BillingProvider's gemPacks array
+        const billingPack = billing.gemPacks.find(p => p.id === pack.id);
+        if (!billingPack) {
+          throw new Error(`Gem pack "${pack.id}" not found in billing configuration`);
         }
+
+        console.log('GemPacks: Creating Stripe checkout for:', billingPack.priceId);
+        
+        // Use BillingProvider's buyGemsWeb function
+        const result = await billing.buyGemsWeb(billingPack.priceId);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create checkout session');
+        }
+
+        // buyGemsWeb will redirect to Stripe Checkout
+        // The user will be redirected back to /purchase-success
+        // BillingProvider will auto-refresh gem balance on return
+        // No need to show celebration here - it will happen after redirect
+        
+        console.log('GemPacks: Redirecting to Stripe Checkout...');
+        // The redirect happens in buyGemsWeb, so we just return
+        return;
       } else {
         // MOBILE: RevenueCat IAP integration
         if (!billing || !billing.isInitialized) {
@@ -417,14 +389,15 @@ export const GemPacks: React.FC<{
             }
             
             // Use the retry pack
-            const purchaseResult = await billing.buyGems(retryPack);
+            const purchaseResult = await billing.buyGemsNative(retryPack);
             
             if (!purchaseResult.success) {
               throw new Error(purchaseResult.error || 'Purchase failed');
             }
             
-            // Purchase successful - refresh profile to get updated gems from webhook
-            // The webhook should have already updated Supabase, but we refresh to be sure
+            // Purchase successful - BillingProvider will auto-refresh gem balance
+            // Wait a moment for webhook to process, then refresh profile
+            await new Promise(resolve => setTimeout(resolve, 1500));
             await onRefreshProfile();
             
             // Get updated profile to show correct gem count
@@ -432,6 +405,11 @@ export const GemPacks: React.FC<{
             if (updatedProfile) {
               const actualGems = updatedProfile.gems || 0;
               const gemsReceived = actualGems - (profile.gems || 0);
+              
+              // Update local state to hide badges immediately
+              if (updatedProfile.first_purchase_eligible !== undefined) {
+                setFirstPurchaseEligible(updatedProfile.first_purchase_eligible);
+              }
               
               // Play success sound
               audioService.playPurchase();
@@ -452,14 +430,15 @@ export const GemPacks: React.FC<{
         
         // Purchase the RevenueCat package
         console.log('GemPacks: Purchasing RevenueCat package:', revenueCatPack.identifier);
-        const purchaseResult = await billing.buyGems(revenueCatPack);
+        const purchaseResult = await billing.buyGemsNative(revenueCatPack);
         
         if (!purchaseResult.success) {
           throw new Error(purchaseResult.error || 'Purchase failed');
         }
         
-        // Purchase successful - refresh profile to get updated gems from webhook
-        // The webhook should have already updated Supabase, but we refresh to be sure
+        // Purchase successful - BillingProvider will auto-refresh gem balance
+        // Wait a moment for webhook to process, then refresh profile
+        await new Promise(resolve => setTimeout(resolve, 1500));
         await onRefreshProfile();
         
         // Get updated profile to show correct gem count

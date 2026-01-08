@@ -156,7 +156,12 @@ if (!supabase) {
 // RevenueCat webhook secret
 const REVENUECAT_WEBHOOK_SECRET = process.env.REVENUECAT_WEBHOOK_SECRET;
 
-// Stripe webhook secret
+// Stripe Configuration
+// Required Environment Variables:
+// - STRIPE_SECRET_KEY: Your Stripe secret key (sk_test_... for testing, sk_live_... for production)
+//   Get from: https://dashboard.stripe.com/apikeys
+// - STRIPE_WEBHOOK_SECRET: Your Stripe webhook signing secret (whsec_...)
+//   Get from: https://dashboard.stripe.com/webhooks (after creating webhook endpoint)
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 const app = express();
@@ -1231,11 +1236,53 @@ const processGemPurchase = async (
 };
 
 /**
+ * Stripe Webhook Endpoint
+ * 
+ * IMPORTANT: This route MUST use express.raw() to preserve the raw body
+ * for Stripe signature verification. Do NOT use express.json() here.
+ * 
+ * Environment Variables Required:
+ * - STRIPE_SECRET_KEY: Your Stripe secret key (sk_test_... or sk_live_...)
+ *   Equivalent to: const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+ * - STRIPE_WEBHOOK_SECRET: Your Stripe webhook signing secret (whsec_...)
+ * 
+ * Configure in Stripe Dashboard:
+ * 1. Go to Developers > Webhooks
+ * 2. Add endpoint: https://your-render-app.onrender.com/api/webhooks/stripe
+ * 3. Select event: checkout.session.completed
+ * 4. Copy the webhook signing secret to STRIPE_WEBHOOK_SECRET
+ */
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    console.log('🔔 Stripe webhook endpoint hit');
+    
+    const stripeSignature = req.headers['stripe-signature'] as string;
+    const rawBody = req.body as Buffer;
+    
+    if (!stripeSignature) {
+      console.error('❌ Missing Stripe signature header');
+      return res.status(400).json({ error: 'Missing Stripe signature' });
+    }
+    
+    if (!rawBody || rawBody.length === 0) {
+      console.error('❌ Empty request body');
+      return res.status(400).json({ error: 'Empty request body' });
+    }
+    
+    console.log('✅ Stripe webhook request received, processing...');
+    return await handleStripeWebhook(rawBody, stripeSignature, res);
+  } catch (error: any) {
+    console.error('❌ Stripe webhook endpoint error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+/**
  * Universal Webhook Handler for Stripe and RevenueCat
- * Single endpoint that handles both payment providers
+ * Single endpoint that handles both payment providers (legacy/fallback)
  * 
  * Configure webhook URLs:
- * - Stripe: https://your-domain.com/api/webhooks/incoming-payments
+ * - Stripe: https://your-domain.com/api/webhooks/incoming-payments (or use /api/webhooks/stripe)
  * - RevenueCat: https://your-domain.com/api/webhooks/incoming-payments
  * 
  * Stripe events: checkout.session.completed
@@ -1252,7 +1299,7 @@ app.post('/api/webhooks/incoming-payments', express.raw({ type: 'application/jso
     // Get raw body (Buffer for Stripe, convert to string for RevenueCat)
     const rawBody = req.body as Buffer;
     const bodyString = rawBody.toString('utf8');
-
+    
     // Handle Stripe webhook
     if (stripeSignature) {
       return await handleStripeWebhook(rawBody, stripeSignature, res);
@@ -1279,19 +1326,33 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
   try {
     if (!STRIPE_WEBHOOK_SECRET) {
       console.error('❌ Stripe webhook secret not configured');
+      console.error('⚠️ Set STRIPE_WEBHOOK_SECRET environment variable');
       return res.status(500).json({ error: 'Stripe not configured' });
     }
 
-    // Use Stripe SDK to verify signature (more robust than manual verification)
+    // Initialize Stripe client using process.env.STRIPE_SECRET_KEY
+    // Note: In TypeScript we use dynamic import, but the logic is equivalent to:
+    // const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
     const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-11-20.acacia' });
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     
+    if (!stripeSecretKey) {
+      console.error('❌ STRIPE_SECRET_KEY not configured');
+      console.error('⚠️ Set STRIPE_SECRET_KEY environment variable');
+      return res.status(500).json({ error: 'Stripe not configured' });
+    }
+    
+    // Initialize Stripe client
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-11-20.acacia' });
+    
+    // Verify webhook signature using stripe.webhooks.constructEvent
+    // This uses req.body (rawBody) and the signature from headers
     let event;
     try {
       event = stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        STRIPE_WEBHOOK_SECRET
+        rawBody, // req.body (raw Buffer)
+        signature, // sig from headers
+        STRIPE_WEBHOOK_SECRET // process.env.STRIPE_WEBHOOK_SECRET
       );
     } catch (err: any) {
       console.error('❌ Stripe signature verification failed:', err.message);
@@ -1299,48 +1360,65 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
     }
 
     console.log('📥 Stripe webhook received:', event.type);
+    console.log('📋 Event ID:', event.id);
 
     // Handle checkout.session.completed
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as any;
-      const userId = session.client_reference_id; // Supabase user ID
-      const paymentIntentId = session.payment_intent;
       
-      if (!userId || !paymentIntentId) {
-        console.error('❌ Missing required fields in Stripe webhook');
-        return res.status(400).json({ error: 'Missing required fields: userId or paymentIntentId' });
-      }
-
-      // Extract gem amount from metadata
+      console.log('✅ checkout.session.completed event received');
+      console.log('📦 Session ID:', session.id);
+      console.log('📦 Session metadata:', JSON.stringify(session.metadata, null, 2));
+      
+      // Extract metadata from session
+      const supabaseUserId = session.metadata?.supabase_user_id;
       const gemAmount = session.metadata?.gem_amount 
         ? parseInt(session.metadata.gem_amount, 10)
         : null;
-
-      if (!gemAmount || isNaN(gemAmount)) {
-        console.warn('⚠️ Gem amount not found or invalid in session metadata');
-        return res.status(400).json({ error: 'Missing or invalid gem amount' });
+      const paymentIntentId = session.payment_intent;
+      
+      if (!supabaseUserId || !gemAmount || isNaN(gemAmount) || !paymentIntentId) {
+        console.error('❌ Missing required fields in Stripe webhook:', {
+          supabaseUserId,
+          gemAmount,
+          paymentIntentId,
+          hasMetadata: !!session.metadata,
+          metadataKeys: session.metadata ? Object.keys(session.metadata) : []
+        });
+        return res.status(400).json({ error: 'Missing required fields in metadata' });
       }
 
-      // Process the purchase
-      const result = await processGemPurchase(
-        userId,
-        gemAmount,
-        'stripe',
-        paymentIntentId,
-        {
-          session_id: session.id,
-          amount_total: session.amount_total,
-          currency: session.currency
+      // Call Supabase RPC function to add gems to user
+      if (!supabase) {
+        console.error('❌ Supabase not configured');
+        return res.status(500).json({ error: 'Supabase not configured' });
+      }
+
+      try {
+        // Diagnostic log as requested
+        console.log('✅ Webhook Verified: Crediting', gemAmount, 'gems to', supabaseUserId);
+        console.log(`📥 Calling add_gems_to_user RPC: userId=${supabaseUserId}, amount=${gemAmount}, session_id=${session.id}`);
+        
+        // Call Supabase RPC function add_gems_to_user
+        // Parameters: user_id (UUID), amount (INTEGER), session_id (TEXT)
+        // Using Supabase Service Role Key (already configured in supabase client initialization)
+        const { data, error: rpcError } = await supabase.rpc('add_gems_to_user', {
+          user_id: supabaseUserId,
+          amount: gemAmount,
+          session_id: session.id
+        });
+
+        if (rpcError) {
+          console.error('❌ RPC error:', rpcError);
+          return res.status(500).json({ error: rpcError.message || 'Failed to add gems' });
         }
-      );
 
-      if (!result.success) {
-        console.error('❌ Failed to process Stripe purchase:', result.error);
-        return res.status(500).json({ error: result.error || 'Failed to process purchase' });
+        console.log(`✅ Stripe purchase processed: ${gemAmount} gems for user ${supabaseUserId}`, data);
+        return res.json({ received: true, credited: gemAmount, provider: 'stripe' });
+      } catch (rpcErr: any) {
+        console.error('❌ Exception calling add_gems_to_user:', rpcErr);
+        return res.status(500).json({ error: rpcErr.message || 'Failed to process purchase' });
       }
-
-      console.log(`✅ Stripe purchase processed: ${gemAmount} gems for user ${userId}`);
-      return res.json({ received: true, credited: gemAmount, provider: 'stripe' });
     }
 
     // Ignore other event types (return success to acknowledge receipt)
@@ -1460,36 +1538,29 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
 
     const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-11-20.acacia' });
     
-    const { userId, packId, gemAmount, price, successUrl, cancelUrl } = req.body;
+    const { supabase_user_id, priceId, gemAmount } = req.body;
     
-    if (!userId || !packId || !gemAmount || !price) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!supabase_user_id || !priceId || !gemAmount) {
+      return res.status(400).json({ error: 'Missing required fields: supabase_user_id, priceId, gemAmount' });
     }
 
+    // Create Stripe Checkout Session using the Price ID
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `${gemAmount.toLocaleString()} Gems`,
-            description: `Gem Pack ${packId}`,
-          },
-          unit_amount: Math.round(price * 100), // Convert to cents
-        },
+        price: priceId, // Use the actual Stripe Price ID
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: successUrl || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/purchase-cancel`,
-      client_reference_id: userId, // Pass Supabase user ID for webhook
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/purchase-cancel`,
       metadata: {
+        supabase_user_id: supabase_user_id,
         gem_amount: gemAmount.toString(),
-        pack_id: packId,
-        user_id: userId,
       },
     });
     
+    console.log(`✅ Stripe checkout session created: ${session.id} for user ${supabase_user_id}`);
     return res.json({ checkoutUrl: session.url });
   } catch (error: any) {
     console.error('Stripe checkout creation error:', error);
