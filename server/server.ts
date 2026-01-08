@@ -178,7 +178,60 @@ if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_UR
 }
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json()); // Parse JSON bodies for webhooks
+
+// ============================================================================
+// STRIPE WEBHOOK ROUTE - MUST BE ABOVE express.json() middleware
+// ============================================================================
+// This route MUST be defined BEFORE app.use(express.json()) to preserve
+// the raw request body as a Buffer for Stripe signature verification.
+// If express.json() processes the body first, it will be parsed as a JS object
+// and Stripe signature verification will fail.
+/**
+ * Stripe Webhook Endpoint
+ * 
+ * IMPORTANT: This route MUST use express.raw() to preserve the raw body
+ * for Stripe signature verification. Do NOT use express.json() here.
+ * 
+ * Environment Variables Required:
+ * - STRIPE_SECRET_KEY: Your Stripe secret key (sk_test_... or sk_live_...)
+ *   Equivalent to: const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+ * - STRIPE_WEBHOOK_SECRET: Your Stripe webhook signing secret (whsec_...)
+ * 
+ * Configure in Stripe Dashboard:
+ * 1. Go to Developers > Webhooks
+ * 2. Add endpoint: https://your-render-app.onrender.com/api/webhooks/stripe
+ * 3. Select event: checkout.session.completed
+ * 4. Copy the webhook signing secret to STRIPE_WEBHOOK_SECRET
+ */
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    console.log('🔔 Stripe webhook endpoint hit');
+    
+    const sig = req.headers['stripe-signature'] as string;
+    const rawBody = req.body as Buffer; // req.body is now a Buffer, not a parsed object
+    
+    if (!sig) {
+      console.error('❌ Missing Stripe signature header');
+      return res.status(400).json({ error: 'Missing Stripe signature' });
+    }
+    
+    if (!rawBody || rawBody.length === 0) {
+      console.error('❌ Empty request body');
+      return res.status(400).json({ error: 'Empty request body' });
+    }
+    
+    console.log('✅ Stripe webhook request received, processing...');
+    return await handleStripeWebhook(rawBody, sig, res);
+  } catch (error: any) {
+    console.error('❌ Stripe webhook endpoint error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// GENERAL MIDDLEWARE - Applied to all routes AFTER webhook routes
+// ============================================================================
+app.use(express.json()); // Parse JSON bodies for all other routes
 
 const io = new Server(httpServer, {
   cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true }
@@ -1234,48 +1287,6 @@ const processGemPurchase = async (
     return { success: false, error: error.message || 'Unknown error' };
   }
 };
-
-/**
- * Stripe Webhook Endpoint
- * 
- * IMPORTANT: This route MUST use express.raw() to preserve the raw body
- * for Stripe signature verification. Do NOT use express.json() here.
- * 
- * Environment Variables Required:
- * - STRIPE_SECRET_KEY: Your Stripe secret key (sk_test_... or sk_live_...)
- *   Equivalent to: const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
- * - STRIPE_WEBHOOK_SECRET: Your Stripe webhook signing secret (whsec_...)
- * 
- * Configure in Stripe Dashboard:
- * 1. Go to Developers > Webhooks
- * 2. Add endpoint: https://your-render-app.onrender.com/api/webhooks/stripe
- * 3. Select event: checkout.session.completed
- * 4. Copy the webhook signing secret to STRIPE_WEBHOOK_SECRET
- */
-app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
-  try {
-    console.log('🔔 Stripe webhook endpoint hit');
-    
-    const stripeSignature = req.headers['stripe-signature'] as string;
-    const rawBody = req.body as Buffer;
-    
-    if (!stripeSignature) {
-      console.error('❌ Missing Stripe signature header');
-      return res.status(400).json({ error: 'Missing Stripe signature' });
-    }
-    
-    if (!rawBody || rawBody.length === 0) {
-      console.error('❌ Empty request body');
-      return res.status(400).json({ error: 'Empty request body' });
-    }
-    
-    console.log('✅ Stripe webhook request received, processing...');
-    return await handleStripeWebhook(rawBody, stripeSignature, res);
-  } catch (error: any) {
-    console.error('❌ Stripe webhook endpoint error:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-});
 
 /**
  * Universal Webhook Handler for Stripe and RevenueCat
