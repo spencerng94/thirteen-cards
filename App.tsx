@@ -206,6 +206,7 @@ const AppContent: React.FC = () => {
   const didInitRef = useRef(false); // Guard to ensure auth check only runs once
   const manualRecoveryInProgressRef = useRef(false); // Guard to prevent multiple manual recovery attempts
   const authStatusRef = useRef({ hasSession: false, authChecked: false });
+  const oauthExchangeInProgressRef = useRef(false); // Guard to prevent multiple OAuth exchanges
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -346,9 +347,16 @@ const AppContent: React.FC = () => {
     
     // Check if OAuth code exchange is in progress
     if (hasOAuthCode || hasOAuthHash) {
+      // Guard: Prevent multiple simultaneous OAuth exchanges
+      if (oauthExchangeInProgressRef.current) {
+        console.log('App: OAuth exchange already in progress, skipping duplicate call');
+        return;
+      }
+      
       console.log('App: OAuth redirect detected (code exchange in progress), waiting for Supabase to complete...');
       setIsProcessingOAuth(true);
       setLoadingStatus('Signing you in...');
+      oauthExchangeInProgressRef.current = true;
       
       // Explicitly exchange code for session if code parameter exists
       const waitForOAuthExchange = async () => {
@@ -358,46 +366,70 @@ const AppContent: React.FC = () => {
             const code = searchParams.get('code');
             if (code) {
               console.log('App: Exchanging OAuth code for session...');
-              const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
               
-              if (exchangeError) {
-                console.error('App: Error exchanging code for session:', exchangeError);
-                setSession(null);
-                setHasSession(false);
-                setAuthChecked(true);
-                setIsProcessingOAuth(false);
-                isInitializingRef.current = false;
-                // Clean code from URL even on error
-                window.history.replaceState(null, '', window.location.pathname);
-                return;
-              }
-              
-              if (exchangeData?.session) {
-                console.log('App: Code exchange successful - Session obtained:', exchangeData.session.user.id);
-                setSession(exchangeData.session);
-                setHasSession(true);
-                setAuthChecked(true);
-                setIsGuest(false);
-                setIsProcessingOAuth(false);
+              try {
+                const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
                 
-                // Clean OAuth code from URL after successful exchange
-                window.history.replaceState(null, '', window.location.pathname);
-                
-                // Process session
-                const meta = exchangeData.session.user.user_metadata || {};
-                const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-                if (!playerName) setPlayerName(googleName.toUpperCase());
-                
-                await transferGuestData(exchangeData.session.user.id);
-                const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', exchangeData.session.user.id).maybeSingle();
-                if (!existingProfile) {
-                  setLoadingStatus('Creating profile...');
-                } else {
-                  setLoadingStatus('Loading profile...');
+                if (exchangeError) {
+                  // Handle AbortError gracefully - it might be due to component unmount
+                  if (exchangeError.name === 'AbortError' || exchangeError.message?.includes('aborted')) {
+                    console.warn('App: OAuth exchange was aborted (this may be normal if component unmounted)');
+                    // Don't set authChecked here - let the onAuthStateChange handler handle it
+                    oauthExchangeInProgressRef.current = false;
+                    setIsProcessingOAuth(false);
+                    return;
+                  }
+                  
+                  console.error('App: Error exchanging code for session:', exchangeError);
+                  setSession(null);
+                  setHasSession(false);
+                  setAuthChecked(true);
+                  setIsProcessingOAuth(false);
+                  isInitializingRef.current = false;
+                  oauthExchangeInProgressRef.current = false;
+                  // Clean code from URL even on error
+                  window.history.replaceState(null, '', window.location.pathname);
+                  return;
                 }
-                
-                isInitializingRef.current = false;
-                return;
+              
+                if (exchangeData?.session) {
+                  console.log('App: Code exchange successful - Session obtained:', exchangeData.session.user.id);
+                  setSession(exchangeData.session);
+                  setHasSession(true);
+                  setAuthChecked(true);
+                  setIsGuest(false);
+                  setIsProcessingOAuth(false);
+                  oauthExchangeInProgressRef.current = false;
+                  
+                  // Clean OAuth code from URL after successful exchange
+                  window.history.replaceState(null, '', window.location.pathname);
+                  
+                  // Process session
+                  const meta = exchangeData.session.user.user_metadata || {};
+                  const googleName = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
+                  if (!playerName) setPlayerName(googleName.toUpperCase());
+                  
+                  await transferGuestData(exchangeData.session.user.id);
+                  const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', exchangeData.session.user.id).maybeSingle();
+                  if (!existingProfile) {
+                    setLoadingStatus('Creating profile...');
+                  } else {
+                    setLoadingStatus('Loading profile...');
+                  }
+                  
+                  isInitializingRef.current = false;
+                  return;
+                }
+              } catch (abortError: any) {
+                // Handle AbortError specifically - this can happen if component unmounts during exchange
+                if (abortError?.name === 'AbortError' || abortError?.message?.includes('aborted')) {
+                  console.warn('App: OAuth exchange was aborted (component may have unmounted)');
+                  oauthExchangeInProgressRef.current = false;
+                  setIsProcessingOAuth(false);
+                  // Don't set authChecked - let onAuthStateChange handle it if session exists
+                  return;
+                }
+                throw abortError; // Re-throw if it's not an AbortError
               }
             }
           }
@@ -412,6 +444,7 @@ const AppContent: React.FC = () => {
             setHasSession(false);
             setAuthChecked(true);
             setIsProcessingOAuth(false);
+            oauthExchangeInProgressRef.current = false;
             isInitializingRef.current = false;
             return;
           }
@@ -423,6 +456,7 @@ const AppContent: React.FC = () => {
             setAuthChecked(true);
             setIsGuest(false);
             setIsProcessingOAuth(false);
+            oauthExchangeInProgressRef.current = false;
             
             // Clean OAuth parameters from URL
             window.history.replaceState(null, '', window.location.pathname);
@@ -445,15 +479,30 @@ const AppContent: React.FC = () => {
             setHasSession(false);
             setAuthChecked(true);
             setIsProcessingOAuth(false);
+            oauthExchangeInProgressRef.current = false;
           }
           
           isInitializingRef.current = false;
         } catch (error: any) {
+          // Handle AbortError gracefully - don't treat it as a real error
+          if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+            console.warn('App: OAuth exchange was aborted (this may be normal)');
+            oauthExchangeInProgressRef.current = false;
+            setIsProcessingOAuth(false);
+            // Don't set authChecked - let onAuthStateChange handle it
+            // Clean code from URL
+            if (hasOAuthCode) {
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+            return;
+          }
+          
           console.error('App: Exception during OAuth exchange:', error);
           setSession(null);
           setHasSession(false);
           setAuthChecked(true);
           setIsProcessingOAuth(false);
+          oauthExchangeInProgressRef.current = false;
           isInitializingRef.current = false;
           // Clean code from URL on error
           if (hasOAuthCode) {

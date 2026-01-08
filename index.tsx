@@ -21,6 +21,15 @@ window.addEventListener('error', (event) => {
 
 // Add error handler for unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
+  // Handle AbortError from OAuth exchanges gracefully
+  if (event.reason?.name === 'AbortError' || 
+      event.reason?.message?.includes('aborted') ||
+      event.reason?.message?.includes('signal is aborted')) {
+    console.warn('Unhandled AbortError (likely from OAuth exchange) - this is expected behavior');
+    event.preventDefault(); // Prevent unhandled rejection error
+    return;
+  }
+  
   console.error('Unhandled promise rejection:', event.reason);
   // Prevent the default browser behavior (console error)
   // This is especially important for OAuth flows where redirects might interrupt promises
