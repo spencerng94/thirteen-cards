@@ -61,7 +61,28 @@ export const AuthCallback: React.FC = () => {
 
         // Check for OAuth errors
         if (errorParam) {
-          console.error('AuthCallback: OAuth error received:', errorParam, errorDescription);
+          console.error('═══════════════════════════════════════════════════════');
+          console.error('❌❌❌ AuthCallback: OAUTH ERROR RECEIVED ❌❌❌');
+          console.error('═══════════════════════════════════════════════════════');
+          console.error('Error Parameter:', errorParam);
+          console.error('Error Description:', errorDescription);
+          console.error('Full URL:', window.location.href);
+          console.error('Hash:', window.location.hash);
+          console.error('Search:', window.location.search);
+          console.error('═══════════════════════════════════════════════════════');
+          
+          // If it's a database error, provide helpful guidance
+          if (errorDescription?.includes('Database error saving new user') || errorParam === 'server_error') {
+            console.error('🔴 SERVER-SIDE DATABASE ERROR DURING OAUTH');
+            console.error('This error is coming from Supabase server, likely from:');
+            console.error('  1. A database trigger on auth.users that creates profiles');
+            console.error('  2. Missing RLS policies on profiles table');
+            console.error('  3. Missing required columns in profiles table');
+            console.error('');
+            console.error('SOLUTION: Run the SQL migration fix_profile_rls_policies.sql');
+            console.error('This will create the necessary RLS policies to allow profile creation.');
+          }
+          
           setError(errorDescription || errorParam || 'Authentication failed');
           setStatus('Authentication failed');
           
@@ -69,7 +90,7 @@ export const AuthCallback: React.FC = () => {
           window.history.replaceState(null, '', window.location.pathname);
           setTimeout(() => {
             window.location.href = window.location.origin;
-          }, 3000);
+          }, 5000); // Increased timeout to give user time to read error
           return;
         }
 
