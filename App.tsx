@@ -225,6 +225,10 @@ const AppContent: React.FC = () => {
   const hasInitialLoadRun = useRef(false);
   // Network Lock: Prevent multiple simultaneous network requests
   const isInitialLoading = useRef(false);
+  // Circuit Breaker: Persistent fetch ref to prevent re-render loops
+  const fetchInProgress = useRef(false);
+  // Track which userId we've already loaded to prevent re-fetching
+  const loadedUserIdRef = useRef<string | null>(null);
   const [profileFetchError, setProfileFetchError] = useState<{ message: string; isNetworkError: boolean } | null>(null);
   const [isSyncingData, setIsSyncingData] = useState(false);
 
@@ -339,20 +343,28 @@ const AppContent: React.FC = () => {
   // MUST BE DEFINED BEFORE useEffect that uses it
   // Network Hardening: No AbortController - this request must finish
   const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false, forceRetry: boolean = false) => {
+    // Circuit Breaker: If a fetch is already in progress for this user, skip
+    if (fetchInProgress.current && loadedUserIdRef.current === uid && !forceRetry) {
+      console.log('App: Profile fetch already in progress for this user, skipping duplicate call');
+      return;
+    }
+    
     // Network Lock: If a fetch is already in progress, skip
     if (isInitialLoading.current && !forceRetry) {
       console.log('App: Profile fetch already in progress, skipping duplicate call');
       return;
     }
     
-    // Data Lock: If initial data is already loaded and this isn't a forced retry, skip
-    if (isInitialDataLoaded.current && !forceRetry) {
-      console.log('App: Initial data already loaded, skipping fetch (use Retry button to force refresh)');
+    // Data Lock: If initial data is already loaded for this user and this isn't a forced retry, skip
+    if (isInitialDataLoaded.current && loadedUserIdRef.current === uid && !forceRetry) {
+      console.log('App: Initial data already loaded for this user, skipping fetch (use Retry button to force refresh)');
       return;
     }
     
     console.log('App: Loading profile for user:', uid, 'isNewUser:', isNewUser, 'forceRetry:', forceRetry);
+    fetchInProgress.current = true; // Set circuit breaker
     isInitialLoading.current = true; // Set network lock
+    loadedUserIdRef.current = uid; // Track which user we're loading
     loadingProfileInProgressRef.current = true;
     initialSyncCompleteRef.current = false;
     setProfileFetchError(null); // Clear any previous errors
@@ -371,9 +383,11 @@ const AppContent: React.FC = () => {
       setIsSyncingData(false);
       isInitialDataLoaded.current = true;
       isInitialLoading.current = false; // Release network lock
+      fetchInProgress.current = false; // Release circuit breaker
     } catch (error: any) {
-      // Release network lock on error
+      // Release locks on error
       isInitialLoading.current = false;
+      fetchInProgress.current = false; // Release circuit breaker
       
       // Check if it's an AbortError - don't retry immediately, wait for next state change
       if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message === 'PROFILE_FETCH_ABORTED' || (error as any).isAbortError) {
@@ -383,6 +397,7 @@ const AppContent: React.FC = () => {
         // Reset fetch lock so it can retry when component re-renders with stable state
         hasInitialLoadRun.current = false;
         loadingProfileInProgressRef.current = false;
+        // Don't clear loadedUserIdRef - keep it so we know we tried for this user
         return;
       }
       
@@ -430,6 +445,7 @@ const AppContent: React.FC = () => {
         });
         loadingProfileInProgressRef.current = false;
         isInitialLoading.current = false; // Release network lock
+        fetchInProgress.current = false; // Release circuit breaker
         return;
       } else {
         // For other errors, set error state
@@ -440,6 +456,7 @@ const AppContent: React.FC = () => {
         });
         loadingProfileInProgressRef.current = false;
         isInitialLoading.current = false; // Release network lock
+        fetchInProgress.current = false; // Release circuit breaker
         return;
       }
     }
@@ -566,7 +583,14 @@ const AppContent: React.FC = () => {
       if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
       
       // State Sync: Ensure profile is set so hasProfile becomes true
-      setProfile(data);
+      // Use functional update to prevent triggering re-renders that cause re-initialization
+      setProfile(prevProfile => {
+        // Only update if data is different to prevent unnecessary re-renders
+        if (prevProfile?.id === data.id && JSON.stringify(prevProfile) === JSON.stringify(data)) {
+          return prevProfile;
+        }
+        return data;
+      });
       isInitialDataLoaded.current = true; // Mark as loaded
       
       // EULA Check: Show EULA modal if user hasn't accepted it yet
@@ -581,6 +605,7 @@ const AppContent: React.FC = () => {
       loadingProfileInProgressRef.current = false;
       setIsSyncingData(false); // Ensure syncing state is cleared
       isInitialLoading.current = false; // Release network lock
+      fetchInProgress.current = false; // Release circuit breaker
     }, 800);
   }, [sessionUserId, playerAvatar, playerName, isGuest]); // Use memoized sessionUserId instead of full session object
 
@@ -744,6 +769,8 @@ const AppContent: React.FC = () => {
       isInitialDataLoaded.current = false;
       hasInitialLoadRun.current = false;
       isInitialLoading.current = false;
+      fetchInProgress.current = false;
+      loadedUserIdRef.current = null; // Clear loaded user to allow retry
       setProfileFetchError(null);
       setIsSyncingData(false);
       loadProfile(sessionUserId, false, true);
@@ -1059,10 +1086,22 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
-  // Memoized with strict dependency on sessionUserId to prevent infinite loops
+  // Circuit Breaker: Strict dependency on sessionUserId only - profile changes should NOT trigger re-fetch
   useEffect(() => {
     // Use memoized sessionUserId instead of session?.user?.id
     if (!sessionUserId || sessionUserId === 'pending' || profile || isGuest || !session) {
+      return;
+    }
+    
+    // Circuit Breaker: If we've already loaded this user, don't fetch again
+    if (loadedUserIdRef.current === sessionUserId && isInitialDataLoaded.current) {
+      console.log('App: Profile already loaded for this user, skipping fetch');
+      return;
+    }
+    
+    // Circuit Breaker: If a fetch is already in progress for this user, skip
+    if (fetchInProgress.current && loadedUserIdRef.current === sessionUserId) {
+      console.log('App: Profile fetch already in progress for this user, skipping duplicate call');
       return;
     }
     
@@ -1073,15 +1112,8 @@ const AppContent: React.FC = () => {
     }
     
     // Fetch Lock: If initial load has already run for this user, don't fetch again
-    const lastLoadedUserId = hasInitialLoadRun.current ? sessionUserId : null;
-    if (hasInitialLoadRun.current && lastLoadedUserId === sessionUserId) {
+    if (hasInitialLoadRun.current && loadedUserIdRef.current === sessionUserId) {
       console.log('App: Initial load already run for this user, skipping fetch');
-      return;
-    }
-    
-    // Data Lock: If initial data is already loaded, don't fetch again
-    if (isInitialDataLoaded.current) {
-      console.log('App: Initial data already loaded, skipping fetch');
       return;
     }
     
@@ -1091,6 +1123,7 @@ const AppContent: React.FC = () => {
     // Mark as run immediately to prevent duplicate fetches
     hasInitialLoadRun.current = true;
     initialDataFetchedRef.current = true;
+    loadedUserIdRef.current = userId; // Track which user we're loading
       
       // Try/catch around profile fetch to prevent silent crashes
       supabase.from('profiles').select('id').eq('id', userId).maybeSingle()
@@ -1139,10 +1172,11 @@ const AppContent: React.FC = () => {
             if (loadErr?.name !== 'AbortError' && !loadErr?.message?.includes('aborted')) {
               hasInitialLoadRun.current = false;
               isInitialLoading.current = false;
+              fetchInProgress.current = false;
             }
           });
         });
-  }, [sessionUserId, profile, isGuest, loadProfile, session]); // Use memoized sessionUserId
+  }, [sessionUserId, isGuest, loadProfile, session]); // Removed 'profile' from deps - profile changes should NOT trigger re-fetch
   
   // Profile Fetch Fallback: If user ID is missing but session exists, attempt to repair
   // MUST be called before any conditional returns (Rules of Hooks)

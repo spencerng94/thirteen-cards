@@ -2294,7 +2294,7 @@ const LotusForestEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
           >
             <svg width="70%" height="70%" viewBox="0 0 100 100" className="opacity-90 drop-shadow-lg">
                             <path 
-                d={SUIT_PATHS[card.type]}
+                d={SUIT_PATHS[card.type] || SUIT_PATHS.SPADE}
                 fill={card.isRed ? 'rgba(220,38,38,0.9)' : 'rgba(5,150,105,0.9)'}
                 stroke="rgba(255,255,255,0.3)"
                 strokeWidth="1"
