@@ -359,13 +359,21 @@ const AppContent: React.FC = () => {
       setIsSyncingData(false);
       isInitialDataLoaded.current = true;
     } catch (error: any) {
-      // Check if it's an AbortError - show syncing state, don't show error
-      if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message === 'PROFILE_FETCH_ABORTED') {
-        console.warn('App: Profile fetch was aborted, showing syncing state...');
+      // Check if it's an AbortError - fetchProfile already retried, but if it still failed, show syncing state
+      if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message === 'PROFILE_FETCH_ABORTED' || (error as any).isAbortError) {
+        console.warn('App: Profile fetch was aborted after retries, showing syncing state and will auto-retry...');
         setIsSyncingData(true);
+        // Auto-retry after a delay
+        setTimeout(() => {
+          if (!isInitialDataLoaded.current && session?.user?.id) {
+            console.log('App: Auto-retrying profile fetch after AbortError...');
+            hasInitialLoadRun.current = false; // Reset fetch lock to allow retry
+            loadProfile(session.user.id, false, false);
+          }
+        }, 1000); // Retry after 1 second
         // Don't set error - keep showing "Syncing data..." spinner
         loadingProfileInProgressRef.current = false;
-        return; // Will retry on next render
+        return;
       }
       
       // Check if it's a network error (should show retry button)
