@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../src/lib/supabase';
 import { LoadingScreen } from './LoadingScreen';
 
@@ -19,7 +18,6 @@ import { LoadingScreen } from './LoadingScreen';
  * Supabase Redirect URL should be: https://your-domain.com/auth/callback
  */
 export const AuthCallback: React.FC = () => {
-  const navigate = useNavigate();
   const [status, setStatus] = useState('Completing sign-in...');
   const [error, setError] = useState<string | null>(null);
 
@@ -126,15 +124,41 @@ export const AuthCallback: React.FC = () => {
           }
           
           console.log('AuthCallback: PKCE exchange successful! Session obtained:', exchangeData.session.user.id);
+          setStatus('Sign-in successful! Saving session...');
+          
+          // Verify session is persisted before redirecting
+          // Wait a moment for Supabase to persist the session to localStorage
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Verify session is in storage
+          const { data: verifySession } = await supabase.auth.getSession();
+          if (!verifySession?.session) {
+            console.error('AuthCallback: Session not found after exchange, retrying...');
+            // Wait a bit more and try again
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const { data: retrySession } = await supabase.auth.getSession();
+            if (!retrySession?.session) {
+              console.error('AuthCallback: Session still not found after retry');
+              setError('Session not persisted. Please try signing in again.');
+              setStatus('Sign-in failed');
+              return;
+            }
+          }
+          
+          console.log('AuthCallback: ✅ Session verified and persisted, redirecting...');
           setStatus('Sign-in successful! Redirecting...');
+          
+          // Set flags
+          localStorage.setItem('has_active_session', 'true');
+          sessionStorage.setItem('thirteen_oauth_redirect', 'true');
           
           // Clean the code from URL
           window.history.replaceState(null, '', window.location.pathname);
-          sessionStorage.setItem('thirteen_oauth_redirect', 'true');
           
+          // Redirect after a short delay
           setTimeout(() => {
             window.location.href = window.location.origin;
-          }, 1000);
+          }, 500);
           return;
         }
         
@@ -191,18 +215,41 @@ export const AuthCallback: React.FC = () => {
 
           if (!setSessionError && sessionData?.session) {
             console.log('AuthCallback: Session set successfully! User:', sessionData.session.user.id);
+            setStatus('Sign-in successful! Saving session...');
+
+            // Verify session is persisted before redirecting
+            // Wait a moment for Supabase to persist the session to localStorage
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Verify session is in storage
+            const { data: verifySession } = await supabase.auth.getSession();
+            if (!verifySession?.session) {
+              console.error('AuthCallback: Session not found after setSession, retrying...');
+              // Wait a bit more and try again
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              const { data: retrySession } = await supabase.auth.getSession();
+              if (!retrySession?.session) {
+                console.error('AuthCallback: Session still not found after retry');
+                setError('Session not persisted. Please try signing in again.');
+                setStatus('Sign-in failed');
+                return;
+              }
+            }
+            
+            console.log('AuthCallback: ✅ Session verified and persisted, redirecting...');
             setStatus('Sign-in successful! Redirecting...');
+
+            // Set flags
+            localStorage.setItem('has_active_session', 'true');
+            sessionStorage.setItem('thirteen_oauth_redirect', 'true');
 
             // Clean the hash from URL
             window.history.replaceState(null, '', window.location.pathname);
-            
-            // Set flag to indicate we're redirecting from OAuth callback
-            sessionStorage.setItem('thirteen_oauth_redirect', 'true');
 
-            // Small delay to show success message, then redirect to home
+            // Redirect after a short delay
             setTimeout(() => {
               window.location.href = window.location.origin;
-            }, 1000);
+            }, 500);
             return;
           }
           
@@ -234,7 +281,8 @@ export const AuthCallback: React.FC = () => {
 
     // Run the callback handler
     handleOAuthCallback();
-  }, [navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - this effect should only run once on mount
 
   return (
     <div className="min-h-screen w-full bg-black flex flex-col items-center justify-center">

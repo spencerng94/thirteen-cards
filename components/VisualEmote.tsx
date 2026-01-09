@@ -48,15 +48,6 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
     setOverrideUrl(null);
   }, [trigger, emoteData?.file_path]);
 
-  // If it's not a trigger code, render as centered emoji text (legacy/bot fallback)
-  if (!trigger.startsWith(':') || !trigger.endsWith(':')) {
-    return (
-      <div className={`${className} ${dimClass} flex items-center justify-center overflow-hidden aspect-square`}>
-        <span className={`${textClass} leading-none select-none flex items-center justify-center`}>{trigger}</span>
-      </div>
-    );
-  }
-
   // Determine the URL using Supabase's getPublicUrl to properly handle nested folders
   // file_path should include folder structure if in subfolder (e.g., "round_3/filename.png")
   const url = React.useMemo(() => {
@@ -153,6 +144,16 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
       }
     }
   }, [trigger, emoteData, remoteEmotes.length]);
+
+  // If it's not a trigger code, render as centered emoji text (legacy/bot fallback)
+  // This check must come AFTER all hooks are called
+  if (!trigger.startsWith(':') || !trigger.endsWith(':')) {
+    return (
+      <div className={`${className} ${dimClass} flex items-center justify-center overflow-hidden aspect-square`}>
+        <span className={`${textClass} leading-none select-none flex items-center justify-center`}>{trigger}</span>
+      </div>
+    );
+  }
 
   // Don't show fallback emoji if we have valid emote data - show a placeholder instead
   if (!url || imageError) {
