@@ -357,27 +357,18 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
     return [];
   }
   
-  // Retry Logic for Aborts: Retry if AbortError is detected
-  // Ignore AbortError in Retries: Create new query without AbortController signal for retries
-  const fetchWithRetry = async (attempt = 1): Promise<Emote[]> => {
-    try {
-      // Decouple Startup Fetches: Do not use AbortController signal for startup requests
-      // These are critical startup requests that should be allowed to finish even if component re-renders
-      const { data, error } = await supabase
-        .from('emotes')
-        .select('*')
-        .order('name', { ascending: true });
-      
-      if (error) {
-        // Check if it's an AbortError and retry
-        if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
-          console.warn(`fetchEmotes: AbortError on attempt ${attempt}, retrying without AbortController...`);
-          await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
-          return fetchWithRetry(attempt + 1);
-        }
-        console.error('Error fetching emotes:', error);
-        return [];
-      }
+  // Bulletproof Rule: No AbortController for startup requests
+  // These requests must finish no matter what - component re-renders should not cancel them
+  try {
+    const { data, error } = await supabase
+      .from('emotes')
+      .select('*')
+      .order('name', { ascending: true });
+    
+    if (error) {
+      console.error('Error fetching emotes:', error);
+      return [];
+    }
     
     // Premium emote pricing - override database prices for specific emotes
     // Match by exact name (case-sensitive) or by trigger_code for flexibility

@@ -238,8 +238,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isInitialized, setIsInitialized] = useState(false);
   // Redirecting state: Track when OAuth redirect is in progress
   const [isRedirecting, setIsRedirecting] = useState(false);
-  // Redirecting state: Track when OAuth redirect is in progress
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     // Guard: Only set up listener once
