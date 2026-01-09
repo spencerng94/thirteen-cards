@@ -676,25 +676,24 @@ export const migrateGuestData = async (
   }
 };
 
-export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:', baseUsername?: string, retryCount: number = 0): Promise<UserProfile | null> => {
+export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:', baseUsername?: string): Promise<UserProfile | null> => {
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   
-  // Network Hardening: Auto-retry on AbortError (Supabase uses AbortController internally)
-  // These requests must finish no matter what - component re-renders should not cancel them
-  const maxRetries = 3;
-  const retryDelay = 500; // 500ms delay between retries
-  
+  // Network Hardening: No auto-retry on AbortError - wait for next state change
+  // Supabase uses AbortController internally, but we don't retry immediately
+  // The component will retry on the next render when state is stable
   try {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     
     if (error) {
-      // Check if it's an AbortError - auto-retry up to maxRetries times
+      // Check if it's an AbortError - don't retry, just throw so caller can handle
       const isAbortError = error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted');
       
-      if (isAbortError && retryCount < maxRetries) {
-        console.warn(`fetchProfile: AbortError on attempt ${retryCount + 1}/${maxRetries}, retrying in ${retryDelay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay * (retryCount + 1))); // Exponential backoff
-        return fetchProfile(userId, currentAvatar, baseUsername, retryCount + 1);
+      if (isAbortError) {
+        // Don't retry - wait for next state change
+        const abortError = new Error('PROFILE_FETCH_ABORTED');
+        (abortError as any).isAbortError = true;
+        throw abortError;
       }
       
       console.error('❌ fetchProfile: Error fetching existing profile:', {
@@ -703,8 +702,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
         errorMessage: error.message,
         errorDetails: error.details,
         errorHint: error.hint,
-        isAbortError,
-        retryCount
+        isAbortError
       });
       
       // If it's a permission error (RLS blocking), log it but don't try to create a new profile
@@ -838,15 +836,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     console.log('✅ Successfully saved new user profile');
     return defaultProfile;
   } catch (e: any) {
-    // Check if it's an AbortError - auto-retry up to maxRetries times
-    const isAbortError = e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('signal is aborted');
-    
-    if (isAbortError && retryCount < maxRetries) {
-      console.warn(`fetchProfile: AbortError exception on attempt ${retryCount + 1}/${maxRetries}, retrying in ${retryDelay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, retryDelay * (retryCount + 1))); // Exponential backoff
-      return fetchProfile(userId, currentAvatar, baseUsername, retryCount + 1);
-    }
-    
     // Re-throw network errors and abort errors so caller can handle them
     if ((e as any).isNetworkError || (e as any).isAbortError) {
       throw e;

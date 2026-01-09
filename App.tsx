@@ -107,10 +107,23 @@ const checkSupabaseEnv = (): { isValid: boolean; missing: string[] } => {
 };
 
 const AppContent: React.FC = () => {
-  console.log('App: Step 6 - App component initializing...');
+  // Use SessionProvider for auth state - Rely 100% on Provider
+  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, isInitialized, isRedirecting, forceSession } = useSession();
+  
+  // Memoize sessionUserId to prevent unnecessary re-renders
+  const sessionUserId = useMemo(() => session?.user?.id, [session?.user?.id]);
+  
+  // Memoize initialization check - only log once per session change
+  const initializationLogged = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (sessionUserId !== initializationLogged.current) {
+      console.log('App: Step 6 - App component initializing...', { sessionUserId });
+      initializationLogged.current = sessionUserId;
+    }
+  }, [sessionUserId]);
   
   // Check Supabase environment variables early
-  const envCheck = checkSupabaseEnv();
+  const envCheck = useMemo(() => checkSupabaseEnv(), []);
   if (!envCheck.isValid) {
     console.error('App: ERROR - Missing environment variables:', envCheck.missing);
     return (
@@ -142,18 +155,8 @@ const AppContent: React.FC = () => {
     );
   }
   
-  console.log('App: Step 7 - Environment variables check passed');
-  
-  // Use SessionProvider for auth state - Rely 100% on Provider
-  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, isInitialized, isRedirecting, forceSession } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  
-  console.log('App: Step 8 - State initialized', {
-    hasSession: !!session,
-    sessionUserId: session?.user?.id,
-    isInitialized
-  });
 
   const [view, setView] = useState<ViewState>('WELCOME');
   const [gameMode, setGameMode] = useState<GameMode>(null);
@@ -220,6 +223,8 @@ const AppContent: React.FC = () => {
   const isInitialDataLoaded = useRef(false);
   // Fetch Lock: Prevent multiple fetches during initialization
   const hasInitialLoadRun = useRef(false);
+  // Network Lock: Prevent multiple simultaneous network requests
+  const isInitialLoading = useRef(false);
   const [profileFetchError, setProfileFetchError] = useState<{ message: string; isNetworkError: boolean } | null>(null);
   const [isSyncingData, setIsSyncingData] = useState(false);
 
@@ -334,6 +339,12 @@ const AppContent: React.FC = () => {
   // MUST BE DEFINED BEFORE useEffect that uses it
   // Network Hardening: No AbortController - this request must finish
   const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false, forceRetry: boolean = false) => {
+    // Network Lock: If a fetch is already in progress, skip
+    if (isInitialLoading.current && !forceRetry) {
+      console.log('App: Profile fetch already in progress, skipping duplicate call');
+      return;
+    }
+    
     // Data Lock: If initial data is already loaded and this isn't a forced retry, skip
     if (isInitialDataLoaded.current && !forceRetry) {
       console.log('App: Initial data already loaded, skipping fetch (use Retry button to force refresh)');
@@ -341,6 +352,7 @@ const AppContent: React.FC = () => {
     }
     
     console.log('App: Loading profile for user:', uid, 'isNewUser:', isNewUser, 'forceRetry:', forceRetry);
+    isInitialLoading.current = true; // Set network lock
     loadingProfileInProgressRef.current = true;
     initialSyncCompleteRef.current = false;
     setProfileFetchError(null); // Clear any previous errors
@@ -358,20 +370,18 @@ const AppContent: React.FC = () => {
       setProfileFetchError(null);
       setIsSyncingData(false);
       isInitialDataLoaded.current = true;
+      isInitialLoading.current = false; // Release network lock
     } catch (error: any) {
-      // Check if it's an AbortError - fetchProfile already retried, but if it still failed, show syncing state
+      // Release network lock on error
+      isInitialLoading.current = false;
+      
+      // Check if it's an AbortError - don't retry immediately, wait for next state change
       if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message === 'PROFILE_FETCH_ABORTED' || (error as any).isAbortError) {
-        console.warn('App: Profile fetch was aborted after retries, showing syncing state and will auto-retry...');
+        console.warn('App: Profile fetch was aborted, showing syncing state (will retry on next valid state change)...');
         setIsSyncingData(true);
-        // Auto-retry after a delay
-        setTimeout(() => {
-          if (!isInitialDataLoaded.current && session?.user?.id) {
-            console.log('App: Auto-retrying profile fetch after AbortError...');
-            hasInitialLoadRun.current = false; // Reset fetch lock to allow retry
-            loadProfile(session.user.id, false, false);
-          }
-        }, 1000); // Retry after 1 second
-        // Don't set error - keep showing "Syncing data..." spinner
+        // Don't auto-retry - wait for next render/state change
+        // Reset fetch lock so it can retry when component re-renders with stable state
+        hasInitialLoadRun.current = false;
         loadingProfileInProgressRef.current = false;
         return;
       }
@@ -419,6 +429,7 @@ const AppContent: React.FC = () => {
           isNetworkError: false
         });
         loadingProfileInProgressRef.current = false;
+        isInitialLoading.current = false; // Release network lock
         return;
       } else {
         // For other errors, set error state
@@ -428,6 +439,7 @@ const AppContent: React.FC = () => {
           isNetworkError: false
         });
         loadingProfileInProgressRef.current = false;
+        isInitialLoading.current = false; // Release network lock
         return;
       }
     }
@@ -567,8 +579,10 @@ const AppContent: React.FC = () => {
     setTimeout(() => { 
       initialSyncCompleteRef.current = true;
       loadingProfileInProgressRef.current = false;
+      setIsSyncingData(false); // Ensure syncing state is cleared
+      isInitialLoading.current = false; // Release network lock
     }, 800);
-  }, [session, playerAvatar, playerName, isGuest]); // Only recreate if these dependencies change
+  }, [sessionUserId, playerAvatar, playerName, isGuest]); // Use memoized sessionUserId instead of full session object
 
   useEffect(() => {
     if (isGuest && !session) {
@@ -725,15 +739,16 @@ const AppContent: React.FC = () => {
   }, [session?.user?.id, loadProfile]);
   
   const handleRetryProfileFetch = useCallback(() => {
-    if (session?.user) {
-      // Force retry by resetting both locks
+    if (sessionUserId) {
+      // Force retry by resetting all locks
       isInitialDataLoaded.current = false;
       hasInitialLoadRun.current = false;
+      isInitialLoading.current = false;
       setProfileFetchError(null);
       setIsSyncingData(false);
-      loadProfile(session.user.id, false, true);
+      loadProfile(sessionUserId, false, true);
     }
-  }, [session?.user?.id, loadProfile]);
+  }, [sessionUserId, loadProfile]);
   
   // App State Stability: Memoize onGemsUpdate to prevent BillingProvider remount
   const handleGemsUpdate = useCallback((newGems: number) => {
@@ -1044,27 +1059,38 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
-  // Fetch Lock: Only run once during initialization
+  // Memoized with strict dependency on sessionUserId to prevent infinite loops
   useEffect(() => {
-    if (session?.user?.id && session.user.id !== 'pending' && !profile && !isGuest && !!session) {
-      // Fetch Lock: If initial load has already run, don't fetch again
-      if (hasInitialLoadRun.current) {
-        console.log('App: Initial load already run, skipping fetch');
-        return;
-      }
-      
-      // Data Lock: If initial data is already loaded, don't fetch again
-      if (isInitialDataLoaded.current) {
-        console.log('App: Initial data already loaded, skipping fetch');
-        return;
-      }
-      
-      console.log('App: Valid session found but no profile, loading profile...');
-      const userId = session.user.id;
-      
-      // Mark as run immediately to prevent duplicate fetches
-      hasInitialLoadRun.current = true;
-      initialDataFetchedRef.current = true;
+    // Use memoized sessionUserId instead of session?.user?.id
+    if (!sessionUserId || sessionUserId === 'pending' || profile || isGuest || !session) {
+      return;
+    }
+    
+    // Network Lock: If a fetch is already in progress, skip
+    if (isInitialLoading.current) {
+      console.log('App: Profile fetch already in progress, skipping duplicate call');
+      return;
+    }
+    
+    // Fetch Lock: If initial load has already run for this user, don't fetch again
+    const lastLoadedUserId = hasInitialLoadRun.current ? sessionUserId : null;
+    if (hasInitialLoadRun.current && lastLoadedUserId === sessionUserId) {
+      console.log('App: Initial load already run for this user, skipping fetch');
+      return;
+    }
+    
+    // Data Lock: If initial data is already loaded, don't fetch again
+    if (isInitialDataLoaded.current) {
+      console.log('App: Initial data already loaded, skipping fetch');
+      return;
+    }
+    
+    console.log('App: Valid session found but no profile, loading profile...');
+    const userId = sessionUserId;
+    
+    // Mark as run immediately to prevent duplicate fetches
+    hasInitialLoadRun.current = true;
+    initialDataFetchedRef.current = true;
       
       // Try/catch around profile fetch to prevent silent crashes
       supabase.from('profiles').select('id').eq('id', userId).maybeSingle()
@@ -1109,14 +1135,15 @@ const AppContent: React.FC = () => {
           // Try to load profile anyway - it will handle the error
           loadProfile(userId, false).catch(loadErr => {
             console.error('App: Failed to load profile after exception:', loadErr);
-            // Reset fetch lock on error so it can retry
+            // Reset fetch lock on error (except AbortError - wait for next state change)
             if (loadErr?.name !== 'AbortError' && !loadErr?.message?.includes('aborted')) {
               hasInitialLoadRun.current = false;
+              isInitialLoading.current = false;
             }
           });
         });
     }
-  }, [session, profile, isGuest, loadProfile]);
+  }, [sessionUserId, profile, isGuest, loadProfile, session]); // Use memoized sessionUserId
   
   // Profile Fetch Fallback: If user ID is missing but session exists, attempt to repair
   // MUST be called before any conditional returns (Rules of Hooks)

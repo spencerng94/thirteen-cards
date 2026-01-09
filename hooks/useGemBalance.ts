@@ -15,11 +15,8 @@ export const useGemBalance = () => {
   const hasInitialLoadRun = useRef(false);
 
   // Fetch initial gem count
-  // Network Hardening: Auto-retry on AbortError (Supabase uses AbortController internally)
-  const fetchGemCount = useCallback(async (currentUserId: string, retryCount: number = 0): Promise<void> => {
-    const maxRetries = 3;
-    const retryDelay = 500; // 500ms delay between retries
-    
+  // Network Hardening: No auto-retry on AbortError - wait for next state change
+  const fetchGemCount = useCallback(async (currentUserId: string): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -31,18 +28,11 @@ export const useGemBalance = () => {
         .maybeSingle();
 
       if (fetchError) {
-        // Check if it's an AbortError - auto-retry up to maxRetries times
+        // Check if it's an AbortError - don't retry, just log and return (will retry on next render)
         const isAbortError = fetchError.name === 'AbortError' || fetchError.message?.includes('aborted') || fetchError.message?.includes('signal is aborted');
         
-        if (isAbortError && retryCount < maxRetries) {
-          console.warn(`useGemBalance: AbortError on attempt ${retryCount + 1}/${maxRetries}, retrying in ${retryDelay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay * (retryCount + 1))); // Exponential backoff
-          return fetchGemCount(currentUserId, retryCount + 1);
-        }
-        
-        // If AbortError after max retries, just log and return (will retry on next render)
         if (isAbortError) {
-          console.warn('useGemBalance: AbortError after max retries, will retry on next render');
+          console.warn('useGemBalance: AbortError detected, will retry on next render when state is stable');
           setIsLoading(false);
           return;
         }
@@ -57,18 +47,11 @@ export const useGemBalance = () => {
         setGemCount(0);
       }
     } catch (err: any) {
-      // Check if it's an AbortError - auto-retry up to maxRetries times
+      // Check if it's an AbortError - don't retry, just log and return (will retry on next render)
       const isAbortError = err?.name === 'AbortError' || err?.message?.includes('aborted') || err?.message?.includes('signal is aborted');
       
-      if (isAbortError && retryCount < maxRetries) {
-        console.warn(`useGemBalance: AbortError exception on attempt ${retryCount + 1}/${maxRetries}, retrying in ${retryDelay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay * (retryCount + 1))); // Exponential backoff
-        return fetchGemCount(currentUserId, retryCount + 1);
-      }
-      
-      // If AbortError after max retries, just log and return (will retry on next render)
       if (isAbortError) {
-        console.warn('useGemBalance: AbortError after max retries, will retry on next render');
+        console.warn('useGemBalance: AbortError exception, will retry on next render when state is stable');
         setIsLoading(false);
         return;
       }
