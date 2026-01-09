@@ -720,8 +720,18 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Don't redirect - let user try again or see the error message
   };
 
+  // Context Consistency: Ensure both user and session are included, with user derived from session as source of truth
+  const contextValue = {
+    session,
+    user: session?.user ?? user, // Use session.user as source of truth, fallback to user state
+    loading,
+    isProcessing,
+    isInitialized,
+    forceSession
+  };
+
   return (
-    <SessionContext.Provider value={{ session, user, loading, isProcessing, isInitialized, forceSession }}>
+    <SessionContext.Provider value={contextValue}>
       {children}
     </SessionContext.Provider>
   );

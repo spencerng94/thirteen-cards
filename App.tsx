@@ -988,15 +988,14 @@ const AppContent: React.FC = () => {
     );
   }
   
-  // Step B: Now that we are CERTAIN initialization is done, check for the user
-  const hasUser = user && user.id && user.id !== 'pending';
-  const hasSessionFromProvider = session && session.user && session.user.id && session.user.id !== 'pending';
+  // Step B: Now that we are CERTAIN initialization is done, check for the session (source of truth)
+  // Use session instead of user, as session is the source of truth for Supabase
+  const hasValidSession = session && session.user && session.user.id && session.user.id !== 'pending';
   
-  if (hasUser || hasSessionFromProvider) {
-    console.log('App: ✅ Initialization complete, user confirmed, rendering game', {
-      hasUser: !!hasUser,
-      hasSessionFromProvider: !!hasSessionFromProvider,
-      userId: user?.id || session?.user?.id
+  if (hasValidSession) {
+    console.log('App: ✅ Initialization complete, session confirmed, rendering game', {
+      hasSession: !!session,
+      userId: session?.user?.id
     });
     // Continue to render main game app below
   } else if (!isGuest) {
