@@ -679,6 +679,9 @@ export const migrateGuestData = async (
 export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:', baseUsername?: string): Promise<UserProfile | null> => {
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   
+  // Validation: Log UUID for debugging
+  console.log(`🔍 Fetching profile for UUID: ${userId}`);
+  
   // Network Hardening: No auto-retry on AbortError - wait for next state change
   // Supabase uses AbortController internally, but we don't retry immediately
   // The component will retry on the next render when state is stable
@@ -729,7 +732,17 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
       throw networkError;
     }
     // maybeSingle() returns null data (not an error) when no rows are found (404 case)
+    // Check for 404 explicitly: if data is null and no error, it's a 404
+    if (!data && !error) {
+      console.log(`🔵 fetchProfile: Profile not found (404) for UUID: ${userId} - this is a new user`);
+      // Return a special marker to indicate 404 - caller will handle creating new profile
+      const notFoundError = new Error('PROFILE_NOT_FOUND_404');
+      (notFoundError as any).isNotFound = true;
+      throw notFoundError;
+    }
+    
     if (data) {
+      console.log(`✅ fetchProfile: Profile found for UUID: ${userId}`);
       const profile = { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
       // Normalize level for legacy users: ensure level matches calculated level based on XP
       const calculatedLevel = calculateLevel(profile.xp || 0);
@@ -836,12 +849,12 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     console.log('✅ Successfully saved new user profile');
     return defaultProfile;
   } catch (e: any) {
-    // Re-throw network errors and abort errors so caller can handle them
-    if ((e as any).isNetworkError || (e as any).isAbortError) {
+    // Re-throw network errors, abort errors, and 404 errors so caller can handle them
+    if ((e as any).isNetworkError || (e as any).isAbortError || (e as any).isNotFound) {
       throw e;
     }
     // For other errors, log and return null
-    console.error('Exception in fetchProfile:', e);
+    console.error(`❌ Exception in fetchProfile for UUID: ${userId}:`, e);
     return null;
   }
 };

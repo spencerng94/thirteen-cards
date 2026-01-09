@@ -374,6 +374,7 @@ const AppContent: React.FC = () => {
     // Use Google metadata: full_name, name, or display_name
     const baseUsername = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
     let data: UserProfile | null = null;
+    let actualIsNewUser = isNewUser; // Track if this is actually a new user (404)
     
     try {
       data = await fetchProfile(uid, playerAvatar, baseUsername);
@@ -385,32 +386,60 @@ const AppContent: React.FC = () => {
       isInitialLoading.current = false; // Release network lock
       fetchInProgress.current = false; // Release circuit breaker
     } catch (error: any) {
-      // Release locks on error
-      isInitialLoading.current = false;
-      fetchInProgress.current = false; // Release circuit breaker
+      // Check if it's a 404 (profile not found) - explicitly set isNewUser to true
+      if ((error as any).isNotFound || error?.message === 'PROFILE_NOT_FOUND_404') {
+        console.log(`🔵 App: Profile not found (404) for UUID: ${uid} - this is a new user, will create profile`);
+        actualIsNewUser = true; // Explicitly mark as new user
+        // Don't release locks yet - we'll create the profile below
+      } else {
+        // Release locks on other errors
+        isInitialLoading.current = false;
+        fetchInProgress.current = false;
+      }
       
-      // Check if it's an AbortError - don't retry immediately, wait for next state change
+      // Check if it's an AbortError - keep loading state and retry when component stabilizes
       if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message === 'PROFILE_FETCH_ABORTED' || (error as any).isAbortError) {
-        console.warn('App: Profile fetch was aborted, showing syncing state (will retry on next valid state change)...');
+        console.warn(`App: Profile fetch was aborted for UUID: ${uid}, keeping loading state and will retry when component stabilizes...`);
         setIsSyncingData(true);
-        // Don't auto-retry - wait for next render/state change
+        // Keep loading state active - don't set profile to undefined
         // Reset fetch lock so it can retry when component re-renders with stable state
         hasInitialLoadRun.current = false;
         loadingProfileInProgressRef.current = false;
         // Don't clear loadedUserIdRef - keep it so we know we tried for this user
+        // Don't release circuit breaker - keep it so we can retry
+        // Schedule automatic retry when component stabilizes (after a short delay)
+        setTimeout(() => {
+          if (!isInitialDataLoaded.current && sessionUserId === uid && !fetchInProgress.current) {
+            console.log(`App: Auto-retrying profile fetch for UUID: ${uid} after AbortError...`);
+            fetchInProgress.current = false; // Release circuit breaker for retry
+            loadProfile(uid, actualIsNewUser, false);
+          }
+        }, 1500); // Retry after 1.5 seconds when component should be stable
         return;
       }
       
       // Check if it's a network error (should show retry button)
       if ((error as any).isNetworkError) {
-        console.error('App: Network error fetching profile:', error);
+        console.error(`App: Network error fetching profile for UUID: ${uid}:`, error);
         setIsSyncingData(false);
         setProfileFetchError({
           message: error.message || 'Network error fetching profile',
           isNetworkError: true
         });
         loadingProfileInProgressRef.current = false;
+        isInitialLoading.current = false;
+        fetchInProgress.current = false;
         return; // Don't try to create profile on network error
+      }
+      
+      // If it's a 404, create new profile (actualIsNewUser was set to true above)
+      if (actualIsNewUser) {
+        console.log(`App: Creating new profile for UUID: ${uid} (404 detected)`);
+        // Continue to profile creation logic below - don't return yet
+      } else {
+        // For other errors (not 404, not AbortError, not network), release locks and show error
+        isInitialLoading.current = false;
+        fetchInProgress.current = false;
       }
       
       // IMPORTANT: Log error prominently so it's visible
@@ -461,9 +490,9 @@ const AppContent: React.FC = () => {
       }
     }
     
-    // Only create default profile if fetch returned null (404 - profile not found)
-    if (!data) {
-      console.log('App: No profile found (404), creating default profile...');
+    // Only create default profile if fetch returned null (404 - profile not found) OR if actualIsNewUser is true
+    if (!data || actualIsNewUser) {
+      console.log(`App: No profile found (404) for UUID: ${uid}, creating default profile... (actualIsNewUser: ${actualIsNewUser})`);
       try {
         const defaultProfile: UserProfile = {
           id: uid,
@@ -558,8 +587,8 @@ const AppContent: React.FC = () => {
     if (data) {
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       
-      // Show welcome toast for new users
-      if (isNewUser && data.username) {
+      // Show welcome toast for new users (use actualIsNewUser if it was set, otherwise use isNewUser param)
+      if ((actualIsNewUser || isNewUser) && data.username) {
         setWelcomeUsername(data.username);
         setShowWelcomeToast(true);
       }
