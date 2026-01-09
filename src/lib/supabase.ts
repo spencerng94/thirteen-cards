@@ -72,7 +72,7 @@ if (isDevelopment && typeof window !== 'undefined' && (window as any).__SUPABASE
           exchangeCodeForSession: async () => ({ data: { session: null }, error: null }),
         },
         from: () => mockChain,
-      } as any);
+      } as any;
     })();
 }
 
