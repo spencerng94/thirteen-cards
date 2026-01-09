@@ -24,6 +24,97 @@ const HAS_ACTIVE_SESSION_KEY = 'has_active_session';
 export const useSession = () => useContext(SessionContext);
 
 /**
+ * JWT Fallback Extraction: Decode JWT to extract user ID from sub claim
+ * This is a fail-safe to get the User ID if the Supabase helper is failing
+ */
+const decodeJWT = (token: string): { sub?: string; user_id?: string } | null => {
+  try {
+    // JWT format: header.payload.signature
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return null;
+    }
+    
+    // Decode payload (base64url)
+    const payload = parts[1];
+    // Replace URL-safe base64 characters
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    // Add padding if needed
+    const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+    const decoded = JSON.parse(atob(padded));
+    
+    return {
+      sub: decoded.sub,
+      user_id: decoded.sub || decoded.user_id
+    };
+  } catch (err) {
+    console.warn('SessionProvider: Error decoding JWT:', err);
+    return null;
+  }
+};
+
+/**
+ * Force-Clear: Clear all Supabase keys from localStorage and sign out
+ */
+const forceClearGhostSession = async () => {
+  console.error('SessionProvider: 🔴 FORCE-CLEARING GHOST SESSION');
+  
+  // Clear all Supabase keys from localStorage
+  const supabaseKeys = Object.keys(localStorage).filter(key => 
+    key.includes('supabase') || (key.startsWith('sb-') && key.includes('auth-token'))
+  );
+  
+  for (const key of supabaseKeys) {
+    console.log('SessionProvider: Removing localStorage key:', key);
+    localStorage.removeItem(key);
+  }
+  
+  // Clear has_active_session flag
+  localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
+  
+  // Sign out from Supabase
+  try {
+    await supabase.auth.signOut();
+    console.log('SessionProvider: ✅ Signed out from Supabase');
+  } catch (signOutErr) {
+    console.warn('SessionProvider: Error signing out:', signOutErr);
+  }
+};
+
+/**
+ * Direct User Fetch: Try direct API fetch to bypass client-side AbortController
+ */
+const fetchUserDirectly = async (accessToken: string): Promise<{ id: string } | null> => {
+  try {
+    const supabaseUrl = (window as any).__SUPABASE_URL__ || 
+      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
+      "https://spaxxexmyiczdrbikdjp.supabase.co";
+    
+    const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'apikey': (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || ''
+      }
+    });
+    
+    if (response.ok) {
+      const userData = await response.json();
+      if (userData?.id) {
+        console.log('SessionProvider: ✅ Direct API fetch successful, user ID:', userData.id);
+        return { id: userData.id };
+      }
+    }
+    
+    console.warn('SessionProvider: Direct API fetch failed:', response.status, response.statusText);
+    return null;
+  } catch (err) {
+    console.warn('SessionProvider: Exception in direct API fetch:', err);
+    return null;
+  }
+};
+
+/**
  * Read session directly from localStorage without making network calls
  * This bypasses cookie blocking by reading the stored session data directly
  */
@@ -321,9 +412,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Auth Lock: If already processing, skip
         if (isProcessingRef.current) {
           console.log('SessionProvider: Already processing auth, skipping hash token processing');
-          return;
-        }
-        
+        return;
+      }
+      
         isProcessingRef.current = true; // Acquire lock
         setIsProcessing(true); // Update reactive state
         console.log('SessionProvider: Found tokens in URL hash, setting session with Atomic Auth logic...');
@@ -378,37 +469,60 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setTimeout(async () => {
           try {
             // Atomic Auth: Explicit persistSession option and no external AbortController
-            const { data: sessionData, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || ''
+          const { data: sessionData, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || ''
             }, {
               persistSession: true
-            });
-            
-            if (!error && sessionData?.session) {
-              console.log('SessionProvider: ✅ Session set from hash, user:', sessionData.session.user.id);
+          });
+          
+          if (!error && sessionData?.session) {
+            console.log('SessionProvider: ✅ Session set from hash, user:', sessionData.session.user.id);
               
-              // Deep ID Extraction: Explicitly extract and validate user ID
+              // Detect Ghost Sessions: Check if user.id is empty
               const userId = sessionData.session?.user?.id || '';
+              const accessToken = sessionData.session?.access_token || '';
+              
               if (!userId || userId === '') {
                 console.error('═══════════════════════════════════════════════════════');
-                console.error('⚠️⚠️⚠️ WARNING: setSession succeeded but user ID is empty! ⚠️⚠️⚠️');
+                console.error('🔴🔴🔴 GHOST SESSION DETECTED: user.id is empty! 🔴🔴🔴');
                 console.error('Session data:', sessionData.session);
                 console.error('User object:', sessionData.session?.user);
-                console.error('Attempting to repair with getUser()...');
+                console.error('Access token exists:', !!accessToken);
                 console.error('═══════════════════════════════════════════════════════');
                 
-                // Profile Fetch Fallback: Call getUser() to repair missing user data
-                try {
-                  const { data: userData, error: userError } = await supabase.auth.getUser();
-                  if (!userError && userData?.user) {
-                    console.log('SessionProvider: ✅ Repaired user data with getUser()');
-                    sessionData.session.user = userData.user;
-                  } else {
-                    console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                let repaired = false;
+                
+                // JWT Fallback Extraction: Try to decode JWT to get user ID
+                if (accessToken) {
+                  const jwtData = decodeJWT(accessToken);
+                  if (jwtData?.sub) {
+                    console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
+                    sessionData.session.user = { ...sessionData.session.user, id: jwtData.sub };
+                    repaired = true;
                   }
-                } catch (getUserErr) {
-                  console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                }
+                
+                // Direct User Fetch: Try direct API fetch as last resort
+                if (!repaired && accessToken) {
+                  console.log('SessionProvider: Attempting direct API fetch...');
+                  const directUser = await fetchUserDirectly(accessToken);
+                  if (directUser?.id) {
+                    console.log('SessionProvider: ✅ Direct API fetch successful');
+                    sessionData.session.user = { ...sessionData.session.user, id: directUser.id };
+                    repaired = true;
+                  }
+                }
+                
+                // If repair failed, force-clear the ghost session
+                if (!repaired) {
+                  console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+                  await forceClearGhostSession();
+                  // Don't set session - let user sign in fresh
+                  isProcessingRef.current = false;
+                  setIsProcessing(false);
+                  window.history.replaceState(null, '', window.location.pathname);
+                  return; // Exit early, don't set invalid session
                 }
               }
               
@@ -416,20 +530,20 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               // Synchronous State Update: Use functional update pattern
               setSession(prev => sessionData.session);
               setUser(prev => sessionData.session.user);
-              localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
-              setLoading(false);
+            localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+            setLoading(false);
               isProcessingRef.current = false; // Release lock
               setIsProcessing(false); // Update reactive state
-              
-              // Clean the hash from URL
-              window.history.replaceState(null, '', window.location.pathname);
+            
+            // Clean the hash from URL
+            window.history.replaceState(null, '', window.location.pathname);
               
               // Hard Navigation: Force entire React tree to re-initialize with authenticated user
               console.log('SessionProvider: 🔄 Forcing hard navigation to recognize authenticated user');
               setTimeout(() => {
                 window.location.replace('/');
               }, 100); // Small delay to ensure state is set
-            } else if (error) {
+          } else if (error) {
               // Check if it's an AbortError
               if (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted')) {
                 console.warn('SessionProvider: ⚠️ AbortError during setSession, using manual localStorage fallback');
@@ -448,12 +562,12 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   window.history.replaceState(null, '', window.location.pathname);
                 }
               } else {
-                console.error('SessionProvider: Error setting session from hash:', error);
+            console.error('SessionProvider: Error setting session from hash:', error);
                 isProcessingRef.current = false; // Release lock on error
                 setIsProcessing(false); // Update reactive state
-                // Clean hash even on error
-                window.history.replaceState(null, '', window.location.pathname);
-              }
+            // Clean hash even on error
+            window.history.replaceState(null, '', window.location.pathname);
+          }
             }
           } catch (err: any) {
             // Check if it's an AbortError
@@ -474,12 +588,12 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 window.history.replaceState(null, '', window.location.pathname);
               }
             } else {
-              console.error('SessionProvider: Exception setting session from hash:', err);
+          console.error('SessionProvider: Exception setting session from hash:', err);
               isProcessingRef.current = false; // Release lock on error
               setIsProcessing(false); // Update reactive state
-              // Clean hash even on error
-              window.history.replaceState(null, '', window.location.pathname);
-            }
+          // Clean hash even on error
+          window.history.replaceState(null, '', window.location.pathname);
+        }
           }
         }, 0); // Move to end of event loop
       }
@@ -490,40 +604,98 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           await checkHashForTokens();
         }
 
-        // Set up onAuthStateChange listener with retry logic
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event: string, currentSession: any) => {
-            console.log('SessionProvider: Auth event received:', event, currentSession ? `User: ${currentSession.user?.id}` : 'No session');
+    // Set up onAuthStateChange listener with retry logic
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: string, currentSession: any) => {
+        console.log('SessionProvider: Auth event received:', event, currentSession ? `User: ${currentSession.user?.id}` : 'No session');
+        
+        // CRUCIAL: If SIGNED_IN or TOKEN_REFRESHED, set has_active_session flag
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (currentSession?.user) {
+            console.log('SessionProvider: ✅ Setting has_active_session flag in localStorage');
+            localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+          }
+        }
+        
+        // CRUCIAL: If SIGNED_OUT, clear the flag
+        if (event === 'SIGNED_OUT') {
+          console.log('SessionProvider: 🧹 Clearing has_active_session flag');
+          localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
+        }
             
-            // CRUCIAL: If SIGNED_IN or TOKEN_REFRESHED, set has_active_session flag
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-              if (currentSession?.user) {
-                console.log('SessionProvider: ✅ Setting has_active_session flag in localStorage');
-                localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
-              }
-            }
+            // Detect Ghost Sessions: Check if user.id is empty before setting state
+            const userId = currentSession?.user?.id || '';
+            const accessToken = currentSession?.access_token || '';
             
-            // CRUCIAL: If SIGNED_OUT, clear the flag
-            if (event === 'SIGNED_OUT') {
-              console.log('SessionProvider: 🧹 Clearing has_active_session flag');
-              localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
-            }
-            
-            // Update session and user state
+            if (currentSession && (!userId || userId === '')) {
+              console.error('═══════════════════════════════════════════════════════');
+              console.error('🔴🔴🔴 GHOST SESSION in onAuthStateChange: user.id is empty! 🔴🔴🔴');
+              console.error('Event:', event);
+              console.error('Session:', currentSession);
+              console.error('User object:', currentSession?.user);
+              console.error('Access token exists:', !!accessToken);
+              console.error('═══════════════════════════════════════════════════════');
+              
+              // Stop the Abort on Repair: Move repair outside mount cycle
+              // Use setTimeout to move repair to next event loop, outside React lifecycle
+              setTimeout(async () => {
+                let repaired = false;
+                
+                // JWT Fallback Extraction: Try to decode JWT to get user ID
+                if (accessToken) {
+                  const jwtData = decodeJWT(accessToken);
+                  if (jwtData?.sub) {
+                    console.log('SessionProvider: ✅ Extracted user ID from JWT in listener:', jwtData.sub);
+                    currentSession.user = { ...currentSession.user, id: jwtData.sub };
+                    repaired = true;
+                    // Update state with repaired session
+                    setSession(prev => currentSession);
+                    setUser(prev => currentSession.user);
+                  }
+                }
+                
+                // Direct User Fetch: Try direct API fetch as last resort
+                if (!repaired && accessToken) {
+                  console.log('SessionProvider: Attempting direct API fetch in listener...');
+                  const directUser = await fetchUserDirectly(accessToken);
+                  if (directUser?.id) {
+                    console.log('SessionProvider: ✅ Direct API fetch successful in listener');
+                    currentSession.user = { ...currentSession.user, id: directUser.id };
+                    repaired = true;
+                    // Update state with repaired session
+                    setSession(prev => currentSession);
+                    setUser(prev => currentSession.user);
+                  }
+                }
+                
+                // If repair failed, force-clear the ghost session
+                if (!repaired) {
+                  console.error('SessionProvider: ❌ All repair attempts failed in listener, force-clearing ghost session');
+                  await forceClearGhostSession();
+                  // Clear state
+                  setSession(null);
+                  setUser(null);
+                }
+              }, 0); // Move to next event loop
+              
+              return; // Don't set invalid session
+        }
+        
+        // Update session and user state
             // Synchronous State Update: Use functional update pattern
             setSession(prev => currentSession);
             setUser(prev => currentSession?.user ?? null);
-            
-            // Set loading to false once we have a definitive answer
-            if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-              setLoading(false);
-              isProcessingRef.current = false; // Release lock
-            }
-          }
-        );
         
-        subscriptionRef.current = subscription;
-        console.log('SessionProvider: ✅ Auth listener set up successfully');
+        // Set loading to false once we have a definitive answer
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+          setLoading(false);
+              isProcessingRef.current = false; // Release lock
+        }
+      }
+    );
+    
+    subscriptionRef.current = subscription;
+    console.log('SessionProvider: ✅ Auth listener set up successfully');
 
     // Initial session check with AbortError bypass
     const checkInitialSession = async () => {
@@ -548,27 +720,48 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (sessionData) {
               console.log('SessionProvider: ✅ Recovered session from localStorage, setting state');
               
-              // Deep ID Extraction: Explicitly extract and validate user ID
+              // Detect Ghost Sessions: Check if user.id is empty
               const userId = sessionData?.user?.id || '';
+              const accessToken = sessionData?.access_token || '';
+              
               if (!userId || userId === '') {
                 console.error('═══════════════════════════════════════════════════════');
-                console.error('⚠️⚠️⚠️ WARNING: Session recovered but user ID is empty! ⚠️⚠️⚠️');
+                console.error('🔴🔴🔴 GHOST SESSION DETECTED: user.id is empty! 🔴🔴🔴');
                 console.error('Session data:', sessionData);
                 console.error('User object:', sessionData?.user);
-                console.error('Attempting to repair with getUser()...');
+                console.error('Access token exists:', !!accessToken);
                 console.error('═══════════════════════════════════════════════════════');
                 
-                // Profile Fetch Fallback: Call getUser() to repair missing user data
-                try {
-                  const { data: userData, error: userError } = await supabase.auth.getUser();
-                  if (!userError && userData?.user) {
-                    console.log('SessionProvider: ✅ Repaired user data with getUser()');
-                    sessionData.user = userData.user;
-                  } else {
-                    console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                let repaired = false;
+                
+                // JWT Fallback Extraction: Try to decode JWT to get user ID
+                if (accessToken) {
+                  const jwtData = decodeJWT(accessToken);
+                  if (jwtData?.sub) {
+                    console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
+                    sessionData.user = { ...sessionData.user, id: jwtData.sub };
+                    repaired = true;
                   }
-                } catch (getUserErr) {
-                  console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                }
+                
+                // Direct User Fetch: Try direct API fetch as last resort
+                if (!repaired && accessToken) {
+                  console.log('SessionProvider: Attempting direct API fetch...');
+                  const directUser = await fetchUserDirectly(accessToken);
+                  if (directUser?.id) {
+                    console.log('SessionProvider: ✅ Direct API fetch successful');
+                    sessionData.user = { ...sessionData.user, id: directUser.id };
+                    repaired = true;
+                  }
+                }
+                
+                // If repair failed, force-clear the ghost session
+                if (!repaired) {
+                  console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+                  await forceClearGhostSession();
+                  // Don't set session - let user sign in fresh
+                  setLoading(false);
+                  return; // Exit early, don't set invalid session
                 }
               }
               
@@ -596,27 +789,48 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   // If getSession still fails, use the direct read
                   const directSession = readSessionFromStorage();
                   if (directSession) {
-                    // Deep ID Extraction: Explicitly extract and validate user ID
+                    // Detect Ghost Sessions: Check if user.id is empty
                     const userId = directSession?.user?.id || '';
+                    const accessToken = directSession?.access_token || '';
+                    
                     if (!userId || userId === '') {
                       console.error('═══════════════════════════════════════════════════════');
-                      console.error('⚠️⚠️⚠️ WARNING: Direct session recovery - user ID is empty! ⚠️⚠️⚠️');
+                      console.error('🔴🔴🔴 GHOST SESSION DETECTED: user.id is empty! 🔴🔴🔴');
                       console.error('Session data:', directSession);
                       console.error('User object:', directSession?.user);
-                      console.error('Attempting to repair with getUser()...');
+                      console.error('Access token exists:', !!accessToken);
                       console.error('═══════════════════════════════════════════════════════');
                       
-                      // Profile Fetch Fallback: Call getUser() to repair missing user data
-                      try {
-                        const { data: userData, error: userError } = await supabase.auth.getUser();
-                        if (!userError && userData?.user) {
-                          console.log('SessionProvider: ✅ Repaired user data with getUser()');
-                          directSession.user = userData.user;
-                        } else {
-                          console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                      let repaired = false;
+                      
+                      // JWT Fallback Extraction: Try to decode JWT to get user ID
+                      if (accessToken) {
+                        const jwtData = decodeJWT(accessToken);
+                        if (jwtData?.sub) {
+                          console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
+                          directSession.user = { ...directSession.user, id: jwtData.sub };
+                          repaired = true;
                         }
-                      } catch (getUserErr) {
-                        console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                      }
+                      
+                      // Direct User Fetch: Try direct API fetch as last resort
+                      if (!repaired && accessToken) {
+                        console.log('SessionProvider: Attempting direct API fetch...');
+                        const directUser = await fetchUserDirectly(accessToken);
+                        if (directUser?.id) {
+                          console.log('SessionProvider: ✅ Direct API fetch successful');
+                          directSession.user = { ...directSession.user, id: directUser.id };
+                          repaired = true;
+                        }
+                      }
+                      
+                      // If repair failed, force-clear the ghost session
+                      if (!repaired) {
+                        console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+                        await forceClearGhostSession();
+                        // Don't set session - let user sign in fresh
+                        setLoading(false);
+                        return; // Exit early, don't set invalid session
                       }
                     }
                     
@@ -634,27 +848,49 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         
         if (!error && data?.session) {
-          // Deep ID Extraction: Explicitly extract and validate user ID
+          // Detect Ghost Sessions: Check if user.id is empty
           const userId = data.session?.user?.id || '';
+          const accessToken = data.session?.access_token || '';
+          
           if (!userId || userId === '') {
             console.error('═══════════════════════════════════════════════════════');
-            console.error('⚠️⚠️⚠️ WARNING: Session found but user ID is empty! ⚠️⚠️⚠️');
+            console.error('🔴🔴🔴 GHOST SESSION DETECTED: user.id is empty! 🔴🔴🔴');
             console.error('Session data:', data.session);
             console.error('User object:', data.session?.user);
-            console.error('Attempting to repair with getUser()...');
+            console.error('Access token exists:', !!accessToken);
             console.error('═══════════════════════════════════════════════════════');
             
-            // Profile Fetch Fallback: Call getUser() to repair missing user data
-            try {
-              const { data: userData, error: userError } = await supabase.auth.getUser();
-              if (!userError && userData?.user) {
-                console.log('SessionProvider: ✅ Repaired user data with getUser()');
-                data.session.user = userData.user;
-              } else {
-                console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+            let repaired = false;
+            
+            // JWT Fallback Extraction: Try to decode JWT to get user ID
+            if (accessToken) {
+              const jwtData = decodeJWT(accessToken);
+              if (jwtData?.sub) {
+                console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
+                data.session.user = { ...data.session.user, id: jwtData.sub };
+                repaired = true;
               }
-            } catch (getUserErr) {
-              console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+            }
+            
+            // Direct User Fetch: Try direct API fetch as last resort
+            if (!repaired && accessToken) {
+              console.log('SessionProvider: Attempting direct API fetch...');
+              const directUser = await fetchUserDirectly(accessToken);
+              if (directUser?.id) {
+                console.log('SessionProvider: ✅ Direct API fetch successful');
+                data.session.user = { ...data.session.user, id: directUser.id };
+                repaired = true;
+              }
+            }
+            
+            // If repair failed, force-clear the ghost session
+            if (!repaired) {
+              console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+              await forceClearGhostSession();
+              // Don't set session - let user sign in fresh
+              isProcessingRef.current = false;
+              setLoading(false);
+              return; // Exit early, don't set invalid session
             }
           }
           
@@ -701,27 +937,48 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (sessionData) {
               console.log('SessionProvider: ✅ Recovered session from localStorage, setting state');
               
-              // Deep ID Extraction: Explicitly extract and validate user ID
+              // Detect Ghost Sessions: Check if user.id is empty
               const userId = sessionData?.user?.id || '';
+              const accessToken = sessionData?.access_token || '';
+              
               if (!userId || userId === '') {
                 console.error('═══════════════════════════════════════════════════════');
-                console.error('⚠️⚠️⚠️ WARNING: Session recovered but user ID is empty! ⚠️⚠️⚠️');
+                console.error('🔴🔴🔴 GHOST SESSION DETECTED: user.id is empty! 🔴🔴🔴');
                 console.error('Session data:', sessionData);
                 console.error('User object:', sessionData?.user);
-                console.error('Attempting to repair with getUser()...');
+                console.error('Access token exists:', !!accessToken);
                 console.error('═══════════════════════════════════════════════════════');
                 
-                // Profile Fetch Fallback: Call getUser() to repair missing user data
-                try {
-                  const { data: userData, error: userError } = await supabase.auth.getUser();
-                  if (!userError && userData?.user) {
-                    console.log('SessionProvider: ✅ Repaired user data with getUser()');
-                    sessionData.user = userData.user;
-                  } else {
-                    console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                let repaired = false;
+                
+                // JWT Fallback Extraction: Try to decode JWT to get user ID
+                if (accessToken) {
+                  const jwtData = decodeJWT(accessToken);
+                  if (jwtData?.sub) {
+                    console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
+                    sessionData.user = { ...sessionData.user, id: jwtData.sub };
+                    repaired = true;
                   }
-                } catch (getUserErr) {
-                  console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                }
+                
+                // Direct User Fetch: Try direct API fetch as last resort
+                if (!repaired && accessToken) {
+                  console.log('SessionProvider: Attempting direct API fetch...');
+                  const directUser = await fetchUserDirectly(accessToken);
+                  if (directUser?.id) {
+                    console.log('SessionProvider: ✅ Direct API fetch successful');
+                    sessionData.user = { ...sessionData.user, id: directUser.id };
+                    repaired = true;
+                  }
+                }
+                
+                // If repair failed, force-clear the ghost session
+                if (!repaired) {
+                  console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+                  await forceClearGhostSession();
+                  // Don't set session - let user sign in fresh
+                  setLoading(false);
+                  return; // Exit early, don't set invalid session
                 }
               }
               
@@ -749,27 +1006,48 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   // If getSession still fails, use the direct read
                   const directSession = readSessionFromStorage();
                   if (directSession) {
-                    // Deep ID Extraction: Explicitly extract and validate user ID
+                    // Detect Ghost Sessions: Check if user.id is empty
                     const userId = directSession?.user?.id || '';
+                    const accessToken = directSession?.access_token || '';
+                    
                     if (!userId || userId === '') {
                       console.error('═══════════════════════════════════════════════════════');
-                      console.error('⚠️⚠️⚠️ WARNING: Direct session recovery - user ID is empty! ⚠️⚠️⚠️');
+                      console.error('🔴🔴🔴 GHOST SESSION DETECTED: user.id is empty! 🔴🔴🔴');
                       console.error('Session data:', directSession);
                       console.error('User object:', directSession?.user);
-                      console.error('Attempting to repair with getUser()...');
+                      console.error('Access token exists:', !!accessToken);
                       console.error('═══════════════════════════════════════════════════════');
                       
-                      // Profile Fetch Fallback: Call getUser() to repair missing user data
-                      try {
-                        const { data: userData, error: userError } = await supabase.auth.getUser();
-                        if (!userError && userData?.user) {
-                          console.log('SessionProvider: ✅ Repaired user data with getUser()');
-                          directSession.user = userData.user;
-                        } else {
-                          console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                      let repaired = false;
+                      
+                      // JWT Fallback Extraction: Try to decode JWT to get user ID
+                      if (accessToken) {
+                        const jwtData = decodeJWT(accessToken);
+                        if (jwtData?.sub) {
+                          console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
+                          directSession.user = { ...directSession.user, id: jwtData.sub };
+                          repaired = true;
                         }
-                      } catch (getUserErr) {
-                        console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                      }
+                      
+                      // Direct User Fetch: Try direct API fetch as last resort
+                      if (!repaired && accessToken) {
+                        console.log('SessionProvider: Attempting direct API fetch...');
+                        const directUser = await fetchUserDirectly(accessToken);
+                        if (directUser?.id) {
+                          console.log('SessionProvider: ✅ Direct API fetch successful');
+                          directSession.user = { ...directSession.user, id: directUser.id };
+                          repaired = true;
+                        }
+                      }
+                      
+                      // If repair failed, force-clear the ghost session
+                      if (!repaired) {
+                        console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+                        await forceClearGhostSession();
+                        // Don't set session - let user sign in fresh
+                        setLoading(false);
+                        return; // Exit early, don't set invalid session
                       }
                     }
                     
@@ -792,7 +1070,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
     
-        // Check initial session
+    // Check initial session
         await checkInitialSession();
       } catch (err) {
         console.error('SessionProvider: Error during initialization:', err);
@@ -843,14 +1121,49 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (sessionData) {
       console.log('SessionProvider: ✅ Manual recovery successful from localStorage, setting session and reloading');
       
-      // Deep ID Extraction: Explicitly extract and validate user ID
+      // Detect Ghost Sessions: Check if user.id is empty
       const userId = sessionData?.user?.id || '';
+      const accessToken = sessionData?.access_token || '';
+      
       if (!userId || userId === '') {
         console.error('═══════════════════════════════════════════════════════');
-        console.error('⚠️⚠️⚠️ WARNING: Manual recovery - user ID is empty! ⚠️⚠️⚠️');
+        console.error('🔴🔴🔴 GHOST SESSION DETECTED: user.id is empty! 🔴🔴🔴');
         console.error('Session data:', sessionData);
         console.error('User object:', sessionData?.user);
+        console.error('Access token exists:', !!accessToken);
         console.error('═══════════════════════════════════════════════════════');
+        
+        let repaired = false;
+        
+        // JWT Fallback Extraction: Try to decode JWT to get user ID
+        if (accessToken) {
+          const jwtData = decodeJWT(accessToken);
+          if (jwtData?.sub) {
+            console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
+            sessionData.user = { ...sessionData.user, id: jwtData.sub };
+            repaired = true;
+          }
+        }
+        
+        // Direct User Fetch: Try direct API fetch as last resort
+        if (!repaired && accessToken) {
+          console.log('SessionProvider: Attempting direct API fetch...');
+          const directUser = await fetchUserDirectly(accessToken);
+          if (directUser?.id) {
+            console.log('SessionProvider: ✅ Direct API fetch successful');
+            sessionData.user = { ...sessionData.user, id: directUser.id };
+            repaired = true;
+          }
+        }
+        
+        // If repair failed, force-clear the ghost session
+        if (!repaired) {
+          console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+          await forceClearGhostSession();
+          // Don't set session - let user sign in fresh
+          isProcessingRef.current = false;
+          return; // Exit early, don't set invalid session
+        }
       }
       
       // Synchronous State Update: Use functional update pattern
@@ -887,14 +1200,49 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (retrySession) {
           console.log('SessionProvider: ✅ Found session on retry, setting and reloading');
           
-          // Deep ID Extraction: Explicitly extract and validate user ID
+          // Detect Ghost Sessions: Check if user.id is empty
           const userId = retrySession?.user?.id || '';
+          const accessToken = retrySession?.access_token || '';
+          
           if (!userId || userId === '') {
             console.error('═══════════════════════════════════════════════════════');
-            console.error('⚠️⚠️⚠️ WARNING: Retry recovery - user ID is empty! ⚠️⚠️⚠️');
+            console.error('🔴🔴🔴 GHOST SESSION DETECTED: user.id is empty! 🔴🔴🔴');
             console.error('Session data:', retrySession);
             console.error('User object:', retrySession?.user);
+            console.error('Access token exists:', !!accessToken);
             console.error('═══════════════════════════════════════════════════════');
+            
+            let repaired = false;
+            
+            // JWT Fallback Extraction: Try to decode JWT to get user ID
+            if (accessToken) {
+              const jwtData = decodeJWT(accessToken);
+              if (jwtData?.sub) {
+                console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
+                retrySession.user = { ...retrySession.user, id: jwtData.sub };
+                repaired = true;
+              }
+            }
+            
+            // Direct User Fetch: Try direct API fetch as last resort
+            if (!repaired && accessToken) {
+              console.log('SessionProvider: Attempting direct API fetch...');
+              const directUser = await fetchUserDirectly(accessToken);
+              if (directUser?.id) {
+                console.log('SessionProvider: ✅ Direct API fetch successful');
+                retrySession.user = { ...retrySession.user, id: directUser.id };
+                repaired = true;
+              }
+            }
+            
+            // If repair failed, force-clear the ghost session
+            if (!repaired) {
+              console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+              await forceClearGhostSession();
+              // Don't set session - let user sign in fresh
+              isProcessingRef.current = false;
+              return; // Exit early, don't set invalid session
+            }
           }
           
           // Synchronous State Update: Use functional update pattern
