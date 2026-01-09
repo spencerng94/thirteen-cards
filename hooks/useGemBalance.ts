@@ -11,8 +11,14 @@ export const useGemBalance = () => {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   
-  // Fetch Lock: Prevent multiple fetches during initialization
-  const hasInitialLoadRun = useRef(false);
+  // Hard Lock: Prevent multiple subscription attempts during initialization
+  const isInitializing = useRef(false);
+  // Track if subscription is active to prevent aborting during handshake
+  const subscriptionActive = useRef(false);
+  // Track the current channel to prevent cleanup during initial connection
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // Track which userId we've subscribed to, to prevent re-subscription on re-renders
+  const subscribedUserIdRef = useRef<string | null>(null);
 
   // Fetch initial gem count
   // Network Hardening: No auto-retry on AbortError - wait for next state change
@@ -65,50 +71,69 @@ export const useGemBalance = () => {
   }, []);
 
   // Get current user and set up subscription
+  // Hard Lock: Prevent multiple subscription attempts and abort during handshake
   useEffect(() => {
-    // Fetch Lock: Only run once during initialization
-    if (hasInitialLoadRun.current) {
-      console.log('useGemBalance: Initial load already run, skipping...');
+    // HARD LOCK: The very first check - if already initializing, return immediately
+    if (isInitializing.current) {
       return;
     }
     
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
+    // Hard Lock: Set the lock immediately to prevent any other renders from triggering this
+    isInitializing.current = true;
+    
     const setupSubscription = async () => {
+      
       try {
-        // Mark as run immediately to prevent duplicate fetches
-        hasInitialLoadRun.current = true;
-        
-        // Get current user
+        // Get current user - wait for stable userId
         const { data: { user }, error: userError } = await supabase.auth.getUser();
 
         if (userError) {
           throw userError;
         }
 
-        if (!user) {
-          // No user logged in
+        if (!user || !user.id || user.id === 'pending') {
+          // No user logged in or userId not stable yet
           setUserId(null);
           setGemCount(null);
           setIsLoading(false);
+          subscribedUserIdRef.current = null;
+          isInitializing.current = false; // Unlock
           return;
         }
 
-        setUserId(user.id);
+        // Wait for userId to be stable (not 'pending')
+        const stableUserId = user.id;
+        if (!stableUserId || stableUserId === 'pending') {
+          console.log('useGemBalance: UserId not stable yet, waiting...');
+          isInitializing.current = false; // Unlock to allow retry
+          return;
+        }
+
+        // If we've already subscribed to this user, skip re-subscription
+        if (subscribedUserIdRef.current === stableUserId && subscriptionActive.current) {
+          console.log('useGemBalance: Already subscribed to this user, skipping...');
+          setUserId(stableUserId);
+          isInitializing.current = false; // Unlock
+          return;
+        }
+
+        setUserId(stableUserId);
+        subscribedUserIdRef.current = stableUserId; // Track which user we're subscribing to
 
         // Fetch initial gem count - no AbortController, must finish
-        await fetchGemCount(user.id);
+        await fetchGemCount(stableUserId);
 
         // Set up realtime subscription for the profiles table
-        channel = supabase
-          .channel(`gem-balance-${user.id}`)
+        // Store channel in ref to prevent cleanup during handshake
+        channelRef.current = supabase
+          .channel(`gem-balance-${stableUserId}`)
           .on(
             'postgres_changes',
             {
               event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
               schema: 'public',
               table: 'profiles',
-              filter: `id=eq.${user.id}`, // Only listen to changes for this user
+              filter: `id=eq.${stableUserId}`, // Only listen to changes for this user
             },
             (payload) => {
               console.log('Gem balance change detected:', payload);
@@ -139,27 +164,61 @@ export const useGemBalance = () => {
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
               console.log('✅ Successfully subscribed to gem balance changes');
+              subscriptionActive.current = true; // Mark as active
+              isInitializing.current = false; // Unlock after successful subscription
             } else if (status === 'CHANNEL_ERROR') {
               console.error('❌ Error subscribing to gem balance changes');
               setError('Failed to subscribe to realtime updates');
+              subscriptionActive.current = false;
+              subscribedUserIdRef.current = null; // Reset on error
+              isInitializing.current = false; // Unlock on error
+            } else if (status === 'CLOSED') {
+              subscriptionActive.current = false;
+              subscribedUserIdRef.current = null; // Reset when closed
             }
           });
       } catch (err: any) {
+        // Check if it's an AbortError - silence it, don't trigger state updates
+        const isAbortError = err?.name === 'AbortError' || err?.message?.includes('aborted') || err?.message?.includes('signal is aborted');
+        
+        if (isAbortError) {
+          console.warn('useGemBalance: Subscription setup was aborted (silenced - no state update)');
+          // Don't set error state - just log and unlock to allow retry
+          subscribedUserIdRef.current = null; // Reset on abort
+          isInitializing.current = false;
+          return;
+        }
+        
         console.error('Failed to set up gem balance subscription:', err);
         setError(err.message || 'Failed to set up subscription');
         setIsLoading(false);
+        subscribedUserIdRef.current = null; // Reset on error
+        isInitializing.current = false; // Unlock on error
       }
     };
 
     setupSubscription();
 
-    // Cleanup: Unsubscribe when component unmounts or user changes
+    // Cleanup: Only unsubscribe if subscription is fully active (not during handshake)
     return () => {
-      if (channel) {
+      // Don't abort during initial handshake - wait for subscription to be active
+      // Only cleanup if we're actually unmounting or userId changed, not on every re-render
+      if (channelRef.current && subscriptionActive.current) {
         console.log('Unsubscribing from gem balance changes');
-        channel.unsubscribe();
-        supabase.removeChannel(channel);
+        channelRef.current.unsubscribe();
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+        subscriptionActive.current = false;
+        subscribedUserIdRef.current = null;
+      } else if (channelRef.current && !subscriptionActive.current) {
+        // If we have a channel but it's not active yet, just clear the ref
+        // Don't unsubscribe during handshake to avoid AbortError
+        console.log('useGemBalance: Skipping cleanup - subscription still in handshake');
+        channelRef.current = null;
       }
+      // Note: We don't unlock isInitializing here if subscription is active
+      // The unlock happens in the subscribe callback when status is SUBSCRIBED
+      // This prevents cleanup from running during the initial handshake
     };
   }, [fetchGemCount]);
 
