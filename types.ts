@@ -143,6 +143,7 @@ export interface UserProfile {
   ad_weekly_gems?: number; // Weekly ad reward gems (max 500)
   first_ad_claim_week?: string; // Timestamp of first claim this week
   first_purchase_eligible?: boolean; // Whether user is eligible for first-time 2x bonus
+  eula_accepted?: boolean; // Whether user has accepted the End User License Agreement
   inventory?: UserInventory;
   event_stats?: {
     daily_games_played: number;

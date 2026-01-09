@@ -88,15 +88,17 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
   const isNative = Capacitor.isNativePlatform();
 
   // Fetch gem balance from Supabase profiles table
+  // Stabilize: Only trigger when userId is stable and defined
   const fetchGemBalance = useCallback(async () => {
-    if (!session?.user?.id) {
+    const userId = session?.user?.id;
+    if (!userId || userId === 'pending') {
       setGemBalance(null);
       return;
     }
 
     try {
-      console.log('BillingProvider: 💎 Fetching gem balance from Supabase...');
-      const userProfile = await fetchProfile(session.user.id);
+      console.log(`BillingProvider: 💎 Fetching gem balance from Supabase for UUID: ${userId}...`);
+      const userProfile = await fetchProfile(userId);
       
       if (userProfile) {
         const gems = userProfile.gems ?? 0;
@@ -112,6 +114,11 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
         setGemBalance(0);
       }
     } catch (err: any) {
+      // Silence AbortError - don't trigger state updates that would cause another render
+      if (err?.name === 'AbortError' || err?.message?.includes('aborted') || err?.message === 'PROFILE_FETCH_ABORTED' || (err as any).isAbortError) {
+        console.warn('BillingProvider: Gem balance fetch was aborted (silenced - no state update)');
+        return; // Don't set error state, don't trigger re-render
+      }
       console.error('BillingProvider: ❌ Failed to fetch gem balance:', err);
       setError(err.message || 'Failed to fetch gem balance');
     }
@@ -236,15 +243,17 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
   }, [session, hasLoggedIn, isInitialized, isNative]);
 
   // Fetch gem balance when session changes or profile is provided
+  // Stabilize: Only trigger when userId is stable and defined (not 'pending')
+  const stableUserId = session?.user?.id && session.user.id !== 'pending' ? session.user.id : null;
   useEffect(() => {
     if (initialProfile?.gems !== undefined) {
       setGemBalance(initialProfile.gems ?? 0);
-    } else if (session?.user?.id) {
+    } else if (stableUserId) {
       fetchGemBalance();
     } else {
       setGemBalance(null);
     }
-  }, [session?.user?.id, initialProfile?.gems, fetchGemBalance]);
+  }, [stableUserId, initialProfile?.gems, fetchGemBalance]);
 
   // Auto-refresh gem balance when returning from Stripe redirect
   useEffect(() => {

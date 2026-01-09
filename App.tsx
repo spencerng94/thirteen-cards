@@ -229,8 +229,37 @@ const AppContent: React.FC = () => {
   const fetchInProgress = useRef(false);
   // Track which userId we've already loaded to prevent re-fetching
   const loadedUserIdRef = useRef<string | null>(null);
+  // Ref Guard: Prevent multiple initialization fetches
+  const isInitialFetchRef = useRef(false);
   const [profileFetchError, setProfileFetchError] = useState<{ message: string; isNetworkError: boolean } | null>(null);
   const [isSyncingData, setIsSyncingData] = useState(false);
+
+  // Reset ref guard when sessionUserId changes (e.g., user logs out and logs back in)
+  // This allows a new user to fetch their profile
+  // IMPORTANT: Only reset when sessionUserId actually changes, NOT on minor session updates
+  // This prevents "Render Storm" from clearing profile on every auth event
+  const previousSessionUserIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (sessionUserId !== previousSessionUserIdRef.current) {
+      // Only reset fetch locks if sessionUserId actually changed (not just session object reference)
+      // Do NOT clear profile here - profile should persist across minor session updates
+      if (previousSessionUserIdRef.current !== undefined) {
+        console.log('App: Session user ID changed, resetting fetch locks (profile will be preserved)', { 
+          previous: previousSessionUserIdRef.current, 
+          current: sessionUserId 
+        });
+        isInitialFetchRef.current = false;
+        loadedUserIdRef.current = null;
+        hasInitialLoadRun.current = false;
+        isInitialDataLoaded.current = false;
+        fetchInProgress.current = false;
+        isInitialLoading.current = false;
+        // NOTE: We do NOT call setProfile(null) here - profile should persist
+        // Only clear profile on explicit sign-out (handleSignOut) or when sessionUserId becomes null/undefined
+      }
+      previousSessionUserIdRef.current = sessionUserId;
+    }
+  }, [sessionUserId]);
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -385,6 +414,7 @@ const AppContent: React.FC = () => {
       isInitialDataLoaded.current = true;
       isInitialLoading.current = false; // Release network lock
       fetchInProgress.current = false; // Release circuit breaker
+      isInitialFetchRef.current = true; // Set ref guard after successful fetch
     } catch (error: any) {
       // Check if it's a 404 (profile not found) - explicitly set isNewUser to true
       if ((error as any).isNotFound || error?.message === 'PROFILE_NOT_FOUND_404') {
@@ -397,24 +427,19 @@ const AppContent: React.FC = () => {
         fetchInProgress.current = false;
       }
       
-      // Check if it's an AbortError - keep loading state and retry when component stabilizes
+      // Check if it's an AbortError - silence it, don't trigger state updates
       if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message === 'PROFILE_FETCH_ABORTED' || (error as any).isAbortError) {
-        console.warn(`App: Profile fetch was aborted for UUID: ${uid}, keeping loading state and will retry when component stabilizes...`);
-        setIsSyncingData(true);
+        // Silence AbortError - just log, don't trigger state updates that would cause another render
+        console.warn(`App: Profile fetch was aborted for UUID: ${uid} (silenced - no state update)`);
+        // Set ref guard after fetch completes (even if aborted)
+        isInitialFetchRef.current = true;
         // Keep loading state active - don't set profile to undefined
-        // Reset fetch lock so it can retry when component re-renders with stable state
-        hasInitialLoadRun.current = false;
+        // Don't reset fetch lock - let it retry naturally when component stabilizes
+        // Don't schedule automatic retry - let the component handle it on next stable render
         loadingProfileInProgressRef.current = false;
+        isInitialLoading.current = false;
+        fetchInProgress.current = false;
         // Don't clear loadedUserIdRef - keep it so we know we tried for this user
-        // Don't release circuit breaker - keep it so we can retry
-        // Schedule automatic retry when component stabilizes (after a short delay)
-        setTimeout(() => {
-          if (!isInitialDataLoaded.current && sessionUserId === uid && !fetchInProgress.current) {
-            console.log(`App: Auto-retrying profile fetch for UUID: ${uid} after AbortError...`);
-            fetchInProgress.current = false; // Release circuit breaker for retry
-            loadProfile(uid, actualIsNewUser, false);
-          }
-        }, 1500); // Retry after 1.5 seconds when component should be stable
         return;
       }
       
@@ -475,6 +500,7 @@ const AppContent: React.FC = () => {
         loadingProfileInProgressRef.current = false;
         isInitialLoading.current = false; // Release network lock
         fetchInProgress.current = false; // Release circuit breaker
+        isInitialFetchRef.current = true; // Set ref guard after failed fetch
         return;
       } else {
         // For other errors, set error state
@@ -486,6 +512,7 @@ const AppContent: React.FC = () => {
         loadingProfileInProgressRef.current = false;
         isInitialLoading.current = false; // Release network lock
         fetchInProgress.current = false; // Release circuit breaker
+        isInitialFetchRef.current = true; // Set ref guard after failed fetch
         return;
       }
     }
@@ -680,7 +707,14 @@ const AppContent: React.FC = () => {
     if (turnTimerSetting !== profile.turn_timer_setting) updates.turn_timer_setting = turnTimerSetting;
     if (Object.keys(updates).length > 0) {
       updateProfileSettings(userId, updates);
-      setProfile(prev => prev ? { ...prev, ...updates } : null);
+      // Prevent setting profile to null on minor updates - only update if profile exists
+      setProfile(prev => {
+        if (!prev) {
+          console.warn('App: Attempted to update profile settings but profile is null, skipping update');
+          return prev;
+        }
+        return { ...prev, ...updates };
+      });
     }
   }, [playerAvatar, cardCoverStyle, backgroundTheme, soundEnabled, spQuickFinish, sleeveEffectsEnabled, playAnimationsEnabled, autoPassEnabled, turnTimerSetting, session, profile, isGuest]);
 
@@ -794,11 +828,12 @@ const AppContent: React.FC = () => {
   
   const handleRetryProfileFetch = useCallback(() => {
     if (sessionUserId) {
-      // Force retry by resetting all locks
+      // Force retry by resetting all locks including ref guard
       isInitialDataLoaded.current = false;
       hasInitialLoadRun.current = false;
       isInitialLoading.current = false;
       fetchInProgress.current = false;
+      isInitialFetchRef.current = false; // Reset ref guard to allow retry
       loadedUserIdRef.current = null; // Clear loaded user to allow retry
       setProfileFetchError(null);
       setIsSyncingData(false);
@@ -1115,10 +1150,16 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
-  // Circuit Breaker: Strict dependency on sessionUserId only - profile changes should NOT trigger re-fetch
+  // Ref Guard: Prevent multiple initialization fetches - only fetch once per session
   useEffect(() => {
     // Use memoized sessionUserId instead of session?.user?.id
     if (!sessionUserId || sessionUserId === 'pending' || profile || isGuest || !session) {
+      return;
+    }
+    
+    // Ref Guard: If initial fetch has already run, don't fetch again
+    if (isInitialFetchRef.current) {
+      console.log('App: Initial fetch already completed, skipping (Ref Guard)');
       return;
     }
     
@@ -1165,9 +1206,14 @@ const AppContent: React.FC = () => {
               console.log('App: Profile not found (404), creating new profile...');
               loadProfile(userId, true).catch(err => {
                 console.error('App: Failed to create profile after 404:', err);
-                // Reset fetch lock on error so it can retry
+                // Set ref guard after fetch completes (success or failure)
+                isInitialFetchRef.current = true;
+                // Reset fetch lock on error so it can retry (except AbortError - silence it)
                 if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
                   hasInitialLoadRun.current = false;
+                } else {
+                  // Silence AbortError - just log, don't trigger state updates
+                  console.warn('App: AbortError in profile creation (silenced)');
                 }
               });
             } else {
@@ -1175,9 +1221,14 @@ const AppContent: React.FC = () => {
               console.log('App: Profile query error (not 404), attempting to load profile...');
               loadProfile(userId, false).catch(err => {
                 console.error('App: Failed to load profile after query error:', err);
-                // Reset fetch lock on error so it can retry
+                // Set ref guard after fetch completes (success or failure)
+                isInitialFetchRef.current = true;
+                // Reset fetch lock on error so it can retry (except AbortError - silence it)
                 if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
                   hasInitialLoadRun.current = false;
+                } else {
+                  // Silence AbortError - just log, don't trigger state updates
+                  console.warn('App: AbortError in profile load (silenced)');
                 }
               });
             }
@@ -1185,23 +1236,33 @@ const AppContent: React.FC = () => {
             // Profile exists or doesn't exist - loadProfile will handle both cases
             loadProfile(userId, !existingProfile).catch(err => {
               console.error('App: Failed to load profile:', err);
-              // Reset fetch lock on error so it can retry
+              // Set ref guard after fetch completes (success or failure)
+              isInitialFetchRef.current = true;
+              // Reset fetch lock on error so it can retry (except AbortError - silence it)
               if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
                 hasInitialLoadRun.current = false;
+              } else {
+                // Silence AbortError - just log, don't trigger state updates
+                console.warn('App: AbortError in profile load (silenced)');
               }
             });
           }
         })
         .catch(err => {
           console.error('App: Exception checking profile existence:', err);
+          // Set ref guard after fetch completes (success or failure)
+          isInitialFetchRef.current = true;
           // Try to load profile anyway - it will handle the error
           loadProfile(userId, false).catch(loadErr => {
             console.error('App: Failed to load profile after exception:', loadErr);
-            // Reset fetch lock on error (except AbortError - wait for next state change)
+            // Reset fetch lock on error (except AbortError - silence it)
             if (loadErr?.name !== 'AbortError' && !loadErr?.message?.includes('aborted')) {
               hasInitialLoadRun.current = false;
               isInitialLoading.current = false;
               fetchInProgress.current = false;
+            } else {
+              // Silence AbortError - just log, don't trigger state updates
+              console.warn('App: AbortError in profile load after exception (silenced)');
             }
           });
         });
