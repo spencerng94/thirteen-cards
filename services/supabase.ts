@@ -358,9 +358,11 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
   }
   
   // Retry Logic for Aborts: Retry if AbortError is detected
+  // Ignore AbortError in Retries: Create new query without AbortController signal for retries
   const fetchWithRetry = async (attempt = 1): Promise<Emote[]> => {
     try {
-      // Query all emotes - Supabase should return fresh data
+      // Decouple Startup Fetches: Do not use AbortController signal for startup requests
+      // These are critical startup requests that should be allowed to finish even if component re-renders
       const { data, error } = await supabase
         .from('emotes')
         .select('*')
@@ -369,7 +371,7 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
       if (error) {
         // Check if it's an AbortError and retry
         if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
-          console.warn(`fetchEmotes: AbortError on attempt ${attempt}, retrying...`);
+          console.warn(`fetchEmotes: AbortError on attempt ${attempt}, retrying without AbortController...`);
           await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
           return fetchWithRetry(attempt + 1);
         }
@@ -444,6 +446,12 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
       // Check if it's an AbortError and retry
       if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
         console.warn(`fetchEmotes: AbortError exception on attempt ${attempt}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+        return fetchWithRetry(attempt + 1);
+      }
+      // Check if it's an AbortError and retry
+      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
+        console.warn(`fetchEmotes: AbortError exception on attempt ${attempt}, retrying without AbortController...`);
         await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
         return fetchWithRetry(attempt + 1);
       }
@@ -695,35 +703,50 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   
   // Retry Logic for Aborts: Retry if AbortError is detected
-  const fetchWithRetry = async (attempt = 1): Promise<{ data: any; error: any }> => {
+  // Ignore AbortError in Retries: Create new query without AbortController signal for retries
+  const fetchWithRetry = async (attempt = 1): Promise<{ data: any; error: any; wasAborted: boolean }> => {
     try {
+      // Decouple Startup Fetches: Do not use AbortController signal for startup requests
+      // These are critical startup requests that should be allowed to finish even if component re-renders
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
       
       if (error) {
         // Check if it's an AbortError and retry
         if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
-          console.warn(`fetchProfile: AbortError on attempt ${attempt}, retrying...`);
+          console.warn(`fetchProfile: AbortError on attempt ${attempt}, retrying without AbortController...`);
           await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
           return fetchWithRetry(attempt + 1);
         }
-        return { data, error };
+        // If it's an AbortError after all retries, mark it as aborted
+        const wasAborted = error.name === 'AbortError' || error.message?.includes('aborted');
+        return { data, error, wasAborted };
       }
-      return { data, error };
+      return { data, error, wasAborted: false };
     } catch (e: any) {
       // Check if it's an AbortError and retry
       if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
-        console.warn(`fetchProfile: AbortError exception on attempt ${attempt}, retrying...`);
+        console.warn(`fetchProfile: AbortError exception on attempt ${attempt}, retrying without AbortController...`);
         await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
         return fetchWithRetry(attempt + 1);
       }
-      return { data: null, error: e };
+      const wasAborted = e?.name === 'AbortError' || e?.message?.includes('aborted');
+      return { data: null, error: e, wasAborted };
     }
   };
   
   // Try to fetch existing profile with retry
-  const { data, error } = await fetchWithRetry();
+  const { data, error, wasAborted } = await fetchWithRetry();
   
   if (error) {
+    // If it was aborted after all retries, throw a special error so caller knows not to create profile
+    if (wasAborted) {
+      console.error('❌ fetchProfile: All retry attempts failed with AbortError:', {
+        userId,
+        attempts: 3
+      });
+      throw new Error('PROFILE_FETCH_ABORTED'); // Special error code for aborted fetches
+    }
+    
     console.error('❌ fetchProfile: Error fetching existing profile:', {
       userId,
       errorCode: error.code,
@@ -2013,9 +2036,12 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
   }
   
   // Retry Logic for Aborts: Retry if AbortError is detected
+  // Ignore AbortError in Retries: Create new query without AbortController signal for retries
   const fetchWithRetry = async (attempt = 1): Promise<Finisher[]> => {
     try {
       console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey, attempt });
+      // Decouple Startup Fetches: Do not use AbortController signal for startup requests
+      // These are critical startup requests that should be allowed to finish even if component re-renders
       const { data, error } = await supabase
         .from('finishers')
         .select('*')
@@ -2024,7 +2050,7 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
       if (error) {
         // Check if it's an AbortError and retry
         if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
-          console.warn(`fetchFinishers: AbortError on attempt ${attempt}, retrying...`);
+          console.warn(`fetchFinishers: AbortError on attempt ${attempt}, retrying without AbortController...`);
           await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
           return fetchWithRetry(attempt + 1);
         }
@@ -2048,7 +2074,7 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
     } catch (e: any) {
       // Check if it's an AbortError and retry
       if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
-        console.warn(`fetchFinishers: AbortError exception on attempt ${attempt}, retrying...`);
+        console.warn(`fetchFinishers: AbortError exception on attempt ${attempt}, retrying without AbortController...`);
         await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
         return fetchWithRetry(attempt + 1);
       }

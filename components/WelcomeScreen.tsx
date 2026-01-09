@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
@@ -367,13 +367,27 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       equipped: boolean
   } | null>(null);
 
+  // App-Level Data Cache: Ensure initial data fetches only run once per session
+  const initialDataFetchedRef = useRef(false);
+
   useEffect(() => {
     // Wait for ID: Do not trigger fetches until userId is a valid UUID (not empty, not 'repairing')
     // Check if we have a valid session with user ID from props or context
     const hasValidUserId = profile?.id && profile.id !== 'guest' && profile.id !== 'pending' && profile.id !== '';
     
+    // App-Level Data Cache: Only fetch once per session
+    if (initialDataFetchedRef.current) {
+      console.log('WelcomeScreen: Data already fetched for this session, skipping...');
+      return;
+    }
+    
     // Only fetch if we have a valid user ID or if we're a guest (guest can still see emotes)
     if (hasValidUserId || isGuest) {
+      // Mark as fetched to prevent duplicate fetches
+      initialDataFetchedRef.current = true;
+      
+      // Decouple Startup Fetches: Do not pass AbortController signal from useEffect
+      // These are critical startup requests that should be allowed to finish even if component re-renders
       fetchEmotes().then(setRemoteEmotes).catch(err => {
         console.error('Error fetching emotes:', err);
         setRemoteEmotes([]);
@@ -382,6 +396,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       // Fetch finishers
       const loadFinishers = async () => {
         try {
+          // Decouple Startup Fetches: Do not pass AbortController signal from useEffect
           const finishersData = await fetchFinishers();
           console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
           if (finishersData && finishersData.length > 0) {

@@ -8,6 +8,7 @@ import { LevelRewards } from './LevelRewards';
 import { InventoryGrid } from './InventoryGrid';
 import { CopyUsername } from './CopyUsername';
 import { CurrencyIcon } from './Store';
+import { DeleteAccountButton } from './DeleteAccountButton';
 
 export interface ThemeConfig {
   id: string;
@@ -4363,6 +4364,21 @@ export const UserHub: React.FC<UserHubProps> = ({
                                     </div>
                                 </div>
                             </div>
+                            
+                            {/* Delete Account Section - Only for authenticated users (not guests) */}
+                            {!isGuest && (
+                                <div className="mt-8 pt-6 border-t border-white/10">
+                                    <DeleteAccountButton
+                                        onAccountDeleted={() => {
+                                            // Clear all state and redirect to landing page
+                                            // The DeleteAccountButton already clears localStorage and signs out
+                                            // We just need to redirect
+                                            window.location.replace('/');
+                                        }}
+                                        className="w-full"
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 

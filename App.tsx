@@ -212,6 +212,8 @@ const AppContent: React.FC = () => {
   const initialSyncCompleteRef = useRef(false);
   const loadingProfileInProgressRef = useRef(false);
   const aiThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // App-Level Data Cache: Ensure initial data fetches only run once per session
+  const initialDataFetchedRef = useRef(false);
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -330,9 +332,19 @@ const AppContent: React.FC = () => {
     // Use Google metadata: full_name, name, or display_name
     const baseUsername = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
     let data: UserProfile | null = null;
+    let fetchWasAborted = false;
     try {
       data = await fetchProfile(uid, playerAvatar, baseUsername);
     } catch (error: any) {
+      // Remove 'Creating Default Profile' Logic: Only create if fetch was NOT aborted
+      // If the error is PROFILE_FETCH_ABORTED, don't create default profile
+      if (error?.message === 'PROFILE_FETCH_ABORTED') {
+        console.warn('App: Profile fetch was aborted, not creating default profile. Will retry later.');
+        fetchWasAborted = true;
+        loadingProfileInProgressRef.current = false;
+        return; // Exit early, don't create profile
+      }
+      
       // IMPORTANT: Log error prominently so it's visible
       console.error('═══════════════════════════════════════════════════════');
       console.error('❌❌❌ App: ERROR FETCHING PROFILE ❌❌❌');
@@ -364,9 +376,10 @@ const AppContent: React.FC = () => {
       }
     }
     
-    // Check or Create: If no profile found, create a default one immediately
-    if (!data) {
-      console.log('App: No profile found, creating default profile...');
+    // Remove 'Creating Default Profile' Logic: Only create if fetch succeeded but returned null (404)
+    // Ensure the app waits for a successful fetch (or a 404 error) before trying to create a new profile
+    if (!data && !fetchWasAborted) {
+      console.log('App: No profile found (404), creating default profile...');
       try {
         const defaultProfile: UserProfile = {
           id: uid,
@@ -942,11 +955,24 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
-  // The 'existing account' check: Add try/catch around profile fetch
+  // App-Level Data Cache: Ensure profile fetch only runs once per session
   useEffect(() => {
     if (session?.user?.id && session.user.id !== 'pending' && !profile && !isGuest && !!session) {
+      // Check if we've already attempted to fetch data for this session
+      const sessionUserId = session.user.id;
+      const cacheKey = `profile_fetch_${sessionUserId}`;
+      
+      if (initialDataFetchedRef.current && localStorage.getItem(cacheKey)) {
+        console.log('App: Profile fetch already attempted for this session, skipping...');
+        return;
+      }
+      
       console.log('App: Valid session found but no profile, loading profile...');
       const userId = session.user.id;
+      
+      // Mark as fetched to prevent duplicate fetches
+      initialDataFetchedRef.current = true;
+      localStorage.setItem(cacheKey, 'true');
       
       // Try/catch around profile fetch to prevent silent crashes
       supabase.from('profiles').select('id').eq('id', userId).maybeSingle()
