@@ -148,26 +148,10 @@ const AppContent: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   
-  // The Nuclear Option: Force re-render when session changes from auth context
-  // This ensures App.tsx sees the session the moment it's recovered
-  const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
-  useEffect(() => {
-    if (session && session.user && session.user.id) {
-      console.log('App: 🔄 Session detected in context, forcing refresh', {
-        sessionId: session.user.id,
-        hasSession: !!session,
-        refreshKey: sessionRefreshKey
-      });
-      // Force a re-render by updating a state variable
-      setSessionRefreshKey(prev => prev + 1);
-    }
-  }, [session?.user?.id]); // Watch for session user ID changes
-  
   console.log('App: Step 8 - State initialized', {
     hasSession: !!session,
     sessionUserId: session?.user?.id,
-    isInitialized,
-    refreshKey: sessionRefreshKey
+    isInitialized
   });
 
   const [view, setView] = useState<ViewState>('WELCOME');
@@ -1016,18 +1000,25 @@ const AppContent: React.FC = () => {
   const hasValidSession = hasSession && hasSessionUser; // Trust session object, not just user ID
   
   // Profile Fetch Fallback: If user ID is missing but session exists, attempt to repair
-  const [repairAttempted, setRepairAttempted] = useState(false);
+  const repairAttemptedRef = useRef(false);
+  const sessionUserIdRef = useRef<string | undefined>(session?.user?.id);
+  
   useEffect(() => {
-    if (hasSession && hasSessionUser && (!session.user.id || session.user.id === '') && !repairAttempted) {
+    const currentUserId = session?.user?.id;
+    const hasSession = !!session;
+    const hasSessionUser = !!session?.user;
+    const userIdMissing = hasSession && hasSessionUser && (!currentUserId || currentUserId === '');
+    
+    // Only attempt repair once per session, and only if user ID changed from missing to still missing
+    if (userIdMissing && !repairAttemptedRef.current && sessionUserIdRef.current === currentUserId) {
       console.warn('App: ⚠️ Session exists but user ID is missing, attempting repair with getUser()');
-      setRepairAttempted(true);
+      repairAttemptedRef.current = true;
       
       supabase.auth.getUser()
         .then(({ data: userData, error: userError }) => {
           if (!userError && userData?.user) {
             console.log('App: ✅ Repaired user data with getUser()');
-            // Force re-render by updating session refresh key
-            setSessionRefreshKey(prev => prev + 1);
+            // SessionProvider will pick up the repaired user via onAuthStateChange
           } else {
             console.warn('App: getUser() failed, but session exists so showing game anyway:', userError);
           }
@@ -1036,7 +1027,16 @@ const AppContent: React.FC = () => {
           console.warn('App: Exception calling getUser(), but session exists so showing game anyway:', err);
         });
     }
-  }, [hasSession, hasSessionUser, session?.user?.id, repairAttempted]);
+    
+    // Update ref when user ID changes
+    if (currentUserId !== sessionUserIdRef.current) {
+      sessionUserIdRef.current = currentUserId;
+      // Reset repair attempt if we get a valid ID
+      if (currentUserId && currentUserId !== '') {
+        repairAttemptedRef.current = false;
+      }
+    }
+  }, [session?.user?.id]); // Only watch user ID, not computed values
   
   if (hasValidSession) {
     console.log('App: ✅ Initialization complete, session confirmed, rendering game', {
