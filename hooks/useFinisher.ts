@@ -7,7 +7,8 @@ export const useFinisher = (winnerId: string, profile: UserProfile | null) => {
   const [finisherData, setFinisherData] = useState<Finisher | null>(null);
 
   // Fetch equipped finisher from profile
-  const loadEquippedFinisher = useCallback(async () => {
+  // Retry Logic for Aborts: Retry if AbortError is detected
+  const loadEquippedFinisher = useCallback(async (attempt = 1): Promise<Finisher | null> => {
     if (!profile || !profile.equipped_finisher) {
       setEquippedFinisher(null);
       setFinisherData(null);
@@ -21,8 +22,20 @@ export const useFinisher = (winnerId: string, profile: UserProfile | null) => {
         .eq('animation_key', profile.equipped_finisher)
         .single();
 
-      if (error || !data) {
+      if (error) {
+        // Check if it's an AbortError and retry
+        if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
+          console.warn(`loadEquippedFinisher: AbortError on attempt ${attempt}, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+          return loadEquippedFinisher(attempt + 1);
+        }
         console.warn('Finisher not found:', profile.equipped_finisher);
+        setEquippedFinisher(null);
+        setFinisherData(null);
+        return null;
+      }
+
+      if (!data) {
         setEquippedFinisher(null);
         setFinisherData(null);
         return null;
@@ -31,7 +44,13 @@ export const useFinisher = (winnerId: string, profile: UserProfile | null) => {
       setEquippedFinisher(profile.equipped_finisher);
       setFinisherData(data as Finisher);
       return data as Finisher;
-    } catch (e) {
+    } catch (e: any) {
+      // Check if it's an AbortError and retry
+      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
+        console.warn(`loadEquippedFinisher: AbortError exception on attempt ${attempt}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+        return loadEquippedFinisher(attempt + 1);
+      }
       console.error('Error loading finisher:', e);
       setEquippedFinisher(null);
       setFinisherData(null);

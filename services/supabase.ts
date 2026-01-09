@@ -356,17 +356,26 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
     console.warn('No Supabase key, cannot fetch emotes');
     return [];
   }
-  try {
-    // Query all emotes - Supabase should return fresh data
-    const { data, error } = await supabase
-      .from('emotes')
-      .select('*')
-      .order('name', { ascending: true });
-    
-    if (error) {
-      console.error('Error fetching emotes:', error);
-      return [];
-    }
+  
+  // Retry Logic for Aborts: Retry if AbortError is detected
+  const fetchWithRetry = async (attempt = 1): Promise<Emote[]> => {
+    try {
+      // Query all emotes - Supabase should return fresh data
+      const { data, error } = await supabase
+        .from('emotes')
+        .select('*')
+        .order('name', { ascending: true });
+      
+      if (error) {
+        // Check if it's an AbortError and retry
+        if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
+          console.warn(`fetchEmotes: AbortError on attempt ${attempt}, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+          return fetchWithRetry(attempt + 1);
+        }
+        console.error('Error fetching emotes:', error);
+        return [];
+      }
     
     // Premium emote pricing - override database prices for specific emotes
     // Match by exact name (case-sensitive) or by trigger_code for flexibility
@@ -423,18 +432,27 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
       };
     });
     
-    console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
-      name: e.name, 
-      trigger: e.trigger_code, 
-      file_path: e.file_path,
-      price: e.price 
-    })));
-    
-    return emotes;
-  } catch (e) {
-    console.error('Exception fetching emotes:', e);
-    return [];
-  }
+      console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
+        name: e.name, 
+        trigger: e.trigger_code, 
+        file_path: e.file_path,
+        price: e.price 
+      })));
+      
+      return emotes;
+    } catch (e: any) {
+      // Check if it's an AbortError and retry
+      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
+        console.warn(`fetchEmotes: AbortError exception on attempt ${attempt}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+        return fetchWithRetry(attempt + 1);
+      }
+      console.error('Exception fetching emotes:', e);
+      return [];
+    }
+  };
+  
+  return fetchWithRetry();
 };
 
 const EVENT_TARGETS = { daily_play: 1, daily_win: 1, weekly_bombs: 3, weekly_play: 13, weekly_win: 13 };
@@ -676,8 +694,34 @@ export const migrateGuestData = async (
 export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:', baseUsername?: string): Promise<UserProfile | null> => {
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   
-  // Try to fetch existing profile
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+  // Retry Logic for Aborts: Retry if AbortError is detected
+  const fetchWithRetry = async (attempt = 1): Promise<{ data: any; error: any }> => {
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      
+      if (error) {
+        // Check if it's an AbortError and retry
+        if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
+          console.warn(`fetchProfile: AbortError on attempt ${attempt}, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+          return fetchWithRetry(attempt + 1);
+        }
+        return { data, error };
+      }
+      return { data, error };
+    } catch (e: any) {
+      // Check if it's an AbortError and retry
+      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
+        console.warn(`fetchProfile: AbortError exception on attempt ${attempt}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+        return fetchWithRetry(attempt + 1);
+      }
+      return { data: null, error: e };
+    }
+  };
+  
+  // Try to fetch existing profile with retry
+  const { data, error } = await fetchWithRetry();
   
   if (error) {
     console.error('❌ fetchProfile: Error fetching existing profile:', {
@@ -1968,36 +2012,53 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
     return [];
   }
   
-  try {
-    console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey });
-    const { data, error } = await supabase
-      .from('finishers')
-      .select('*')
-      .order('price', { ascending: true });
+  // Retry Logic for Aborts: Retry if AbortError is detected
+  const fetchWithRetry = async (attempt = 1): Promise<Finisher[]> => {
+    try {
+      console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey, attempt });
+      const { data, error } = await supabase
+        .from('finishers')
+        .select('*')
+        .order('price', { ascending: true });
+      
+      if (error) {
+        // Check if it's an AbortError and retry
+        if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
+          console.warn(`fetchFinishers: AbortError on attempt ${attempt}, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+          return fetchWithRetry(attempt + 1);
+        }
+        console.error('❌ Error fetching finishers:', error);
+        console.error('Error details:', { 
+          message: error.message, 
+          code: error.code, 
+          details: error.details,
+          hint: error.hint 
+        });
+        return [];
+      }
     
-    if (error) {
-      console.error('❌ Error fetching finishers:', error);
-      console.error('Error details:', { 
-        message: error.message, 
-        code: error.code, 
-        details: error.details,
-        hint: error.hint 
-      });
+      if (!data || data.length === 0) {
+        console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
+        return [];
+      }
+      
+      console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
+      return (data || []) as Finisher[];
+    } catch (e: any) {
+      // Check if it's an AbortError and retry
+      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
+        console.warn(`fetchFinishers: AbortError exception on attempt ${attempt}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
+        return fetchWithRetry(attempt + 1);
+      }
+      console.error('❌ Exception fetching finishers:', e);
+      console.error('Exception details:', { message: e?.message, stack: e?.stack });
       return [];
     }
-    
-    if (!data || data.length === 0) {
-      console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
-      return [];
-    }
-    
-    console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
-    return (data || []) as Finisher[];
-  } catch (e: any) {
-    console.error('❌ Exception fetching finishers:', e);
-    console.error('Exception details:', { message: e?.message, stack: e?.stack });
-    return [];
-  }
+  };
+  
+  return fetchWithRetry();
 };
 
 export const buyFinisher = async (userId: string, finisherId: string): Promise<boolean> => {

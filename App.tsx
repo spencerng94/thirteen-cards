@@ -982,6 +982,17 @@ const AppContent: React.FC = () => {
   const repairAttemptedRef = useRef(false);
   const sessionUserIdRef = useRef<string | undefined>(session?.user?.id);
   
+  // Persistent Session Check: Ensure isGuest is strictly false if session exists
+  useEffect(() => {
+    if (session && session.user) {
+      // If session exists, we are NOT a guest
+      if (isGuest) {
+        console.log('App: Session exists, setting isGuest to false');
+        setIsGuest(false);
+      }
+    }
+  }, [session, isGuest]);
+  
   useEffect(() => {
     const currentUserId = session?.user?.id;
     const hasSession = !!session;

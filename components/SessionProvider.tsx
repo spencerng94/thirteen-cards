@@ -917,14 +917,21 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Context Consistency: Ensure both user and session are included, with user derived from session as source of truth
   // Expose session in Context: Ensure SessionProvider exports the raw session object, not just user
+  // Stable User ID: Ensure user.id is passed into Context immediately
+  const contextUser = session?.user ?? user;
   const contextValue = {
     session, // Raw session object is the source of truth
-    user: session?.user ?? user, // Use session.user as source of truth, fallback to user state
+    user: contextUser, // Use session.user as source of truth, fallback to user state
     loading,
     isProcessing,
     isInitialized,
     forceSession
   };
+  
+  // Log if user ID is missing but session exists (for debugging)
+  if (session && !contextUser?.id) {
+    console.warn('SessionProvider: ⚠️ Session exists but user.id is missing in context');
+  }
 
   // Force Re-render: Log context state at end of initialization for debugging
   if (isInitialized) {

@@ -368,25 +368,40 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    fetchEmotes().then(setRemoteEmotes);
+    // Wait for ID: Do not trigger fetches until userId is a valid UUID (not empty, not 'repairing')
+    // Check if we have a valid session with user ID from props or context
+    const hasValidUserId = profile?.id && profile.id !== 'guest' && profile.id !== 'pending' && profile.id !== '';
     
-    // Fetch finishers
-    const loadFinishers = async () => {
-      try {
-        const finishersData = await fetchFinishers();
-        console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
-        if (finishersData && finishersData.length > 0) {
-          console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
+    // Only fetch if we have a valid user ID or if we're a guest (guest can still see emotes)
+    if (hasValidUserId || isGuest) {
+      fetchEmotes().then(setRemoteEmotes).catch(err => {
+        console.error('Error fetching emotes:', err);
+        setRemoteEmotes([]);
+      });
+      
+      // Fetch finishers
+      const loadFinishers = async () => {
+        try {
+          const finishersData = await fetchFinishers();
+          console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
+          if (finishersData && finishersData.length > 0) {
+            console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
+          }
+          setFinishers(finishersData || []);
+        } catch (err) {
+          console.error('❌ Error fetching finishers in CUSTOMIZE:', err);
+          setFinishers([]);
         }
-        setFinishers(finishersData || []);
-      } catch (err) {
-        console.error('❌ Error fetching finishers in CUSTOMIZE:', err);
-        setFinishers([]);
-      }
-    };
-    
-    loadFinishers();
-  }, []);
+      };
+      
+      loadFinishers();
+    } else {
+      console.log('WelcomeScreen: Waiting for valid user ID before fetching emotes/finishers', {
+        profileId: profile?.id,
+        isGuest
+      });
+    }
+  }, [profile?.id, isGuest]);
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {
