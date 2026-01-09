@@ -1009,13 +1009,41 @@ const AppContent: React.FC = () => {
   }
   
   // Step B: Now that we are CERTAIN initialization is done, check for the session (source of truth)
-  // Use session instead of user, as session is the source of truth for Supabase
-  const hasValidSession = session && session.user && session.user.id && session.user.id !== 'pending';
+  // App.tsx Logic Change: Trust the Session, not the User ID
+  // If hasSession is true, we MUST show the game, even if the ID extraction is lagging
+  const hasSession = !!session;
+  const hasSessionUser = !!session?.user;
+  const hasValidSession = hasSession && hasSessionUser; // Trust session object, not just user ID
+  
+  // Profile Fetch Fallback: If user ID is missing but session exists, attempt to repair
+  const [repairAttempted, setRepairAttempted] = useState(false);
+  useEffect(() => {
+    if (hasSession && hasSessionUser && (!session.user.id || session.user.id === '') && !repairAttempted) {
+      console.warn('App: ⚠️ Session exists but user ID is missing, attempting repair with getUser()');
+      setRepairAttempted(true);
+      
+      supabase.auth.getUser()
+        .then(({ data: userData, error: userError }) => {
+          if (!userError && userData?.user) {
+            console.log('App: ✅ Repaired user data with getUser()');
+            // Force re-render by updating session refresh key
+            setSessionRefreshKey(prev => prev + 1);
+          } else {
+            console.warn('App: getUser() failed, but session exists so showing game anyway:', userError);
+          }
+        })
+        .catch(err => {
+          console.warn('App: Exception calling getUser(), but session exists so showing game anyway:', err);
+        });
+    }
+  }, [hasSession, hasSessionUser, session?.user?.id, repairAttempted]);
   
   if (hasValidSession) {
     console.log('App: ✅ Initialization complete, session confirmed, rendering game', {
       hasSession: !!session,
-      userId: session?.user?.id
+      hasSessionUser: !!session?.user,
+      userId: session?.user?.id || '(repairing...)',
+      trustSession: true // We trust the session object, not just the ID
     });
     // Continue to render main game app below
   } else if (!isGuest) {

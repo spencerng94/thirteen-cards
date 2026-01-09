@@ -388,6 +388,30 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (!error && sessionData?.session) {
               console.log('SessionProvider: ✅ Session set from hash, user:', sessionData.session.user.id);
               
+              // Deep ID Extraction: Explicitly extract and validate user ID
+              const userId = sessionData.session?.user?.id || '';
+              if (!userId || userId === '') {
+                console.error('═══════════════════════════════════════════════════════');
+                console.error('⚠️⚠️⚠️ WARNING: setSession succeeded but user ID is empty! ⚠️⚠️⚠️');
+                console.error('Session data:', sessionData.session);
+                console.error('User object:', sessionData.session?.user);
+                console.error('Attempting to repair with getUser()...');
+                console.error('═══════════════════════════════════════════════════════');
+                
+                // Profile Fetch Fallback: Call getUser() to repair missing user data
+                try {
+                  const { data: userData, error: userError } = await supabase.auth.getUser();
+                  if (!userError && userData?.user) {
+                    console.log('SessionProvider: ✅ Repaired user data with getUser()');
+                    sessionData.session.user = userData.user;
+                  } else {
+                    console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                  }
+                } catch (getUserErr) {
+                  console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                }
+              }
+              
               // Force State Update: Manually set state immediately (don't wait for listener)
               // Synchronous State Update: Use functional update pattern
               setSession(prev => sessionData.session);
@@ -523,6 +547,31 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const sessionData = readSessionFromStorage();
             if (sessionData) {
               console.log('SessionProvider: ✅ Recovered session from localStorage, setting state');
+              
+              // Deep ID Extraction: Explicitly extract and validate user ID
+              const userId = sessionData?.user?.id || '';
+              if (!userId || userId === '') {
+                console.error('═══════════════════════════════════════════════════════');
+                console.error('⚠️⚠️⚠️ WARNING: Session recovered but user ID is empty! ⚠️⚠️⚠️');
+                console.error('Session data:', sessionData);
+                console.error('User object:', sessionData?.user);
+                console.error('Attempting to repair with getUser()...');
+                console.error('═══════════════════════════════════════════════════════');
+                
+                // Profile Fetch Fallback: Call getUser() to repair missing user data
+                try {
+                  const { data: userData, error: userError } = await supabase.auth.getUser();
+                  if (!userError && userData?.user) {
+                    console.log('SessionProvider: ✅ Repaired user data with getUser()');
+                    sessionData.user = userData.user;
+                  } else {
+                    console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                  }
+                } catch (getUserErr) {
+                  console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                }
+              }
+              
               // Synchronous State Update: Use functional update pattern to ensure state is set immediately
               setSession(prev => sessionData);
               setUser(prev => sessionData.user);
@@ -547,6 +596,30 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   // If getSession still fails, use the direct read
                   const directSession = readSessionFromStorage();
                   if (directSession) {
+                    // Deep ID Extraction: Explicitly extract and validate user ID
+                    const userId = directSession?.user?.id || '';
+                    if (!userId || userId === '') {
+                      console.error('═══════════════════════════════════════════════════════');
+                      console.error('⚠️⚠️⚠️ WARNING: Direct session recovery - user ID is empty! ⚠️⚠️⚠️');
+                      console.error('Session data:', directSession);
+                      console.error('User object:', directSession?.user);
+                      console.error('Attempting to repair with getUser()...');
+                      console.error('═══════════════════════════════════════════════════════');
+                      
+                      // Profile Fetch Fallback: Call getUser() to repair missing user data
+                      try {
+                        const { data: userData, error: userError } = await supabase.auth.getUser();
+                        if (!userError && userData?.user) {
+                          console.log('SessionProvider: ✅ Repaired user data with getUser()');
+                          directSession.user = userData.user;
+                        } else {
+                          console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                        }
+                      } catch (getUserErr) {
+                        console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                      }
+                    }
+                    
                     // Synchronous State Update: Use functional update pattern
                     setSession(prev => directSession);
                     setUser(prev => directSession.user);
@@ -561,6 +634,30 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         
         if (!error && data?.session) {
+          // Deep ID Extraction: Explicitly extract and validate user ID
+          const userId = data.session?.user?.id || '';
+          if (!userId || userId === '') {
+            console.error('═══════════════════════════════════════════════════════');
+            console.error('⚠️⚠️⚠️ WARNING: Session found but user ID is empty! ⚠️⚠️⚠️');
+            console.error('Session data:', data.session);
+            console.error('User object:', data.session?.user);
+            console.error('Attempting to repair with getUser()...');
+            console.error('═══════════════════════════════════════════════════════');
+            
+            // Profile Fetch Fallback: Call getUser() to repair missing user data
+            try {
+              const { data: userData, error: userError } = await supabase.auth.getUser();
+              if (!userError && userData?.user) {
+                console.log('SessionProvider: ✅ Repaired user data with getUser()');
+                data.session.user = userData.user;
+              } else {
+                console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+              }
+            } catch (getUserErr) {
+              console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+            }
+          }
+          
           console.log('SessionProvider: ✅ Initial session found:', data.session.user.id);
           // Synchronous State Update: Use functional update pattern to ensure state is set immediately
           setSession(prev => data.session);
@@ -571,16 +668,19 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           // Sync Profile Fetch: Check if profile exists before marking as initialized
           // This ensures we don't set isInitialized(true) until profile check completes or fails
           try {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('id', data.session.user.id)
-              .maybeSingle();
-            
-            if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = not found, which is OK
-              console.warn('SessionProvider: Profile check error (non-fatal):', profileError);
-            } else {
-              console.log('SessionProvider: Profile check complete:', profileData ? 'Profile exists' : 'Profile not found (will be created)');
+            const finalUserId = data.session.user.id;
+            if (finalUserId) {
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', finalUserId)
+                .maybeSingle();
+              
+              if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = not found, which is OK
+                console.warn('SessionProvider: Profile check error (non-fatal):', profileError);
+              } else {
+                console.log('SessionProvider: Profile check complete:', profileData ? 'Profile exists' : 'Profile not found (will be created)');
+              }
             }
           } catch (profileCheckErr) {
             console.warn('SessionProvider: Profile check exception (non-fatal):', profileCheckErr);
@@ -600,6 +700,31 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const sessionData = readSessionFromStorage();
             if (sessionData) {
               console.log('SessionProvider: ✅ Recovered session from localStorage, setting state');
+              
+              // Deep ID Extraction: Explicitly extract and validate user ID
+              const userId = sessionData?.user?.id || '';
+              if (!userId || userId === '') {
+                console.error('═══════════════════════════════════════════════════════');
+                console.error('⚠️⚠️⚠️ WARNING: Session recovered but user ID is empty! ⚠️⚠️⚠️');
+                console.error('Session data:', sessionData);
+                console.error('User object:', sessionData?.user);
+                console.error('Attempting to repair with getUser()...');
+                console.error('═══════════════════════════════════════════════════════');
+                
+                // Profile Fetch Fallback: Call getUser() to repair missing user data
+                try {
+                  const { data: userData, error: userError } = await supabase.auth.getUser();
+                  if (!userError && userData?.user) {
+                    console.log('SessionProvider: ✅ Repaired user data with getUser()');
+                    sessionData.user = userData.user;
+                  } else {
+                    console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                  }
+                } catch (getUserErr) {
+                  console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                }
+              }
+              
               // Synchronous State Update: Use functional update pattern to ensure state is set immediately
               setSession(prev => sessionData);
               setUser(prev => sessionData.user);
@@ -624,6 +749,30 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   // If getSession still fails, use the direct read
                   const directSession = readSessionFromStorage();
                   if (directSession) {
+                    // Deep ID Extraction: Explicitly extract and validate user ID
+                    const userId = directSession?.user?.id || '';
+                    if (!userId || userId === '') {
+                      console.error('═══════════════════════════════════════════════════════');
+                      console.error('⚠️⚠️⚠️ WARNING: Direct session recovery - user ID is empty! ⚠️⚠️⚠️');
+                      console.error('Session data:', directSession);
+                      console.error('User object:', directSession?.user);
+                      console.error('Attempting to repair with getUser()...');
+                      console.error('═══════════════════════════════════════════════════════');
+                      
+                      // Profile Fetch Fallback: Call getUser() to repair missing user data
+                      try {
+                        const { data: userData, error: userError } = await supabase.auth.getUser();
+                        if (!userError && userData?.user) {
+                          console.log('SessionProvider: ✅ Repaired user data with getUser()');
+                          directSession.user = userData.user;
+                        } else {
+                          console.warn('SessionProvider: getUser() failed, but continuing with session:', userError);
+                        }
+                      } catch (getUserErr) {
+                        console.warn('SessionProvider: Exception calling getUser(), continuing with session:', getUserErr);
+                      }
+                    }
+                    
                     // Synchronous State Update: Use functional update pattern
                     setSession(prev => directSession);
                     setUser(prev => directSession.user);
@@ -693,6 +842,17 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const sessionData = readSessionFromStorage();
     if (sessionData) {
       console.log('SessionProvider: ✅ Manual recovery successful from localStorage, setting session and reloading');
+      
+      // Deep ID Extraction: Explicitly extract and validate user ID
+      const userId = sessionData?.user?.id || '';
+      if (!userId || userId === '') {
+        console.error('═══════════════════════════════════════════════════════');
+        console.error('⚠️⚠️⚠️ WARNING: Manual recovery - user ID is empty! ⚠️⚠️⚠️');
+        console.error('Session data:', sessionData);
+        console.error('User object:', sessionData?.user);
+        console.error('═══════════════════════════════════════════════════════');
+      }
+      
       // Synchronous State Update: Use functional update pattern
       setSession(prev => sessionData);
       setUser(prev => sessionData.user);
@@ -726,6 +886,17 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const retrySession = readSessionFromStorage();
         if (retrySession) {
           console.log('SessionProvider: ✅ Found session on retry, setting and reloading');
+          
+          // Deep ID Extraction: Explicitly extract and validate user ID
+          const userId = retrySession?.user?.id || '';
+          if (!userId || userId === '') {
+            console.error('═══════════════════════════════════════════════════════');
+            console.error('⚠️⚠️⚠️ WARNING: Retry recovery - user ID is empty! ⚠️⚠️⚠️');
+            console.error('Session data:', retrySession);
+            console.error('User object:', retrySession?.user);
+            console.error('═══════════════════════════════════════════════════════');
+          }
+          
           // Synchronous State Update: Use functional update pattern
           setSession(prev => retrySession);
           setUser(prev => retrySession.user);
