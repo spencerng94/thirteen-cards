@@ -15,8 +15,8 @@ const getEnv = (key: string): string | undefined => {
   return undefined;
 };
 
-const supabaseUrl = getEnv('VITE_SUPABASE_URL') || "https://spaxxexmyiczdrbikdjp.supabase.co";
-const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
+export const supabaseUrl = getEnv('VITE_SUPABASE_URL') || "https://spaxxexmyiczdrbikdjp.supabase.co";
+export const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 
 // SINGLETON SUPABASE CLIENT: Created once, outside React component tree
 // This ensures the client is never re-initialized when the app re-renders
@@ -24,10 +24,10 @@ const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        flowType: 'pkce', // PKCE is the standard flow - we'll handle hash/query params manually
+        flowType: 'implicit', // Use Implicit flow to bypass cookie blocking
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: true // Re-enable to let Supabase handle it, but we'll also check manually
+        detectSessionInUrl: false // Disabled - we handle hash parsing manually
       }
     })
   : (() => {

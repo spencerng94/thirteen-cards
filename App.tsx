@@ -26,7 +26,7 @@ import { dealCards, validateMove, findBestMove, getComboType, sortCards } from '
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
 import { recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState, getGuestProgress, migrateGuestData, clearGuestProgress, persistSupabaseAuthTokenBruteforce } from './services/supabase';
-import { supabase } from './src/lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from './src/lib/supabase';
 import { useSession } from './components/SessionProvider';
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeToast } from './components/WelcomeToast';
@@ -328,7 +328,40 @@ const AppContent: React.FC = () => {
     const meta = session?.user?.user_metadata || {};
     // Use Google metadata: full_name, name, or display_name
     const baseUsername = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
-    let data = await fetchProfile(uid, playerAvatar, baseUsername);
+    let data: UserProfile | null = null;
+    try {
+      data = await fetchProfile(uid, playerAvatar, baseUsername);
+    } catch (error: any) {
+      // IMPORTANT: Log error prominently so it's visible
+      console.error('═══════════════════════════════════════════════════════');
+      console.error('❌❌❌ App: ERROR FETCHING PROFILE ❌❌❌');
+      console.error('═══════════════════════════════════════════════════════');
+      console.error('Error:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      if (error?.supabaseError) {
+        console.error('Supabase Error Code:', error.supabaseError.code);
+        console.error('Supabase Error Message:', error.supabaseError.message);
+        console.error('Supabase Error Details:', error.supabaseError.details);
+        console.error('Supabase Error Hint:', error.supabaseError.hint);
+      }
+      console.error('═══════════════════════════════════════════════════════');
+      
+      // If it's a database error saving new user, show a helpful message
+      if (error?.message?.includes('Database error saving new user')) {
+        console.error('🔴 DATABASE ERROR SAVING NEW USER PROFILE');
+        console.error('This is likely due to missing RLS policies.');
+        console.error('SOLUTION: Run the SQL migration: fix_profile_rls_policies.sql');
+        console.error('Or manually create this policy:');
+        console.error('  CREATE POLICY "Users can insert their own profile"');
+        console.error('  ON profiles FOR INSERT');
+        console.error('  WITH CHECK (auth.uid() = id);');
+        // Continue to try creating a default profile below - don't throw
+      } else {
+        // For other errors, log but don't throw - let it continue to try creating default profile
+        console.error('Other error type, will attempt to create default profile');
+      }
+    }
     
     // Check or Create: If no profile found, create a default one immediately
     if (!data) {
@@ -878,25 +911,29 @@ const AppContent: React.FC = () => {
         redirectTo 
       });
       
-      // Trigger Google OAuth with PKCE flow (Supabase standard)
-      const { data, error } = await supabase.auth.signInWithOAuth({ 
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          skipBrowserRedirect: false, // Ensure browser redirect happens
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent'
-          }
-        }
-      });
+      // Manual Implicit Flow: Construct OAuth URL directly for account linking
+      const redirectUrl = `${window.location.origin}/auth/callback`;
       
-      if (error) {
-        console.error('App: OAuth error:', error);
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.error('App: Missing Supabase configuration for account linking');
         localStorage.removeItem('thirteen_is_migrating');
-      } else {
-        console.log('App: OAuth flow initiated successfully for account linking', { data });
+        return;
       }
+      
+      // Build implicit flow OAuth URL
+      // Note: access_type='offline' is NOT allowed with response_type='token' (implicit flow)
+      // Implicit flow only works with response_type='token' and no access_type parameter
+      const oauthUrl = new URL(`${supabaseUrl}/auth/v1/authorize`);
+      oauthUrl.searchParams.set('provider', 'google');
+      oauthUrl.searchParams.set('redirect_to', redirectUrl);
+      oauthUrl.searchParams.set('response_type', 'token'); // Implicit flow
+      oauthUrl.searchParams.set('client_id', supabaseAnonKey);
+      oauthUrl.searchParams.set('prompt', 'consent'); // Optional: force consent screen
+      
+      console.log('App: Redirecting to manual implicit OAuth URL for account linking');
+      
+      // Redirect immediately
+      window.location.href = oauthUrl.toString();
     } catch (err: any) {
       console.error('App: Failed to initiate OAuth:', err);
       localStorage.removeItem('thirteen_is_migrating');

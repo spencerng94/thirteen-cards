@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
-import { supabase } from '../src/lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../src/lib/supabase';
 import { BrandLogo } from './BrandLogo';
 
 interface AuthScreenProps {
@@ -88,57 +88,59 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         redirectTo 
       });
       
-      // Trigger Google OAuth with PKCE flow (Supabase standard)
-      // Note: signInWithOAuth may redirect immediately, which can cause the promise
-      // to be interrupted. We handle this gracefully.
+      // Use Supabase's signInWithOAuth method - this handles the OAuth flow properly
+      // and uses the correct Google OAuth client ID configured in Supabase dashboard
       const redirectUrl = `${window.location.origin}/auth/callback`;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.error('AuthScreen: Missing Supabase configuration');
+        setError('Authentication configuration error. Please check your environment variables.');
+        setLoading(false);
+        return;
+      }
+      
       console.log('AuthScreen: OAuth config:', {
         provider: 'google',
         redirectTo: redirectUrl,
-        flowType: 'pkce',
-        queryParams: { access_type: 'offline', prompt: 'consent' }
+        flowType: 'PKCE (Supabase standard)',
+        supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'missing',
+        hasAnonKey: !!supabaseAnonKey
       });
       
-      const oauthPromise = supabase.auth.signInWithOAuth({ 
+      // Use Supabase's OAuth method which properly handles the flow
+      const { data, error } = await supabase.auth.signInWithOAuth({ 
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
-          skipBrowserRedirect: false, // Ensure browser redirect happens
+          skipBrowserRedirect: false,
           queryParams: {
-            access_type: 'offline',
             prompt: 'consent'
           }
         }
       });
       
-      // Handle the promise - it might redirect before resolving (this is normal)
-      oauthPromise
-        .then(({ data, error }: { data: any; error: any }) => {
-          if (error) {
-            console.error('AuthScreen: OAuth error from Supabase:', error);
-            setError(error.message || 'OAuth sign-in failed');
-            setLoading(false);
-          } else {
-            console.log('AuthScreen: OAuth flow initiated successfully', { data });
-            // If we get here without redirect, the redirect should happen soon
-            // Don't reset loading as redirect is expected
-          }
-        })
-        .catch((oauthError: any) => {
-          // Only show error if it's not a redirect interruption
-          if (oauthError?.code !== 'AUTH_REDIRECT' && 
-              !oauthError?.message?.includes('redirect')) {
-            console.error('AuthScreen: OAuth promise rejected:', oauthError);
-            setError(oauthError?.message || 'Failed to initiate OAuth sign-in');
-            setLoading(false);
-          } else {
-            console.log('AuthScreen: OAuth redirect initiated (promise interrupted - this is normal)');
-          }
-        });
+      // Handle errors (if redirect doesn't happen immediately)
+      if (error) {
+        console.error('AuthScreen: OAuth error from Supabase:', error);
+        console.error('AuthScreen: Full error details:', JSON.stringify(error, null, 2));
+        
+        // Provide more specific error messages
+        let errorMessage = 'OAuth sign-in failed. ';
+        if (error.message?.includes('invalid_client') || error.message?.includes('OAuth client')) {
+          errorMessage += 'Google OAuth is not configured in Supabase. Please go to Supabase Dashboard → Authentication → Providers → Google and add your Google OAuth Client ID and Secret.';
+        } else {
+          errorMessage += error.message || 'Please check your Google OAuth configuration in Supabase dashboard.';
+        }
+        
+        setError(errorMessage);
+        setLoading(false);
+        return;
+      }
       
-      // For PKCE flow, Supabase will redirect the browser automatically
-      // The redirect typically happens immediately, so the promise may never resolve
-      // This is expected behavior - we don't await it to avoid blocking
+      // If we get here, the redirect should happen soon (though it usually happens immediately)
+      console.log('AuthScreen: OAuth flow initiated successfully', { data });
+      console.log('AuthScreen: Redirect should happen now...');
+      // Don't reset loading as redirect is expected
       
     } catch (err: any) {
       console.error('AuthScreen: OAuth error:', err);

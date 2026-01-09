@@ -731,7 +731,52 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
   const defaultProfile = await getDefaultProfile(userId, currentAvatar, cleanBaseUsername);
   // Save the new profile immediately for Google OAuth users
-  await supabase.from('profiles').upsert(defaultProfile);
+  console.log('🔵 fetchProfile: Attempting to upsert new user profile:', {
+    userId,
+    username: defaultProfile.username,
+    hasInventory: !!defaultProfile.inventory,
+    hasEventStats: !!defaultProfile.event_stats,
+    profileKeys: Object.keys(defaultProfile)
+  });
+  
+  const { data: upsertData, error: upsertError } = await supabase.from('profiles').upsert(defaultProfile, {
+    onConflict: 'id'
+  });
+  
+  if (upsertError) {
+    // Log detailed error information
+    console.error('❌❌❌ ERROR saving new user profile ❌❌❌');
+    console.error('==========================================');
+    console.error('Error Code:', upsertError.code || 'N/A');
+    console.error('Error Message:', upsertError.message || 'N/A');
+    console.error('Error Details:', upsertError.details || 'N/A');
+    console.error('Error Hint:', upsertError.hint || 'N/A');
+    console.error('Full Error Object:', upsertError);
+    console.error('User ID:', userId);
+    console.error('Profile Username:', defaultProfile.username);
+    console.error('Profile Keys:', Object.keys(defaultProfile));
+    console.error('Profile Data (first 500 chars):', JSON.stringify(defaultProfile, null, 2).substring(0, 500));
+    console.error('==========================================');
+    
+    // Provide more helpful error message
+    let errorMsg = `Database error saving new user: ${upsertError.message || 'Unknown error'}`;
+    if (upsertError.code === '42501') {
+      errorMsg += ' (Permission denied - RLS policy blocking insert. Run the fix_profile_rls_policies.sql migration!)';
+    } else if (upsertError.code === '23502') {
+      errorMsg += ' (Missing required column - check database schema)';
+    } else if (upsertError.code === '23505') {
+      errorMsg += ' (Unique constraint violation)';
+    } else if (upsertError.code) {
+      errorMsg += ` (Error code: ${upsertError.code})`;
+    }
+    
+    // Throw error so caller can handle it
+    const error = new Error(errorMsg);
+    (error as any).supabaseError = upsertError;
+    throw error;
+  }
+  
+  console.log('✅ Successfully saved new user profile');
   return defaultProfile;
 };
 
