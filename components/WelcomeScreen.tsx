@@ -26,6 +26,7 @@ interface WelcomeScreenProps {
   onRefreshProfile: () => void;
   onRetryProfileFetch?: () => void;
   profileFetchError?: { message: string; isNetworkError: boolean } | null;
+  isSyncingData?: boolean;
   onOpenHub: (tab: HubTab) => void;
   onOpenStore: (tab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => void;
   onOpenGemPacks: () => void;
@@ -331,7 +332,7 @@ const LuxuryButton: React.FC<{
 };
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
-  onStart, onSignOut, profile, onRefreshProfile, onRetryProfileFetch, profileFetchError, onOpenHub, onOpenStore, onOpenGemPacks, onOpenFriends,
+  onStart, onSignOut, profile, onRefreshProfile, onRetryProfileFetch, profileFetchError, isSyncingData = false, onOpenHub, onOpenStore, onOpenGemPacks, onOpenFriends,
   playerName, setPlayerName, playerAvatar, setPlayerAvatar,
   cardCoverStyle, setCardCoverStyle, aiDifficulty, setAiDifficulty,
   quickFinish, setQuickFinish, soundEnabled, setSoundEnabled,
@@ -524,6 +525,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   username={profile.username} 
                   className="[&>span]:text-base [&>span]:sm:text-lg [&>span]:font-bold [&>span]:drop-shadow-md" 
                 />
+              </div>
+            ) : isSyncingData ? (
+              // AbortError or syncing - show "Syncing data..." spinner
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span className="text-sm font-semibold text-white/70 truncate drop-shadow-md">
+                  Syncing data...
+                </span>
               </div>
             ) : profileFetchError ? (
               // Network error - show error with retry button

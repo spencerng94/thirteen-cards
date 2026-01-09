@@ -35,6 +35,7 @@ import { AccountMigrationSuccessModal } from './components/AccountMigrationSucce
 import { adService } from './services/adService';
 import { LoadingScreen } from './components/LoadingScreen';
 import { BillingProvider } from './components/BillingProvider';
+import { EULAAcceptanceModal } from './components/EULAAcceptanceModal';
 
 type ViewState = 'WELCOME' | 'LOBBY' | 'GAME_TABLE' | 'VICTORY' | 'TUTORIAL';
 type GameMode = 'SINGLE_PLAYER' | 'MULTI_PLAYER' | null;
@@ -194,6 +195,7 @@ const AppContent: React.FC = () => {
     migratedCoins: number;
     newGemBalance: number;
   } | null>(null);
+  const [showEULAModal, setShowEULAModal] = useState(false);
   
   const [mpGameState, setMpGameState] = useState<GameState | null>(null);
   const [mpMyHand, setMpMyHand] = useState<Card[]>([]);
@@ -216,7 +218,10 @@ const AppContent: React.FC = () => {
   const initialDataFetchedRef = useRef(false);
   // Data Lock: Prevent triple-fetch ghosting - if initial data is loaded, don't fetch again
   const isInitialDataLoaded = useRef(false);
+  // Fetch Lock: Prevent multiple fetches during initialization
+  const hasInitialLoadRun = useRef(false);
   const [profileFetchError, setProfileFetchError] = useState<{ message: string; isNetworkError: boolean } | null>(null);
+  const [isSyncingData, setIsSyncingData] = useState(false);
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -327,6 +332,7 @@ const AppContent: React.FC = () => {
 
   // Fix render loop: Wrap loadProfile in useCallback to prevent recreation on every render
   // MUST BE DEFINED BEFORE useEffect that uses it
+  // Network Hardening: No AbortController - this request must finish
   const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false, forceRetry: boolean = false) => {
     // Data Lock: If initial data is already loaded and this isn't a forced retry, skip
     if (isInitialDataLoaded.current && !forceRetry) {
@@ -338,6 +344,7 @@ const AppContent: React.FC = () => {
     loadingProfileInProgressRef.current = true;
     initialSyncCompleteRef.current = false;
     setProfileFetchError(null); // Clear any previous errors
+    setIsSyncingData(true); // Show syncing state
     
     const meta = session?.user?.user_metadata || {};
     // Use Google metadata: full_name, name, or display_name
@@ -349,11 +356,22 @@ const AppContent: React.FC = () => {
       
       // Success - clear any errors and mark as loaded
       setProfileFetchError(null);
+      setIsSyncingData(false);
       isInitialDataLoaded.current = true;
     } catch (error: any) {
+      // Check if it's an AbortError - show syncing state, don't show error
+      if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message === 'PROFILE_FETCH_ABORTED') {
+        console.warn('App: Profile fetch was aborted, showing syncing state...');
+        setIsSyncingData(true);
+        // Don't set error - keep showing "Syncing data..." spinner
+        loadingProfileInProgressRef.current = false;
+        return; // Will retry on next render
+      }
+      
       // Check if it's a network error (should show retry button)
       if ((error as any).isNetworkError) {
         console.error('App: Network error fetching profile:', error);
+        setIsSyncingData(false);
         setProfileFetchError({
           message: error.message || 'Network error fetching profile',
           isNetworkError: true
@@ -387,6 +405,7 @@ const AppContent: React.FC = () => {
         console.error('  ON profiles FOR INSERT');
         console.error('  WITH CHECK (auth.uid() = id);');
         // Set error but don't throw - let user see the error
+        setIsSyncingData(false);
         setProfileFetchError({
           message: error.message,
           isNetworkError: false
@@ -395,6 +414,7 @@ const AppContent: React.FC = () => {
         return;
       } else {
         // For other errors, set error state
+        setIsSyncingData(false);
         setProfileFetchError({
           message: error.message || 'Unknown error fetching profile',
           isNetworkError: false
@@ -434,6 +454,7 @@ const AppContent: React.FC = () => {
           total_cards_left_sum: 0,
           current_streak: 0,
           longest_streak: 0,
+          eula_accepted: false, // New users must accept EULA before playing
           inventory: { items: { XP_2X_10M: 1, GOLD_2X_10M: 1 }, active_boosters: {} },
           event_stats: {
             daily_games_played: 0,
@@ -527,12 +548,19 @@ const AppContent: React.FC = () => {
       // State Sync: Ensure profile is set so hasProfile becomes true
       setProfile(data);
       isInitialDataLoaded.current = true; // Mark as loaded
+      
+      // EULA Check: Show EULA modal if user hasn't accepted it yet
+      // Only check for authenticated users (not guests)
+      if (!isGuest && session?.user?.id && (data.eula_accepted === false || data.eula_accepted === undefined)) {
+        console.log('App: User has not accepted EULA, showing modal');
+        setShowEULAModal(true);
+      }
     }
     setTimeout(() => { 
       initialSyncCompleteRef.current = true;
       loadingProfileInProgressRef.current = false;
     }, 800);
-  }, [session, playerAvatar, playerName]); // Only recreate if these dependencies change
+  }, [session, playerAvatar, playerName, isGuest]); // Only recreate if these dependencies change
 
   useEffect(() => {
     if (isGuest && !session) {
@@ -677,7 +705,7 @@ const AppContent: React.FC = () => {
   const handleOpenGemPacks = () => setGemPacksOpen(true);
   const handleOpenFriends = () => setFriendsOpen(true);
 
-  const handleRefreshProfile = () => {
+  const handleRefreshProfile = useCallback(() => {
     if (session?.user) {
       // Force retry by passing forceRetry=true and resetting the data lock
       isInitialDataLoaded.current = false;
@@ -686,16 +714,30 @@ const AppContent: React.FC = () => {
       const data = fetchGuestProfile();
       setProfile(data);
     }
-  };
+  }, [session?.user?.id, loadProfile]);
   
-  const handleRetryProfileFetch = () => {
+  const handleRetryProfileFetch = useCallback(() => {
     if (session?.user) {
-      // Force retry by resetting the data lock
+      // Force retry by resetting both locks
       isInitialDataLoaded.current = false;
+      hasInitialLoadRun.current = false;
       setProfileFetchError(null);
+      setIsSyncingData(false);
       loadProfile(session.user.id, false, true);
     }
-  };
+  }, [session?.user?.id, loadProfile]);
+  
+  // App State Stability: Memoize onGemsUpdate to prevent BillingProvider remount
+  const handleGemsUpdate = useCallback((newGems: number) => {
+    // Update local profile state when gems are updated
+    if (profile) {
+      setProfile({ ...profile, gems: newGems });
+    }
+    // Also trigger full profile refresh to ensure everything is in sync
+    if (session?.user?.id) {
+      handleRefreshProfile();
+    }
+  }, [profile, session?.user?.id, handleRefreshProfile]);
 
   useEffect(() => { audioService.setEnabled(soundEnabled); }, [soundEnabled]);
 
@@ -911,7 +953,7 @@ const AppContent: React.FC = () => {
   const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); setGameMode(null); setView('WELCOME'); setMpGameState(null); setSpGameState(null); localStorage.removeItem(SESSION_KEY); setGameSettingsOpen(false); };
 
   // Determine if any modal is open
-  const isModalOpen = hubState.open || gameSettingsOpen || storeOpen || gemPacksOpen || inventoryOpen || friendsOpen || migrationSuccessData?.show || showWelcomeToast || migrationToast.show;
+  const isModalOpen = hubState.open || gameSettingsOpen || storeOpen || gemPacksOpen || inventoryOpen || friendsOpen || migrationSuccessData?.show || showWelcomeToast || migrationToast.show || showEULAModal;
 
   // Handle native Android hardware back button
   useNativeHardware({
@@ -994,9 +1036,15 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
-  // Data Lock: Only fetch if initial data hasn't been loaded yet
+  // Fetch Lock: Only run once during initialization
   useEffect(() => {
     if (session?.user?.id && session.user.id !== 'pending' && !profile && !isGuest && !!session) {
+      // Fetch Lock: If initial load has already run, don't fetch again
+      if (hasInitialLoadRun.current) {
+        console.log('App: Initial load already run, skipping fetch');
+        return;
+      }
+      
       // Data Lock: If initial data is already loaded, don't fetch again
       if (isInitialDataLoaded.current) {
         console.log('App: Initial data already loaded, skipping fetch');
@@ -1006,7 +1054,8 @@ const AppContent: React.FC = () => {
       console.log('App: Valid session found but no profile, loading profile...');
       const userId = session.user.id;
       
-      // Mark as fetched to prevent duplicate fetches
+      // Mark as run immediately to prevent duplicate fetches
+      hasInitialLoadRun.current = true;
       initialDataFetchedRef.current = true;
       
       // Try/catch around profile fetch to prevent silent crashes
@@ -1020,18 +1069,30 @@ const AppContent: React.FC = () => {
               console.log('App: Profile not found (404), creating new profile...');
               loadProfile(userId, true).catch(err => {
                 console.error('App: Failed to create profile after 404:', err);
+                // Reset fetch lock on error so it can retry
+                if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
+                  hasInitialLoadRun.current = false;
+                }
               });
             } else {
               // Network or other error - loadProfile will handle it and show retry button
               console.log('App: Profile query error (not 404), attempting to load profile...');
               loadProfile(userId, false).catch(err => {
                 console.error('App: Failed to load profile after query error:', err);
+                // Reset fetch lock on error so it can retry
+                if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
+                  hasInitialLoadRun.current = false;
+                }
               });
             }
           } else {
             // Profile exists or doesn't exist - loadProfile will handle both cases
             loadProfile(userId, !existingProfile).catch(err => {
               console.error('App: Failed to load profile:', err);
+              // Reset fetch lock on error so it can retry
+              if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
+                hasInitialLoadRun.current = false;
+              }
             });
           }
         })
@@ -1040,6 +1101,10 @@ const AppContent: React.FC = () => {
           // Try to load profile anyway - it will handle the error
           loadProfile(userId, false).catch(loadErr => {
             console.error('App: Failed to load profile after exception:', loadErr);
+            // Reset fetch lock on error so it can retry
+            if (loadErr?.name !== 'AbortError' && !loadErr?.message?.includes('aborted')) {
+              hasInitialLoadRun.current = false;
+            }
           });
         });
     }
@@ -1163,16 +1228,7 @@ const AppContent: React.FC = () => {
     <BillingProvider 
       session={session}
       profile={profile}
-      onGemsUpdate={(newGems) => {
-        // Update local profile state when gems are updated
-        if (profile) {
-          setProfile({ ...profile, gems: newGems });
-        }
-        // Also trigger full profile refresh to ensure everything is in sync
-        if (session?.user?.id) {
-          handleRefreshProfile();
-        }
-      }}
+      onGemsUpdate={handleGemsUpdate}
     >
     <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
       {isTransitioning && <GameEndTransition />}
@@ -1181,6 +1237,7 @@ const AppContent: React.FC = () => {
           onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={handleRefreshProfile}
           onRetryProfileFetch={handleRetryProfileFetch}
           profileFetchError={profileFetchError}
+          isSyncingData={isSyncingData}
           onOpenHub={(tab) => {
             if (tab === 'INVENTORY') setInventoryOpen(true);
             else setHubState({ open: true, tab });
@@ -1261,6 +1318,17 @@ const AppContent: React.FC = () => {
             setMigrationSuccessData(null);
             // Refresh profile after closing modal
             if (profile?.id) {
+              handleRefreshProfile();
+            }
+          }}
+        />
+      )}
+      {showEULAModal && (
+        <EULAAcceptanceModal
+          onAccept={() => {
+            setShowEULAModal(false);
+            // Refresh profile to get updated eula_accepted status
+            if (profile?.id && session?.user?.id) {
               handleRefreshProfile();
             }
           }}

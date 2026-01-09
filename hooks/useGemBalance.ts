@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabase';
 
 /**
@@ -10,8 +10,12 @@ export const useGemBalance = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  
+  // Fetch Lock: Prevent multiple fetches during initialization
+  const hasInitialLoadRun = useRef(false);
 
   // Fetch initial gem count
+  // Network Hardening: No AbortController - this request must finish
   const fetchGemCount = useCallback(async (currentUserId: string) => {
     try {
       setIsLoading(true);
@@ -34,6 +38,12 @@ export const useGemBalance = () => {
         setGemCount(0);
       }
     } catch (err: any) {
+      // Don't treat AbortError as a fatal error - just log it
+      if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+        console.warn('Gem balance fetch was aborted, but will retry on next render');
+        // Don't set error state for AbortError - let it retry
+        return;
+      }
       console.error('Failed to fetch gem count:', err);
       setError(err.message || 'Failed to fetch gem count');
       setGemCount(null);
@@ -44,10 +54,19 @@ export const useGemBalance = () => {
 
   // Get current user and set up subscription
   useEffect(() => {
+    // Fetch Lock: Only run once during initialization
+    if (hasInitialLoadRun.current) {
+      console.log('useGemBalance: Initial load already run, skipping...');
+      return;
+    }
+    
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const setupSubscription = async () => {
       try {
+        // Mark as run immediately to prevent duplicate fetches
+        hasInitialLoadRun.current = true;
+        
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
 
@@ -65,7 +84,7 @@ export const useGemBalance = () => {
 
         setUserId(user.id);
 
-        // Fetch initial gem count
+        // Fetch initial gem count - no AbortController, must finish
         await fetchGemCount(user.id);
 
         // Set up realtime subscription for the profiles table

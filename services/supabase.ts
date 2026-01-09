@@ -487,6 +487,7 @@ const getDefaultProfile = async (id: string, avatar: string = ':cool:', baseUser
     avatar_url: avatar, sfx_enabled: true, turbo_enabled: true, sleeve_effects_enabled: true,
     play_animations_enabled: true, turn_timer_setting: 0, undo_count: 0, finish_dist: [0, 0, 0, 0],
     total_chops: 0, total_cards_left_sum: 0, current_streak: 0, longest_streak: 0,
+    eula_accepted: false, // New users must accept EULA before playing
     inventory: { items: { XP_2X_10M: 1, GOLD_2X_10M: 1 }, active_boosters: {} },
     event_stats: {
       daily_games_played: 0, daily_wins: 0, weekly_games_played: 0, weekly_wins: 0,
@@ -1961,56 +1962,38 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
     return [];
   }
   
-  // Retry Logic for Aborts: Retry if AbortError is detected
-  // Ignore AbortError in Retries: Create new query without AbortController signal for retries
-  const fetchWithRetry = async (attempt = 1): Promise<Finisher[]> => {
-    try {
-      console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey, attempt });
-      // Decouple Startup Fetches: Do not use AbortController signal for startup requests
-      // These are critical startup requests that should be allowed to finish even if component re-renders
-      const { data, error } = await supabase
-        .from('finishers')
-        .select('*')
-        .order('price', { ascending: true });
-      
-      if (error) {
-        // Check if it's an AbortError and retry
-        if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
-          console.warn(`fetchFinishers: AbortError on attempt ${attempt}, retrying without AbortController...`);
-          await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
-          return fetchWithRetry(attempt + 1);
-        }
-        console.error('❌ Error fetching finishers:', error);
-        console.error('Error details:', { 
-          message: error.message, 
-          code: error.code, 
-          details: error.details,
-          hint: error.hint 
-        });
-        return [];
-      }
+  // Network Hardening: No AbortController for startup requests
+  // These requests must finish no matter what - component re-renders should not cancel them
+  try {
+    console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey });
+    const { data, error } = await supabase
+      .from('finishers')
+      .select('*')
+      .order('price', { ascending: true });
     
-      if (!data || data.length === 0) {
-        console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
-        return [];
-      }
-      
-      console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
-      return (data || []) as Finisher[];
-    } catch (e: any) {
-      // Check if it's an AbortError and retry
-      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
-        console.warn(`fetchFinishers: AbortError exception on attempt ${attempt}, retrying without AbortController...`);
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
-        return fetchWithRetry(attempt + 1);
-      }
-      console.error('❌ Exception fetching finishers:', e);
-      console.error('Exception details:', { message: e?.message, stack: e?.stack });
+    if (error) {
+      console.error('❌ Error fetching finishers:', error);
+      console.error('Error details:', { 
+        message: error.message, 
+        code: error.code, 
+        details: error.details,
+        hint: error.hint 
+      });
       return [];
     }
-  };
   
-  return fetchWithRetry();
+    if (!data || data.length === 0) {
+      console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
+      return [];
+    }
+    
+    console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
+    return (data || []) as Finisher[];
+  } catch (e: any) {
+    console.error('❌ Exception fetching finishers:', e);
+    console.error('Exception details:', { message: e?.message, stack: e?.stack });
+    return [];
+  }
 };
 
 export const buyFinisher = async (userId: string, finisherId: string): Promise<boolean> => {
