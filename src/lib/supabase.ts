@@ -80,13 +80,23 @@ if (isDevelopment && typeof window !== 'undefined' && (window as any).__SUPABASE
 export const supabase = supabaseClient;
 
 // Strict Mode Guard: Attach to window in development to ensure singleton across remounts
-if (typeof window !== 'undefined' && isDevelopment && supabaseUrl && supabaseAnonKey) {
-  if (!(window as any).__SUPABASE_CLIENT__) {
-    (window as any).__SUPABASE_CLIENT__ = supabase;
-    console.log('✅ Singleton Supabase client initialized and attached to window (Strict Mode guard)');
+// Also expose supabaseUrl for manual token storage fallback
+if (typeof window !== 'undefined') {
+  if (isDevelopment && supabaseUrl && supabaseAnonKey) {
+    if (!(window as any).__SUPABASE_CLIENT__) {
+      (window as any).__SUPABASE_CLIENT__ = supabase;
+      console.log('✅ Singleton Supabase client initialized and attached to window (Strict Mode guard)');
+    }
   }
   
-  console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
+  // Expose supabaseUrl for manual token storage (Atomic Auth fallback)
+  if (supabaseUrl) {
+    (window as any).__SUPABASE_URL__ = supabaseUrl;
+  }
+  
+  if (supabaseUrl && supabaseAnonKey) {
+    console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
+  }
 } else if (supabaseUrl && supabaseAnonKey) {
   console.log('✅ Singleton Supabase client initialized');
   console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
