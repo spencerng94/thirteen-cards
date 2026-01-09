@@ -6,9 +6,23 @@
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist (to avoid conflicts)
+-- Use IF EXISTS to avoid errors if policies don't exist
 DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
 DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
 DROP POLICY IF EXISTS "Users can view their own profile" ON profiles;
+
+-- IMPORTANT: Create SELECT policy FIRST (most critical for existing users)
+-- This allows users to read their own profile
+CREATE POLICY "Users can view their own profile"
+ON profiles FOR SELECT
+USING (auth.uid() = id);
+
+-- Create policy to allow users to update their own profile
+-- This is needed for profile updates
+CREATE POLICY "Users can update their own profile"
+ON profiles FOR UPDATE
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
 
 -- Create policy to allow users to insert their own profile
 -- This is critical for OAuth signups where the profile is created after authentication
@@ -16,17 +30,6 @@ DROP POLICY IF EXISTS "Users can view their own profile" ON profiles;
 CREATE POLICY "Users can insert their own profile"
 ON profiles FOR INSERT
 WITH CHECK (auth.uid() = id);
-
--- Create policy to allow users to update their own profile
-CREATE POLICY "Users can update their own profile"
-ON profiles FOR UPDATE
-USING (auth.uid() = id)
-WITH CHECK (auth.uid() = id);
-
--- Create policy to allow users to view their own profile
-CREATE POLICY "Users can view their own profile"
-ON profiles FOR SELECT
-USING (auth.uid() = id);
 
 -- Grant necessary permissions to authenticated users
 GRANT ALL ON profiles TO authenticated;

@@ -675,8 +675,31 @@ export const migrateGuestData = async (
 
 export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:', baseUsername?: string): Promise<UserProfile | null> => {
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
+  
+  // Try to fetch existing profile
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-  if (error) return null;
+  
+  if (error) {
+    console.error('❌ fetchProfile: Error fetching existing profile:', {
+      userId,
+      errorCode: error.code,
+      errorMessage: error.message,
+      errorDetails: error.details,
+      errorHint: error.hint
+    });
+    
+    // If it's a permission error (RLS blocking), log it but don't try to create a new profile
+    if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+      console.error('🔴 fetchProfile: RLS policy blocking SELECT for existing user!');
+      console.error('This means the RLS policy "Users can view their own profile" is not working correctly.');
+      console.error('The user should be able to SELECT their own profile. Check RLS policies in Supabase.');
+      // Return null so the caller can handle it, but don't try to create a new profile
+      return null;
+    }
+    
+    // For other errors, return null (will try to create profile below)
+    return null;
+  }
   if (data) {
     const profile = { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
     // Normalize level for legacy users: ensure level matches calculated level based on XP
@@ -726,6 +749,36 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     
     return profile;
   }
+  // No profile found - this could be a new user OR an existing user where SELECT was blocked
+  // For existing users, if SELECT fails due to RLS, we shouldn't try to create a new profile
+  // Check if this might be an existing user by trying SELECT one more time
+  console.log('🔵 fetchProfile: No profile found in initial SELECT, retrying...');
+  
+  // Retry SELECT in case it was a transient error
+  const { data: retryData, error: retryError } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
+  
+  if (retryError) {
+    // SELECT is still failing - this is likely an RLS issue for existing users
+    if (retryError.code === '42501' || retryError.message?.includes('permission') || retryError.message?.includes('policy')) {
+      console.error('🔴 fetchProfile: RLS policy blocking SELECT for user:', userId);
+      console.error('This user likely has an existing profile but cannot access it due to RLS policies.');
+      console.error('SOLUTION: Verify RLS policy "Users can view their own profile" is correctly configured.');
+      // Don't try to create a new profile - return null and let caller handle it
+      return null;
+    }
+  }
+  
+  if (retryData) {
+    // Profile exists but full SELECT failed - this is an RLS issue
+    console.warn('⚠️ fetchProfile: Profile exists (id check passed) but full SELECT failed');
+    console.warn('This indicates an RLS policy issue. The user should be able to SELECT their own profile.');
+    // Return null - the profile exists but we can't access it due to RLS
+    return null;
+  }
+  
+  // No profile found after retry - this is a new user, create profile
+  console.log('🔵 fetchProfile: Confirmed new user, creating profile...');
+  
   // New user - generate username with discriminator from Google metadata
   // baseUsername should come from Google OAuth metadata (full_name, name, or display_name)
   const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
