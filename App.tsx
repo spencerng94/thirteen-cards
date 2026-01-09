@@ -977,29 +977,8 @@ const AppContent: React.FC = () => {
     }
   }, [session, profile, isGuest, loadProfile]);
   
-  // Ready Protocol: Strict initialization check to prevent race conditions
-  // Step A: While the provider is still figuring out who the user is, stay on the loading screen
-  if (!isInitialized) {
-    console.log('App: SessionProvider not initialized yet, showing loading screen');
-    return (
-      <div className="relative">
-        <LoadingScreen
-          status="Verifying session..."
-          showGuestButton={false}
-          onEnterGuest={handlePlayAsGuest}
-        />
-      </div>
-    );
-  }
-  
-  // Step B: Now that we are CERTAIN initialization is done, check for the session (source of truth)
-  // App.tsx Logic Change: Trust the Session, not the User ID
-  // If hasSession is true, we MUST show the game, even if the ID extraction is lagging
-  const hasSession = !!session;
-  const hasSessionUser = !!session?.user;
-  const hasValidSession = hasSession && hasSessionUser; // Trust session object, not just user ID
-  
   // Profile Fetch Fallback: If user ID is missing but session exists, attempt to repair
+  // MUST be called before any conditional returns (Rules of Hooks)
   const repairAttemptedRef = useRef(false);
   const sessionUserIdRef = useRef<string | undefined>(session?.user?.id);
   
@@ -1037,6 +1016,28 @@ const AppContent: React.FC = () => {
       }
     }
   }, [session?.user?.id]); // Only watch user ID, not computed values
+  
+  // Ready Protocol: Strict initialization check to prevent race conditions
+  // Step A: While the provider is still figuring out who the user is, stay on the loading screen
+  if (!isInitialized) {
+    console.log('App: SessionProvider not initialized yet, showing loading screen');
+    return (
+      <div className="relative">
+        <LoadingScreen
+          status="Verifying session..."
+          showGuestButton={false}
+          onEnterGuest={handlePlayAsGuest}
+        />
+      </div>
+    );
+  }
+  
+  // Step B: Now that we are CERTAIN initialization is done, check for the session (source of truth)
+  // App.tsx Logic Change: Trust the Session, not the User ID
+  // If hasSession is true, we MUST show the game, even if the ID extraction is lagging
+  const hasSession = !!session;
+  const hasSessionUser = !!session?.user;
+  const hasValidSession = hasSession && hasSessionUser; // Trust session object, not just user ID
   
   if (hasValidSession) {
     console.log('App: ✅ Initialization complete, session confirmed, rendering game', {
