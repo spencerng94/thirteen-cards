@@ -144,7 +144,7 @@ const AppContent: React.FC = () => {
   console.log('App: Step 7 - Environment variables check passed');
   
   // Use SessionProvider for auth state - Rely 100% on Provider
-  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, forceSession } = useSession();
+  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, isInitialized, forceSession } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   
@@ -973,61 +973,35 @@ const AppContent: React.FC = () => {
     }
   }, [session, profile, isGuest, loadProfile]);
   
-  // State Locking: Rely 100% on SessionProvider - Stop App.tsx from making its own decisions
-  // Prevent the 'Flicker' Toggle: Wait for provider to confirm it's finished recovery
-  
-  // Step 1: If provider is still loading or processing, show loading spinner
-  if (sessionLoading || isProcessingAuth) {
-    console.log('App: SessionProvider still loading/processing, showing loading screen', {
-      sessionLoading,
-      isProcessingAuth
-    });
-    
-    // Check if we just came back from auth/callback (browser might be blocking cookies)
-    const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
-    
+  // Ready Protocol: Strict initialization check to prevent race conditions
+  // Step A: While the provider is still figuring out who the user is, stay on the loading screen
+  if (!isInitialized) {
+    console.log('App: SessionProvider not initialized yet, showing loading screen');
     return (
       <div className="relative">
         <LoadingScreen
-          status={isProcessingAuth ? "Completing sign-in..." : "Checking credentials..."}
+          status="Verifying session..."
           showGuestButton={false}
           onEnterGuest={handlePlayAsGuest}
         />
-        {cameFromAuthCallback && (
-          <div className="absolute inset-0 flex items-center justify-center z-20">
-            <div className="flex flex-col items-center gap-4 mt-32">
-              <button
-                onClick={forceSession}
-                className="px-6 py-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm transition-colors shadow-lg"
-              >
-                Complete Sign In
-              </button>
-              <p className="text-amber-300/70 text-xs text-center max-w-xs">
-                If sign-in seems stuck, click to manually complete the process
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
   
-  // Step 2: Provider has finished - check what it says
-  // If SessionProvider says we have a user, show game. If not, show login.
+  // Step B: Now that we are CERTAIN initialization is done, check for the user
   const hasUser = user && user.id && user.id !== 'pending';
   const hasSessionFromProvider = session && session.user && session.user.id && session.user.id !== 'pending';
   
-  // Rely 100% on Provider: If SessionProvider says we have a session, show game
   if (hasUser || hasSessionFromProvider) {
-    console.log('App: ✅ SessionProvider confirms authenticated user, rendering game', {
+    console.log('App: ✅ Initialization complete, user confirmed, rendering game', {
       hasUser: !!hasUser,
       hasSessionFromProvider: !!hasSessionFromProvider,
       userId: user?.id || session?.user?.id
     });
     // Continue to render main game app below
   } else if (!isGuest) {
-    // No user from provider and not guest - show login
-    console.log('App: No user from SessionProvider - showing landing/sign-in screen');
+    // Step C: Only if initialization is done AND there is no user, show Landing
+    console.log('App: Initialization complete, no user found - showing landing/sign-in screen');
     
     // Check if we just came back from auth/callback (browser might be blocking cookies)
     const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');

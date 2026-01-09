@@ -6,6 +6,7 @@ interface SessionContextType {
   user: any;
   loading: boolean;
   isProcessing: boolean; // Expose Atomic Auth processing state
+  isInitialized: boolean; // Ready protocol: true when all recovery attempts are complete
   forceSession: () => Promise<void>;
 }
 
@@ -14,6 +15,7 @@ const SessionContext = createContext<SessionContextType>({
   user: null,
   loading: true,
   isProcessing: false,
+  isInitialized: false,
   forceSession: async () => {},
 });
 
@@ -137,6 +139,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const isProcessingRef = useRef(false);
   // Expose processing state for UI (reactive)
   const [isProcessing, setIsProcessing] = useState(false);
+  // Ready protocol: Track when all recovery attempts are complete
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     // Guard: Only set up listener once
@@ -146,6 +150,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     
     listenerSetupRef.current = true;
     console.log('SessionProvider: Setting up auth state change listener...');
+    
+    // Ready Protocol: Wrap entire initialization in try/finally to ensure isInitialized is set
+    const initializeAuth = async () => {
+      try {
     
     // Check for tokens in URL hash (Implicit flow) or query params (PKCE flow)
     // This handles cases where user lands on home page with tokens in hash or code in query
@@ -451,44 +459,44 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
     
-    // Check hash immediately (but only if not already processing)
-    if (!isProcessingRef.current) {
-      checkHashForTokens();
-    }
+        // Check hash immediately (but only if not already processing)
+        if (!isProcessingRef.current) {
+          await checkHashForTokens();
+        }
 
-    // Set up onAuthStateChange listener with retry logic
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, currentSession: any) => {
-        console.log('SessionProvider: Auth event received:', event, currentSession ? `User: ${currentSession.user?.id}` : 'No session');
-        
-        // CRUCIAL: If SIGNED_IN or TOKEN_REFRESHED, set has_active_session flag
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          if (currentSession?.user) {
-            console.log('SessionProvider: ✅ Setting has_active_session flag in localStorage');
-            localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+        // Set up onAuthStateChange listener with retry logic
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event: string, currentSession: any) => {
+            console.log('SessionProvider: Auth event received:', event, currentSession ? `User: ${currentSession.user?.id}` : 'No session');
+            
+            // CRUCIAL: If SIGNED_IN or TOKEN_REFRESHED, set has_active_session flag
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+              if (currentSession?.user) {
+                console.log('SessionProvider: ✅ Setting has_active_session flag in localStorage');
+                localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+              }
+            }
+            
+            // CRUCIAL: If SIGNED_OUT, clear the flag
+            if (event === 'SIGNED_OUT') {
+              console.log('SessionProvider: 🧹 Clearing has_active_session flag');
+              localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
+            }
+            
+            // Update session and user state
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
+            
+            // Set loading to false once we have a definitive answer
+            if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+              setLoading(false);
+              isProcessingRef.current = false; // Release lock
+            }
           }
-        }
+        );
         
-        // CRUCIAL: If SIGNED_OUT, clear the flag
-        if (event === 'SIGNED_OUT') {
-          console.log('SessionProvider: 🧹 Clearing has_active_session flag');
-          localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
-        }
-        
-        // Update session and user state
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        
-        // Set loading to false once we have a definitive answer
-        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-          setLoading(false);
-          isProcessingRef.current = false; // Release lock
-        }
-      }
-    );
-    
-    subscriptionRef.current = subscription;
-    console.log('SessionProvider: ✅ Auth listener set up successfully');
+        subscriptionRef.current = subscription;
+        console.log('SessionProvider: ✅ Auth listener set up successfully');
 
     // Initial session check with AbortError bypass
     const checkInitialSession = async () => {
@@ -551,6 +559,25 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setUser(data.session.user);
           localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
           isProcessingRef.current = false; // Release lock
+          
+          // Sync Profile Fetch: Check if profile exists before marking as initialized
+          // This ensures we don't set isInitialized(true) until profile check completes or fails
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', data.session.user.id)
+              .maybeSingle();
+            
+            if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = not found, which is OK
+              console.warn('SessionProvider: Profile check error (non-fatal):', profileError);
+            } else {
+              console.log('SessionProvider: Profile check complete:', profileData ? 'Profile exists' : 'Profile not found (will be created)');
+            }
+          } catch (profileCheckErr) {
+            console.warn('SessionProvider: Profile check exception (non-fatal):', profileCheckErr);
+            // Don't block initialization if profile check fails
+          }
         } else {
           console.log('SessionProvider: No initial session found');
           localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
@@ -604,8 +631,21 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
     
-    // Check initial session
-    checkInitialSession();
+        // Check initial session
+        await checkInitialSession();
+      } catch (err) {
+        console.error('SessionProvider: Error during initialization:', err);
+      } finally {
+        // Ready Protocol: Set isInitialized to true after ALL recovery attempts are complete
+        // This ensures App.tsx never sees a null user state while recovery is still in progress
+        console.log('SessionProvider: ✅ Initialization complete, setting isInitialized=true');
+        setIsInitialized(true);
+        setLoading(false);
+      }
+    };
+    
+    // Start initialization
+    initializeAuth();
 
     // Cleanup
     return () => {
@@ -681,7 +721,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <SessionContext.Provider value={{ session, user, loading, isProcessing, forceSession }}>
+    <SessionContext.Provider value={{ session, user, loading, isProcessing, isInitialized, forceSession }}>
       {children}
     </SessionContext.Provider>
   );
