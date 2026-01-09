@@ -5,15 +5,15 @@ import { LoadingScreen } from './LoadingScreen';
 /**
  * AuthCallback Component
  * 
- * Dedicated route for handling OAuth implicit flow tokens.
- * This runs outside the main App component lifecycle to prevent AbortError
- * from React re-renders or Strict Mode double-mounting.
+ * SIMPLIFIED: This component only shows a loading spinner.
+ * SessionProvider (the parent) handles all URL parsing and session management.
+ * This prevents two components from fighting over the same URL tokens.
  * 
- * Flow (Implicit):
+ * The SessionProvider's checkHashForTokens() function will:
  * 1. Extract access_token and refresh_token from URL hash
  * 2. Manually set session using supabase.auth.setSession()
  * 3. Clean hash from URL
- * 4. Redirect to home page (/) once complete
+ * 4. Update session state, which will cause this component to unmount
  * 
  * Supabase Redirect URL should be: https://your-domain.com/auth/callback
  */
@@ -22,267 +22,40 @@ export const AuthCallback: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleOAuthCallback = async () => {
-      console.log('🔵 AuthCallback: Component mounted, starting OAuth callback handler (Implicit flow)');
-      console.log('🔵 AuthCallback: Current URL:', window.location.href);
-      console.log('🔵 AuthCallback: Hash:', window.location.hash || 'missing');
-      console.log('🔵 AuthCallback: Search:', window.location.search || 'missing');
-      console.log('🔵 AuthCallback: Pathname:', window.location.pathname);
+    // Check for OAuth errors in URL (but don't process tokens - let SessionProvider do that)
+    const hash = window.location.hash.substring(1);
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(hash);
+    
+    const errorParam = hashParams.get('error') || searchParams.get('error');
+    const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
+    
+    if (errorParam) {
+      console.error('AuthCallback: OAuth error detected:', errorParam, errorDescription);
+      setError(errorDescription || errorParam || 'Authentication failed');
+      setStatus('Authentication failed');
       
-      try {
-        // Check both hash (implicit) and query params (PKCE)
-        const hash = window.location.hash.substring(1); // Remove #
-        const searchParams = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams(hash);
-        
-        // Try hash first (implicit flow)
-        let accessToken = hashParams.get('access_token');
-        let refreshToken = hashParams.get('refresh_token');
-        let errorParam = hashParams.get('error');
-        let errorDescription = hashParams.get('error_description');
-        let code = searchParams.get('code');
-        
-        // If no hash tokens, check query params (PKCE flow)
-        if (!accessToken && !code) {
-          console.log('🔵 AuthCallback: No tokens in hash, checking query params for PKCE code...');
-          code = searchParams.get('code');
-          errorParam = searchParams.get('error') || errorParam;
-          errorDescription = searchParams.get('error_description') || errorDescription;
-        }
-        
-        console.log('🔵 AuthCallback: Extracted params -', {
-          hasHash: !!hash,
-          hasAccessToken: !!accessToken,
-          hasCode: !!code,
-          error: errorParam || 'none'
-        });
-
-        // Check for OAuth errors
-        if (errorParam) {
-          console.error('═══════════════════════════════════════════════════════');
-          console.error('❌❌❌ AuthCallback: OAUTH ERROR RECEIVED ❌❌❌');
-          console.error('═══════════════════════════════════════════════════════');
-          console.error('Error Parameter:', errorParam);
-          console.error('Error Description:', errorDescription);
-          console.error('Full URL:', window.location.href);
-          console.error('Hash:', window.location.hash);
-          console.error('Search:', window.location.search);
-          console.error('═══════════════════════════════════════════════════════');
-          
-          // If it's a database error, provide helpful guidance
-          if (errorDescription?.includes('Database error saving new user') || errorParam === 'server_error') {
-            console.error('🔴 SERVER-SIDE DATABASE ERROR DURING OAUTH');
-            console.error('This error is coming from Supabase server, likely from:');
-            console.error('  1. A database trigger on auth.users that creates profiles');
-            console.error('  2. Missing RLS policies on profiles table');
-            console.error('  3. Missing required columns in profiles table');
-            console.error('');
-            console.error('SOLUTION: Run the SQL migration fix_profile_rls_policies.sql');
-            console.error('This will create the necessary RLS policies to allow profile creation.');
-          }
-          
-          setError(errorDescription || errorParam || 'Authentication failed');
-          setStatus('Authentication failed');
-          
-          // Clean hash and redirect to home after showing error briefly
-          window.history.replaceState(null, '', window.location.pathname);
-          setTimeout(() => {
-            window.location.href = window.location.origin;
-          }, 5000); // Increased timeout to give user time to read error
-          return;
-        }
-
-        // Handle PKCE flow (code exchange)
-        if (code && !accessToken) {
-          console.log('AuthCallback: PKCE code found, exchanging for session...');
-          setStatus('Exchanging authorization code...');
-          
-          const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          
-          if (exchangeError) {
-            console.error('AuthCallback: Error exchanging code for session:', exchangeError);
-            setError(exchangeError.message || 'Failed to complete sign-in');
-            setStatus('Sign-in failed');
-            
-            window.history.replaceState(null, '', window.location.pathname);
-            setTimeout(() => {
-              window.location.href = window.location.origin;
-            }, 3000);
-            return;
-          }
-          
-          if (!exchangeData?.session) {
-            console.error('AuthCallback: Exchange completed but no session received');
-            setError('No session received from authentication');
-            setStatus('Sign-in failed');
-            
-            window.history.replaceState(null, '', window.location.pathname);
-            setTimeout(() => {
-              window.location.href = window.location.origin;
-            }, 3000);
-            return;
-          }
-          
-          console.log('AuthCallback: PKCE exchange successful! Session obtained:', exchangeData.session.user.id);
-          setStatus('Sign-in successful! Saving session...');
-          
-          // Verify session is persisted before redirecting
-          // Wait a moment for Supabase to persist the session to localStorage
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Verify session is in storage
-          const { data: verifySession } = await supabase.auth.getSession();
-          if (!verifySession?.session) {
-            console.error('AuthCallback: Session not found after exchange, retrying...');
-            // Wait a bit more and try again
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            const { data: retrySession } = await supabase.auth.getSession();
-            if (!retrySession?.session) {
-              console.error('AuthCallback: Session still not found after retry');
-              setError('Session not persisted. Please try signing in again.');
-              setStatus('Sign-in failed');
-              return;
-            }
-          }
-          
-          console.log('AuthCallback: ✅ Session verified and persisted, redirecting...');
-          setStatus('Sign-in successful! Redirecting...');
-          
-          // Set flags
-          localStorage.setItem('has_active_session', 'true');
-          sessionStorage.setItem('thirteen_oauth_redirect', 'true');
-          
-          // Clean the code from URL
-          window.history.replaceState(null, '', window.location.pathname);
-          
-          // Redirect after a short delay
-          setTimeout(() => {
-            window.location.href = window.location.origin;
-          }, 500);
-          return;
-        }
-        
-        // Handle Implicit flow (hash tokens)
-        if (!accessToken && !code) {
-          console.error('AuthCallback: No access_token or code found');
-          setError('No authentication data received');
-          setStatus('Authentication failed');
-          
-          // Clean URL and redirect to home
-          window.history.replaceState(null, '', window.location.pathname);
-          setTimeout(() => {
-            window.location.href = window.location.origin;
-          }, 3000);
-          return;
-        }
-
-        if (accessToken) {
-          console.log('AuthCallback: Hash tokens found, setting session manually...');
-          setStatus('Setting session...');
-
-          // Manually set session using tokens from hash (Implicit flow)
-          // This bypasses the need for background cookies
-          const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || ''
-          });
-
-        if (setSessionError) {
-          console.error('AuthCallback: Error setting session:', setSessionError);
-          setError(setSessionError.message || 'Failed to set session');
-          setStatus('Sign-in failed');
-          
-          // Clean hash and redirect to home
-          window.history.replaceState(null, '', window.location.pathname);
-          setTimeout(() => {
-            window.location.href = window.location.origin;
-          }, 3000);
-          return;
-        }
-
-        if (!sessionData?.session) {
-          console.error('AuthCallback: Session set but no session data received');
-          setError('No session received from authentication');
-          setStatus('Sign-in failed');
-          
-          // Clean hash and redirect to home
-          window.history.replaceState(null, '', window.location.pathname);
-          setTimeout(() => {
-            window.location.href = window.location.origin;
-          }, 3000);
-          return;
-        }
-
-          if (!setSessionError && sessionData?.session) {
-            console.log('AuthCallback: Session set successfully! User:', sessionData.session.user.id);
-            setStatus('Sign-in successful! Saving session...');
-
-            // Verify session is persisted before redirecting
-            // Wait a moment for Supabase to persist the session to localStorage
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Verify session is in storage
-            const { data: verifySession } = await supabase.auth.getSession();
-            if (!verifySession?.session) {
-              console.error('AuthCallback: Session not found after setSession, retrying...');
-              // Wait a bit more and try again
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              const { data: retrySession } = await supabase.auth.getSession();
-              if (!retrySession?.session) {
-                console.error('AuthCallback: Session still not found after retry');
-                setError('Session not persisted. Please try signing in again.');
-                setStatus('Sign-in failed');
-                return;
-              }
-            }
-            
-            console.log('AuthCallback: ✅ Session verified and persisted, redirecting...');
-            setStatus('Sign-in successful! Redirecting...');
-
-            // Set flags
-            localStorage.setItem('has_active_session', 'true');
-            sessionStorage.setItem('thirteen_oauth_redirect', 'true');
-
-            // Clean the hash from URL
-            window.history.replaceState(null, '', window.location.pathname);
-
-            // Redirect after a short delay
-            setTimeout(() => {
-              window.location.href = window.location.origin;
-            }, 500);
-            return;
-          }
-          
-          if (setSessionError) {
-            console.error('AuthCallback: Error setting session from hash:', setSessionError);
-            setError(setSessionError.message || 'Failed to set session');
-            setStatus('Sign-in failed');
-            
-            window.history.replaceState(null, '', window.location.pathname);
-            setTimeout(() => {
-              window.location.href = window.location.origin;
-            }, 3000);
-            return;
-          }
-        }
-
-      } catch (err: any) {
-        console.error('AuthCallback: Exception during OAuth callback:', err);
-        setError(err.message || 'An unexpected error occurred');
-        setStatus('Sign-in failed');
-        
-        // Clean hash and redirect to home
-        window.history.replaceState(null, '', window.location.pathname);
-        setTimeout(() => {
-          window.location.href = window.location.origin;
-        }, 3000);
-      }
-    };
-
-    // Run the callback handler
-    handleOAuthCallback();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - this effect should only run once on mount
+      // Clean URL and redirect after showing error
+      window.history.replaceState(null, '', window.location.pathname);
+      setTimeout(() => {
+        window.location.href = window.location.origin;
+      }, 5000);
+      return;
+    }
+    
+    // If no error, just show loading - SessionProvider will handle the rest
+    console.log('AuthCallback: Showing loading spinner, SessionProvider will handle URL parsing');
+    setStatus('Completing sign-in...');
+    
+    // Set a timeout to show error if SessionProvider doesn't complete within 10 seconds
+    const timeout = setTimeout(() => {
+      console.warn('AuthCallback: Timeout waiting for SessionProvider to complete sign-in');
+      setError('Sign-in is taking longer than expected. Please try again.');
+      setStatus('Sign-in timeout');
+    }, 10000);
+    
+    return () => clearTimeout(timeout);
+  }, []);
 
   return (
     <div className="min-h-screen w-full bg-black flex flex-col items-center justify-center">

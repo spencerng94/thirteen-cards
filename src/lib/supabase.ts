@@ -21,16 +21,31 @@ export const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 // SINGLETON SUPABASE CLIENT: Created once, outside React component tree
 // This ensures the client is never re-initialized when the app re-renders
 // Prevents AbortErrors from component re-renders breaking the auth state
-export const supabase = (supabaseUrl && supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        flowType: 'implicit', // Use Implicit flow to bypass cookie blocking
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false // Disabled - we handle hash parsing manually
-      }
-    })
-  : (() => {
+
+// Strict Mode Guard: Check if client already exists on window (from previous mount)
+const isDevelopment = typeof window !== 'undefined' && (
+  process.env.NODE_ENV === 'development' || 
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE === 'development')
+);
+
+let supabaseClient: ReturnType<typeof createClient> | any;
+
+if (isDevelopment && typeof window !== 'undefined' && (window as any).__SUPABASE_CLIENT__) {
+  // Use existing client from window (Strict Mode remount)
+  console.log('✅ Reusing existing Supabase client from window (Strict Mode guard)');
+  supabaseClient = (window as any).__SUPABASE_CLIENT__;
+} else {
+  // Create new client
+  supabaseClient = (supabaseUrl && supabaseAnonKey)
+    ? createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          flowType: 'implicit', // Use Implicit flow to bypass cookie blocking
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: false // Disabled - we handle hash parsing manually
+        }
+      })
+    : (() => {
       // Mock client for development when keys are missing
       const mockPromise = Promise.resolve({ data: null, error: null });
       const mockChain = {
@@ -57,11 +72,22 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
           exchangeCodeForSession: async () => ({ data: { session: null }, error: null }),
         },
         from: () => mockChain,
-      } as any;
+      } as any);
     })();
+}
 
-// Log Supabase config to verify flow type
-if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey) {
+// Export the client
+export const supabase = supabaseClient;
+
+// Strict Mode Guard: Attach to window in development to ensure singleton across remounts
+if (typeof window !== 'undefined' && isDevelopment && supabaseUrl && supabaseAnonKey) {
+  if (!(window as any).__SUPABASE_CLIENT__) {
+    (window as any).__SUPABASE_CLIENT__ = supabase;
+    console.log('✅ Singleton Supabase client initialized and attached to window (Strict Mode guard)');
+  }
+  
+  console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
+} else if (supabaseUrl && supabaseAnonKey) {
   console.log('✅ Singleton Supabase client initialized');
   console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
 }

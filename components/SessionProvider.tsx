@@ -131,6 +131,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = useState(true);
   const listenerSetupRef = useRef(false);
   const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
+  // Auth Lock: Prevent double-execution of getSession/setSession
+  const isProcessingRef = useRef(false);
 
   useEffect(() => {
     // Guard: Only set up listener once
@@ -169,6 +171,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       
       if (accessToken) {
+        // Auth Lock: If already processing, skip
+        if (isProcessingRef.current) {
+          console.log('SessionProvider: Already processing auth, skipping hash token processing');
+          return;
+        }
+        
+        isProcessingRef.current = true; // Acquire lock
         console.log('SessionProvider: Found tokens in URL hash, setting session manually...');
         try {
           const { data: sessionData, error } = await supabase.auth.setSession({
@@ -182,24 +191,29 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             setUser(sessionData.session.user);
             localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
             setLoading(false);
+            isProcessingRef.current = false; // Release lock
             
             // Clean the hash from URL
             window.history.replaceState(null, '', window.location.pathname);
           } else if (error) {
             console.error('SessionProvider: Error setting session from hash:', error);
+            isProcessingRef.current = false; // Release lock on error
             // Clean hash even on error
             window.history.replaceState(null, '', window.location.pathname);
           }
         } catch (err) {
           console.error('SessionProvider: Exception setting session from hash:', err);
+          isProcessingRef.current = false; // Release lock on error
           // Clean hash even on error
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
     };
     
-    // Check hash immediately
-    checkHashForTokens();
+    // Check hash immediately (but only if not already processing)
+    if (!isProcessingRef.current) {
+      checkHashForTokens();
+    }
 
     // Set up onAuthStateChange listener with retry logic
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -227,6 +241,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Set loading to false once we have a definitive answer
         if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
           setLoading(false);
+          isProcessingRef.current = false; // Release lock
         }
       }
     );
@@ -236,6 +251,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Initial session check with AbortError bypass
     const checkInitialSession = async () => {
+      // Auth Lock: If already processing, return immediately
+      if (isProcessingRef.current) {
+        console.log('SessionProvider: Already processing auth, skipping getSession()');
+        return;
+      }
+      
+      isProcessingRef.current = true; // Acquire lock
+      
       try {
         const { data, error } = await supabase.auth.getSession();
         
@@ -286,9 +309,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setSession(data.session);
           setUser(data.session.user);
           localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+          isProcessingRef.current = false; // Release lock
         } else {
           console.log('SessionProvider: No initial session found');
           localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
+          isProcessingRef.current = false; // Release lock
         }
       } catch (error: any) {
         // BYPASS ABORT ERROR: If AbortError, ignore completely
@@ -332,6 +357,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return;
         }
         console.error('SessionProvider: Error checking initial session:', error);
+        isProcessingRef.current = false; // Release lock on error
       } finally {
         setLoading(false);
       }
@@ -352,6 +378,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Force session recovery function
   const forceSession = async () => {
+    // Auth Lock: If already processing, return immediately
+    if (isProcessingRef.current) {
+      console.log('SessionProvider: Already processing auth, skipping forceSession');
+      return;
+    }
+    
+    isProcessingRef.current = true; // Acquire lock
     console.log('SessionProvider: 🔄 Manual session recovery triggered');
     
     // First, try to read directly from localStorage (no network calls)
@@ -361,6 +394,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setSession(sessionData);
       setUser(sessionData.user);
       localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+      isProcessingRef.current = false; // Release lock
       // Small delay to ensure state is set, then reload
       setTimeout(() => {
         window.location.reload();
@@ -376,6 +410,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSession(data.session);
         setUser(data.session.user);
         localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+        isProcessingRef.current = false; // Release lock
         window.location.reload();
         return;
       }
@@ -390,6 +425,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setSession(retrySession);
           setUser(retrySession.user);
           localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+          isProcessingRef.current = false; // Release lock
           setTimeout(() => {
             window.location.reload();
           }, 100);
@@ -398,6 +434,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
     
+    isProcessingRef.current = false; // Release lock
     console.log('SessionProvider: ❌ Manual recovery failed, no session found in storage');
     // Don't redirect - let user try again or see the error message
   };
