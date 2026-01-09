@@ -231,6 +231,8 @@ const AppContent: React.FC = () => {
   const loadedUserIdRef = useRef<string | null>(null);
   // Ref Guard: Prevent multiple initialization fetches
   const isInitialFetchRef = useRef(false);
+  // Hard Lock: Prevent infinite re-render loops during initialization
+  const isInitializing = useRef(false);
   const [profileFetchError, setProfileFetchError] = useState<{ message: string; isNetworkError: boolean } | null>(null);
   const [isSyncingData, setIsSyncingData] = useState(false);
 
@@ -248,6 +250,8 @@ const AppContent: React.FC = () => {
           previous: previousSessionUserIdRef.current, 
           current: sessionUserId 
         });
+        // Reset all locks including hard lock
+        isInitializing.current = false;
         isInitialFetchRef.current = false;
         loadedUserIdRef.current = null;
         hasInitialLoadRun.current = false;
@@ -1150,123 +1154,41 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
-  // Ref Guard: Prevent multiple initialization fetches - only fetch once per session
+  // Hard Lock: Prevent infinite re-render loops - only fetch ONCE per session
   useEffect(() => {
-    // Use memoized sessionUserId instead of session?.user?.id
-    if (!sessionUserId || sessionUserId === 'pending' || profile || isGuest || !session) {
+    // HARD LOCK: The very first check - if already initializing or profile exists, return immediately
+    if (isInitializing.current || profile) {
       return;
     }
     
-    // Ref Guard: If initial fetch has already run, don't fetch again
-    if (isInitialFetchRef.current) {
-      console.log('App: Initial fetch already completed, skipping (Ref Guard)');
+    // Basic guards: session and user ID must be valid
+    if (!sessionUserId || sessionUserId === 'pending' || isGuest || !session) {
       return;
     }
     
-    // Circuit Breaker: If we've already loaded this user, don't fetch again
-    if (loadedUserIdRef.current === sessionUserId && isInitialDataLoaded.current) {
-      console.log('App: Profile already loaded for this user, skipping fetch');
-      return;
-    }
+    // HARD LOCK: Set the lock immediately to prevent any other renders from triggering this
+    isInitializing.current = true;
+    console.log('🔍 Fetching profile for UUID:', sessionUserId);
     
-    // Circuit Breaker: If a fetch is already in progress for this user, skip
-    if (fetchInProgress.current && loadedUserIdRef.current === sessionUserId) {
-      console.log('App: Profile fetch already in progress for this user, skipping duplicate call');
-      return;
-    }
-    
-    // Network Lock: If a fetch is already in progress, skip
-    if (isInitialLoading.current) {
-      console.log('App: Profile fetch already in progress, skipping duplicate call');
-      return;
-    }
-    
-    // Fetch Lock: If initial load has already run for this user, don't fetch again
-    if (hasInitialLoadRun.current && loadedUserIdRef.current === sessionUserId) {
-      console.log('App: Initial load already run for this user, skipping fetch');
-      return;
-    }
-    
-    console.log('App: Valid session found but no profile, loading profile...');
     const userId = sessionUserId;
     
-    // Mark as run immediately to prevent duplicate fetches
-    hasInitialLoadRun.current = true;
-    initialDataFetchedRef.current = true;
-    loadedUserIdRef.current = userId; // Track which user we're loading
-      
-      // Try/catch around profile fetch to prevent silent crashes
-      supabase.from('profiles').select('id').eq('id', userId).maybeSingle()
-        .then(({ data: existingProfile, error: profileError }) => {
-          if (profileError) {
-            // Check if it's a 404 (profile not found)
-            const isNotFound = profileError.code === 'PGRST116' || profileError.message?.includes('No rows found');
-            if (isNotFound) {
-              // 404 means new user - create profile
-              console.log('App: Profile not found (404), creating new profile...');
-              loadProfile(userId, true).catch(err => {
-                console.error('App: Failed to create profile after 404:', err);
-                // Set ref guard after fetch completes (success or failure)
-                isInitialFetchRef.current = true;
-                // Reset fetch lock on error so it can retry (except AbortError - silence it)
-                if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
-                  hasInitialLoadRun.current = false;
-                } else {
-                  // Silence AbortError - just log, don't trigger state updates
-                  console.warn('App: AbortError in profile creation (silenced)');
-                }
-              });
-            } else {
-              // Network or other error - loadProfile will handle it and show retry button
-              console.log('App: Profile query error (not 404), attempting to load profile...');
-              loadProfile(userId, false).catch(err => {
-                console.error('App: Failed to load profile after query error:', err);
-                // Set ref guard after fetch completes (success or failure)
-                isInitialFetchRef.current = true;
-                // Reset fetch lock on error so it can retry (except AbortError - silence it)
-                if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
-                  hasInitialLoadRun.current = false;
-                } else {
-                  // Silence AbortError - just log, don't trigger state updates
-                  console.warn('App: AbortError in profile load (silenced)');
-                }
-              });
-            }
-          } else {
-            // Profile exists or doesn't exist - loadProfile will handle both cases
-            loadProfile(userId, !existingProfile).catch(err => {
-              console.error('App: Failed to load profile:', err);
-              // Set ref guard after fetch completes (success or failure)
-              isInitialFetchRef.current = true;
-              // Reset fetch lock on error so it can retry (except AbortError - silence it)
-              if (err?.name !== 'AbortError' && !err?.message?.includes('aborted')) {
-                hasInitialLoadRun.current = false;
-              } else {
-                // Silence AbortError - just log, don't trigger state updates
-                console.warn('App: AbortError in profile load (silenced)');
-              }
-            });
-          }
-        })
-        .catch(err => {
-          console.error('App: Exception checking profile existence:', err);
-          // Set ref guard after fetch completes (success or failure)
-          isInitialFetchRef.current = true;
-          // Try to load profile anyway - it will handle the error
-          loadProfile(userId, false).catch(loadErr => {
-            console.error('App: Failed to load profile after exception:', loadErr);
-            // Reset fetch lock on error (except AbortError - silence it)
-            if (loadErr?.name !== 'AbortError' && !loadErr?.message?.includes('aborted')) {
-              hasInitialLoadRun.current = false;
-              isInitialLoading.current = false;
-              fetchInProgress.current = false;
-            } else {
-              // Silence AbortError - just log, don't trigger state updates
-              console.warn('App: AbortError in profile load after exception (silenced)');
-            }
-          });
-        });
-  }, [sessionUserId, isGuest, loadProfile, session]); // Removed 'profile' from deps - profile changes should NOT trigger re-fetch
+    // Directly call loadProfile - no intermediate checks, no AbortSignal
+    // The loadProfile function will handle all the logic
+    loadProfile(userId, false)
+      .then(() => {
+        // Success - profile loaded
+        console.log('✅ Profile loaded successfully for UUID:', userId);
+      })
+      .catch((err) => {
+        // Error handling - log but don't throw
+        console.error('❌ Failed to load profile for UUID:', userId, err);
+      })
+      .finally(() => {
+        // UNLOCK: Always release the hard lock in finally block
+        isInitializing.current = false;
+        isInitialFetchRef.current = true; // Mark as completed
+      });
+  }, [sessionUserId, isGuest, loadProfile, session, profile]); // Include profile to prevent re-fetch if it exists
   
   // Profile Fetch Fallback: If user ID is missing but session exists, attempt to repair
   // MUST be called before any conditional returns (Rules of Hooks)

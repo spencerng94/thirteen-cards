@@ -680,6 +680,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   
   // Validation: Log UUID for debugging
+  // Note: This should only log ONCE per session due to hard lock in App.tsx
   console.log(`🔍 Fetching profile for UUID: ${userId}`);
   
   // Network Hardening: No auto-retry on AbortError - wait for next state change
