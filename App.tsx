@@ -143,13 +143,10 @@ const AppContent: React.FC = () => {
   
   console.log('App: Step 7 - Environment variables check passed');
   
-  // Use SessionProvider for auth state
+  // Use SessionProvider for auth state - Rely 100% on Provider
   const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, forceSession } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  
-  // HARD LANDING LOGIC: Check has_active_session flag
-  const hasActiveSession = localStorage.getItem('has_active_session') === 'true';
   
   console.log('App: Step 8 - State initialized');
 
@@ -941,33 +938,51 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
+  // The 'existing account' check: Add try/catch around profile fetch
   useEffect(() => {
     if (session?.user?.id && session.user.id !== 'pending' && !profile && !isGuest && !!session) {
       console.log('App: Valid session found but no profile, loading profile...');
       const userId = session.user.id;
-      supabase.from('profiles').select('id').eq('id', userId).maybeSingle().then(({ data: existingProfile }) => {
-        loadProfile(userId, !existingProfile);
-      });
+      
+      // Try/catch around profile fetch to prevent silent crashes
+      supabase.from('profiles').select('id').eq('id', userId).maybeSingle()
+        .then(({ data: existingProfile, error: profileError }) => {
+          if (profileError) {
+            console.error('App: Error checking profile existence:', profileError);
+            // If profile query fails, assume new user and try to create profile
+            console.log('App: Profile query failed, attempting to create new profile...');
+            loadProfile(userId, true).catch(err => {
+              console.error('App: Failed to create profile after query error:', err);
+              // Don't crash - let user continue without profile
+            });
+          } else {
+            loadProfile(userId, !existingProfile).catch(err => {
+              console.error('App: Failed to load profile:', err);
+              // Don't crash - let user continue without profile
+            });
+          }
+        })
+        .catch(err => {
+          console.error('App: Exception checking profile existence:', err);
+          // Try to create profile anyway
+          loadProfile(userId, true).catch(loadErr => {
+            console.error('App: Failed to create profile after exception:', loadErr);
+            // Don't crash - let user continue without profile
+          });
+        });
     }
   }, [session, profile, isGuest, loadProfile]);
   
-  // Conditional Rendering: Simplified - SessionProvider handles all auth state
+  // State Locking: Rely 100% on SessionProvider - Stop App.tsx from making its own decisions
+  // Prevent the 'Flicker' Toggle: Wait for provider to confirm it's finished recovery
   
-  // SIMPLIFIED AUTH RENDERING: If listener says we have a user, show game. If not, show login.
-  // HARD LANDING: If has_active_session flag exists, bypass loading and show game immediately
-  if (hasActiveSession && !sessionLoading) {
-    console.log('App: 🚀 HARD LANDING - has_active_session flag found, bypassing loading checks');
-    // Still check if we have session from provider, but don't block rendering
-    if (session?.user) {
-      console.log('App: ✅ Session confirmed from provider, rendering game');
-    } else {
-      console.log('App: ⚠️ has_active_session flag but no session yet - rendering anyway, game will handle null user');
-    }
-  }
-  
-  // User Guard: Don't resolve to 'Logged Out' until Atomic Auth check is complete
-  // Show loading screen while SessionProvider is initializing OR Atomic Auth is processing
-  if ((sessionLoading || isProcessingAuth) && !hasActiveSession) {
+  // Step 1: If provider is still loading or processing, show loading spinner
+  if (sessionLoading || isProcessingAuth) {
+    console.log('App: SessionProvider still loading/processing, showing loading screen', {
+      sessionLoading,
+      isProcessingAuth
+    });
+    
     // Check if we just came back from auth/callback (browser might be blocking cookies)
     const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
     
@@ -997,11 +1012,23 @@ const AppContent: React.FC = () => {
     );
   }
   
-  // SIMPLIFIED: If session exists, show game. If not, show login.
-  const hasValidSession = session && session.user && session.user.id && session.user.id !== 'pending';
+  // Step 2: Provider has finished - check what it says
+  // If SessionProvider says we have a user, show game. If not, show login.
+  const hasUser = user && user.id && user.id !== 'pending';
+  const hasSessionFromProvider = session && session.user && session.user.id && session.user.id !== 'pending';
   
-  if (!hasValidSession && !isGuest) {
-    console.log('App: No session - showing landing/sign-in screen');
+  // Rely 100% on Provider: If SessionProvider says we have a session, show game
+  if (hasUser || hasSessionFromProvider) {
+    console.log('App: ✅ SessionProvider confirms authenticated user, rendering game', {
+      hasUser: !!hasUser,
+      hasSessionFromProvider: !!hasSessionFromProvider,
+      userId: user?.id || session?.user?.id
+    });
+    // Continue to render main game app below
+  } else if (!isGuest) {
+    // No user from provider and not guest - show login
+    console.log('App: No user from SessionProvider - showing landing/sign-in screen');
+    
     // Check if we just came back from auth/callback (browser might be blocking cookies)
     const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
     
