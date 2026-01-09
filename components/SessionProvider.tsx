@@ -7,6 +7,8 @@ interface SessionContextType {
   loading: boolean;
   isProcessing: boolean; // Expose Atomic Auth processing state
   isInitialized: boolean; // Ready protocol: true when all recovery attempts are complete
+  isRedirecting: boolean; // Redirecting state: true when OAuth redirect is in progress
+  setIsRedirecting: (value: boolean) => void; // Function to set redirecting state
   forceSession: () => Promise<void>;
 }
 
@@ -16,6 +18,8 @@ const SessionContext = createContext<SessionContextType>({
   loading: true,
   isProcessing: false,
   isInitialized: false,
+  isRedirecting: false,
+  setIsRedirecting: () => {},
   forceSession: async () => {},
 });
 
@@ -232,6 +236,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isProcessing, setIsProcessing] = useState(false);
   // Ready protocol: Track when all recovery attempts are complete
   const [isInitialized, setIsInitialized] = useState(false);
+  // Redirecting state: Track when OAuth redirect is in progress
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  // Redirecting state: Track when OAuth redirect is in progress
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     // Guard: Only set up listener once
@@ -245,6 +253,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Ready Protocol: Wrap entire initialization in try/finally to ensure isInitialized is set
     const initializeAuth = async () => {
       try {
+        // Sync the Guard: Check if URL contains #access_token hash on page load
+        // This indicates a redirect is currently being processed by Supabase
+        const hash = window.location.hash.substring(1);
+        const hashParams = new URLSearchParams(hash);
+        const hasAccessToken = hashParams.has('access_token') || hash.includes('access_token');
+        
+        if (hasAccessToken) {
+          console.log('SessionProvider: Detected #access_token hash, setting isRedirecting=true');
+          setIsRedirecting(true);
+        }
     
     // Check for tokens in URL hash (Implicit flow) or query params (PKCE flow)
     // This handles cases where user lands on home page with tokens in hash or code in query
@@ -340,6 +358,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               setSession(prev => exchangeData.session);
               setUser(prev => exchangeData.session.user);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+              setIsRedirecting(false); // Clear redirecting state when session is set
               setLoading(false);
               isProcessingRef.current = false; // Release lock
               setIsProcessing(false); // Update reactive state
@@ -531,6 +550,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               setSession(prev => sessionData.session);
               setUser(prev => sessionData.session.user);
             localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+            setIsRedirecting(false); // Clear redirecting state when session is set
             setLoading(false);
               isProcessingRef.current = false; // Release lock
               setIsProcessing(false); // Update reactive state
@@ -615,6 +635,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             console.log('SessionProvider: ✅ Setting has_active_session flag in localStorage');
             localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
           }
+          // Clear redirecting state when sign-in completes
+          setIsRedirecting(false);
         }
         
         // CRUCIAL: If SIGNED_OUT, clear the flag
@@ -1273,6 +1295,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loading,
     isProcessing,
     isInitialized,
+    isRedirecting, // Redirecting state: true when OAuth redirect is in progress
+    setIsRedirecting, // Function to set redirecting state
     forceSession
   };
   

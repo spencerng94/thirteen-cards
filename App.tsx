@@ -144,7 +144,7 @@ const AppContent: React.FC = () => {
   console.log('App: Step 7 - Environment variables check passed');
   
   // Use SessionProvider for auth state - Rely 100% on Provider
-  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, isInitialized, forceSession } = useSession();
+  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, isInitialized, isRedirecting, forceSession } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   
@@ -1054,14 +1054,15 @@ const AppContent: React.FC = () => {
     }
   }, [session?.user?.id]); // Only watch user ID, not computed values
   
-  // Ready Protocol: Strict initialization check to prevent race conditions
-  // Step A: While the provider is still figuring out who the user is, stay on the loading screen
-  if (!isInitialized) {
-    console.log('App: SessionProvider not initialized yet, showing loading screen');
+  // In App.tsx Guard: Update render logic to check for isRedirecting flag
+  // Priority 1: Loading/Checking session or Redirecting
+  if (!isInitialized || isRedirecting) {
+    const message = isRedirecting ? "Connecting to provider..." : "Verifying session...";
+    console.log('App: Showing loading screen', { isInitialized, isRedirecting, message });
     return (
       <div className="relative">
         <LoadingScreen
-          status="Verifying session..."
+          status={message}
           showGuestButton={false}
           onEnterGuest={handlePlayAsGuest}
         />

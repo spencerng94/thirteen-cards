@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { supabase, supabaseUrl, supabaseAnonKey } from '../src/lib/supabase';
 import { BrandLogo } from './BrandLogo';
+import { useSession } from './SessionProvider';
 
 interface AuthScreenProps {
   onPlayAsGuest: () => void;
@@ -53,12 +54,16 @@ const LuxuryButton: React.FC<{
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
   const navigate = useNavigate();
+  const { setIsRedirecting } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const signInWithGoogle = async () => {
     setLoading(true);
     setError(null);
+    
+    // In Sign-In Function: The moment signInWithOAuth is called, set isRedirecting=true
+    setIsRedirecting(true);
     
     try {
       // OAuth 'Clean Slate': Clear any existing session first
@@ -134,6 +139,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         
         setError(errorMessage);
         setLoading(false);
+        setIsRedirecting(false); // Clear redirecting state on error
         return;
       }
       
