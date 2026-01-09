@@ -214,6 +214,9 @@ const AppContent: React.FC = () => {
   const aiThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // App-Level Data Cache: Ensure initial data fetches only run once per session
   const initialDataFetchedRef = useRef(false);
+  // Data Lock: Prevent triple-fetch ghosting - if initial data is loaded, don't fetch again
+  const isInitialDataLoaded = useRef(false);
+  const [profileFetchError, setProfileFetchError] = useState<{ message: string; isNetworkError: boolean } | null>(null);
 
   const myPersistentId = useMemo(() => {
     let id = localStorage.getItem(PERSISTENT_ID_KEY);
@@ -324,25 +327,39 @@ const AppContent: React.FC = () => {
 
   // Fix render loop: Wrap loadProfile in useCallback to prevent recreation on every render
   // MUST BE DEFINED BEFORE useEffect that uses it
-  const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false) => {
-    console.log('App: Loading profile for user:', uid, 'isNewUser:', isNewUser);
+  const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false, forceRetry: boolean = false) => {
+    // Data Lock: If initial data is already loaded and this isn't a forced retry, skip
+    if (isInitialDataLoaded.current && !forceRetry) {
+      console.log('App: Initial data already loaded, skipping fetch (use Retry button to force refresh)');
+      return;
+    }
+    
+    console.log('App: Loading profile for user:', uid, 'isNewUser:', isNewUser, 'forceRetry:', forceRetry);
     loadingProfileInProgressRef.current = true;
     initialSyncCompleteRef.current = false;
+    setProfileFetchError(null); // Clear any previous errors
+    
     const meta = session?.user?.user_metadata || {};
     // Use Google metadata: full_name, name, or display_name
     const baseUsername = meta.full_name || meta.name || meta.display_name || AVATAR_NAMES[playerAvatar]?.toUpperCase() || 'AGENT';
     let data: UserProfile | null = null;
-    let fetchWasAborted = false;
+    
     try {
       data = await fetchProfile(uid, playerAvatar, baseUsername);
+      
+      // Success - clear any errors and mark as loaded
+      setProfileFetchError(null);
+      isInitialDataLoaded.current = true;
     } catch (error: any) {
-      // Remove 'Creating Default Profile' Logic: Only create if fetch was NOT aborted
-      // If the error is PROFILE_FETCH_ABORTED, don't create default profile
-      if (error?.message === 'PROFILE_FETCH_ABORTED') {
-        console.warn('App: Profile fetch was aborted, not creating default profile. Will retry later.');
-        fetchWasAborted = true;
+      // Check if it's a network error (should show retry button)
+      if ((error as any).isNetworkError) {
+        console.error('App: Network error fetching profile:', error);
+        setProfileFetchError({
+          message: error.message || 'Network error fetching profile',
+          isNetworkError: true
+        });
         loadingProfileInProgressRef.current = false;
-        return; // Exit early, don't create profile
+        return; // Don't try to create profile on network error
       }
       
       // IMPORTANT: Log error prominently so it's visible
@@ -369,16 +386,26 @@ const AppContent: React.FC = () => {
         console.error('  CREATE POLICY "Users can insert their own profile"');
         console.error('  ON profiles FOR INSERT');
         console.error('  WITH CHECK (auth.uid() = id);');
-        // Continue to try creating a default profile below - don't throw
+        // Set error but don't throw - let user see the error
+        setProfileFetchError({
+          message: error.message,
+          isNetworkError: false
+        });
+        loadingProfileInProgressRef.current = false;
+        return;
       } else {
-        // For other errors, log but don't throw - let it continue to try creating default profile
-        console.error('Other error type, will attempt to create default profile');
+        // For other errors, set error state
+        setProfileFetchError({
+          message: error.message || 'Unknown error fetching profile',
+          isNetworkError: false
+        });
+        loadingProfileInProgressRef.current = false;
+        return;
       }
     }
     
-    // Remove 'Creating Default Profile' Logic: Only create if fetch succeeded but returned null (404)
-    // Ensure the app waits for a successful fetch (or a 404 error) before trying to create a new profile
-    if (!data && !fetchWasAborted) {
+    // Only create default profile if fetch returned null (404 - profile not found)
+    if (!data) {
       console.log('App: No profile found (404), creating default profile...');
       try {
         const defaultProfile: UserProfile = {
@@ -499,6 +526,7 @@ const AppContent: React.FC = () => {
       
       // State Sync: Ensure profile is set so hasProfile becomes true
       setProfile(data);
+      isInitialDataLoaded.current = true; // Mark as loaded
     }
     setTimeout(() => { 
       initialSyncCompleteRef.current = true;
@@ -651,10 +679,21 @@ const AppContent: React.FC = () => {
 
   const handleRefreshProfile = () => {
     if (session?.user) {
-      loadProfile(session.user.id);
+      // Force retry by passing forceRetry=true and resetting the data lock
+      isInitialDataLoaded.current = false;
+      loadProfile(session.user.id, false, true);
     } else if (isGuest) {
       const data = fetchGuestProfile();
       setProfile(data);
+    }
+  };
+  
+  const handleRetryProfileFetch = () => {
+    if (session?.user) {
+      // Force retry by resetting the data lock
+      isInitialDataLoaded.current = false;
+      setProfileFetchError(null);
+      loadProfile(session.user.id, false, true);
     }
   };
 
@@ -955,15 +994,12 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
-  // App-Level Data Cache: Ensure profile fetch only runs once per session
+  // Data Lock: Only fetch if initial data hasn't been loaded yet
   useEffect(() => {
     if (session?.user?.id && session.user.id !== 'pending' && !profile && !isGuest && !!session) {
-      // Check if we've already attempted to fetch data for this session
-      const sessionUserId = session.user.id;
-      const cacheKey = `profile_fetch_${sessionUserId}`;
-      
-      if (initialDataFetchedRef.current && localStorage.getItem(cacheKey)) {
-        console.log('App: Profile fetch already attempted for this session, skipping...');
+      // Data Lock: If initial data is already loaded, don't fetch again
+      if (isInitialDataLoaded.current) {
+        console.log('App: Initial data already loaded, skipping fetch');
         return;
       }
       
@@ -972,32 +1008,38 @@ const AppContent: React.FC = () => {
       
       // Mark as fetched to prevent duplicate fetches
       initialDataFetchedRef.current = true;
-      localStorage.setItem(cacheKey, 'true');
       
       // Try/catch around profile fetch to prevent silent crashes
       supabase.from('profiles').select('id').eq('id', userId).maybeSingle()
         .then(({ data: existingProfile, error: profileError }) => {
           if (profileError) {
-            console.error('App: Error checking profile existence:', profileError);
-            // If profile query fails, assume new user and try to create profile
-            console.log('App: Profile query failed, attempting to create new profile...');
-            loadProfile(userId, true).catch(err => {
-              console.error('App: Failed to create profile after query error:', err);
-              // Don't crash - let user continue without profile
-            });
+            // Check if it's a 404 (profile not found)
+            const isNotFound = profileError.code === 'PGRST116' || profileError.message?.includes('No rows found');
+            if (isNotFound) {
+              // 404 means new user - create profile
+              console.log('App: Profile not found (404), creating new profile...');
+              loadProfile(userId, true).catch(err => {
+                console.error('App: Failed to create profile after 404:', err);
+              });
+            } else {
+              // Network or other error - loadProfile will handle it and show retry button
+              console.log('App: Profile query error (not 404), attempting to load profile...');
+              loadProfile(userId, false).catch(err => {
+                console.error('App: Failed to load profile after query error:', err);
+              });
+            }
           } else {
+            // Profile exists or doesn't exist - loadProfile will handle both cases
             loadProfile(userId, !existingProfile).catch(err => {
               console.error('App: Failed to load profile:', err);
-              // Don't crash - let user continue without profile
             });
           }
         })
         .catch(err => {
           console.error('App: Exception checking profile existence:', err);
-          // Try to create profile anyway
-          loadProfile(userId, true).catch(loadErr => {
-            console.error('App: Failed to create profile after exception:', loadErr);
-            // Don't crash - let user continue without profile
+          // Try to load profile anyway - it will handle the error
+          loadProfile(userId, false).catch(loadErr => {
+            console.error('App: Failed to load profile after exception:', loadErr);
           });
         });
     }
@@ -1137,6 +1179,8 @@ const AppContent: React.FC = () => {
       {view === 'WELCOME' && (
         <WelcomeScreen 
           onStart={handleStart} onSignOut={handleSignOut} profile={profile} onRefreshProfile={handleRefreshProfile}
+          onRetryProfileFetch={handleRetryProfileFetch}
+          profileFetchError={profileFetchError}
           onOpenHub={(tab) => {
             if (tab === 'INVENTORY') setInventoryOpen(true);
             else setHubState({ open: true, tab });

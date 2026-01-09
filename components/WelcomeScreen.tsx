@@ -24,6 +24,8 @@ interface WelcomeScreenProps {
   onSignOut: () => void;
   profile: UserProfile | null;
   onRefreshProfile: () => void;
+  onRetryProfileFetch?: () => void;
+  profileFetchError?: { message: string; isNetworkError: boolean } | null;
   onOpenHub: (tab: HubTab) => void;
   onOpenStore: (tab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => void;
   onOpenGemPacks: () => void;
@@ -329,7 +331,7 @@ const LuxuryButton: React.FC<{
 };
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
-  onStart, onSignOut, profile, onRefreshProfile, onOpenHub, onOpenStore, onOpenGemPacks, onOpenFriends,
+  onStart, onSignOut, profile, onRefreshProfile, onRetryProfileFetch, profileFetchError, onOpenHub, onOpenStore, onOpenGemPacks, onOpenFriends,
   playerName, setPlayerName, playerAvatar, setPlayerAvatar,
   cardCoverStyle, setCardCoverStyle, aiDifficulty, setAiDifficulty,
   quickFinish, setQuickFinish, soundEnabled, setSoundEnabled,
@@ -523,7 +525,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   className="[&>span]:text-base [&>span]:sm:text-lg [&>span]:font-bold [&>span]:drop-shadow-md" 
                 />
               </div>
+            ) : profileFetchError ? (
+              // Network error - show error with retry button
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-semibold text-red-400 truncate drop-shadow-md">
+                  {profileFetchError.message || 'Failed to load profile'}
+                </span>
+                {onRetryProfileFetch && (
+                  <button
+                    onClick={onRetryProfileFetch}
+                    className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs rounded-lg transition-colors"
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
             ) : (
+              // No profile and no error = 404 (new user) - show "CALLSIGN REQUIRED"
               <span className="text-base sm:text-lg font-bold text-white truncate drop-shadow-md">
                 {playerName || 'CALLSIGN REQUIRED'}
               </span>

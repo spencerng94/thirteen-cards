@@ -425,33 +425,18 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
       };
     });
     
-      console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
-        name: e.name, 
-        trigger: e.trigger_code, 
-        file_path: e.file_path,
-        price: e.price 
-      })));
-      
-      return emotes;
-    } catch (e: any) {
-      // Check if it's an AbortError and retry
-      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
-        console.warn(`fetchEmotes: AbortError exception on attempt ${attempt}, retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
-        return fetchWithRetry(attempt + 1);
-      }
-      // Check if it's an AbortError and retry
-      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
-        console.warn(`fetchEmotes: AbortError exception on attempt ${attempt}, retrying without AbortController...`);
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
-        return fetchWithRetry(attempt + 1);
-      }
-      console.error('Exception fetching emotes:', e);
-      return [];
-    }
-  };
-  
-  return fetchWithRetry();
+    console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
+      name: e.name, 
+      trigger: e.trigger_code, 
+      file_path: e.file_path,
+      price: e.price 
+    })));
+    
+    return emotes;
+  } catch (e: any) {
+    console.error('Exception fetching emotes:', e);
+    return [];
+  }
 };
 
 const EVENT_TARGETS = { daily_play: 1, daily_win: 1, weekly_bombs: 3, weekly_play: 13, weekly_win: 13 };
@@ -693,202 +678,152 @@ export const migrateGuestData = async (
 export const fetchProfile = async (userId: string, currentAvatar: string = ':cool:', baseUsername?: string): Promise<UserProfile | null> => {
   if (!supabaseAnonKey || userId === 'guest') return fetchGuestProfile();
   
-  // Retry Logic for Aborts: Retry if AbortError is detected
-  // Ignore AbortError in Retries: Create new query without AbortController signal for retries
-  const fetchWithRetry = async (attempt = 1): Promise<{ data: any; error: any; wasAborted: boolean }> => {
-    try {
-      // Decouple Startup Fetches: Do not use AbortController signal for startup requests
-      // These are critical startup requests that should be allowed to finish even if component re-renders
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      
-      if (error) {
-        // Check if it's an AbortError and retry
-        if ((error.name === 'AbortError' || error.message?.includes('aborted')) && attempt < 3) {
-          console.warn(`fetchProfile: AbortError on attempt ${attempt}, retrying without AbortController...`);
-          await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
-          return fetchWithRetry(attempt + 1);
-        }
-        // If it's an AbortError after all retries, mark it as aborted
-        const wasAborted = error.name === 'AbortError' || error.message?.includes('aborted');
-        return { data, error, wasAborted };
-      }
-      return { data, error, wasAborted: false };
-    } catch (e: any) {
-      // Check if it's an AbortError and retry
-      if ((e?.name === 'AbortError' || e?.message?.includes('aborted')) && attempt < 3) {
-        console.warn(`fetchProfile: AbortError exception on attempt ${attempt}, retrying without AbortController...`);
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
-        return fetchWithRetry(attempt + 1);
-      }
-      const wasAborted = e?.name === 'AbortError' || e?.message?.includes('aborted');
-      return { data: null, error: e, wasAborted };
-    }
-  };
-  
-  // Try to fetch existing profile with retry
-  const { data, error, wasAborted } = await fetchWithRetry();
-  
-  if (error) {
-    // If it was aborted after all retries, throw a special error so caller knows not to create profile
-    if (wasAborted) {
-      console.error('❌ fetchProfile: All retry attempts failed with AbortError:', {
+  // Bulletproof Rule: No AbortController for startup requests
+  // These requests must finish no matter what - component re-renders should not cancel them
+  try {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    
+    if (error) {
+      console.error('❌ fetchProfile: Error fetching existing profile:', {
         userId,
-        attempts: 3
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorDetails: error.details,
+        errorHint: error.hint
       });
-      throw new Error('PROFILE_FETCH_ABORTED'); // Special error code for aborted fetches
+      
+      // If it's a permission error (RLS blocking), log it but don't try to create a new profile
+      if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+        console.error('🔴 fetchProfile: RLS policy blocking SELECT for existing user!');
+        console.error('This means the RLS policy "Users can view their own profile" is not working correctly.');
+        console.error('The user should be able to SELECT their own profile. Check RLS policies in Supabase.');
+        // Return null so the caller can handle it, but don't try to create a new profile
+        return null;
+      }
+      
+      // For network errors or other errors, throw so caller can show retry button
+      // Don't return null here - we want to distinguish between 404 and network errors
+      const networkError = new Error(error.message || 'Network error fetching profile');
+      (networkError as any).isNetworkError = true;
+      (networkError as any).supabaseError = error;
+      throw networkError;
+    }
+    // maybeSingle() returns null data (not an error) when no rows are found (404 case)
+    if (data) {
+      const profile = { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
+      // Normalize level for legacy users: ensure level matches calculated level based on XP
+      const calculatedLevel = calculateLevel(profile.xp || 0);
+      if (profile.level !== calculatedLevel) {
+        // Update level in database if it's out of sync (for legacy users)
+        // Only update if the difference is significant to avoid unnecessary writes
+        profile.level = calculatedLevel;
+        // Silently update in background (don't await to avoid blocking)
+        updateProfileSettings(userId, { level: calculatedLevel }).catch(err => 
+          console.warn('Failed to sync legacy user level:', err)
+        );
+      }
+      
+      // Ensure unlocked_phrases exists and includes default quick chats for legacy accounts
+      const defaultIds = getDefaultChatPresetIds();
+      // Normalize unlocked_phrases - handle null, undefined, or non-array values
+      const currentPhrases = (profile.unlocked_phrases && Array.isArray(profile.unlocked_phrases)) 
+        ? profile.unlocked_phrases 
+        : [];
+      
+      // Check if any default IDs are missing
+      const existingIds = new Set(currentPhrases);
+      const missingDefaults = defaultIds.filter(id => !existingIds.has(id));
+      
+      if (missingDefaults.length > 0 || currentPhrases.length === 0) {
+        // Add missing defaults or initialize if empty
+        const updatedPhrases = currentPhrases.length === 0 
+          ? defaultIds 
+          : [...currentPhrases, ...missingDefaults];
+        
+        // Set in profile immediately so user sees it right away
+        profile.unlocked_phrases = updatedPhrases;
+        
+        // Update database synchronously to ensure it's saved
+        try {
+          await updateProfileSettings(userId, { unlocked_phrases: updatedPhrases });
+          console.log(`Updated legacy account ${userId} with default quick chats`);
+        } catch (err) {
+          console.warn('Failed to update legacy user unlocked_phrases:', err);
+          // Profile already has the phrases set, so user can still use them
+        }
+      } else {
+        // Ensure profile has the phrases array set (in case it was null/undefined)
+        profile.unlocked_phrases = currentPhrases;
+      }
+      
+      return profile;
     }
     
-    console.error('❌ fetchProfile: Error fetching existing profile:', {
+    // No profile found (404) - maybeSingle() returns null data when no rows found
+    // This is a new user, create profile
+    console.log('🔵 fetchProfile: No profile found (404), creating new profile...');
+    
+    // New user - generate username with discriminator from Google metadata
+    // baseUsername should come from Google OAuth metadata (full_name, name, or display_name)
+    const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
+    const defaultProfile = await getDefaultProfile(userId, currentAvatar, cleanBaseUsername);
+    // Save the new profile immediately for Google OAuth users
+    console.log('🔵 fetchProfile: Attempting to upsert new user profile:', {
       userId,
-      errorCode: error.code,
-      errorMessage: error.message,
-      errorDetails: error.details,
-      errorHint: error.hint
+      username: defaultProfile.username,
+      hasInventory: !!defaultProfile.inventory,
+      hasEventStats: !!defaultProfile.event_stats,
+      profileKeys: Object.keys(defaultProfile)
     });
     
-    // If it's a permission error (RLS blocking), log it but don't try to create a new profile
-    if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
-      console.error('🔴 fetchProfile: RLS policy blocking SELECT for existing user!');
-      console.error('This means the RLS policy "Users can view their own profile" is not working correctly.');
-      console.error('The user should be able to SELECT their own profile. Check RLS policies in Supabase.');
-      // Return null so the caller can handle it, but don't try to create a new profile
-      return null;
-    }
+    const { data: upsertData, error: upsertError } = await supabase.from('profiles').upsert(defaultProfile, {
+      onConflict: 'id'
+    });
     
-    // For other errors, return null (will try to create profile below)
-    return null;
-  }
-  if (data) {
-    const profile = { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
-    // Normalize level for legacy users: ensure level matches calculated level based on XP
-    const calculatedLevel = calculateLevel(profile.xp || 0);
-    if (profile.level !== calculatedLevel) {
-      // Update level in database if it's out of sync (for legacy users)
-      // Only update if the difference is significant to avoid unnecessary writes
-      profile.level = calculatedLevel;
-      // Silently update in background (don't await to avoid blocking)
-      updateProfileSettings(userId, { level: calculatedLevel }).catch(err => 
-        console.warn('Failed to sync legacy user level:', err)
-      );
-    }
-    
-    // Ensure unlocked_phrases exists and includes default quick chats for legacy accounts
-    const defaultIds = getDefaultChatPresetIds();
-    // Normalize unlocked_phrases - handle null, undefined, or non-array values
-    const currentPhrases = (profile.unlocked_phrases && Array.isArray(profile.unlocked_phrases)) 
-      ? profile.unlocked_phrases 
-      : [];
-    
-    // Check if any default IDs are missing
-    const existingIds = new Set(currentPhrases);
-    const missingDefaults = defaultIds.filter(id => !existingIds.has(id));
-    
-    if (missingDefaults.length > 0 || currentPhrases.length === 0) {
-      // Add missing defaults or initialize if empty
-      const updatedPhrases = currentPhrases.length === 0 
-        ? defaultIds 
-        : [...currentPhrases, ...missingDefaults];
+    if (upsertError) {
+      // Log detailed error information
+      console.error('❌❌❌ ERROR saving new user profile ❌❌❌');
+      console.error('==========================================');
+      console.error('Error Code:', upsertError.code || 'N/A');
+      console.error('Error Message:', upsertError.message || 'N/A');
+      console.error('Error Details:', upsertError.details || 'N/A');
+      console.error('Error Hint:', upsertError.hint || 'N/A');
+      console.error('Full Error Object:', upsertError);
+      console.error('User ID:', userId);
+      console.error('Profile Username:', defaultProfile.username);
+      console.error('Profile Keys:', Object.keys(defaultProfile));
+      console.error('Profile Data (first 500 chars):', JSON.stringify(defaultProfile, null, 2).substring(0, 500));
+      console.error('==========================================');
       
-      // Set in profile immediately so user sees it right away
-      profile.unlocked_phrases = updatedPhrases;
-      
-      // Update database synchronously to ensure it's saved
-      try {
-        await updateProfileSettings(userId, { unlocked_phrases: updatedPhrases });
-        console.log(`Updated legacy account ${userId} with default quick chats`);
-      } catch (err) {
-        console.warn('Failed to update legacy user unlocked_phrases:', err);
-        // Profile already has the phrases set, so user can still use them
+      // Provide more helpful error message
+      let errorMsg = `Database error saving new user: ${upsertError.message || 'Unknown error'}`;
+      if (upsertError.code === '42501') {
+        errorMsg += ' (Permission denied - RLS policy blocking insert. Run the fix_profile_rls_policies.sql migration!)';
+      } else if (upsertError.code === '23502') {
+        errorMsg += ' (Missing required column - check database schema)';
+      } else if (upsertError.code === '23505') {
+        errorMsg += ' (Unique constraint violation)';
+      } else if (upsertError.code) {
+        errorMsg += ` (Error code: ${upsertError.code})`;
       }
-    } else {
-      // Ensure profile has the phrases array set (in case it was null/undefined)
-      profile.unlocked_phrases = currentPhrases;
+      
+      // Throw error so caller can handle it
+      const error = new Error(errorMsg);
+      (error as any).supabaseError = upsertError;
+      throw error;
     }
     
-    return profile;
-  }
-  // No profile found - this could be a new user OR an existing user where SELECT was blocked
-  // For existing users, if SELECT fails due to RLS, we shouldn't try to create a new profile
-  // Check if this might be an existing user by trying SELECT one more time
-  console.log('🔵 fetchProfile: No profile found in initial SELECT, retrying...');
-  
-  // Retry SELECT in case it was a transient error
-  const { data: retryData, error: retryError } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
-  
-  if (retryError) {
-    // SELECT is still failing - this is likely an RLS issue for existing users
-    if (retryError.code === '42501' || retryError.message?.includes('permission') || retryError.message?.includes('policy')) {
-      console.error('🔴 fetchProfile: RLS policy blocking SELECT for user:', userId);
-      console.error('This user likely has an existing profile but cannot access it due to RLS policies.');
-      console.error('SOLUTION: Verify RLS policy "Users can view their own profile" is correctly configured.');
-      // Don't try to create a new profile - return null and let caller handle it
-      return null;
+    console.log('✅ Successfully saved new user profile');
+    return defaultProfile;
+  } catch (e: any) {
+    // Re-throw network errors so caller can show retry button
+    if ((e as any).isNetworkError) {
+      throw e;
     }
-  }
-  
-  if (retryData) {
-    // Profile exists but full SELECT failed - this is an RLS issue
-    console.warn('⚠️ fetchProfile: Profile exists (id check passed) but full SELECT failed');
-    console.warn('This indicates an RLS policy issue. The user should be able to SELECT their own profile.');
-    // Return null - the profile exists but we can't access it due to RLS
+    // For other errors, log and return null
+    console.error('Exception in fetchProfile:', e);
     return null;
   }
-  
-  // No profile found after retry - this is a new user, create profile
-  console.log('🔵 fetchProfile: Confirmed new user, creating profile...');
-  
-  // New user - generate username with discriminator from Google metadata
-  // baseUsername should come from Google OAuth metadata (full_name, name, or display_name)
-  const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
-  const defaultProfile = await getDefaultProfile(userId, currentAvatar, cleanBaseUsername);
-  // Save the new profile immediately for Google OAuth users
-  console.log('🔵 fetchProfile: Attempting to upsert new user profile:', {
-    userId,
-    username: defaultProfile.username,
-    hasInventory: !!defaultProfile.inventory,
-    hasEventStats: !!defaultProfile.event_stats,
-    profileKeys: Object.keys(defaultProfile)
-  });
-  
-  const { data: upsertData, error: upsertError } = await supabase.from('profiles').upsert(defaultProfile, {
-    onConflict: 'id'
-  });
-  
-  if (upsertError) {
-    // Log detailed error information
-    console.error('❌❌❌ ERROR saving new user profile ❌❌❌');
-    console.error('==========================================');
-    console.error('Error Code:', upsertError.code || 'N/A');
-    console.error('Error Message:', upsertError.message || 'N/A');
-    console.error('Error Details:', upsertError.details || 'N/A');
-    console.error('Error Hint:', upsertError.hint || 'N/A');
-    console.error('Full Error Object:', upsertError);
-    console.error('User ID:', userId);
-    console.error('Profile Username:', defaultProfile.username);
-    console.error('Profile Keys:', Object.keys(defaultProfile));
-    console.error('Profile Data (first 500 chars):', JSON.stringify(defaultProfile, null, 2).substring(0, 500));
-    console.error('==========================================');
-    
-    // Provide more helpful error message
-    let errorMsg = `Database error saving new user: ${upsertError.message || 'Unknown error'}`;
-    if (upsertError.code === '42501') {
-      errorMsg += ' (Permission denied - RLS policy blocking insert. Run the fix_profile_rls_policies.sql migration!)';
-    } else if (upsertError.code === '23502') {
-      errorMsg += ' (Missing required column - check database schema)';
-    } else if (upsertError.code === '23505') {
-      errorMsg += ' (Unique constraint violation)';
-    } else if (upsertError.code) {
-      errorMsg += ` (Error code: ${upsertError.code})`;
-    }
-    
-    // Throw error so caller can handle it
-    const error = new Error(errorMsg);
-    (error as any).supabaseError = upsertError;
-    throw error;
-  }
-  
-  console.log('✅ Successfully saved new user profile');
-  return defaultProfile;
 };
 
 export const updateProfileAvatar = async (userId: string, avatar: string) => {
