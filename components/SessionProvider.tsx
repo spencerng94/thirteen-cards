@@ -5,6 +5,7 @@ interface SessionContextType {
   session: any;
   user: any;
   loading: boolean;
+  isProcessing: boolean; // Expose Atomic Auth processing state
   forceSession: () => Promise<void>;
 }
 
@@ -12,6 +13,7 @@ const SessionContext = createContext<SessionContextType>({
   session: null,
   user: null,
   loading: true,
+  isProcessing: false,
   forceSession: async () => {},
 });
 
@@ -133,6 +135,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
   // Auth Lock: Prevent double-execution of getSession/setSession
   const isProcessingRef = useRef(false);
+  // Expose processing state for UI (reactive)
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     // Guard: Only set up listener once
@@ -176,6 +180,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         
         isProcessingRef.current = true; // Acquire lock
+        setIsProcessing(true); // Update reactive state
         console.log('SessionProvider: Found PKCE code in query, exchanging for session with Atomic Auth logic...');
         
         // Atomic Auth: Extract project ID for manual localStorage fallback
@@ -230,14 +235,23 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             
             if (!exchangeError && exchangeData?.session) {
               console.log('SessionProvider: ✅ PKCE exchange successful, user:', exchangeData.session.user.id);
+              
+              // Force State Update: Manually set state immediately (don't wait for listener)
               setSession(exchangeData.session);
               setUser(exchangeData.session.user);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
               setLoading(false);
               isProcessingRef.current = false; // Release lock
+              setIsProcessing(false); // Update reactive state
               
               // Clean the code from URL
               window.history.replaceState(null, '', window.location.pathname);
+              
+              // Hard Navigation: Force entire React tree to re-initialize with authenticated user
+              console.log('SessionProvider: 🔄 Forcing hard navigation to recognize authenticated user');
+              setTimeout(() => {
+                window.location.replace('/');
+              }, 100); // Small delay to ensure state is set
             } else if (exchangeError) {
               // Check if it's an AbortError
               if (exchangeError.name === 'AbortError' || exchangeError.message?.includes('aborted') || exchangeError.message?.includes('signal is aborted')) {
@@ -246,6 +260,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // The best we can do is retry or redirect
                 console.log('SessionProvider: 🔄 Retrying PKCE exchange after AbortError...');
                 isProcessingRef.current = false; // Release lock to allow retry
+                setIsProcessing(false); // Update reactive state
                 window.history.replaceState(null, '', window.location.pathname);
                 // Redirect to trigger OAuth flow again
                 setTimeout(() => {
@@ -254,6 +269,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               } else {
                 console.error('SessionProvider: Error exchanging PKCE code:', exchangeError);
                 isProcessingRef.current = false; // Release lock on error
+                setIsProcessing(false); // Update reactive state
                 window.history.replaceState(null, '', window.location.pathname);
               }
             }
@@ -263,6 +279,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               console.warn('SessionProvider: ⚠️ AbortError exception during exchangeCodeForSession, cannot use manual fallback (need tokens)');
               // For PKCE, we can't manually write tokens since we only have a code
               isProcessingRef.current = false; // Release lock
+              setIsProcessing(false); // Update reactive state
               window.history.replaceState(null, '', window.location.pathname);
               // Redirect to trigger OAuth flow again
               setTimeout(() => {
@@ -271,6 +288,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             } else {
               console.error('SessionProvider: Exception exchanging PKCE code:', err);
               isProcessingRef.current = false; // Release lock on error
+              setIsProcessing(false); // Update reactive state
               window.history.replaceState(null, '', window.location.pathname);
             }
           }
@@ -298,6 +316,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         
         isProcessingRef.current = true; // Acquire lock
+        setIsProcessing(true); // Update reactive state
         console.log('SessionProvider: Found tokens in URL hash, setting session with Atomic Auth logic...');
         
         // Atomic Auth: Extract project ID for manual localStorage fallback
@@ -359,14 +378,23 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             
             if (!error && sessionData?.session) {
               console.log('SessionProvider: ✅ Session set from hash, user:', sessionData.session.user.id);
+              
+              // Force State Update: Manually set state immediately (don't wait for listener)
               setSession(sessionData.session);
               setUser(sessionData.session.user);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
               setLoading(false);
               isProcessingRef.current = false; // Release lock
+              setIsProcessing(false); // Update reactive state
               
               // Clean the hash from URL
               window.history.replaceState(null, '', window.location.pathname);
+              
+              // Hard Navigation: Force entire React tree to re-initialize with authenticated user
+              console.log('SessionProvider: 🔄 Forcing hard navigation to recognize authenticated user');
+              setTimeout(() => {
+                window.location.replace('/');
+              }, 100); // Small delay to ensure state is set
             } else if (error) {
               // Check if it's an AbortError
               if (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted')) {
@@ -382,11 +410,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 } else {
                   console.error('SessionProvider: Failed to write tokens manually');
                   isProcessingRef.current = false; // Release lock
+                  setIsProcessing(false); // Update reactive state
                   window.history.replaceState(null, '', window.location.pathname);
                 }
               } else {
                 console.error('SessionProvider: Error setting session from hash:', error);
                 isProcessingRef.current = false; // Release lock on error
+                setIsProcessing(false); // Update reactive state
                 // Clean hash even on error
                 window.history.replaceState(null, '', window.location.pathname);
               }
@@ -406,11 +436,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               } else {
                 console.error('SessionProvider: Failed to write tokens manually');
                 isProcessingRef.current = false; // Release lock
+                setIsProcessing(false); // Update reactive state
                 window.history.replaceState(null, '', window.location.pathname);
               }
             } else {
               console.error('SessionProvider: Exception setting session from hash:', err);
               isProcessingRef.current = false; // Release lock on error
+              setIsProcessing(false); // Update reactive state
               // Clean hash even on error
               window.history.replaceState(null, '', window.location.pathname);
             }
@@ -649,7 +681,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <SessionContext.Provider value={{ session, user, loading, forceSession }}>
+    <SessionContext.Provider value={{ session, user, loading, isProcessing, forceSession }}>
       {children}
     </SessionContext.Provider>
   );

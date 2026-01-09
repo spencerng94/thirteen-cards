@@ -144,7 +144,7 @@ const AppContent: React.FC = () => {
   console.log('App: Step 7 - Environment variables check passed');
   
   // Use SessionProvider for auth state
-  const { session, user, loading: sessionLoading, forceSession } = useSession();
+  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, forceSession } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   
@@ -965,15 +965,16 @@ const AppContent: React.FC = () => {
     }
   }
   
-  // Show loading screen while SessionProvider is initializing
-  if (sessionLoading && !hasActiveSession) {
+  // User Guard: Don't resolve to 'Logged Out' until Atomic Auth check is complete
+  // Show loading screen while SessionProvider is initializing OR Atomic Auth is processing
+  if ((sessionLoading || isProcessingAuth) && !hasActiveSession) {
     // Check if we just came back from auth/callback (browser might be blocking cookies)
     const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
     
     return (
       <div className="relative">
         <LoadingScreen
-          status="Checking credentials..."
+          status={isProcessingAuth ? "Completing sign-in..." : "Checking credentials..."}
           showGuestButton={false}
           onEnterGuest={handlePlayAsGuest}
         />
