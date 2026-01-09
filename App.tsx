@@ -1142,7 +1142,6 @@ const AppContent: React.FC = () => {
             }
           });
         });
-    }
   }, [sessionUserId, profile, isGuest, loadProfile, session]); // Use memoized sessionUserId
   
   // Profile Fetch Fallback: If user ID is missing but session exists, attempt to repair
