@@ -245,8 +245,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               console.log('SessionProvider: ✅ PKCE exchange successful, user:', exchangeData.session.user.id);
               
               // Force State Update: Manually set state immediately (don't wait for listener)
-              setSession(exchangeData.session);
-              setUser(exchangeData.session.user);
+              // Synchronous State Update: Use functional update pattern
+              setSession(prev => exchangeData.session);
+              setUser(prev => exchangeData.session.user);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
               setLoading(false);
               isProcessingRef.current = false; // Release lock
@@ -388,8 +389,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               console.log('SessionProvider: ✅ Session set from hash, user:', sessionData.session.user.id);
               
               // Force State Update: Manually set state immediately (don't wait for listener)
-              setSession(sessionData.session);
-              setUser(sessionData.session.user);
+              // Synchronous State Update: Use functional update pattern
+              setSession(prev => sessionData.session);
+              setUser(prev => sessionData.session.user);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
               setLoading(false);
               isProcessingRef.current = false; // Release lock
@@ -484,8 +486,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             
             // Update session and user state
-            setSession(currentSession);
-            setUser(currentSession?.user ?? null);
+            // Synchronous State Update: Use functional update pattern
+            setSession(prev => currentSession);
+            setUser(prev => currentSession?.user ?? null);
             
             // Set loading to false once we have a definitive answer
             if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
@@ -520,8 +523,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const sessionData = readSessionFromStorage();
             if (sessionData) {
               console.log('SessionProvider: ✅ Recovered session from localStorage, setting state');
-              setSession(sessionData);
-              setUser(sessionData.user);
+              // Synchronous State Update: Use functional update pattern to ensure state is set immediately
+              setSession(prev => sessionData);
+              setUser(prev => sessionData.user);
+              console.log('SessionProvider: State updated - session:', !!sessionData, 'user:', !!sessionData.user, 'userId:', sessionData.user?.id);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
               setLoading(false);
             } else {
@@ -532,8 +537,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 try {
                   const { data: sessionData } = await supabase.auth.getSession();
                   if (sessionData?.session) {
-                    setSession(sessionData.session);
-                    setUser(sessionData.session.user);
+                    // Synchronous State Update: Use functional update pattern
+                    setSession(prev => sessionData.session);
+                    setUser(prev => sessionData.session.user);
                     localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
                     setLoading(false);
                   }
@@ -541,8 +547,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   // If getSession still fails, use the direct read
                   const directSession = readSessionFromStorage();
                   if (directSession) {
-                    setSession(directSession);
-                    setUser(directSession.user);
+                    // Synchronous State Update: Use functional update pattern
+                    setSession(prev => directSession);
+                    setUser(prev => directSession.user);
                     localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
                     setLoading(false);
                   }
@@ -555,8 +562,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         
         if (!error && data?.session) {
           console.log('SessionProvider: ✅ Initial session found:', data.session.user.id);
-          setSession(data.session);
-          setUser(data.session.user);
+          // Synchronous State Update: Use functional update pattern to ensure state is set immediately
+          setSession(prev => data.session);
+          setUser(prev => data.session.user);
           localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
           isProcessingRef.current = false; // Release lock
           
@@ -592,8 +600,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const sessionData = readSessionFromStorage();
             if (sessionData) {
               console.log('SessionProvider: ✅ Recovered session from localStorage, setting state');
-              setSession(sessionData);
-              setUser(sessionData.user);
+              // Synchronous State Update: Use functional update pattern to ensure state is set immediately
+              setSession(prev => sessionData);
+              setUser(prev => sessionData.user);
+              console.log('SessionProvider: State updated - session:', !!sessionData, 'user:', !!sessionData.user, 'userId:', sessionData.user?.id);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
               setLoading(false);
             } else {
@@ -604,8 +614,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 try {
                   const { data: sessionData } = await supabase.auth.getSession();
                   if (sessionData?.session) {
-                    setSession(sessionData.session);
-                    setUser(sessionData.session.user);
+                    // Synchronous State Update: Use functional update pattern
+                    setSession(prev => sessionData.session);
+                    setUser(prev => sessionData.session.user);
                     localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
                     setLoading(false);
                   }
@@ -613,8 +624,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   // If getSession still fails, use the direct read
                   const directSession = readSessionFromStorage();
                   if (directSession) {
-                    setSession(directSession);
-                    setUser(directSession.user);
+                    // Synchronous State Update: Use functional update pattern
+                    setSession(prev => directSession);
+                    setUser(prev => directSession.user);
                     localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
                     setLoading(false);
                   }
@@ -641,6 +653,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.log('SessionProvider: ✅ Initialization complete, setting isInitialized=true');
         setIsInitialized(true);
         setLoading(false);
+        
+        // Force Re-render: Log context state at end of initialization
+        console.log('SessionProvider: Final Context State:', { 
+          hasSession: !!session, 
+          hasUser: !!user,
+          sessionUserId: session?.user?.id,
+          userStateId: user?.id,
+          isInitialized: true
+        });
       }
     };
     
@@ -672,8 +693,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const sessionData = readSessionFromStorage();
     if (sessionData) {
       console.log('SessionProvider: ✅ Manual recovery successful from localStorage, setting session and reloading');
-      setSession(sessionData);
-      setUser(sessionData.user);
+      // Synchronous State Update: Use functional update pattern
+      setSession(prev => sessionData);
+      setUser(prev => sessionData.user);
       localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
       isProcessingRef.current = false; // Release lock
       // Small delay to ensure state is set, then reload
@@ -688,8 +710,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const { data } = await supabase.auth.refreshSession();
       if (data?.session) {
         console.log('SessionProvider: ✅ Manual recovery successful via refresh, reloading page');
-        setSession(data.session);
-        setUser(data.session.user);
+        // Synchronous State Update: Use functional update pattern
+        setSession(prev => data.session);
+        setUser(prev => data.session.user);
         localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
         isProcessingRef.current = false; // Release lock
         window.location.reload();
@@ -703,8 +726,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const retrySession = readSessionFromStorage();
         if (retrySession) {
           console.log('SessionProvider: ✅ Found session on retry, setting and reloading');
-          setSession(retrySession);
-          setUser(retrySession.user);
+          // Synchronous State Update: Use functional update pattern
+          setSession(prev => retrySession);
+          setUser(prev => retrySession.user);
           localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
           isProcessingRef.current = false; // Release lock
           setTimeout(() => {
@@ -721,14 +745,26 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // Context Consistency: Ensure both user and session are included, with user derived from session as source of truth
+  // Expose session in Context: Ensure SessionProvider exports the raw session object, not just user
   const contextValue = {
-    session,
+    session, // Raw session object is the source of truth
     user: session?.user ?? user, // Use session.user as source of truth, fallback to user state
     loading,
     isProcessing,
     isInitialized,
     forceSession
   };
+
+  // Force Re-render: Log context state at end of initialization for debugging
+  if (isInitialized) {
+    console.log('SessionProvider: Context State:', { 
+      hasSession: !!session, 
+      hasUser: !!user,
+      sessionUserId: session?.user?.id,
+      userStateId: user?.id,
+      isInitialized 
+    });
+  }
 
   return (
     <SessionContext.Provider value={contextValue}>

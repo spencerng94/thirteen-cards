@@ -148,7 +148,27 @@ const AppContent: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   
-  console.log('App: Step 8 - State initialized');
+  // The Nuclear Option: Force re-render when session changes from auth context
+  // This ensures App.tsx sees the session the moment it's recovered
+  const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
+  useEffect(() => {
+    if (session && session.user && session.user.id) {
+      console.log('App: 🔄 Session detected in context, forcing refresh', {
+        sessionId: session.user.id,
+        hasSession: !!session,
+        refreshKey: sessionRefreshKey
+      });
+      // Force a re-render by updating a state variable
+      setSessionRefreshKey(prev => prev + 1);
+    }
+  }, [session?.user?.id]); // Watch for session user ID changes
+  
+  console.log('App: Step 8 - State initialized', {
+    hasSession: !!session,
+    sessionUserId: session?.user?.id,
+    isInitialized,
+    refreshKey: sessionRefreshKey
+  });
 
   const [view, setView] = useState<ViewState>('WELCOME');
   const [gameMode, setGameMode] = useState<GameMode>(null);
