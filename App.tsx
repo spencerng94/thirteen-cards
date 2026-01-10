@@ -109,7 +109,7 @@ const checkSupabaseEnv = (): { isValid: boolean; missing: string[] } => {
 
 const AppContent: React.FC = () => {
   // Use SessionProvider for auth state - Rely 100% on Provider
-  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, isInitialized, isRedirecting, forceSession } = useSession();
+  const { session, user, loading: sessionLoading, isProcessing: isProcessingAuth, isInitialized, isRedirecting, setIsRedirecting, forceSession } = useSession();
   
   // Memoize sessionUserId to prevent unnecessary re-renders
   const sessionUserId = useMemo(() => session?.user?.id, [session?.user?.id]);
@@ -828,7 +828,8 @@ const AppContent: React.FC = () => {
   const handleOpenFriends = () => setFriendsOpen(true);
 
   const handleRefreshProfile = useCallback(() => {
-    if (session?.user) {
+    // GHOST SESSION: Guard against empty user.id - ensure user.id exists before using it
+    if (session?.user?.id && session.user.id !== '' && session.user.id !== 'pending') {
       // Force retry by passing forceRetry=true and resetting the data lock
       isInitialDataLoaded.current = false;
       loadProfile(session.user.id, false, true);
@@ -836,10 +837,11 @@ const AppContent: React.FC = () => {
       const data = fetchGuestProfile();
       setProfile(data);
     }
-  }, [session?.user?.id, loadProfile]);
+  }, [session?.user?.id, loadProfile, isGuest]);
   
   const handleRetryProfileFetch = useCallback(() => {
-    if (sessionUserId) {
+    // GHOST SESSION: Guard against empty user.id - ensure it exists and is not empty
+    if (sessionUserId && sessionUserId !== '' && sessionUserId !== 'pending') {
       // Force retry by resetting all locks including ref guard
       isInitialDataLoaded.current = false;
       hasInitialLoadRun.current = false;
@@ -859,8 +861,9 @@ const AppContent: React.FC = () => {
     if (profile) {
       setProfile({ ...profile, gems: newGems });
     }
+    // GHOST SESSION: Guard against empty user.id - ensure it exists and is not empty
     // Also trigger full profile refresh to ensure everything is in sync
-    if (session?.user?.id) {
+    if (session?.user?.id && session.user.id !== '' && session.user.id !== 'pending') {
       handleRefreshProfile();
     }
   }, [profile, session?.user?.id, handleRefreshProfile]);
@@ -1169,8 +1172,9 @@ const AppContent: React.FC = () => {
       return;
     }
     
-    // Basic guards: session and user ID must be valid
-    if (!sessionUserId || sessionUserId === 'pending' || isGuest || !session) {
+    // GHOST SESSION: Guard against empty user.id during initial auth mount
+    // Basic guards: session and user ID must be valid (not empty, not pending, not guest)
+    if (!sessionUserId || sessionUserId === 'pending' || sessionUserId === '' || isGuest || !session) {
       return;
     }
     
@@ -1249,9 +1253,36 @@ const AppContent: React.FC = () => {
     }
   }, [session?.user?.id]); // Only watch user ID, not computed values
   
+  // FIX STUCK SIGN-IN: Add timeout fallback to clear isRedirecting if stuck
+  const redirectStuckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  useEffect(() => {
+    // If isRedirecting is true for more than 20 seconds, clear it to prevent stuck state
+    if (isRedirecting) {
+      redirectStuckTimeoutRef.current = setTimeout(() => {
+        console.warn('App: isRedirecting stuck for 20+ seconds, clearing to prevent infinite loading');
+        setIsRedirecting(false);
+      }, 20000); // 20 second timeout
+      
+      return () => {
+        if (redirectStuckTimeoutRef.current) {
+          clearTimeout(redirectStuckTimeoutRef.current);
+          redirectStuckTimeoutRef.current = null;
+        }
+      };
+    } else {
+      // Clear timeout if isRedirecting becomes false
+      if (redirectStuckTimeoutRef.current) {
+        clearTimeout(redirectStuckTimeoutRef.current);
+        redirectStuckTimeoutRef.current = null;
+      }
+    }
+  }, [isRedirecting, setIsRedirecting]);
+
   // In App.tsx Guard: Update render logic to check for isRedirecting flag
   // STATE VERIFICATION: If profile is loaded, bypass loading screen immediately
   // Priority 1: Loading/Checking session or Redirecting (unless profile is already loaded)
+  // FIX STUCK SIGN-IN: Show guest button when redirecting to allow user to escape stuck state
   if ((!isInitialized || isRedirecting) && !profile) {
     const message = isRedirecting ? "Connecting to provider..." : "Verifying session...";
     console.log('App: Showing loading screen', { isInitialized, isRedirecting, hasProfile: !!profile, message });
@@ -1259,7 +1290,7 @@ const AppContent: React.FC = () => {
       <div className="relative">
         <LoadingScreen
           status={message}
-          showGuestButton={false}
+          showGuestButton={!isRedirecting} // Show guest button if not redirecting (allows user to escape stuck state)
           onEnterGuest={handlePlayAsGuest}
         />
       </div>

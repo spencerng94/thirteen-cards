@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { supabase, supabaseUrl, supabaseAnonKey } from '../src/lib/supabase';
@@ -57,8 +57,35 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
   const { setIsRedirecting } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const redirectTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear redirecting state after timeout to prevent app from being stuck
+  React.useEffect(() => {
+    // If redirecting state gets stuck, clear it after 15 seconds
+    if (loading) {
+      redirectTimeoutRef.current = setTimeout(() => {
+        console.warn('AuthScreen: Redirect timeout - clearing isRedirecting to prevent stuck state');
+        setIsRedirecting(false);
+        setLoading(false);
+        setError('Redirect is taking longer than expected. Please try again or check if popups are blocked.');
+      }, 15000); // 15 second timeout
+      
+      return () => {
+        if (redirectTimeoutRef.current) {
+          clearTimeout(redirectTimeoutRef.current);
+          redirectTimeoutRef.current = null;
+        }
+      };
+    }
+  }, [loading, setIsRedirecting]);
 
   const signInWithGoogle = async () => {
+    // Clear any existing timeout
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+      redirectTimeoutRef.current = null;
+    }
+    
     setLoading(true);
     setError(null);
     
@@ -101,6 +128,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         console.error('AuthScreen: Missing Supabase configuration');
         setError('Authentication configuration error. Please check your environment variables.');
         setLoading(false);
+        setIsRedirecting(false); // Clear redirecting state on error
         return;
       }
       
@@ -129,6 +157,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         console.error('AuthScreen: OAuth error from Supabase:', error);
         console.error('AuthScreen: Full error details:', JSON.stringify(error, null, 2));
         
+        // Clear timeout on error
+        if (redirectTimeoutRef.current) {
+          clearTimeout(redirectTimeoutRef.current);
+          redirectTimeoutRef.current = null;
+        }
+        
         // Provide more specific error messages
         let errorMessage = 'OAuth sign-in failed. ';
         if (error.message?.includes('invalid_client') || error.message?.includes('OAuth client')) {
@@ -146,13 +180,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
       // If we get here, the redirect should happen soon (though it usually happens immediately)
       console.log('AuthScreen: OAuth flow initiated successfully', { data });
       console.log('AuthScreen: Redirect should happen now...');
-      // Don't reset loading as redirect is expected
+      // Don't reset loading as redirect is expected - timeout will handle it if redirect fails
       
     } catch (err: any) {
       console.error('AuthScreen: OAuth error:', err);
+      
+      // Clear timeout on error
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+        redirectTimeoutRef.current = null;
+      }
+      
       const errorMessage = err?.message || err?.error?.message || 'Failed to sign in with Google. Please try again.';
       setError(errorMessage);
       setLoading(false); // Reset loading state so button isn't stuck
+      setIsRedirecting(false); // Clear redirecting state on error
     }
   };
 
