@@ -406,19 +406,19 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         if (attempt > 0) {
-          // Longer exponential backoff: wait before retry (1000ms, 2000ms, 4000ms)
+          // Longer exponential backoff: wait before retry (2000ms, 4000ms, 8000ms)
           // Longer delays give React more time to settle
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          const delay = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
           console.log(`fetchEmotes: Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay (waiting for React to settle)...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
         
-      const { data, error } = await supabase
-        .from('emotes')
-        .select('*')
-        .order('name', { ascending: true });
-      
-      if (error) {
+        const { data, error } = await supabase
+          .from('emotes')
+          .select('*')
+          .order('name', { ascending: true });
+        
+        if (error) {
           // Check if it's an AbortError - Supabase wraps it in error.message
           const errorMessage = error.message || '';
           const errorDetails = (error as any).details || '';
@@ -430,11 +430,11 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
           if (isAbortError && attempt < maxRetries - 1) {
             console.log(`fetchEmotes: AbortError detected on attempt ${attempt + 1}, will retry...`);
             continue; // Retry
-        }
-        console.error('Error fetching emotes:', error);
+          }
+          console.error('Error fetching emotes:', error);
           globalFetchCache.emotes.promise = null; // Clear promise on error
-        return [];
-      }
+          return [];
+        }
         
         // Success - store data and break out of retry loop
         fetchedData = data || [];
@@ -536,8 +536,8 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
     globalFetchCache.emotes.data = emotes;
     globalFetchCache.emotes.timestamp = Date.now();
     globalFetchCache.emotes.promise = null; // Clear promise after success
-      
-      return emotes;
+    
+    return emotes;
   })();
   
   // Store the promise in cache so other components can use it
