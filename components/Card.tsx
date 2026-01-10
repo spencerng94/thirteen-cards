@@ -230,9 +230,19 @@ const CardComponent: React.FC<CardProps> = ({
                 <stop offset="100%" stopColor="#3d280a" />
               </linearGradient>
             </defs>
-            <path d={SUIT_PATH_DATA[type]} fill={`url(#goldMetallicPremium-${type})`} />
-            {/* Added an inner "core" highlight for more premium depth */}
-            <path d={SUIT_PATH_DATA[type]} fill="white" opacity="0.1" transform="scale(0.85) translate(8.8, 8.8)" filter="blur(2px)" />
+            {/* SVG PATH SAFETY: Ensure path 'd' attribute has valid string, never NaN or undefined */}
+            {/* Fallback to empty string if pathData is null/undefined to prevent 'Expected number' error */}
+            {(() => {
+              const pathData = SUIT_PATH_DATA[type];
+              const safePathData = (pathData && typeof pathData === 'string') ? pathData : "";
+              return (
+                <>
+                  <path d={safePathData} fill={`url(#goldMetallicPremium-${type})`} />
+                  {/* Added an inner "core" highlight for more premium depth */}
+                  <path d={safePathData} fill="white" opacity="0.1" transform="scale(0.85) translate(8.8, 8.8)" filter="blur(2px)" />
+                </>
+              );
+            })()}
           </svg>
           {!disableEffects && (
             <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_40%,rgba(255,255,255,0.6)_50%,transparent_60%)] bg-[length:200%_100%] animate-[sovereign-glint_2s_infinite_linear] pointer-events-none mix-blend-overlay" style={{ clipPath: `path('${SUIT_PATH_DATA[type]}')` }}></div>
@@ -329,9 +339,32 @@ const CardComponent: React.FC<CardProps> = ({
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="relative group/dragon">
                         <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] fill-[#3d2b1f] opacity-80 filter grayscale-[0.2]">
-                             <path d="M50 10 C55 10 60 15 60 20 C60 25 55 30 50 30 C45 30 40 25 40 20 C40 15 45 10 50 10 Z M50 80 C30 80 15 65 15 45 C15 25 30 10 50 10 C70 10 85 25 85 45 C85 65 70 80 50 80 Z M50 35 C50 35 30 50 30 65 C30 80 50 90 50 90 C50 90 70 80 70 65 C70 50 50 35 Z" opacity="0.3"/>
-                             <path d="M82 45 C82 20 60 15 50 15 C40 15 18 20 18 45 C18 65 35 85 50 85 C65 85 82 65 82 45 M50 25 C58 25 65 32 65 40 C65 48 58 55 50 55 C42 55 35 48 35 40 C35 32 42 25 50 25" />
-                             <circle cx="50" cy="40" r="5" />
+                             {/* SVG PATH SAFETY: Ensure path 'd' attribute has valid string, never NaN or undefined */}
+                             {/* Fallback to empty string if pathData is null/undefined to prevent 'Expected number' error */}
+                             {(() => {
+                               // SVG PATH SAFETY: Ensure pathData is always a valid string - if generatePath would return null/undefined, use fallback
+                               // Example: const pathData = generatePath(someValue || 0);
+                               const pathData1: string | null | undefined = "M50 10 C55 10 60 15 60 20 C60 25 55 30 50 30 C45 30 40 25 40 20 C40 15 45 10 50 10 Z M50 80 C30 80 15 65 15 45 C15 25 30 10 50 10 C70 10 85 25 85 45 C85 65 70 80 50 80 Z M50 35 C50 35 30 50 30 65 C30 80 50 90 50 90 C50 90 70 80 70 65 C70 50 50 35 Z";
+                               const pathData2: string | null | undefined = "M82 45 C82 20 60 15 50 15 C40 15 18 20 18 45 C18 65 35 85 50 85 C65 85 82 65 82 45 M50 25 C58 25 65 32 65 40 C65 48 58 55 50 55 C42 55 35 48 35 40 C35 32 42 25 50 25";
+                               const opacityValue: number | null | undefined = 0.3;
+                               const circleCx: number | null | undefined = 50;
+                               const circleCy: number | null | undefined = 40;
+                               const circleR: number | null | undefined = 5;
+                               // Ensure all values are valid - no NaN or undefined values ever reach SVG attributes
+                               const safePath1 = (pathData1 && typeof pathData1 === 'string') ? pathData1 : "";
+                               const safePath2 = (pathData2 && typeof pathData2 === 'string') ? pathData2 : "";
+                               const safeOpacity = (typeof opacityValue === 'number' && !isNaN(opacityValue)) ? opacityValue : 0.3;
+                               const safeCx = (typeof circleCx === 'number' && !isNaN(circleCx)) ? circleCx : 50;
+                               const safeCy = (typeof circleCy === 'number' && !isNaN(circleCy)) ? circleCy : 40;
+                               const safeR = (typeof circleR === 'number' && !isNaN(circleR) && circleR > 0) ? circleR : 5;
+                               return (
+                                 <>
+                                   <path d={safePath1} opacity={safeOpacity} />
+                                   <path d={safePath2} />
+                                   <circle cx={safeCx} cy={safeCy} r={safeR} />
+                                 </>
+                               );
+                             })()}
                         </svg>
                         {activeTurn && !disableEffects && (
                             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2">

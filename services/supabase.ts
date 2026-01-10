@@ -1087,12 +1087,19 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     (safeUpdates as any).event_stats = (updates as any).event_stats;
   }
   
+  // FILTER PROTECTED/CALCULATED FIELDS: Remove id, level, created_at before update to prevent 400 error
+  // These fields are protected or calculated by the database and should never be sent in update
+  const { id, level, created_at, ...cleanData } = safeUpdates as any;
+  
   if (!supabaseAnonKey || userId === 'guest') {
     const local = fetchGuestProfile();
-    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, ...safeUpdates }));
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ ...local, ...cleanData }));
     return;
   }
-  await supabase.from('profiles').upsert({ id: userId, ...safeUpdates });
+  
+  // Use cleanData instead of safeUpdates to ensure protected fields are never sent
+  // Use upsert to update if exists, insert if not (id is included separately)
+  await supabase.from('profiles').upsert({ id: userId, ...cleanData });
 };
 
 export const buyItem = async (
