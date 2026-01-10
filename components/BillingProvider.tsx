@@ -271,12 +271,32 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
   }, [session, hasLoggedIn, isInitialized, isNative]);
 
   // Fetch gem balance when session changes or profile is provided
+  // CRITICAL: Wait for profile.id to be ready before fetching or using profile data
   // Stabilize: Only trigger when userId is stable and defined (not 'pending')
   // Wait for profile to be loaded before fetching gem balance
   const stableUserId = session?.user?.id && session.user.id !== 'pending' ? session.user.id : null;
   useEffect(() => {
+    // CRITICAL GUARD: Wait for profile.id to be ready
+    // Don't proceed if profile.id is missing, pending, or empty
+    if (!initialProfile?.id || initialProfile.id === 'pending' || initialProfile.id === '' || initialProfile.id === 'guest') {
+      if (stableUserId && !initialProfile) {
+        // Stable user ID exists but profile not loaded yet - wait for profile to load
+        // This is expected during initialization, don't log
+        return;
+      } else if (!stableUserId) {
+        // No stable user ID - clear gem balance
+        setGemBalance(null);
+        gemBalanceFetchedRef.current = false;
+        lastUserIdRef.current = null;
+        lastProfileIdRef.current = null;
+        return;
+      }
+      // Profile.id not ready yet, wait
+      return;
+    }
+    
     // HARD LOCK: Prevent re-fetching if profile ID hasn't changed
-    const currentProfileId = initialProfile?.id || null;
+    const currentProfileId = initialProfile.id;
     if (currentProfileId === lastProfileIdRef.current && gemBalanceFetchedRef.current) {
       // Profile ID unchanged and already fetched - skip
       return;
@@ -292,7 +312,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     
     // If profile is provided with gems and ID matches stableUserId, use it directly
     // This is the preferred path - use profile data directly without fetching
-    if (initialProfile?.gems !== undefined && initialProfile?.id && initialProfile.id === stableUserId) {
+    if (initialProfile?.gems !== undefined && initialProfile.id === stableUserId) {
       const gemsFromProfile = initialProfile.gems ?? 0;
       setGemBalance(gemsFromProfile);
       gemBalanceFetchedRef.current = true;
@@ -301,22 +321,13 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       if (onGemsUpdate) {
         onGemsUpdate(gemsFromProfile);
       }
-    } else if (stableUserId && initialProfile?.id && initialProfile.id === stableUserId && (initialProfile.gems === undefined || initialProfile.gems === null)) {
+    } else if (stableUserId && initialProfile.id === stableUserId && (initialProfile.gems === undefined || initialProfile.gems === null)) {
       // Profile is loaded but gems not set yet - fetch gem balance
       // Only fetch if we haven't already fetched for this user or if profile ID changed
       if (!gemBalanceFetchedRef.current || lastUserIdRef.current !== stableUserId) {
         console.log('BillingProvider: Profile loaded but gems missing, fetching gem balance...');
         fetchGemBalance();
       }
-    } else if (stableUserId && !initialProfile) {
-      // Stable user ID exists but profile not loaded yet - wait for profile to load
-      // Don't log here - this is expected during initialization
-    } else if (!stableUserId) {
-      // No stable user ID - clear gem balance
-      setGemBalance(null);
-      gemBalanceFetchedRef.current = false;
-      lastUserIdRef.current = null;
-      lastProfileIdRef.current = null;
     }
   }, [stableUserId, initialProfile?.id, initialProfile?.gems, fetchGemBalance, onGemsUpdate]); // Wait for profile.id to match stableUserId
 

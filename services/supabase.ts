@@ -8,7 +8,7 @@ import { generateDiscriminator } from '../utils/username';
 
 // Global fetch cache to prevent duplicate fetches across all components
 // This singleton ensures data is only fetched once, even if multiple components request it
-const globalFetchCache = {
+export const globalFetchCache = {
   emotes: {
     promise: null as Promise<Emote[]> | null,
     data: null as Emote[] | null,

@@ -42,7 +42,7 @@ if (isDevelopment && typeof window !== 'undefined' && (window as any).__SUPABASE
           flowType: 'implicit', // Use Implicit flow to bypass cookie blocking
           autoRefreshToken: true,
           persistSession: true,
-          detectSessionInUrl: false // Disabled - we handle hash parsing manually
+          detectSessionInUrl: true // Enable automatic session detection from URL
         }
       })
     : (() => {
