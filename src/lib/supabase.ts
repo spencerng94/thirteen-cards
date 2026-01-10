@@ -21,8 +21,41 @@ const getEnv = (key: string): string | undefined => {
   return undefined;
 };
 
-export const supabaseUrl = getEnv('VITE_SUPABASE_URL') || "https://spaxxexmyiczdrbikdjp.supabase.co";
-export const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
+// Check if we're in production build
+const isProduction = typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE === 'production';
+
+// PRODUCTION BUILD: Require environment variables, no fallback URLs
+// Development: Allow fallback for local testing (but warn)
+const getSupabaseUrl = (): string => {
+  const url = getEnv('VITE_SUPABASE_URL');
+  if (!url) {
+    if (isProduction) {
+      console.error('PRODUCTION BUILD ERROR: VITE_SUPABASE_URL is required but not set!');
+      throw new Error('VITE_SUPABASE_URL environment variable is required for production builds');
+    } else {
+      // Development fallback (warn but allow)
+      console.warn('WARNING: VITE_SUPABASE_URL not set, using fallback URL. This should not happen in production.');
+      return "https://spaxxexmyiczdrbikdjp.supabase.co";
+    }
+  }
+  return url;
+};
+
+const getSupabaseAnonKey = (): string => {
+  const key = getEnv('VITE_SUPABASE_ANON_KEY');
+  if (!key) {
+    if (isProduction) {
+      console.error('PRODUCTION BUILD ERROR: VITE_SUPABASE_ANON_KEY is required but not set!');
+      throw new Error('VITE_SUPABASE_ANON_KEY environment variable is required for production builds');
+    } else {
+      console.warn('WARNING: VITE_SUPABASE_ANON_KEY not set. Supabase features will not work.');
+    }
+  }
+  return key || '';
+};
+
+export const supabaseUrl = getSupabaseUrl();
+export const supabaseAnonKey = getSupabaseAnonKey();
 
 // SESSION PURGE: Auto-clear localStorage if version doesn't match
 // This runs BEFORE Supabase client is created to ensure clean state

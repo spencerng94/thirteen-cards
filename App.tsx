@@ -11,7 +11,9 @@ import { AuthScreen } from './components/AuthScreen';
 import { AuthCallback } from './components/AuthCallback';
 import { GameSettings, SocialFilter } from './components/GameSettings';
 import { LegalView } from './components/LegalView';
+import { SupportView } from './components/SupportView';
 import { StatusBar } from '@capacitor/status-bar';
+import { SplashScreen } from '@capacitor/splash-screen';
 import { Capacitor } from '@capacitor/core';
 import { useNativeHardware } from './hooks/useNativeHardware';
 
@@ -1377,6 +1379,54 @@ const AppContent: React.FC = () => {
   // If no session exists, we proceed to the landing page normally.
   const isAppReady = isInitialized && (session ? !!profile : true);
   
+  // Splash Screen Logic: Hide native splash screen only after app is ready
+  // This ensures seamless transition from native splash to app content (no white flash)
+  // Includes 5-second timeout fallback to prevent users from being stuck
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return; // Skip on web
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let hasHidden = false;
+
+    const hideSplash = async () => {
+      if (hasHidden) return;
+      hasHidden = true;
+      
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      try {
+        await SplashScreen.hide();
+        console.log('Splash screen hidden successfully');
+      } catch (error) {
+        // Non-blocking: Log error but don't prevent app from loading
+        console.warn('Failed to hide splash screen:', error);
+      }
+    };
+
+    // Hide immediately when app is ready
+    if (isAppReady) {
+      hideSplash();
+    }
+
+    // Fallback: Force hide after 5 seconds regardless of app readiness
+    // This prevents users from being stuck if a resource fails to load
+    timeoutId = setTimeout(() => {
+      console.warn('Splash screen timeout: Forcing hide after 5 seconds (app may still be loading)');
+      hideSplash();
+    }, 5000);
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isAppReady]);
+  
   // Refactor the Loading Gate: Use isAppReady instead of just !isInitialized
   // Prevent Partial Renders: Don't mount any components until isAppReady is true
   if (!isAppReady) {
@@ -1556,9 +1606,13 @@ const App: React.FC = () => {
     return <AuthCallback />;
   }
   
-  // If we're on a legal route, render LegalView directly
+  // If we're on a legal or support route, render the appropriate view directly
   if (location.pathname === '/terms' || location.pathname === '/privacy') {
     return <LegalView />;
+  }
+  
+  if (location.pathname === '/support') {
+    return <SupportView />;
   }
   
   // Otherwise, render the main app

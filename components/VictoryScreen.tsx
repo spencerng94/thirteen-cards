@@ -10,6 +10,7 @@ import { SaltShakeFinisher } from './SaltShakeFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
 import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
 import { KissMyShibaFinisher } from './KissMyShibaFinisher';
+import { TooFunnyFinisher } from './TooFunnyFinisher';
 import { adService, AdPlacement } from '../services/adService';
 import { GemRain } from './GemRain';
 import { CurrencyIcon } from './Store';
@@ -287,6 +288,12 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
           )}
           {finisherData.animation_key === 'kiss_my_shiba' && (
             <KissMyShibaFinisher 
+              onComplete={() => setFinisherComplete(true)}
+              winnerName={me?.name || 'GUEST'}
+            />
+          )}
+          {finisherData.animation_key === 'too_funny' && (
+            <TooFunnyFinisher 
               onComplete={() => setFinisherComplete(true)}
               winnerName={me?.name || 'GUEST'}
             />

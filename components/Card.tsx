@@ -585,7 +585,7 @@ const CardComponent: React.FC<CardProps> = ({
         <div
             className={`
             relative rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] border-2 ${bgClass} ${borderClass}
-            ${small ? 'w-10 h-14' : 'w-20 h-28 sm:w-24 sm:h-36'}
+            ${small ? 'w-10 h-14' : 'w-20 h-28 sm:w-22 sm:h-31'}
             flex items-center justify-center overflow-hidden transition-all duration-200 transform-gpu will-change-transform
             hover:scale-110 hover:-translate-y-2 hover:rotate-1 group
             ${specialAnimation}
@@ -647,6 +647,8 @@ const CardComponent: React.FC<CardProps> = ({
   const rankLabel = getRankLabel(card.rank);
   const suitSymbol = getSuitSymbol(card.suit);
   const isHighValue = card.rank === Rank.Two;
+  const isHandCard = className?.includes('hand-card') ?? false;
+  const hideCenterSymbol = className?.includes('hide-center-symbol') ?? false;
 
   /* Explicitly cast coverStyle to CardCoverStyle to resolve type widening issues */
   const { bg, border, textColor, symbolColor, innerGlow, fontClass } = getFaceTheming(coverStyle as CardCoverStyle, card.suit, disableEffects);
@@ -656,7 +658,7 @@ const CardComponent: React.FC<CardProps> = ({
       onClick={onClick}
       className={`
         relative ${bg} border ${border} rounded-xl select-none cursor-pointer transform-gpu will-change-transform
-        ${small ? 'w-10 h-14 text-xs' : 'w-20 h-28 sm:w-24 sm:h-36 text-base'}
+        ${small ? 'w-10 h-14 text-xs' : (isHandCard ? 'w-28 h-28 sm:w-22 sm:h-31 text-base' : 'w-20 h-28 sm:w-22 sm:h-31 text-base')}
         ${selected 
           ? '-translate-y-16 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-40 scale-[1.05]' 
           : 'shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:-translate-y-6 hover:rotate-2 hover:shadow-[0_25px_50px_rgba(0,0,0,0.45)] hover:z-30'}
@@ -668,18 +670,19 @@ const CardComponent: React.FC<CardProps> = ({
       `}
     >
       <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/10 via-transparent to-black/20 pointer-events-none"></div>
-      <div className={`absolute top-1.5 left-1.5 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : 'text-xl'} ${fontClass}`}>
+      <div className={`absolute top-1.5 left-1.5 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : (isHandCard ? 'text-lg' : 'text-xl')} ${fontClass}`}>
         <div className="tracking-tighter drop-shadow-sm">{rankLabel}</div>
-        <div className={`${small ? 'text-[8px]' : 'text-[0.7em]'} mt-0.5`}>{suitSymbol}</div>
+        <div className={`${small ? 'text-[8px]' : (isHandCard ? 'text-[0.8em]' : 'text-[0.7em]')} mt-0.5`}>{suitSymbol}</div>
       </div>
-      <div className={`absolute bottom-1.5 right-1.5 rotate-180 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : 'text-xl'} ${fontClass}`}>
+      <div className={`absolute bottom-1.5 right-1.5 rotate-180 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : (isHandCard ? 'text-lg' : 'text-xl')} ${fontClass}`}>
         <div className="tracking-tighter drop-shadow-sm">{rankLabel}</div>
-        <div className={`${small ? 'text-[8px]' : 'text-[0.7em]'} mt-0.5`}>{suitSymbol}</div>
+        <div className={`${small ? 'text-[8px]' : (isHandCard ? 'text-[0.8em]' : 'text-[0.7em]')} mt-0.5`}>{suitSymbol}</div>
       </div>
       <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${symbolColor}`}>
         <div className={`
-          ${small ? 'text-xl' : 'text-5xl'} 
+          ${small ? 'text-xl' : (isHandCard ? 'text-4xl' : 'text-4xl')} 
           ${isHighValue ? 'drop-shadow-[0_0_15px_rgba(255,255,255,0.1)] scale-110' : 'opacity-90'} 
+          ${hideCenterSymbol ? 'opacity-40' : ''}
           transition-transform duration-300 group-hover:scale-125
         `}>
           {suitSymbol}

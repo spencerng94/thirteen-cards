@@ -128,7 +128,7 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
   return (
     <div className={`relative flex transition-all duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isFinished ? 'scale-100' : 'opacity-100'} 
       ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 
-        (position === 'left' ? 'flex-col landscape:flex-row items-center gap-6 sm:gap-8 landscape:gap-4' :
+        (position === 'left' ? 'flex-col items-center gap-6 sm:gap-8' :
          position === 'right' ? 'flex-col landscape:flex-row-reverse items-center gap-6 sm:gap-8 landscape:gap-4' :
          'flex-col items-center gap-6 sm:gap-8')} ${className} ${!isCurrentPlayer && !player.isBot && onPlayerClick ? 'pointer-events-auto' : ''}`}>
         
@@ -803,14 +803,14 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const spacing = { 
     landscape: handRows >= 2 
-        ? '-space-x-4 sm:-space-x-8 lg:-space-x-10 xl:-space-x-4' 
+        ? '-space-x-2 sm:-space-x-4 lg:-space-x-6 xl:-space-x-2' 
         : (selectedCardIds.size > 0 
-            ? 'landscape:-space-x-8 sm:landscape:-space-x-10 xl:landscape:-space-x-4' 
-            : 'landscape:-space-x-10 sm:landscape:-space-x-12 xl:landscape:-space-x-6'), 
+            ? 'landscape:-space-x-4 sm:landscape:-space-x-6 xl:landscape:-space-x-2' 
+            : 'landscape:-space-x-6 sm:landscape:-space-x-8 xl:landscape:-space-x-4'), 
     portrait: handRows >= 2 
-        ? '-space-x-6 sm:-space-x-10' 
+        ? '-space-x-2 sm:-space-x-4' 
         : (selectedCardIds.size > 0 
-            ? 'portrait:-space-x-[8vw] sm:portrait:-space-x-10' 
+            ? 'portrait:-space-x-[10vw] sm:portrait:-space-x-12' 
             : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14')
   };
 
@@ -1067,15 +1067,15 @@ export const GameTable: React.FC<GameTableProps> = ({
           {isMyTurn && passButtonUI}
       </div>
 
-      <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 flex justify-center">
-          <div className={`${isMyTurn ? 'opacity-100 translate-y-0' : (isFinished ? 'opacity-60 scale-90 translate-y-4' : 'opacity-0 translate-y-20')}`}>
+      <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 flex flex-col items-center">
+          <div className={`${isMyTurn ? 'opacity-100 translate-y-0' : (isFinished ? 'opacity-60 scale-90 translate-y-4' : 'opacity-0 translate-y-20')} flex flex-col items-center`}>
             {me && (
                 <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} getValidatedSleeve={getValidatedSleeveForPlayer} />
             )}
           </div>
       </div>
 
-      <div className={`fixed bottom-[180px] left-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex justify-center ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+      <div className={`fixed bottom-[155px] left-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex flex-col items-center ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {leftOpponent && (
               <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />
           )}
@@ -1156,11 +1156,11 @@ export const GameTable: React.FC<GameTableProps> = ({
           {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(topOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
         
-        <div className={`col-start-1 row-start-2 flex justify-start items-center pl-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isMyTurn ? '-translate-y-32 z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-16 z-[60]' : '')} landscape:hidden ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+        <div className={`col-start-1 row-start-2 flex justify-start items-center ml-0 sm:ml-0 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isMyTurn ? '-translate-y-[144px] z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-[80px] z-[60]' : '-translate-y-[32px]')} landscape:hidden ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
           {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
         
-        <div className={`col-start-3 row-start-2 flex justify-end items-center pr-2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} landscape:hidden ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+        <div className={`col-start-3 row-start-2 flex justify-end items-center transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} portrait:hidden ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
           {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
       </div>
@@ -1172,7 +1172,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               key={lastMove.playerId + lastMove.cards.map((c) => c.id).join('')}
               className={`flex flex-col items-center gap-4 scale-90 sm:scale-125 landscape:scale-[0.4] ${arrivalAnimationClass}`}
             >
-               <div className="flex -space-x-12">
+               <div className="flex -space-x-8">
                 {lastMove.cards.map((c, i: number) => {
                   const movePlayer = gameState.players.find((p) => p.id === lastMove!.playerId);
                   const playerSleeve = getValidatedSleeveForPlayer(movePlayer);
@@ -1205,20 +1205,26 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full p-2 sm:p-4 flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40">
-        <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden">
+      <div className="absolute bottom-0 left-0 w-full flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40 pt-2 pb-2 sm:pt-4 sm:pb-4">
+        <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden px-2 sm:px-4">
             {turnIndicatorUI}
         </div>
 
-        <div className="relative w-full flex flex-col items-center">
-            <div className={`absolute left-4 origin-bottom-left pointer-events-none z-50 transition-all duration-300 landscape:hidden
-                ${isMyTurn ? '-top-[95px]' : (isFinished ? '-top-[55px]' : 'top-20 opacity-0')}`}>
+        <div className={`fixed right-4 sm:right-12 bottom-[280px] sm:bottom-[108px] pointer-events-none z-30 transition-all duration-300 landscape:hidden flex flex-col items-end ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+          {rightOpponent && (
+              <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />
+          )}
+        </div>
+
+        <div className="relative w-full flex flex-col items-center px-4 sm:px-12">
+            <div className={`absolute left-4 sm:left-12 bottom-[44px] pointer-events-none z-50 transition-all duration-300 landscape:hidden flex flex-col items-start -translate-y-1/2
+                ${isMyTurn ? 'opacity-100' : (isFinished ? 'opacity-100' : 'opacity-0')}`}>
               {me && (
                   <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} getValidatedSleeve={getValidatedSleeveForPlayer} />
               )}
             </div>
 
-            <div className={`flex flex-row items-stretch justify-center gap-3 w-full max-w-sm mb-3 transition-all duration-300 h-16 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
+            <div className={`flex flex-row items-stretch justify-start gap-3 w-full max-w-sm mb-3 transition-all duration-300 h-16 ml-0 sm:ml-0 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
               <div className="relative flex-1 landscape:hidden">
                 {passButtonUI}
               </div>
@@ -1227,19 +1233,21 @@ export const GameTable: React.FC<GameTableProps> = ({
                 {playButtonUI}
               </div>
 
-              <div className="flex-1 landscape:hidden">
+              <div className="relative flex-1 landscape:hidden">
                 {expandButtonUI}
               </div>
             </div>
         </div>
 
-        <div className="relative flex items-center justify-center w-full max-w-[96vw] landscape:px-32 sm:landscape:px-12 xl:landscape:px-0">
-           <div className={`flex transition-all duration-500 landscape:scale-[0.46] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap ${spacing.portrait} portrait:pb-16 max-w-full`}`}>
-            {sortedHand.map((c) => {
+        <div className="relative flex items-center justify-center w-full landscape:px-32 sm:landscape:px-12 xl:landscape:px-0 px-2 sm:px-4">
+           <div className={`flex transition-all duration-500 landscape:scale-[0.46] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] sm:portrait:scale-[1] portrait:max-w-sm sm:portrait:max-w-sm ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap justify-center ${spacing.portrait} portrait:pb-16`}`}>
+            {sortedHand.map((c, index) => {
               const is3Spades = c.rank === Rank.Three && c.suit === Suit.Spades;
               const showHint = isMyTurn && isLeader && gameState.isFirstTurnOfGame && is3Spades && !selectedCardIds.has(c.id);
               const isSelected = selectedCardIds.has(c.id);
               const handleCardClick = () => toggleCard(c.id);
+              const isRightmost = index === sortedHand.length - 1;
+              const hideCenterSymbol = !isRightmost;
               return (
                 <Card 
                   key={c.id} 
@@ -1249,7 +1257,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                   onClick={handleCardClick} 
                   disableEffects={!sleeveEffectsEnabled}
                   activeTurn={isMyTurn}
-                  className={`transform-gpu will-change-transform transition-all duration-200 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''}`} 
+                  className={`hand-card transform-gpu will-change-transform transition-all duration-200 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
                 />
               );
             })}

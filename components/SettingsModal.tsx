@@ -5,6 +5,7 @@ import { BackgroundTheme, AiDifficulty } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { PREMIUM_BOARDS } from './UserHub';
 import { FeedbackModal } from './FeedbackModal';
+import { SupportModal } from './SupportModal';
 import { useVersionCheck } from '../hooks/useVersionCheck';
 
 interface SettingsModalProps {
@@ -54,6 +55,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const isUpdateAvailable = useVersionCheck();
 
   const handleUpdate = () => {
@@ -305,7 +307,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
              )}
 
-             {/* Feedback Button */}
+             {/* Support & Feedback Button */}
+             <button
+               onClick={() => setShowSupportModal(true)}
+               className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-all duration-300 active:scale-95"
+             >
+               <span className="relative z-10 flex items-center justify-center gap-3 text-gray-500 group-hover:text-white font-black text-[11px] uppercase tracking-[0.4em] transition-colors">
+                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                 </svg>
+                 Support & Feedback
+               </span>
+             </button>
+
+             {/* Legacy Feedback Button (keep for compatibility) */}
              <button
                onClick={() => setShowFeedbackModal(true)}
                className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-all duration-300 active:scale-95"
@@ -314,7 +329,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
                  </svg>
-                 Feedback
+                 Quick Feedback
                </span>
              </button>
 
@@ -335,6 +350,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
         
+        {/* Support Modal */}
+        {showSupportModal && (
+          <SupportModal
+            onClose={() => setShowSupportModal(false)}
+            userId={userId}
+            gameVersion={gameVersion}
+          />
+        )}
+
         {/* Feedback Modal */}
         {showFeedbackModal && (
           <FeedbackModal

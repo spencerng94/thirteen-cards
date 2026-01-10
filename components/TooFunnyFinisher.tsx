@@ -1,36 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase, getEmoteUrl } from '../services/supabase';
+import { supabase } from '../services/supabase';
 
-interface SaltShakeFinisherProps {
+interface TooFunnyFinisherProps {
   onComplete: () => void;
   onReplay?: () => void;
   isPreview?: boolean;
-  losingPlayers?: Array<{ id: string; position: 'top' | 'left' | 'right' | 'bottom' }>;
   winnerName?: string;
 }
 
-// Salt Shaker Emote Component - Rains from top, grows as it falls
-const SaltShakerEmote: React.FC<{
+// Laugh Cry Emote Component - Rains from top, grows as it falls
+const LaughCryEmote: React.FC<{
   startX: number;
   delay: number;
   duration: number;
   startSize: number;
 }> = ({ startX, delay, duration, startSize }) => {
-  // Use getEmoteUrl for immediate fallback, then try to enhance with Supabase URL
-  const defaultUrl = getEmoteUrl(':annoyed:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/annoyed_card.png';
+  // Use immediate fallback URL (laugh_cry_card.png is not in EMOTE_FILE_MAP, so use direct path)
+  const defaultUrl = 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/laugh_cry_card.png';
   const [imageUrl, setImageUrl] = useState<string>(defaultUrl);
   
   useEffect(() => {
     // Try to get the URL from Supabase storage (synchronous operation)
     try {
-      const { data } = supabase.storage.from('emotes').getPublicUrl('annoyed_card.png');
+      const { data } = supabase.storage.from('emotes').getPublicUrl('round_3/laugh_cry_card.png');
       if (data?.publicUrl) {
         setImageUrl(data.publicUrl);
       }
     } catch (e) {
-      console.error('Error loading salty side eye emote:', e);
+      console.error('Error loading laugh cry emote:', e);
       // Keep the default fallback URL
     }
   }, []);
@@ -63,16 +62,16 @@ const SaltShakerEmote: React.FC<{
         times: [0, 0.15, 0.5, 0.8, 1],
       }}
     >
-      {/* Bubble container with circular shape and bubble aesthetic */}
+      {/* Bubble container with circular shape and colorful aesthetic */}
       <div
         className="rounded-full overflow-hidden transform-gpu"
         style={{
           width: `${startSize}px`,
           height: `${startSize}px`,
-          background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.8) 35%, rgba(240,240,240,0.6) 70%, rgba(220,220,220,0.4) 100%)',
+          background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95) 0%, rgba(255,182,193,0.8) 35%, rgba(173,216,230,0.6) 70%, rgba(144,238,144,0.4) 100%)',
           border: '4px solid rgba(255,255,255,0.7)',
-          boxShadow: '0 0 30px rgba(255,255,255,0.6), inset 0 0 20px rgba(255,255,255,0.4), 0 8px 15px rgba(0,0,0,0.2)',
-          filter: 'drop-shadow(0 0 15px rgba(255,255,255,0.7))',
+          boxShadow: '0 0 30px rgba(255,182,193,0.6), inset 0 0 20px rgba(255,255,255,0.4), 0 8px 15px rgba(0,0,0,0.2)',
+          filter: 'drop-shadow(0 0 15px rgba(255,182,193,0.7))',
           willChange: 'transform',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
@@ -80,7 +79,7 @@ const SaltShakerEmote: React.FC<{
       >
         <img
           src={imageUrl}
-          alt="Salty Side Eye"
+          alt="Laugh Cry"
           className="w-full h-full object-cover transform-gpu"
           style={{
             borderRadius: '50%',
@@ -89,8 +88,8 @@ const SaltShakerEmote: React.FC<{
             WebkitBackfaceVisibility: 'hidden',
           }}
           onError={(e) => {
-            // Fallback to getEmoteUrl if image fails to load
-            const fallbackUrl = getEmoteUrl(':annoyed:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/annoyed_card.png';
+            // Fallback to direct URL if image fails to load
+            const fallbackUrl = 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/laugh_cry_card.png';
             if (fallbackUrl && e.currentTarget.src !== fallbackUrl) {
               e.currentTarget.src = fallbackUrl;
             }
@@ -101,11 +100,10 @@ const SaltShakerEmote: React.FC<{
   );
 };
 
-export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({ 
+export const TooFunnyFinisher: React.FC<TooFunnyFinisherProps> = ({ 
   onComplete, 
   onReplay,
   isPreview = false,
-  losingPlayers = [],
   winnerName = 'GUEST'
 }) => {
   const [phase, setPhase] = useState<'rain' | 'victory' | 'complete'>('rain');
@@ -171,14 +169,14 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
 
   const content = (
     <div className="fixed inset-0 z-[300] pointer-events-none overflow-hidden">
-      {/* Soft white/salt background */}
+      {/* Soft colorful background */}
       <motion.div
         className="absolute inset-0"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
         style={{
-          background: 'radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, rgba(240,240,240,0.2) 50%, rgba(220,220,220,0.1) 100%)',
+          background: 'radial-gradient(circle at center, rgba(255,182,193,0.3) 0%, rgba(173,216,230,0.2) 50%, rgba(144,238,144,0.1) 100%)',
         }}
       />
 
@@ -193,7 +191,7 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
       {/* Continuous Rain from Top */}
       <div className="absolute inset-0 transform-gpu" style={{ contain: 'layout style paint' }}>
         {rainPattern.map((emote) => (
-          <SaltShakerEmote
+          <LaughCryEmote
             key={emote.id}
             startX={emote.startX}
             delay={emote.delay}
@@ -225,7 +223,7 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
                 style={{
                   fontFamily: "'Impact', 'Arial Black', 'Franklin Gothic Bold', sans-serif",
                   color: '#FFFFFF',
-                  textShadow: '4px 4px 0px #000000, -2px -2px 0px #000000, 2px -2px 0px #000000, -2px 2px 0px #000000, 0 0 20px rgba(255,255,255,0.8), 0 0 40px rgba(255,255,255,0.6)',
+                  textShadow: '4px 4px 0px #000000, -2px -2px 0px #000000, 2px -2px 0px #000000, -2px 2px 0px #000000, 0 0 20px rgba(255,182,193,0.8), 0 0 40px rgba(173,216,230,0.6)',
                   WebkitTextStroke: '3px #000000',
                   letterSpacing: '0.05em',
                 }}
@@ -238,7 +236,7 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
                   ease: 'easeInOut',
                 }}
               >
-                {winnerName} WINS! SALTY?
+                {winnerName} WINS! HAHAHAHA!
               </motion.div>
             </motion.div>
 
@@ -250,8 +248,8 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
                 style={{
                   left: `${50 + Math.cos(i * 0.4) * 30}%`,
                   top: `${50 + Math.sin(i * 0.4) * 30}%`,
-                  background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0.8) 50%, transparent 100%)',
-                  boxShadow: '0 0 10px rgba(255,255,255,0.8)',
+                  background: 'radial-gradient(circle, rgba(255,182,193,1) 0%, rgba(173,216,230,0.8) 50%, transparent 100%)',
+                  boxShadow: '0 0 10px rgba(255,182,193,0.8)',
                 }}
                 animate={{
                   scale: [0, 1, 0],
@@ -280,7 +278,7 @@ export const SaltShakeFinisher: React.FC<SaltShakeFinisherProps> = ({
         >
           <button
             onClick={handleReplay}
-            className="px-6 py-3 bg-gradient-to-r from-yellow-400 to-amber-600 text-black font-bold rounded-xl shadow-lg hover:scale-105 transition-transform duration-200"
+            className="px-6 py-3 bg-gradient-to-r from-pink-400 to-blue-500 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform duration-200"
             style={{
               fontFamily: "'Comic Sans MS', 'Comic Sans', cursive",
             }}

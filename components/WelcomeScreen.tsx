@@ -377,44 +377,75 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const emotesFetchedRef = useRef(false);
   const finishersFetchedRef = useRef(false);
 
+  // Fetch finishers and emotes independently - they're public and don't require authentication
+  // Emotes are needed for finisher icons to render properly (ShibaSlamIcon, kiss_my_shiba, etc.)
   useEffect(() => {
-    // THE FETCH SHIELD: Return early if already fetched - prevents duplicate concurrent requests
-    // Even if component mounts 5 times in a row (as it does in Prod), this ensures fetch only runs once
-    if (hasFetched.current) {
-      console.log('WelcomeScreen: Fetch shield - already fetched, skipping to prevent race condition');
-      // Try to load from cache if available
-      if (!emotesFetchedRef.current && globalFetchCache?.emotes?.data) {
-        setRemoteEmotes(globalFetchCache.emotes.data);
-        emotesFetchedRef.current = true;
-      }
-      if (!finishersFetchedRef.current && globalFetchCache?.finishers?.data) {
+    // Fetch finishers
+    if (finishersFetchedRef.current) {
+      // Already fetched, try to load from cache if state is empty
+      if (globalFetchCache?.finishers?.data && finishers.length === 0) {
         setFinishers(globalFetchCache.finishers.data);
-        finishersFetchedRef.current = true;
       }
       return;
     }
     
-    // DEPENDENCY CHECK: Wait for profile.id to be ready before fetching
-    if (!profile?.id || profile.id === 'guest' || profile.id === 'pending' || profile.id === '') {
-      console.log(`WelcomeScreen: Waiting for profile.id from context - currentProfileId: ${profile?.id || 'undefined'}`);
+    console.log('WelcomeScreen: Fetching public finishers (no profile required)...');
+    finishersFetchedRef.current = true; // Set immediately to prevent concurrent fetches
+    
+    // Try cache first
+    if (globalFetchCache?.finishers?.data) {
+      setFinishers(globalFetchCache.finishers.data);
+      console.log(`⚔️ CUSTOMIZE: Loaded ${globalFetchCache.finishers.data.length} finishers from cache`);
+    } else {
+      fetchFinishers()
+        .then((finishersData) => {
+          console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
+          if (finishersData && finishersData.length > 0) {
+            console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
+          } else {
+            console.warn('⚠️ No finishers returned. Check: 1) VITE_SUPABASE_URL is set, 2) VITE_SUPABASE_ANON_KEY is set, 3) finishers table exists and has RLS policy "Finishers are viewable by everyone"');
+          }
+          setFinishers(finishersData || []);
+        })
+        .catch((err: any) => {
+          console.error('❌ WelcomeScreen: Error fetching finishers:', err);
+          console.error('Error details:', {
+            message: err?.message,
+            code: err?.code,
+            details: err?.details,
+            hint: err?.hint
+          });
+          // Try to use cached data if available
+          if (globalFetchCache?.finishers?.data) {
+            console.log('Using cached finishers data');
+            setFinishers(globalFetchCache.finishers.data);
+          } else {
+            setFinishers([]);
+            finishersFetchedRef.current = false; // Allow retry if no cache
+          }
+        });
+    }
+
+    // Fetch emotes immediately - they're public and needed for finisher icons
+    if (emotesFetchedRef.current) {
+      // Already fetched, try to load from cache if state is empty
+      if (globalFetchCache?.emotes?.data && remoteEmotes.length === 0) {
+        setRemoteEmotes(globalFetchCache.emotes.data);
+      }
       return;
     }
+
+    console.log('WelcomeScreen: Fetching public emotes (no profile required)...');
+    emotesFetchedRef.current = true; // Set immediately to prevent concurrent fetches
     
-    // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
-    // This ensures that even if component mounts 5 times, fetch only runs once
-    hasFetched.current = true;
-    
-    console.log('WelcomeScreen: Profile ID confirmed, fetching global assets (emotes/finishers)...');
-    
-    // STOP ABORTING: No AbortController, no signal, no cleanup function
-    // We want these requests to persist even if the component re-renders
-    
-    // Fetch emotes - function handles its own internal locking
-    if (!emotesFetchedRef.current) {
+    // Try cache first
+    if (globalFetchCache?.emotes?.data) {
+      setRemoteEmotes(globalFetchCache.emotes.data);
+      console.log(`✅ WelcomeScreen: Loaded ${globalFetchCache.emotes.data.length} emotes from cache`);
+    } else {
       fetchEmotes()
         .then((emotes) => {
           setRemoteEmotes(emotes || []);
-          emotesFetchedRef.current = true;
           console.log(`✅ WelcomeScreen: Loaded ${emotes?.length || 0} emotes`);
         })
         .catch((err: any) => {
@@ -425,38 +456,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             emotesFetchedRef.current = true;
           } else {
             setRemoteEmotes([]);
+            emotesFetchedRef.current = false; // Allow retry if no cache
           }
-          // Do NOT reset hasFetched - shield remains active even on error
         });
     }
-    
-    // Fetch finishers - function handles its own internal locking
-    if (!finishersFetchedRef.current) {
-      fetchFinishers()
-        .then((finishersData) => {
-          console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
-          if (finishersData && finishersData.length > 0) {
-            console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
-          }
-          setFinishers(finishersData || []);
-          finishersFetchedRef.current = true;
-        })
-        .catch((err: any) => {
-          console.error('❌ WelcomeScreen: Error fetching finishers:', err);
-          // Try to use cached data if available
-          if (globalFetchCache?.finishers?.data) {
-            setFinishers(globalFetchCache.finishers.data);
-            finishersFetchedRef.current = true;
-          } else {
-            setFinishers([]);
-          }
-          // Do NOT reset hasFetched - shield remains active even on error
-        });
-    }
-    
-    // CRITICAL: NO CLEANUP FUNCTION - Do NOT return a cleanup that would abort fetches
-    // STOP ABORTING: Let Supabase requests finish even if component re-renders
-  }, [profile?.id]); // DEPENDENCY: Only depend on profile.id - fetches only trigger when it's actually present
+  }, []); // Fetch once on mount - no dependencies
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {
@@ -470,7 +474,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     setPendingPurchase({
       id: type === 'AVATAR' ? item : item.id,
       name: type === 'AVATAR' ? getAvatarName(item, remoteEmotes) : item.name,
-      description: type === 'AVATAR' ? 'A high-fidelity elite avatar signature.' : type === 'FINISHER' ? 'A legendary cinematic finisher that plays when you win a match. Feel the main character energy.' : (item.description || ITEM_REGISTRY[item.id]?.description || 'A signature XIII cosmetic upgrade.'),
+      description: type === 'AVATAR' ? 'A high-fidelity elite avatar signature.' : type === 'FINISHER' ? (item.description || 'A legendary cinematic finisher that plays when you win a match. Feel the main character energy.') : (item.description || ITEM_REGISTRY[item.id]?.description || 'A signature XIII cosmetic upgrade.'),
       price,
       currency: type === 'FINISHER' ? 'GEMS' : (item.currency || 'GOLD'),
       type,
@@ -863,6 +867,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                           ? 'bg-gradient-to-br from-yellow-500/20 via-orange-500/15 to-yellow-500/20 border-yellow-500/30' 
                           : f.animation_key === 'kiss_my_shiba'
                           ? 'bg-gradient-to-br from-pink-500/20 via-rose-500/15 to-pink-500/20 border-pink-500/30'
+                          : f.animation_key === 'seductive_finish'
+                          ? 'bg-gradient-to-br from-pink-500/20 via-rose-500/15 to-pink-500/20 border-pink-500/30'
+                          : f.animation_key === 'sanctum_snap'
+                          ? 'bg-gradient-to-br from-yellow-500/20 via-amber-500/15 to-yellow-500/20 border-yellow-500/30'
+                          : f.animation_key === 'salt_shaker'
+                          ? 'bg-gradient-to-br from-white/20 via-gray-100/15 to-white/20 border-white/30'
+                          : f.animation_key === 'too_funny'
+                          ? 'bg-gradient-to-br from-pink-500/20 via-blue-500/15 to-pink-500/20 border-pink-500/30'
                           : 'bg-gradient-to-br from-blue-500/20 via-indigo-500/15 to-blue-500/20 border-blue-500/30'
                       }`}>
                         {f.animation_key === 'shiba_slam' ? (
@@ -871,6 +883,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                           <EtherealBladeIcon className="w-full h-full p-3 sm:p-4" />
                         ) : f.animation_key === 'kiss_my_shiba' ? (
                           <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
+                        ) : f.animation_key === 'seductive_finish' ? (
+                          <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />
+                        ) : f.animation_key === 'sanctum_snap' ? (
+                          <VisualEmote trigger=":money_mouth_face:" remoteEmotes={remoteEmotes} size="xl" />
+                        ) : f.animation_key === 'salt_shaker' ? (
+                          <VisualEmote trigger=":eyeroll:" remoteEmotes={remoteEmotes} size="xl" />
+                        ) : f.animation_key === 'too_funny' ? (
+                          <VisualEmote trigger=":joy:" remoteEmotes={remoteEmotes} size="xl" />
                         ) : (
                           <div className="text-4xl">⚔️</div>
                         )}
@@ -1123,47 +1143,51 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       
       {/* Purchase / Equip Modal for Customize */}
       {pendingPurchase && profile && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-6" onClick={() => setPendingPurchase(null)}>
-          <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-sm rounded-[3rem] p-8 flex flex-col items-center text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <h3 className="text-white font-black uppercase text-2xl mb-2 italic">
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-md p-6 md:p-8" onClick={() => setPendingPurchase(null)}>
+          <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-sm md:max-w-lg lg:max-w-2xl rounded-[3rem] p-8 md:p-10 lg:p-12 flex flex-col items-center text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-black uppercase text-2xl md:text-3xl lg:text-4xl mb-2 md:mb-3 italic">
                 {pendingPurchase.unlocked ? 'ASSET PROFILE' : 'SECURE ASSET?'}
             </h3>
-            <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-6">
+            <p className="text-gray-500 text-[10px] md:text-xs lg:text-sm uppercase tracking-widest mb-6 md:mb-8">
                 {pendingPurchase.unlocked ? 'Configure elite signature' : `Unlock ${pendingPurchase.name}`}
             </p>
             
             {/* Visual Preview in Modal */}
-            <div className="w-full aspect-[16/10] bg-black/40 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center mb-6 overflow-hidden relative group">
+            <div className="w-full aspect-[16/10] bg-black/40 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center mb-6 md:mb-8 overflow-hidden relative group">
                 <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent pointer-events-none"></div>
                 <div className="relative z-10 flex items-center justify-center flex-1">
                 {pendingPurchase.type === 'SLEEVE' ? (
-                    <Card faceDown activeTurn={true} coverStyle={pendingPurchase.style} className="!w-24 !h-36 shadow-2xl group-hover:scale-110 transition-transform duration-700" />
+                    <Card faceDown activeTurn={true} coverStyle={pendingPurchase.style} className="!w-24 !h-36 md:!w-32 md:!h-48 lg:!w-40 lg:!h-56 shadow-2xl group-hover:scale-110 transition-transform duration-700" />
                 ) : pendingPurchase.type === 'BOARD' ? (
                     <div className="w-full h-full p-2"><BoardPreview themeId={pendingPurchase.id} unlocked={true} hideActiveMarker className="!border-none !rounded-2xl" /></div>
                 ) : pendingPurchase.type === 'FINISHER' ? (
-                    <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
+                    <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 flex items-center justify-center">
                       {pendingPurchase.animation_key === 'shiba_slam' ? (
                         <ShibaSlamIcon className="w-full h-full p-4" remoteEmotes={remoteEmotes} />
                       ) : pendingPurchase.animation_key === 'ethereal_blade' ? (
                         <EtherealBladeIcon className="w-full h-full p-4" />
                       ) : pendingPurchase.animation_key === 'sanctum_snap' ? (
-                        <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="xl" />
+                        <VisualEmote trigger=":money_mouth_face:" remoteEmotes={remoteEmotes} size="xl" />
                       ) : pendingPurchase.animation_key === 'seductive_finish' ? (
                         <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />
                       ) : pendingPurchase.animation_key === 'kiss_my_shiba' ? (
                         <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
+                      ) : pendingPurchase.animation_key === 'salt_shaker' ? (
+                        <VisualEmote trigger=":eyeroll:" remoteEmotes={remoteEmotes} size="xl" />
+                      ) : pendingPurchase.animation_key === 'too_funny' ? (
+                        <VisualEmote trigger=":joy:" remoteEmotes={remoteEmotes} size="xl" />
                       ) : (
                         <div className="text-6xl">⚔️</div>
                       )}
                     </div>
                 ) : (
-                    <div className="w-32 h-32 flex items-center justify-center"><VisualEmote trigger={pendingPurchase.id} remoteEmotes={remoteEmotes} size="xl" /></div>
+                    <div className="w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 flex items-center justify-center"><VisualEmote trigger={pendingPurchase.id} remoteEmotes={remoteEmotes} size="xl" /></div>
                   )}
                 </div>
                 {pendingPurchase.type === 'SLEEVE' && (
                   <button 
                     onClick={() => setShowSleevePreview(true)}
-                    className="relative z-10 mt-2 mb-3 px-4 py-1.5 rounded-full bg-white/5 border border-white/20 text-[9px] font-black uppercase tracking-[0.25em] text-white hover:bg-white/15 transition-all"
+                    className="relative z-10 mt-2 mb-3 md:mt-3 md:mb-4 px-4 py-1.5 md:px-5 md:py-2 lg:px-6 lg:py-2.5 rounded-full bg-white/5 border border-white/20 text-[9px] md:text-xs lg:text-sm font-black uppercase tracking-[0.25em] text-white hover:bg-white/15 transition-all"
                   >
                     Preview Sleeve
                   </button>
@@ -1171,7 +1195,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 {pendingPurchase.type === 'BOARD' && (
                   <button 
                     onClick={() => setShowBoardPreview(true)}
-                    className="relative z-10 mt-2 mb-3 px-4 py-1.5 rounded-full bg-white/5 border border-white/20 text-[9px] font-black uppercase tracking-[0.25em] text-white hover:bg-white/15 transition-all"
+                    className="relative z-10 mt-2 mb-3 md:mt-3 md:mb-4 px-4 py-1.5 md:px-5 md:py-2 lg:px-6 lg:py-2.5 rounded-full bg-white/5 border border-white/20 text-[9px] md:text-xs lg:text-sm font-black uppercase tracking-[0.25em] text-white hover:bg-white/15 transition-all"
                   >
                     Preview Board
                   </button>
@@ -1186,23 +1210,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                         setShowFinisherPreview(true);
                       }
                     }}
-                    className="relative z-10 mt-2 mb-3 px-4 py-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/40 text-[9px] font-black uppercase tracking-[0.25em] text-yellow-300 hover:bg-gradient-to-r hover:from-yellow-500/30 hover:to-amber-500/30 hover:border-yellow-500/60 transition-all shadow-[0_0_15px_rgba(251,191,36,0.3)]"
+                    className="relative z-10 mt-2 mb-3 md:mt-3 md:mb-4 px-4 py-1.5 md:px-5 md:py-2 lg:px-6 lg:py-2.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/40 text-[9px] md:text-xs lg:text-sm font-black uppercase tracking-[0.25em] text-yellow-300 hover:bg-gradient-to-r hover:from-yellow-500/30 hover:to-amber-500/30 hover:border-yellow-500/60 transition-all shadow-[0_0_15px_rgba(251,191,36,0.3)]"
                   >
                     Preview
                   </button>
                 )}
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 w-full mb-6 text-center">
-              <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest leading-relaxed">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 md:p-5 lg:p-6 w-full mb-6 md:mb-8 text-center">
+              <p className="text-white/60 text-[9px] md:text-xs lg:text-sm font-bold uppercase tracking-widest leading-relaxed">
                 {pendingPurchase.description}
               </p>
             </div>
             
             {!pendingPurchase.unlocked && (
-                <div className="w-full flex items-center justify-center gap-4 mb-8">
-                   <div className={`text-2xl font-black ${applyVoucher ? 'text-gray-600 line-through' : 'text-white'}`}>{pendingPurchase.price}</div>
-                   {applyVoucher && <div className="text-3xl font-black text-emerald-400">{Math.floor(pendingPurchase.price * 0.9)}</div>}
+                <div className="w-full flex items-center justify-center gap-4 md:gap-5 mb-8 md:mb-10">
+                   <div className={`text-2xl md:text-3xl lg:text-4xl font-black ${applyVoucher ? 'text-gray-600 line-through' : 'text-white'}`}>{pendingPurchase.price}</div>
+                   {applyVoucher && <div className="text-3xl md:text-4xl lg:text-5xl font-black text-emerald-400">{Math.floor(pendingPurchase.price * 0.9)}</div>}
                    <CurrencyIcon type={pendingPurchase.currency} size="sm" />
                 </div>
             )}
@@ -1210,21 +1234,21 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             {hasVoucher && !pendingPurchase.unlocked && (
               <button 
                 onClick={() => setApplyVoucher(!applyVoucher)}
-                className={`w-full mb-6 p-4 rounded-2xl border transition-all flex items-center justify-between ${applyVoucher ? 'bg-emerald-500/10 border-emerald-500' : 'bg-white/5 border-white/10'}`}
+                className={`w-full mb-6 md:mb-8 p-4 md:p-5 lg:p-6 rounded-2xl border transition-all flex items-center justify-between ${applyVoucher ? 'bg-emerald-500/10 border-emerald-500' : 'bg-white/5 border-white/10'}`}
               >
                 <div className="flex flex-col items-start">
-                   <span className="text-[10px] font-black uppercase text-emerald-400">GENERAL_10_OFF</span>
-                   <span className="text-[7px] font-bold text-white/30 uppercase mt-0.5">Apply Tactical Discount</span>
+                   <span className="text-[10px] md:text-xs lg:text-sm font-black uppercase text-emerald-400">GENERAL_10_OFF</span>
+                   <span className="text-[7px] md:text-[9px] lg:text-[10px] font-bold text-white/30 uppercase mt-0.5">Apply Tactical Discount</span>
                 </div>
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${applyVoucher ? 'border-emerald-500 bg-emerald-500' : 'border-white/20'}`}>
-                  {applyVoucher && <span className="text-[8px]">✓</span>}
+                <div className={`w-4 h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 rounded-full border-2 flex items-center justify-center ${applyVoucher ? 'border-emerald-500 bg-emerald-500' : 'border-white/20'}`}>
+                  {applyVoucher && <span className="text-[8px] md:text-[10px] lg:text-xs">✓</span>}
                 </div>
               </button>
             )}
 
-            <div className="grid grid-cols-2 gap-3 w-full">
-              <button onClick={() => setPendingPurchase(null)} className="py-4 rounded-2xl bg-white/5 text-[10px] font-black uppercase tracking-widest">Abort</button>
-              <button onClick={executePurchase} disabled={pendingPurchase.equipped} className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg ${pendingPurchase.equipped ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-yellow-500 text-black'}`}>
+            <div className="grid grid-cols-2 gap-3 md:gap-4 w-full">
+              <button onClick={() => setPendingPurchase(null)} className="py-4 md:py-5 lg:py-6 rounded-2xl bg-white/5 text-[10px] md:text-sm lg:text-base font-black uppercase tracking-widest">Abort</button>
+              <button onClick={executePurchase} disabled={pendingPurchase.equipped} className={`py-4 md:py-5 lg:py-6 rounded-2xl text-[10px] md:text-sm lg:text-base font-black uppercase tracking-widest shadow-lg ${pendingPurchase.equipped ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-yellow-500 text-black'}`}>
                 {pendingPurchase.equipped ? 'EQUIPPED' : pendingPurchase.unlocked ? 'EQUIP' : 'Confirm'}
               </button>
             </div>

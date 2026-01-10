@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { supabase } from '../src/lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../src/lib/supabase';
 
 interface SessionContextType {
   session: any;
@@ -90,15 +90,17 @@ const forceClearGhostSession = async () => {
  */
 const fetchUserDirectly = async (accessToken: string): Promise<{ id: string } | null> => {
   try {
-    const supabaseUrl = (window as any).__SUPABASE_URL__ || 
-      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
-      "https://spaxxexmyiczdrbikdjp.supabase.co";
+    // Use centralized Supabase config (already handles production requirements)
+    if (!supabaseUrl) {
+      console.error('SessionProvider: Supabase URL not configured');
+      return null;
+    }
     
     const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'apikey': (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || ''
+        'apikey': supabaseAnonKey || ''
       }
     });
     
@@ -427,9 +429,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Atomic Auth: Extract project ID for manual localStorage fallback
         const getProjectId = (): string | null => {
           try {
-            const supabaseUrl = (window as any).__SUPABASE_URL__ || 
-              (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
-              "https://spaxxexmyiczdrbikdjp.supabase.co";
+            // Use centralized Supabase config (already handles production requirements)
+            if (!supabaseUrl) return null;
             const hostname = new URL(supabaseUrl).hostname;
             return hostname.split('.')[0];
           } catch {
@@ -565,9 +566,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Atomic Auth: Extract project ID for manual localStorage fallback
         const getProjectId = (): string | null => {
           try {
-            const supabaseUrl = (window as any).__SUPABASE_URL__ || 
-              (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
-              "https://spaxxexmyiczdrbikdjp.supabase.co";
+            // Use centralized Supabase config (already handles production requirements)
+            if (!supabaseUrl) return null;
             const hostname = new URL(supabaseUrl).hostname;
             return hostname.split('.')[0];
           } catch {

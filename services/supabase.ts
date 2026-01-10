@@ -1,8 +1,8 @@
 import { UserProfile, AiDifficulty, Emote, UserInventory } from '../types';
 import { ITEM_REGISTRY } from '../constants/ItemRegistry';
 import { getWeeklyChallenges } from '../constants/ChallengePool';
-// Import singleton client from src/lib/supabase.ts
-import { supabase } from '../src/lib/supabase';
+// Import singleton client and config from src/lib/supabase.ts
+import { supabase, supabaseUrl, supabaseAnonKey } from '../src/lib/supabase';
 // Import discriminator generation utility
 import { generateDiscriminator } from '../utils/username';
 import type { ErrorInfo } from 'react';
@@ -51,7 +51,7 @@ let isFetchingEmotes = false;
 let isFetchingFinishers = false;
 let isFetchingChatPresets = false;
 
-// Safely access environment variables
+// Safely access environment variables (used in debug/logging functions)
 const getEnv = (key: string): string | undefined => {
   try {
     if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
@@ -66,8 +66,8 @@ const getEnv = (key: string): string | undefined => {
   return undefined;
 };
 
-const supabaseUrl = getEnv('VITE_SUPABASE_URL') || "https://spaxxexmyiczdrbikdjp.supabase.co";
-const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
+// Export supabaseProjectId (derived from supabaseUrl from src/lib/supabase.ts)
+// Note: supabaseUrl and supabaseAnonKey are imported from centralized config above
 export const supabaseProjectId = (() => {
   try {
     const hostname = new URL(supabaseUrl).hostname;
@@ -2221,6 +2221,7 @@ export interface Finisher {
   name: string;
   animation_key: string;
   price: number;
+  description?: string;
   created_at?: string;
 }
 
@@ -2837,6 +2838,67 @@ export const submitFeedback = async (
     return { success: true };
   } catch (e: any) {
     console.error('Exception submitting feedback:', e);
+    return { success: false, error: e.message || 'Unknown error' };
+  }
+};
+
+/**
+ * Submit support ticket (with reference ID)
+ */
+export const submitSupportTicket = async (
+  userId: string,
+  category: 'Bug' | 'Feedback' | 'Billing',
+  message: string,
+  gameVersion: string = '1.0.0'
+): Promise<{ success: boolean; referenceId?: string; error?: string }> => {
+  if (!supabaseAnonKey) {
+    console.warn('No Supabase key, cannot submit support ticket');
+    return { success: false, error: 'No database connection' };
+  }
+
+  // SECURITY: Validate inputs
+  if (!userId || typeof userId !== 'string' || userId.length > 100) {
+    return { success: false, error: 'Invalid user ID' };
+  }
+
+  // Map Support category to Feedback category (database accepts: Bug, Suggestion, Balance, Compliment)
+  // Bug -> Bug, Feedback -> Suggestion, Billing -> Balance (for billing/balance issues)
+  const feedbackCategory = 
+    category === 'Bug' ? 'Bug' : 
+    category === 'Feedback' ? 'Suggestion' : 
+    'Balance'; // Billing maps to Balance
+
+  if (!['Bug', 'Feedback', 'Billing'].includes(category)) {
+    return { success: false, error: 'Invalid category' };
+  }
+
+  if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 2000) {
+    return { success: false, error: 'Invalid message' };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('player_feedback')
+      .insert({
+        user_id: userId,
+        category: feedbackCategory,
+        message: message.trim(),
+        game_version: gameVersion,
+        created_at: new Date().toISOString()
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Error submitting support ticket:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Return the UUID as reference ID
+    const referenceId = data?.id || null;
+    return { success: true, referenceId: referenceId || undefined };
+  } catch (e: any) {
+    console.error('Exception submitting support ticket:', e);
     return { success: false, error: e.message || 'Unknown error' };
   }
 };

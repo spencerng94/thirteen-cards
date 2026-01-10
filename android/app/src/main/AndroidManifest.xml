@@ -36,6 +36,8 @@
     </application>
 
     <!-- Permissions -->
-
+    <!-- Required for network access -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required for checking network connectivity state -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>

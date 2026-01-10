@@ -16,6 +16,7 @@ import { GemRain } from './GemRain';
 import { ShibaSlamFinisher } from './ShibaSlamFinisher';
 import { EtherealBladeFinisher } from './EtherealBladeFinisher';
 import { SaltShakeFinisher } from './SaltShakeFinisher';
+import { TooFunnyFinisher } from './TooFunnyFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
 import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
 import { KissMyShibaFinisher } from './KissMyShibaFinisher';
@@ -603,12 +604,18 @@ export const SleeveArenaPreview: React.FC<{ sleeveStyle: CardCoverStyle; themeId
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in" onClick={onClose}>
         <BoardSurface themeId={themeId} isMini />
-        <div className="relative z-10 flex flex-col items-center gap-8" onClick={e => e.stopPropagation()}>
+        <div className="relative z-10 w-full h-full flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
+            {/* Top-right close button */}
+            <button
+              onClick={onClose}
+              className="absolute top-6 right-6 z-50 px-12 py-4 bg-black/60 border border-white/20 rounded-2xl text-white font-black uppercase tracking-[0.3em] hover:bg-white/10 hover:scale-105 transition-all backdrop-blur-sm"
+            >
+              CLOSE PREVIEW
+            </button>
             <div className="relative group">
                 <div className="absolute inset-[-40px] bg-yellow-500/10 blur-[80px] rounded-full animate-pulse"></div>
                 <Card faceDown activeTurn={true} coverStyle={sleeveStyle} className="!w-48 !h-72 shadow-[0_40px_80px_rgba(0,0,0,0.8)]" disableEffects={!sleeveEffectsEnabled} />
             </div>
-            <button onClick={onClose} className="px-12 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-black uppercase tracking-[0.3em] hover:bg-white/10 transition-all">Close Preview</button>
         </div>
     </div>
   );
@@ -640,12 +647,12 @@ export const BoardThemePreview: React.FC<{
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in" onClick={onClose}>
       <BoardSurface themeId={themeId} />
       <div className="relative z-10 w-full h-full flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
-        {/* Top-right close (X) button */}
+        {/* Top-right close button */}
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 z-50 w-10 h-10 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white text-lg font-black hover:bg-white/10 hover:scale-105 transition-all"
+          className="absolute top-6 right-6 z-50 px-12 py-4 bg-black/60 border border-white/20 rounded-2xl text-white font-black uppercase tracking-[0.3em] hover:bg-white/10 hover:scale-105 transition-all backdrop-blur-sm"
         >
-          ×
+          CLOSE PREVIEW
         </button>
 
         {/* Game board preview - shows the board as it would appear in game */}
@@ -693,14 +700,6 @@ export const BoardThemePreview: React.FC<{
             </div>
           </div>
         </div>
-
-        {/* Close button */}
-        <button 
-          onClick={onClose} 
-          className="absolute bottom-8 px-12 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-black uppercase tracking-[0.3em] hover:bg-white/10 transition-all backdrop-blur-sm z-50"
-        >
-          Close Preview
-        </button>
       </div>
     </div>
   );
@@ -748,12 +747,12 @@ export const CardSleevePreview: React.FC<{
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in" onClick={onClose}>
       <BoardSurface themeId={themeId} isMini />
       <div className="relative z-10 w-full max-w-6xl h-full max-h-[90vh] flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
-        {/* Top-right close (X) button */}
+        {/* Top-right close button */}
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 z-50 w-10 h-10 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white text-lg font-black hover:bg-white/10 hover:scale-105 transition-all"
+          className="absolute top-6 right-6 z-50 px-12 py-4 bg-black/60 border border-white/20 rounded-2xl text-white font-black uppercase tracking-[0.3em] hover:bg-white/10 hover:scale-105 transition-all backdrop-blur-sm"
         >
-          ×
+          CLOSE PREVIEW
         </button>
 
         {/* 3D Container with subtle perspective */}
@@ -842,14 +841,6 @@ export const CardSleevePreview: React.FC<{
             })}
           </div>
         </div>
-
-        {/* Close button */}
-        <button 
-          onClick={onClose} 
-          className="absolute bottom-8 px-12 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-black uppercase tracking-[0.3em] hover:bg-white/10 transition-all backdrop-blur-sm z-50"
-        >
-          Close Preview
-        </button>
         </div>
     </div>
   );
@@ -1325,6 +1316,16 @@ const PackPurchaseSuccessModal: React.FC<PackPurchaseSuccessModalProps> = ({
       return (
         <div key={`${key}-${replayKey}`} className="absolute" style={position}>
           <KissMyShibaFinisher
+            onComplete={() => {}}
+            isPreview={true}
+            winnerName="GUEST"
+          />
+        </div>
+      );
+    } else if (key === 'too_funny') {
+      return (
+        <div key={`${key}-${replayKey}`} className="absolute" style={position}>
+          <TooFunnyFinisher
             onComplete={() => {}}
             isPreview={true}
             winnerName="GUEST"
@@ -1982,7 +1983,7 @@ export const Store: React.FC<{
           setPendingPurchase({ 
             id: finisher.id,
             name: finisher.name,
-            description: `A legendary cinematic finisher that plays when you win a match. Feel the main character energy.`,
+            description: finisher.description || 'A legendary cinematic finisher that plays when you win a match. Feel the main character energy.',
             price: finisher.price,
             currency: 'GEMS',
             type: 'FINISHER',
@@ -2554,36 +2555,36 @@ export const Store: React.FC<{
         />
       )}
       {pendingPurchase && profile && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/90 backdrop-blur-3xl p-4 sm:p-6 animate-in fade-in duration-300" onClick={() => setPendingPurchase(null)}>
-          <div className="relative bg-gradient-to-br from-[#0a0a0a] via-[#050505] to-[#000000] border-2 border-white/20 w-full max-w-md rounded-3xl sm:rounded-[3rem] p-6 sm:p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(0,0,0,1)] relative overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/90 backdrop-blur-3xl p-4 sm:p-6 md:p-8 animate-in fade-in duration-300" onClick={() => setPendingPurchase(null)}>
+          <div className="relative bg-gradient-to-br from-[#0a0a0a] via-[#050505] to-[#000000] border-2 border-white/20 w-full max-w-md md:max-w-lg lg:max-w-2xl rounded-3xl sm:rounded-[3rem] p-6 sm:p-8 md:p-10 lg:p-12 flex flex-col items-center text-center shadow-[0_0_100px_rgba(0,0,0,1)] relative overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Minimal Background Effects */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.05)_0%,transparent_70%)]"></div>
             
             {/* Header - Simplified */}
-            <div className="relative z-10 mb-5">
-              <h3 className="text-2xl sm:text-3xl font-bold uppercase text-white mb-1.5 tracking-tight">
+            <div className="relative z-10 mb-5 md:mb-6">
+              <h3 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold uppercase text-white mb-1.5 md:mb-2 tracking-tight">
                 {pendingPurchase.unlocked ? 'ASSET PROFILE' : 'SECURE ASSET'}
             </h3>
-              <p className="text-xs sm:text-sm text-white/50 uppercase tracking-wide">
+              <p className="text-xs sm:text-sm md:text-base text-white/50 uppercase tracking-wide">
                 {pendingPurchase.unlocked ? 'Configure elite signature' : `Unlock ${pendingPurchase.name}`}
             </p>
             </div>
             
             {/* Visual Preview - Cleaner */}
-            <div className="relative w-full aspect-[4/3] bg-black/40 rounded-2xl sm:rounded-3xl border border-white/10 flex items-center justify-center mb-5 overflow-hidden">
+            <div className="relative w-full aspect-[4/3] bg-black/40 rounded-2xl sm:rounded-3xl md:rounded-[2rem] border border-white/10 flex items-center justify-center mb-5 md:mb-6 overflow-hidden">
               <div className="relative z-10 flex items-center justify-center w-full h-full">
                 {pendingPurchase.type === 'SLEEVE' ? (
-                  <Card faceDown activeTurn={true} coverStyle={pendingPurchase.style} className="!w-28 !h-40 sm:!w-32 sm:!h-48 shadow-[0_20px_60px_rgba(0,0,0,0.9)]" />
+                  <Card faceDown activeTurn={true} coverStyle={pendingPurchase.style} className="!w-28 !h-40 sm:!w-32 sm:!h-48 md:!w-40 md:!h-56 lg:!w-48 lg:!h-64 shadow-[0_20px_60px_rgba(0,0,0,0.9)]" />
                 ) : pendingPurchase.type === 'BOARD' ? (
                   <div className="absolute inset-0 w-full h-full">
                     <BoardSurface themeId={pendingPurchase.id as BackgroundTheme} isMini />
                   </div>
                 ) : pendingPurchase.type === 'AVATAR' ? (
-                  <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
+                  <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 flex items-center justify-center">
                     <VisualEmote trigger={pendingPurchase.id} remoteEmotes={remoteEmotes} size="xl" />
                   </div>
                 ) : pendingPurchase.type === 'FINISHER' ? (
-                  <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
+                  <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 flex items-center justify-center">
                     {pendingPurchase.animation_key === 'shiba_slam' ? (
                       <ShibaSlamIcon className="w-full h-full p-4" remoteEmotes={remoteEmotes} />
                     ) : pendingPurchase.animation_key === 'ethereal_blade' ? (
@@ -2608,7 +2609,7 @@ export const Store: React.FC<{
               {pendingPurchase.type === 'SLEEVE' && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); setShowSleevePreview(true); }}
-                  className="absolute bottom-2 right-2 z-20 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-[10px] sm:text-xs font-medium uppercase tracking-wide text-white hover:bg-white/20 transition-all backdrop-blur-sm"
+                  className="absolute bottom-2 right-2 md:bottom-3 md:right-3 z-20 px-3 py-1.5 md:px-4 md:py-2 lg:px-5 lg:py-2.5 rounded-lg bg-white/10 border border-white/20 text-[10px] sm:text-xs md:text-sm lg:text-base font-medium uppercase tracking-wide text-white hover:bg-white/20 transition-all backdrop-blur-sm"
                 >
                   Preview
                 </button>
@@ -2616,7 +2617,7 @@ export const Store: React.FC<{
               {pendingPurchase.type === 'BOARD' && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); setShowBoardPreview(true); }}
-                  className="absolute bottom-2 right-2 z-20 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-[10px] sm:text-xs font-medium uppercase tracking-wide text-white hover:bg-white/20 transition-all backdrop-blur-sm"
+                  className="absolute bottom-2 right-2 md:bottom-3 md:right-3 z-20 px-3 py-1.5 md:px-4 md:py-2 lg:px-5 lg:py-2.5 rounded-lg bg-white/10 border border-white/20 text-[10px] sm:text-xs md:text-sm lg:text-base font-medium uppercase tracking-wide text-white hover:bg-white/20 transition-all backdrop-blur-sm"
                 >
                   Preview
                 </button>
@@ -2631,7 +2632,7 @@ export const Store: React.FC<{
                       setShowFinisherPreview(true);
                     }
                   }}
-                  className="absolute bottom-2 right-2 z-20 px-3 py-1.5 rounded-lg bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/40 text-[10px] sm:text-xs font-medium uppercase tracking-wide text-yellow-300 hover:bg-gradient-to-r hover:from-yellow-500/30 hover:to-amber-500/30 hover:border-yellow-500/60 transition-all backdrop-blur-sm shadow-[0_0_15px_rgba(251,191,36,0.3)]"
+                  className="absolute bottom-2 right-2 md:bottom-3 md:right-3 z-20 px-3 py-1.5 md:px-4 md:py-2 lg:px-5 lg:py-2.5 rounded-lg bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/40 text-[10px] sm:text-xs md:text-sm lg:text-base font-medium uppercase tracking-wide text-yellow-300 hover:bg-gradient-to-r hover:from-yellow-500/30 hover:to-amber-500/30 hover:border-yellow-500/60 transition-all backdrop-blur-sm shadow-[0_0_15px_rgba(251,191,36,0.3)]"
                 >
                   Preview
                 </button>
@@ -2639,35 +2640,35 @@ export const Store: React.FC<{
             </div>
 
             {/* Description - Minimal */}
-            <p className="text-xs sm:text-sm text-white/60 mb-5 px-2">
+            <p className="text-xs sm:text-sm md:text-base lg:text-lg text-white/60 mb-5 md:mb-6 px-2 md:px-4">
                 {pendingPurchase.description}
               </p>
             
             {/* Price - Simplified */}
             {!pendingPurchase.unlocked && (
-              <div className="relative z-10 w-full flex flex-col items-center gap-2 mb-4">
+              <div className="relative z-10 w-full flex flex-col items-center gap-2 md:gap-3 mb-4 md:mb-5">
                 {pendingPurchase.isDailyDeal && pendingPurchase.originalPrice ? (
                   <>
-                    <div className="flex items-center gap-2">
-                      <div className="text-white/40 line-through text-xl sm:text-2xl font-bold">
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <div className="text-white/40 line-through text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">
                         {pendingPurchase.originalPrice}
                       </div>
-                      <div className="text-3xl sm:text-4xl font-bold text-white">
+                      <div className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white">
                         {applyVoucher ? Math.floor(pendingPurchase.price * 0.9) : pendingPurchase.price}
                       </div>
                       <CurrencyIcon type={pendingPurchase.currency} size="sm" />
                     </div>
-                    <div className="text-xs text-white/90 font-medium">
+                    <div className="text-xs md:text-sm text-white/90 font-medium">
                       Daily Deal - 30% OFF • Ends in {dealTimeRemaining.hours}h {dealTimeRemaining.minutes}m
                     </div>
                   </>
                 ) : (
-                  <div className="flex items-center gap-3">
-                    <div className={`text-2xl sm:text-3xl font-bold ${applyVoucher ? 'text-white/30 line-through' : 'text-white'}`}>
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold ${applyVoucher ? 'text-white/30 line-through' : 'text-white'}`}>
                       {pendingPurchase.price}
                     </div>
                     {applyVoucher && (
-                      <div className="text-3xl sm:text-4xl font-bold text-white">
+                      <div className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white">
                         {Math.floor(pendingPurchase.price * 0.9)}
                       </div>
                     )}
@@ -2697,17 +2698,17 @@ export const Store: React.FC<{
             )}
 
             {/* Action Buttons - Clean */}
-            <div className="relative z-10 grid grid-cols-2 gap-3 w-full">
+            <div className="relative z-10 grid grid-cols-2 gap-3 md:gap-4 w-full">
               <button 
                 onClick={() => setPendingPurchase(null)} 
-                className="py-3 rounded-xl bg-white/5 border border-white/10 text-sm font-medium uppercase tracking-wide text-white/70 hover:text-white hover:bg-white/10 transition-all"
+                className="py-3 md:py-4 lg:py-5 rounded-xl bg-white/5 border border-white/10 text-sm md:text-base lg:text-lg font-medium uppercase tracking-wide text-white/70 hover:text-white hover:bg-white/10 transition-all"
               >
                 Cancel
               </button>
               <button 
                 onClick={executePurchase} 
                 disabled={pendingPurchase.equipped || buying === pendingPurchase.id} 
-                className={`py-3 rounded-xl text-sm font-bold uppercase tracking-wide transition-all ${
+                className={`py-3 md:py-4 lg:py-5 rounded-xl text-sm md:text-base lg:text-lg font-bold uppercase tracking-wide transition-all ${
                   pendingPurchase.equipped 
                     ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/10' 
                     : 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black border border-yellow-400/50 shadow-[0_0_20px_rgba(251,191,36,0.4)] hover:shadow-[0_0_30px_rgba(251,191,36,0.6)]'
@@ -3345,7 +3346,7 @@ export const Store: React.FC<{
                     setPendingPurchase({
                       id: finisher.id,
                       name: finisher.name,
-                      description: `A legendary cinematic finisher that plays when you win a match. Feel the main character energy.`,
+                      description: finisher.description || 'A legendary cinematic finisher that plays when you win a match. Feel the main character energy.',
                       price: finisher.price,
                       currency: 'GEMS',
                       type: 'FINISHER',

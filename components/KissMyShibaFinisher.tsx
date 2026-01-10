@@ -40,10 +40,14 @@ const ShibaButtEmote: React.FC<{
 
   return (
     <motion.div
-      className="absolute pointer-events-none"
+      className="absolute pointer-events-none transform-gpu"
       style={{
         left: `${startX}%`,
         top: '-10%',
+        willChange: 'transform, opacity',
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
+        transform: 'translateZ(0)',
       }}
       initial={{
         y: 0,
@@ -52,47 +56,45 @@ const ShibaButtEmote: React.FC<{
       }}
       animate={{
         y: '110vh', // Falls to bottom of screen
-        opacity: [0, 1, 1, 0.7, 0],
+        opacity: [0, 1, 1, 0.5, 0],
         scale: [0.4, 0.7, 1.2, 1.8, 2.5], // Continuously grows as it falls
       }}
       transition={{
         duration: duration,
         delay: delay,
-        ease: 'easeIn',
-        times: [0, 0.2, 0.5, 0.75, 1],
+        ease: [0.4, 0, 0.6, 1], // Custom cubic-bezier for smoother motion
+        times: [0, 0.15, 0.5, 0.8, 1],
       }}
     >
       {/* Bubble container with circular shape and bubble aesthetic */}
-      <motion.div
-        className="rounded-full overflow-hidden"
+      <div
+        className="rounded-full overflow-hidden transform-gpu"
         style={{
           width: `${startSize}px`,
           height: `${startSize}px`,
           background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95) 0%, rgba(255,182,193,0.8) 35%, rgba(255,192,203,0.6) 70%, rgba(221,160,221,0.4) 100%)',
           border: '4px solid rgba(255,255,255,0.7)',
-          boxShadow: '0 0 40px rgba(255,182,193,0.7), inset 0 0 25px rgba(255,255,255,0.5), 0 10px 20px rgba(0,0,0,0.3)',
-          filter: 'drop-shadow(0 0 25px rgba(255,182,193,0.9))',
-        }}
-        animate={{
-          scale: [1, 1.05, 1, 1.03, 1],
-        }}
-        transition={{
-          duration: 1.5,
-          repeat: Infinity,
-          ease: 'easeInOut',
+          boxShadow: '0 0 30px rgba(255,182,193,0.6), inset 0 0 20px rgba(255,255,255,0.4), 0 8px 15px rgba(0,0,0,0.2)',
+          filter: 'drop-shadow(0 0 15px rgba(255,182,193,0.7))',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
         }}
       >
         {imageUrl && (
           <img
             src={imageUrl}
             alt="Shiba Butt"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transform-gpu"
             style={{
               borderRadius: '50%',
+              willChange: 'transform',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
             }}
           />
         )}
-      </motion.div>
+      </div>
     </motion.div>
   );
 };
@@ -154,14 +156,14 @@ export const KissMyShibaFinisher: React.FC<KissMyShibaFinisherProps> = ({
   // Generate rain from top of screen
   const generateRain = () => {
     const emotes = [];
-    const numEmotes = 50; // More emotes for continuous rain
+    const numEmotes = 35; // Optimized count for smoother performance
     
     for (let i = 0; i < numEmotes; i++) {
       emotes.push({
         id: `emote-${i}`,
         startX: Math.random() * 100, // Random X position across screen
         delay: Math.random() * 2, // Stagger start times
-        duration: 2 + Math.random() * 2, // 2-4 seconds to fall
+        duration: 2.5 + Math.random() * 1.5, // 2.5-4 seconds to fall (slightly slower for smoother motion)
         startSize: 60 + Math.random() * 40, // Start size: 60-100px
       });
     }
@@ -257,7 +259,7 @@ export const KissMyShibaFinisher: React.FC<KissMyShibaFinisherProps> = ({
       />
 
       {/* Continuous Rain from Top */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 transform-gpu" style={{ contain: 'layout style paint' }}>
         {rainPattern.map((emote) => (
           <ShibaButtEmote
             key={emote.id}
@@ -295,25 +297,6 @@ export const KissMyShibaFinisher: React.FC<KissMyShibaFinisherProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
           >
-            {/* Winner Name */}
-            <motion.div
-              className="text-center mb-6"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-            >
-              <div
-                className="text-3xl sm:text-4xl md:text-5xl font-bold uppercase tracking-wider"
-                style={{
-                  fontFamily: "'Comic Sans MS', 'Comic Sans', cursive",
-                  color: '#FFB6C1',
-                  textShadow: '0 0 20px rgba(255,182,193,0.8), 0 0 40px rgba(255,192,203,0.6), 0 4px 8px rgba(0,0,0,0.3)',
-                }}
-              >
-                {winnerName}
-              </div>
-            </motion.div>
-
             {/* Main Victory Phrase - Meme Font */}
             <motion.div
               className="text-center"
@@ -322,7 +305,7 @@ export const KissMyShibaFinisher: React.FC<KissMyShibaFinisherProps> = ({
               transition={{ delay: 0, duration: 0.5, ease: 'easeOut' }}
             >
               <motion.div
-                className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase tracking-tighter leading-tight"
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter leading-tight px-4"
                 style={{
                   fontFamily: "'Impact', 'Arial Black', 'Franklin Gothic Bold', sans-serif",
                   color: '#FFFFFF',
@@ -339,7 +322,7 @@ export const KissMyShibaFinisher: React.FC<KissMyShibaFinisherProps> = ({
                   ease: 'easeInOut',
                 }}
               >
-                KISS MY SHIBA!
+                {winnerName} WINS! TALK TO THE SHIBA BUTT!
               </motion.div>
             </motion.div>
 

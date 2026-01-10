@@ -24,7 +24,8 @@ export const TermsOfServiceModal: React.FC<TermsOfServiceModalProps> = ({ onClos
           
           <button 
             onClick={onClose} 
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-400 hover:text-white transition-all group active:scale-90"
+            className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-400 hover:text-white transition-all group active:scale-90 touch-manipulation"
+            aria-label="Close Terms of Service"
           >
             <span className="text-xl group-hover:rotate-90 transition-transform">✕</span>
           </button>
@@ -48,14 +49,17 @@ export const TermsOfServiceModal: React.FC<TermsOfServiceModalProps> = ({ onClos
               <p className="text-gray-300 text-sm leading-relaxed">
                 By accessing or using the Game, you acknowledge that you have read, understood, and agree to be bound by these Terms and our Privacy Policy. If you are under the age of 18 (or the age of majority in your jurisdiction), you represent that you have your parent's or guardian's permission to use the Game and that they have agreed to these Terms on your behalf.
               </p>
+              <p className="text-gray-400 text-xs mt-3 italic">
+                Note: References to our Privacy Policy are available within the Game's settings and legal documentation. External links, if present, will open securely with appropriate safeguards.
+              </p>
             </section>
 
-            <section className="mb-8 bg-yellow-500/10 border-l-4 border-yellow-500/50 p-5 rounded-r-xl">
+            <section className="mb-8 bg-yellow-500/15 border-2 border-yellow-500/60 p-5 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.2)]">
               <h3 className="text-yellow-500 font-black text-lg uppercase tracking-wider mb-4 flex items-center gap-3">
                 <span className="w-1 h-6 bg-yellow-500/50"></span>
                 2. Parody Disclaimer
               </h3>
-              <p className="text-yellow-200 font-bold text-sm mb-3">IMPORTANT:</p>
+              <p className="text-yellow-200 font-bold text-sm mb-3 bg-yellow-500/20 px-3 py-2 rounded-lg inline-block">IMPORTANT:</p>
               <p className="text-gray-300 text-sm leading-relaxed mb-3">
                 This Game contains character names, usernames, quick chat phrases, and other content that may reference or parody real-world persons, celebrities, public figures, trademarks, or other intellectual property. Examples include but are not limited to character names like "Chill Guy", "Six 7", "Skibidi Shiba", and various quick chat phrases used within the Game.
               </p>
@@ -97,6 +101,8 @@ export const TermsOfServiceModal: React.FC<TermsOfServiceModalProps> = ({ onClos
               </p>
               <ul className="list-disc list-inside text-gray-300 text-sm space-y-2 ml-4">
                 <li>You are purchasing a license to use virtual items within the Game</li>
+                <li>In-app purchases are processed through the Apple App Store or Google Play Store</li>
+                <li>You acknowledge that all billing and refund inquiries must be directed to the respective platform provider (Apple App Store or Google Play Store)</li>
                 <li>Prices are displayed in your local currency (where applicable) or as set by the platform</li>
                 <li>All sales are final unless otherwise required by law</li>
                 <li>We reserve the right to change pricing at any time</li>
@@ -167,8 +173,15 @@ export const TermsOfServiceModal: React.FC<TermsOfServiceModalProps> = ({ onClos
                 <span className="w-1 h-6 bg-yellow-500/50"></span>
                 6. Account Terms
               </h3>
-              <p className="text-gray-300 text-sm leading-relaxed">
+              
+              <h4 className="text-white font-bold text-sm mb-3 mt-4">6.1 Account Creation</h4>
+              <p className="text-gray-300 text-sm leading-relaxed mb-3">
                 You may be required to create an account to access certain features. You must provide accurate information and be at least 13 years old (or the minimum age in your jurisdiction). We reserve the right to suspend or terminate your account at any time for violations of these Terms.
+              </p>
+
+              <h4 className="text-white font-bold text-sm mb-3 mt-4">6.2 Account Termination</h4>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                You may permanently delete your account and all associated data at any time via the "Delete Account" button in the Settings menu. Upon deletion, all virtual items, progress, and currency are permanently forfeited without refund. We reserve the right to suspend or terminate your account at any time for violations of these Terms.
               </p>
             </section>
 
@@ -216,7 +229,8 @@ export const TermsOfServiceModal: React.FC<TermsOfServiceModalProps> = ({ onClos
         <div className="p-6 border-t border-white/5 bg-white/[0.02]">
           <button
             onClick={onClose}
-            className="group w-full relative overflow-hidden py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all duration-300 active:scale-95 border border-emerald-400/30 shadow-[0_15px_40px_rgba(16,185,129,0.3)]"
+            className="group w-full relative overflow-hidden min-h-[44px] py-[14px] rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all duration-300 active:scale-95 border border-emerald-400/30 shadow-[0_15px_40px_rgba(16,185,129,0.3)] touch-manipulation"
+            aria-label="I Understand and accept Terms of Service"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 group-hover:scale-110 transition-transform duration-700"></div>
             <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>

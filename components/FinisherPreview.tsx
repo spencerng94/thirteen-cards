@@ -6,6 +6,7 @@ import { SaltShakeFinisher } from './SaltShakeFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
 import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
 import { KissMyShibaFinisher } from './KissMyShibaFinisher';
+import { TooFunnyFinisher } from './TooFunnyFinisher';
 
 interface FinisherPreviewProps {
   finisherKey: string;
@@ -86,6 +87,16 @@ export const FinisherPreview: React.FC<FinisherPreviewProps> = ({
     } else if (finisherKey === 'kiss_my_shiba') {
       return (
         <KissMyShibaFinisher
+          key={replayKey}
+          onComplete={handleComplete}
+          onReplay={handleReplay}
+          isPreview={true}
+          winnerName="GUEST"
+        />
+      );
+    } else if (finisherKey === 'too_funny') {
+      return (
+        <TooFunnyFinisher
           key={replayKey}
           onComplete={handleComplete}
           onReplay={handleReplay}

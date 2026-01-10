@@ -230,7 +230,7 @@ To provide and improve our services, we collect:
 ### Automatically Collected Information
 When you use our Game, we may automatically collect:
 - Device information (device type, operating system, unique device identifiers)
-- Device IDs and Advertising IDs (collected by us and our third-party partners, including Google AdMob, for fraud prevention, analytics, and advertising purposes)
+- Device IDs and Advertising IDs (like IDFA on iOS or AAID on Android) are collected for fraud prevention and personalized advertising via Google AdMob
 - IP address
 - Game usage data and analytics
 - Crash reports and error logs
@@ -238,7 +238,7 @@ When you use our Game, we may automatically collect:
 
 ### Third-Party Advertising Data
 When you view or interact with ads (Google AdMob), we and our advertising partners may collect:
-- Ad identifiers (IDFA, Android Advertising ID)
+- Ad identifiers (IDFA on iOS or AAID on Android) for fraud prevention and personalized advertising via Google AdMob
 - Device IDs for fraud prevention and analytics
 - Ad viewing and interaction history
 - General location data (country/region level, not precise location)
@@ -296,7 +296,7 @@ You can access your account information and game data through the Game's setting
 You can update your username and certain account preferences through the Game settings.
 
 ### Deletion
-You may request deletion of your account and associated data by contacting us at support@playthirteen.app. Upon receiving a valid deletion request, we will process it in accordance with applicable data protection laws.
+You can delete your account and all associated data permanently at any time. This can be done directly within the Game's Settings menu by tapping the Delete Account button. Alternatively, you can email your request to thethirteengame@gmail.com.
 
 ### Opt-Out of Advertising
 You can opt out of personalized advertising through your device settings:
@@ -308,7 +308,7 @@ Note: Opting out may limit ad personalization but will not eliminate ads entirel
 ### Data Retention
 We retain your information for as long as your account is active or as needed to provide services. We may retain certain information for longer periods as required by law or for legitimate business purposes.
 
-**Account Deletion**: Users can request account deletion and data removal by contacting support@playthirteen.app. We will process deletion requests in accordance with applicable data protection laws and remove personal information from our active systems, except where retention is required by law or for legitimate business purposes.
+**Account Deletion**: Users can delete their account and all associated data permanently at any time directly within the Game's Settings menu by tapping the Delete Account button, or by emailing their request to thethirteengame@gmail.com. We will process deletion requests in accordance with applicable data protection laws and remove personal information from our active systems, except where retention is required by law or for legitimate business purposes.
 
 ## Third-Party Services
 
@@ -360,7 +360,7 @@ If you are located in the European Economic Area (EEA) or United Kingdom, you ha
 
 If you have any questions, concerns, or requests regarding this Privacy Policy, our privacy practices, or data inquiries (including account deletion requests), please contact us at:
 
-**Email:** support@playthirteen.app
+**Email:** thethirteengame@gmail.com
 
 ## Consent
 

@@ -136,6 +136,21 @@ export const DeleteAccountButton: React.FC<DeleteAccountButtonProps> = ({
       
       if (rpcError) {
         console.error('DeleteAccountButton: RPC error:', rpcError);
+        
+        // Check if it's a network/offline error
+        const isNetworkError = 
+          rpcError.code === 'PGRST116' || 
+          rpcError.message?.toLowerCase().includes('network') ||
+          rpcError.message?.toLowerCase().includes('fetch') ||
+          rpcError.message?.toLowerCase().includes('connection') ||
+          rpcError.message?.toLowerCase().includes('offline');
+        
+        if (isNetworkError) {
+          setError('Network error: Please check your internet connection and try again. Your account has NOT been deleted.');
+          setIsDeleting(false);
+          return;
+        }
+        
         setError(rpcError.message || 'Failed to delete account. Please try again.');
         setIsDeleting(false);
         return;
@@ -144,6 +159,17 @@ export const DeleteAccountButton: React.FC<DeleteAccountButtonProps> = ({
       if (!data || !data.success) {
         const errorMsg = data?.error || 'Failed to delete account. Please try again.';
         console.error('DeleteAccountButton: Deletion failed:', errorMsg);
+        
+        // Check if deletion partially succeeded (critical state)
+        if (data?.profile_deleted && !data?.auth_user_deleted) {
+          const criticalError = 'ERROR: Account deletion partially completed. Please contact support immediately.';
+          console.error('DeleteAccountButton: CRITICAL - Partial deletion detected', data);
+          setError(criticalError);
+          setIsDeleting(false);
+          // TODO: Log this critical error to monitoring service
+          return;
+        }
+        
         setError(errorMsg);
         setIsDeleting(false);
         return;
@@ -151,11 +177,8 @@ export const DeleteAccountButton: React.FC<DeleteAccountButtonProps> = ({
       
       console.log('DeleteAccountButton: Account deleted successfully');
       
-      // Clear all localStorage keys BEFORE signing out
-      // This prevents any "ghost session" issues
-      clearAllLocalStorage();
-      
-      // Sign out from Supabase (this should be a no-op since user is deleted, but do it anyway)
+      // Sign out from Supabase first (may clear some localStorage automatically)
+      // This should be a no-op since user is deleted, but do it anyway for cleanup
       try {
         await supabase.auth.signOut();
         console.log('DeleteAccountButton: Signed out from Supabase');
@@ -164,12 +187,31 @@ export const DeleteAccountButton: React.FC<DeleteAccountButtonProps> = ({
         console.log('DeleteAccountButton: Sign out completed (user may already be deleted)');
       }
       
+      // Clear all localStorage keys AFTER signing out
+      // This ensures complete cleanup and prevents any "ghost session" issues
+      clearAllLocalStorage();
+      
       // Call the callback to handle navigation/cleanup
       onAccountDeleted();
       
     } catch (err: any) {
       console.error('DeleteAccountButton: Unexpected error:', err);
-      setError(err.message || 'An unexpected error occurred. Please try again.');
+      
+      // Check for network errors in catch block
+      const isNetworkError = 
+        err.message?.toLowerCase().includes('network') ||
+        err.message?.toLowerCase().includes('fetch') ||
+        err.message?.toLowerCase().includes('connection') ||
+        err.message?.toLowerCase().includes('offline') ||
+        err.code === 'NETWORK_ERROR' ||
+        err.name === 'NetworkError';
+      
+      if (isNetworkError) {
+        setError('Network error: Please check your internet connection and try again. Your account has NOT been deleted.');
+      } else {
+        setError(err.message || 'An unexpected error occurred. Please try again.');
+      }
+      
       setIsDeleting(false);
     }
   };
