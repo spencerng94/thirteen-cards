@@ -249,10 +249,17 @@ const getSVGPath = (pathData: string | undefined | null | number): string => {
 
 /**
  * Premium Final Fantasy-Inspired Gold Coin
+ * SANITIZE SVG DATA: Only render if currency value is a valid number (when provided)
  */
-const CoinIconSVG = () => {
+const CoinIconSVG: React.FC<{ coins?: number | null }> = ({ coins }) => {
+  // SANITIZE SVG DATA: Wrap SVG in condition that checks if currency value is a valid number
+  // Example: {typeof coins === 'number' && <path d={...} />}
+  // If coins is provided, validate it's a number before rendering; if not provided, render normally (icon-only)
+  if (coins !== undefined && coins !== null && (typeof coins !== 'number' || isNaN(coins))) {
+    return null; // Don't render if coins is provided but invalid
+  }
+  
   // SVG FALLBACK: Ensure path 'd' attribute defaults to empty string if values are invalid
-  // FIX SVG PATH: Add fallback (e.g., d={pathData || ""}) to prevent NaN error when data hasn't loaded yet
   const path1 = getSVGPath("M 10 50 A 40 40 0 0 1 50 10");
   const path2 = getSVGPath("M 90 50 A 40 40 0 0 1 50 90");
   
@@ -318,10 +325,17 @@ const CoinIconSVG = () => {
 
 /**
  * Premium Final Fantasy-Inspired Gem Crystal
+ * SANITIZE SVG DATA: Only render if currency value is a valid number (when provided)
  */
-const GemIconSVG = () => {
+const GemIconSVG: React.FC<{ gems?: number | null }> = ({ gems }) => {
+  // SANITIZE SVG DATA: Wrap SVG in condition that checks if currency value is a valid number
+  // Example: {typeof gems === 'number' && <path d={...} />}
+  // If gems is provided, validate it's a number before rendering; if not provided, render normally (icon-only)
+  if (gems !== undefined && gems !== null && (typeof gems !== 'number' || isNaN(gems))) {
+    return null; // Don't render if gems is provided but invalid
+  }
+  
   // SVG FALLBACK: Ensure path 'd' attribute defaults to empty string if values are invalid
-  // FIX SVG PATH: Add fallback (e.g., d={pathData || ""}) to prevent NaN error when data hasn't loaded yet
   const pathMain = getSVGPath("M50 8 L75 28 L75 58 L50 78 L25 58 L25 28 Z");
   const pathTop = getSVGPath("M50 8 L75 28 L50 28 Z");
   const pathLeft = getSVGPath("M50 8 L25 28 L25 58 L50 38 Z");
@@ -544,9 +558,28 @@ const ComboHintIcon = () => (
   </svg>
 );
 
-export const CurrencyIcon: React.FC<{ type: 'GOLD' | 'GEMS'; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'; className?: string }> = ({ type, size = 'sm', className = "" }) => {
+export const CurrencyIcon: React.FC<{ 
+  type: 'GOLD' | 'GEMS'; 
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'; 
+  className?: string;
+  coins?: number | null; // SANITIZE SVG DATA: Optional currency value to validate
+  gems?: number | null;  // SANITIZE SVG DATA: Optional currency value to validate
+}> = ({ type, size = 'sm', className = "", coins, gems }) => {
+  // SANITIZE SVG DATA: Wrap the entire SVG in a condition that checks if currency value is a valid number
+  // Example: {typeof gems === 'number' && <CurrencyIcon type="GEMS" gems={gems} />}
+  // If value is provided, validate it's a valid number; if not provided, render normally (for icon-only display)
+  
+  // Validate currency value if provided
+  if (type === 'GEMS' && gems !== undefined && gems !== null && (typeof gems !== 'number' || isNaN(gems))) {
+    console.warn('CurrencyIcon: Invalid gems value, not rendering icon', gems);
+    return null;
+  }
+  if (type === 'GOLD' && coins !== undefined && coins !== null && (typeof coins !== 'number' || isNaN(coins))) {
+    console.warn('CurrencyIcon: Invalid coins value, not rendering icon', coins);
+    return null;
+  }
+  
   // SVG PATH SAFETY: Validate all inputs to prevent NaN or undefined values in SVG paths
-  // Ensure type is valid - default to 'GOLD' if invalid
   const iconType = (type === 'GOLD' || type === 'GEMS') ? type : 'GOLD';
   
   // Validate size to ensure it's a valid string
@@ -556,22 +589,12 @@ export const CurrencyIcon: React.FC<{ type: 'GOLD' | 'GEMS'; size?: 'xs' | 'sm' 
   // Ensure className is a valid string (not undefined or null)
   const safeClassName = (typeof className === 'string' ? className : '') || '';
   
-  // SVG PATH SAFETY: Return null if any required prop is invalid to prevent rendering errors
-  if (!iconType || (iconType !== 'GOLD' && iconType !== 'GEMS')) {
-    console.warn('CurrencyIcon: Invalid type, defaulting to GOLD');
-    return (
-      <div className={`relative ${dim} flex items-center justify-center shrink-0 ${safeClassName}`}>
-        <div className="w-full h-full relative z-10">
-          <CoinIconSVG />
-        </div>
-      </div>
-    );
-  }
-  
   return (
     <div className={`relative ${dim} flex items-center justify-center shrink-0 ${safeClassName}`}>
       <div className="w-full h-full relative z-10 transition-transform duration-300 hover:scale-125">
-        {iconType === 'GOLD' ? <CoinIconSVG /> : <GemIconSVG />}
+        {/* SANITIZE SVG DATA: Pass currency value to SVG component for validation */}
+        {/* SVG components will validate the value internally and return null if invalid */}
+        {iconType === 'GOLD' ? <CoinIconSVG coins={coins} /> : <GemIconSVG gems={gems} />}
       </div>
     </div>
   );
@@ -1620,27 +1643,28 @@ export const Store: React.FC<{
   }, []); // Run once when Store opens
 
 
-  // FETCH GUARD: Ensure fetchEmotes, fetchFinishers, fetchChatPresets only run once
-  // Remove AbortControllers - let Supabase requests finish even if component re-renders
+  // THE FETCH SHIELD: Use useRef to ensure that even if component mounts 5 times, fetch only runs once
+  // Example: if (hasFetched.current) return; hasFetched.current = true;
+  // STOP ABORTING: No AbortController - requests persist even if component re-renders
   const hasFetchedEmotes = useRef(false);
   const hasFetchedFinishers = useRef(false);
   const hasFetchedChatPresets = useRef(false);
 
   useEffect(() => { 
-    // FETCH GUARD: Return early if already fetched - prevents AbortController race conditions
-    // Check this FIRST before any fetch attempt - example: if (hasFetched.current) return;
+    // THE FETCH SHIELD: Return early if already fetched - prevents duplicate concurrent requests
+    // Even if component mounts 5 times in a row (as it does in Prod), this ensures fetch only runs once
     if (hasFetchedEmotes.current && hasFetchedFinishers.current && hasFetchedChatPresets.current) {
-      console.log('🛍️ Store: Fetch guard - all assets already fetched, skipping to prevent race condition');
+      console.log('🛍️ Store: Fetch shield - all assets already fetched, skipping to prevent race condition');
       return;
     }
     
-    // REMOVE ABORTCONTROLLERS: In Store fetching hooks, remove the AbortController entirely
-    // Let the Supabase request finish even if the component re-renders
-    // No cleanup function - we intentionally don't return a cleanup that would abort fetches
+    // STOP ABORTING: No AbortController, no signal, no cleanup function
+    // We want these requests to persist even if the component re-renders
     
     // Fetch emotes - function handles its own internal locking
     if (!hasFetchedEmotes.current && typeof fetchEmotes === 'function') {
-      hasFetchedEmotes.current = true; // Set guard BEFORE fetch to prevent concurrent requests
+      // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
+      hasFetchedEmotes.current = true;
       console.log('🛍️ Store: Fetching emotes...');
       fetchEmotes(true)
         .then((emotes) => {
@@ -1650,46 +1674,53 @@ export const Store: React.FC<{
             console.log('📋 Emote file paths:', emotes.map(e => e.file_path));
           }
           setRemoteEmotes(emotes || []);
+          // Do NOT reset hasFetchedEmotes - shield remains active even on error
         })
         .catch((err: any) => {
           console.error('❌ Store: Error fetching emotes:', err);
-          // Try to use cached data if available
           setRemoteEmotes([]);
+          // Do NOT reset hasFetchedEmotes - shield remains active even on error
         });
     }
     
     // Fetch finishers - function handles its own internal locking
     if (!hasFetchedFinishers.current && typeof fetchFinishers === 'function') {
-      hasFetchedFinishers.current = true; // Set guard BEFORE fetch to prevent concurrent requests
+      // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
+      hasFetchedFinishers.current = true;
       console.log('⚔️ Store: Fetching finishers...');
       fetchFinishers()
         .then((finishersData) => {
           console.log(`⚔️ Store: Loaded ${finishersData?.length || 0} finishers from Supabase`);
           setFinishers(finishersData || []);
+          // Do NOT reset hasFetchedFinishers - shield remains active even on error
         })
         .catch((err: any) => {
           console.error('❌ Store: Error fetching finishers:', err);
           setFinishers([]);
+          // Do NOT reset hasFetchedFinishers - shield remains active even on error
         });
     }
     
     // Fetch chat presets - function handles its own internal locking
     if (!hasFetchedChatPresets.current && typeof fetchChatPresets === 'function') {
-      hasFetchedChatPresets.current = true; // Set guard BEFORE fetch to prevent concurrent requests
+      // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
+      hasFetchedChatPresets.current = true;
       console.log('💬 Store: Fetching chat presets...');
       fetchChatPresets()
         .then((presets) => {
           console.log(`💬 Store: Loaded ${presets?.length || 0} chat presets from Supabase`);
           setChatPresets(presets || []);
+          // Do NOT reset hasFetchedChatPresets - shield remains active even on error
         })
         .catch((err: any) => {
           console.error('❌ Store: Error fetching chat presets:', err);
           setChatPresets([]);
+          // Do NOT reset hasFetchedChatPresets - shield remains active even on error
         });
     }
     
     // CRITICAL: NO CLEANUP FUNCTION - Do NOT return a cleanup that would abort fetches
-    // Remove AbortControllers entirely - let Supabase requests finish even if component re-renders
+    // STOP ABORTING: Let Supabase requests finish even if component re-renders
   }, []); // Only run once on mount
 
   const hasVoucher = useMemo(() => (profile?.inventory?.items['GENERAL_10_OFF'] || 0) > 0, [profile]);

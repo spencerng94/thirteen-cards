@@ -370,18 +370,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       equipped: boolean
   } | null>(null);
 
-  // FETCH GUARD: Ensure fetchEmotes, fetchFinishers only run once
+  // THE FETCH SHIELD: Use useRef to ensure that even if component mounts 5 times, fetch only runs once
   // Example: if (hasFetched.current) return; hasFetched.current = true;
-  // Use useRef to prevent multiple concurrent fetches that cause AbortController race conditions
+  // STOP ABORTING: No AbortController - requests persist even if component re-renders
   const hasFetched = useRef(false);
   const emotesFetchedRef = useRef(false);
   const finishersFetchedRef = useRef(false);
 
   useEffect(() => {
-    // FETCH GUARD: Return early if already fetched - prevents AbortController race conditions
-    // Check this FIRST before any other logic - example: if (hasFetched.current) return;
+    // THE FETCH SHIELD: Return early if already fetched - prevents duplicate concurrent requests
+    // Even if component mounts 5 times in a row (as it does in Prod), this ensures fetch only runs once
     if (hasFetched.current) {
-      console.log('WelcomeScreen: Fetch guard - assets already fetched, skipping to prevent race condition');
+      console.log('WelcomeScreen: Fetch shield - already fetched, skipping to prevent race condition');
       // Try to load from cache if available
       if (!emotesFetchedRef.current && globalFetchCache?.emotes?.data) {
         setRemoteEmotes(globalFetchCache.emotes.data);
@@ -394,22 +394,20 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       return;
     }
     
-    // DEPENDENCY CHECK: Make sure fetches only trigger when profile.id is actually present
-    // Wait for profile.id to be ready before fetching - critical for preventing AbortErrors
+    // DEPENDENCY CHECK: Wait for profile.id to be ready before fetching
     if (!profile?.id || profile.id === 'guest' || profile.id === 'pending' || profile.id === '') {
       console.log(`WelcomeScreen: Waiting for profile.id from context - currentProfileId: ${profile?.id || 'undefined'}`);
       return;
     }
     
-    // SET FETCH GUARD IMMEDIATELY: hasFetched.current = true
-    // This must be set BEFORE calling fetchEmotes/fetchFinishers to prevent race conditions
+    // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
+    // This ensures that even if component mounts 5 times, fetch only runs once
     hasFetched.current = true;
     
     console.log('WelcomeScreen: Profile ID confirmed, fetching global assets (emotes/finishers)...');
     
-    // REMOVE ABORTCONTROLLERS: In WelcomeScreen.tsx, remove the AbortController entirely
-    // Let the Supabase request finish even if the component re-renders
-    // No cleanup function - we intentionally don't return a cleanup that would abort fetches
+    // STOP ABORTING: No AbortController, no signal, no cleanup function
+    // We want these requests to persist even if the component re-renders
     
     // Fetch emotes - function handles its own internal locking
     if (!emotesFetchedRef.current) {
@@ -428,6 +426,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           } else {
             setRemoteEmotes([]);
           }
+          // Do NOT reset hasFetched - shield remains active even on error
         });
     }
     
@@ -451,13 +450,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           } else {
             setFinishers([]);
           }
+          // Do NOT reset hasFetched - shield remains active even on error
         });
     }
     
     // CRITICAL: NO CLEANUP FUNCTION - Do NOT return a cleanup that would abort fetches
-    // Remove AbortControllers entirely - let Supabase requests finish even if component re-renders
-    // This stops AbortController from being so aggressive with our asset fetches
-  }, [profile?.id]); // DEPENDENCY CHECK: Only depend on profile.id - fetches only trigger when it's actually present
+    // STOP ABORTING: Let Supabase requests finish even if component re-renders
+  }, [profile?.id]); // DEPENDENCY: Only depend on profile.id - fetches only trigger when it's actually present
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {

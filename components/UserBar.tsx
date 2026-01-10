@@ -106,13 +106,20 @@ export const UserBar: React.FC<UserBarProps> = ({
       {/* Currency Display */}
       <div className="flex flex-col items-center gap-4 sm:gap-5">
         {/* Gold Coins */}
+        {/* SANITIZE SVG DATA: Wrap CurrencyIcon in condition that checks if currency value is a valid number */}
+        {/* Example: {typeof coins === 'number' && <CurrencyIcon type="GOLD" coins={coins} />} */}
         <button 
           onClick={(e) => { e.stopPropagation(); onOpenStore?.('SLEEVES'); }}
           className="flex flex-col items-center gap-1 hover:scale-110 transition-transform duration-300 group/coin"
         >
           <div className="relative">
             <div className="absolute -inset-2 bg-yellow-500/20 blur-lg opacity-0 group-hover/coin:opacity-100 transition-opacity duration-300 rounded-full"></div>
-            <CurrencyIcon type="GOLD" size="sm" />
+            {(() => {
+              const coinsValue = Number(displayProfile.coins || 0);
+              const isValidCoins = typeof coinsValue === 'number' && !isNaN(coinsValue);
+              // SANITIZE SVG DATA: Only render CurrencyIcon if currency value is a valid number
+              return isValidCoins ? <CurrencyIcon type="GOLD" size="sm" coins={coinsValue} /> : null;
+            })()}
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">
             {isLoading ? '---' : (() => {
@@ -124,13 +131,20 @@ export const UserBar: React.FC<UserBarProps> = ({
         </button>
 
         {/* Gems */}
+        {/* SANITIZE SVG DATA: Wrap CurrencyIcon in condition that checks if currency value is a valid number */}
+        {/* Example: {typeof gems === 'number' && <CurrencyIcon type="GEMS" gems={gems} />} */}
         <button 
           onClick={(e) => { e.stopPropagation(); onOpenGemPacks ? onOpenGemPacks() : onOpenStore?.('GEMS'); }}
           className="flex flex-col items-center gap-1 hover:scale-110 transition-transform duration-300 group/gem"
         >
           <div className="relative">
             <div className="absolute -inset-2 bg-pink-500/20 blur-lg opacity-0 group-hover/gem:opacity-100 transition-opacity duration-300 rounded-full"></div>
-            <CurrencyIcon type="GEMS" size="sm" />
+            {(() => {
+              const gemsValue = Number(displayGems || 0);
+              const isValidGems = typeof gemsValue === 'number' && !isNaN(gemsValue);
+              // SANITIZE SVG DATA: Only render CurrencyIcon if currency value is a valid number
+              return isValidGems ? <CurrencyIcon type="GEMS" size="sm" gems={gemsValue} /> : null;
+            })()}
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-pink-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(236,72,153,0.4)]">
             {isLoading ? '---' : (() => {
