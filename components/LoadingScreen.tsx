@@ -10,7 +10,7 @@ type LoadingScreenProps = {
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({ status, showGuestButton = false, onEnterGuest }) => {
   return (
     <div
-      className="min-h-screen h-screen w-full bg-neutral-950 text-white font-sans relative overflow-hidden"
+      className="min-h-screen h-screen w-full bg-neutral-950 text-white font-sans relative overflow-hidden transition-opacity duration-300 ease-in-out opacity-100"
       aria-busy="true"
       aria-live="polite"
     >
@@ -70,6 +70,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ status, showGuestB
           }
           .animate-[progress_1.6s_ease-in-out_infinite] {
             animation: progress 1.6s ease-in-out infinite;
+          }
+          /* Smooth fade-out transition for unmounting */
+          @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+          }
+          .loading-screen-exit {
+            animation: fadeOut 0.3s ease-in-out forwards;
           }
         `}
       </style>

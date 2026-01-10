@@ -5,6 +5,7 @@ import { getWeeklyChallenges } from '../constants/ChallengePool';
 import { supabase } from '../src/lib/supabase';
 // Import discriminator generation utility
 import { generateDiscriminator } from '../utils/username';
+import type { ErrorInfo } from 'react';
 
 // Global fetch cache to prevent duplicate fetches across all components
 // This singleton ensures data is only fetched once, even if multiple components request it
@@ -2880,5 +2881,98 @@ export const submitVibeCheck = async (
   } catch (e: any) {
     console.error('Exception submitting vibe check:', e);
     return { success: false, error: e.message || 'Unknown error' };
+  }
+};
+
+/**
+ * Log client-side errors to Supabase for production monitoring
+ * 
+ * This function is 'fire-and-forget' - it will not block the UI or throw errors
+ * if the logging request fails. It captures error details, stack traces, browser
+ * information, and the current URL for debugging purposes.
+ * 
+ * @param error - The error object (Error instance or any error-like object)
+ * @param errorInfo - Optional React ErrorInfo object containing component stack
+ * @param userId - Optional user ID (will be fetched from session if not provided)
+ */
+export const logErrorToSupabase = async (
+  error: Error | unknown,
+  errorInfo?: ErrorInfo | null,
+  userId?: string | null
+): Promise<void> => {
+  // Fire-and-forget: Don't block or throw errors
+  try {
+    // Get error message and stack trace
+    let errorMessage = 'Unknown error';
+    let stackTrace: string | null = null;
+    
+    if (error instanceof Error) {
+      errorMessage = error.message || error.toString();
+      stackTrace = error.stack || null;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else {
+      errorMessage = String(error);
+    }
+
+    // Get component stack from React ErrorInfo if available
+    const componentStack = errorInfo?.componentStack || null;
+
+    // Get current URL
+    const url = typeof window !== 'undefined' ? window.location.href : null;
+
+    // Get browser/user agent information
+    const browserInfo = typeof navigator !== 'undefined' 
+      ? navigator.userAgent || 'Unknown browser'
+      : 'Unknown browser';
+
+    // Get user ID from session if not provided
+    let finalUserId: string | null = userId || null;
+    if (!finalUserId && typeof window !== 'undefined') {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        finalUserId = session?.user?.id || null;
+      } catch (e) {
+        // Ignore session fetch errors - continue with null userId
+        console.warn('Error fetching session for error logging:', e);
+      }
+    }
+
+    // Only proceed if we have Supabase configuration
+    if (!supabaseAnonKey || !supabaseUrl) {
+      console.warn('Supabase not configured, skipping error log');
+      return;
+    }
+
+    // Insert error into database (non-blocking, fire-and-forget)
+    // Note: This async operation is intentionally not awaited - it runs in the background
+    supabase
+      .from('client_errors')
+      .insert({
+        user_id: finalUserId,
+        error_message: errorMessage.substring(0, 5000), // Limit message length
+        stack_trace: stackTrace ? stackTrace.substring(0, 10000) : null, // Limit stack trace length
+        component_stack: componentStack ? componentStack.substring(0, 10000) : null, // Limit component stack length
+        browser_info: browserInfo.substring(0, 500), // Limit browser info length
+        url: url ? url.substring(0, 1000) : null, // Limit URL length
+        created_at: new Date().toISOString()
+      })
+      .then(({ error: insertError }) => {
+        if (insertError) {
+          // Log to console but don't throw - this is fire-and-forget
+          console.warn('Failed to log error to Supabase (non-blocking):', insertError);
+        } else {
+          console.log('✅ Error logged to Supabase successfully');
+        }
+      })
+      .catch((e) => {
+        // Silently catch any errors - this is fire-and-forget
+        console.warn('Exception while logging error to Supabase (non-blocking):', e);
+      });
+
+  } catch (e) {
+    // Catch any errors in the logging function itself - don't throw
+    // This ensures the logging function never interferes with app functionality
+    console.warn('Exception in logErrorToSupabase (non-blocking):', e);
   }
 };

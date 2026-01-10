@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { logErrorToSupabase } from '../services/supabase';
 
 interface Props {
   children: ReactNode;
@@ -31,6 +32,14 @@ class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error);
     console.error('Error info:', errorInfo);
+    
+    // Log error to Supabase for production monitoring (fire-and-forget)
+    // This will not block the UI or throw errors if logging fails
+    logErrorToSupabase(error, errorInfo).catch((logError) => {
+      // Silently catch any errors from logging - don't let logging errors break the app
+      console.warn('Failed to log error to Supabase (non-blocking):', logError);
+    });
+    
     this.setState({
       error,
       errorInfo,

@@ -93,30 +93,27 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
   const gemBalanceFetchedRef = useRef(false);
 
   // Fetch gem balance from Supabase profiles table
-  // REMOVE ABORT SIGNAL: Remove signal: controller.signal from the Supabase queries
-  // Let the Supabase request finish even if the component re-renders
+  // REMOVE ABORT SIGNAL: Removed signal: controller.signal - let Supabase requests finish naturally
   const fetchGemBalance = useCallback(async () => {
+    // GHOST SESSION: Guard against empty user.id during initial auth mount
     const userId = session?.user?.id;
-    if (!userId || userId === 'pending') {
+    if (!userId || userId === 'pending' || userId === '') {
       setGemBalance(null);
       return;
     }
 
-    // FETCH LOCK: Use useRef(false) to prevent multiple simultaneous fetch calls
-    // Example: if (hasFetched.current) return; hasFetched.current = true;
+    // FETCH LOCK: Return early if fetch is already in progress - prevents duplicate concurrent requests
     if (hasFetchedGemBalance.current) {
       console.log('BillingProvider: Fetch guard - gem balance fetch already in progress, skipping to prevent race condition');
       return;
     }
 
-    // FETCH LOCK: Set guard immediately BEFORE fetch to prevent concurrent requests
+    // FETCH LOCK: Set guard to true when fetch starts
     hasFetchedGemBalance.current = true;
 
     try {
       console.log(`BillingProvider: 💎 Fetching gem balance from Supabase for UUID: ${userId}...`);
-      // REMOVE ABORT SIGNAL: No signal property passed to fetchProfile
-      // Let Supabase handle the request normally, no cancellation on re-renders
-      // Remove AbortController handling - let the request finish even if component re-renders
+      // NO ABORT SIGNAL: No signal property - let Supabase handle request normally
       const userProfile = await fetchProfile(userId);
       
       if (userProfile) {
@@ -134,14 +131,11 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
         setGemBalance(0);
         gemBalanceFetchedRef.current = true;
       }
-      // Only clear guard after successful fetch - allows retry on error
-      hasFetchedGemBalance.current = false;
     } catch (err: any) {
       console.error('BillingProvider: ❌ Failed to fetch gem balance:', err);
-      // Don't handle AbortError specially - let it propagate naturally
-      // The fetch guard prevents concurrent requests, so errors should be rare
       setError(err.message || 'Failed to fetch gem balance');
-      // Clear guard on error to allow retry on next render
+    } finally {
+      // Reset fetch guard when fetch ends (success or error) - allows retry if needed
       hasFetchedGemBalance.current = false;
     }
   }, [session?.user?.id, onGemsUpdate]);

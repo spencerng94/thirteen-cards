@@ -148,7 +148,7 @@ export const LegalView: React.FC = () => {
         <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-xl border-b border-yellow-500/20 p-4 md:p-6">
           <div className="max-w-4xl mx-auto w-full flex items-center justify-between">
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate(-1)}
               className="group flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 text-gray-400 hover:text-yellow-400 transition-all duration-300 active:scale-95"
             >
               <svg 
@@ -161,7 +161,7 @@ export const LegalView: React.FC = () => {
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Back to Home</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Back</span>
             </button>
 
             <div className="flex items-center gap-2">
@@ -198,13 +198,13 @@ export const LegalView: React.FC = () => {
             <div className="p-6 border-t border-white/5 bg-white/[0.02]">
               <div className="flex items-center justify-center gap-4">
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate(-1)}
                   className="group relative overflow-hidden px-8 py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all duration-300 active:scale-95 border border-yellow-400/30 shadow-[0_15px_40px_rgba(234,179,8,0.2)]"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 group-hover:scale-110 transition-transform duration-700"></div>
                   <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                   <span className="relative z-10 text-black flex items-center justify-center gap-3 drop-shadow-md font-bold">
-                    Return to Game
+                    Back
                   </span>
                 </button>
               </div>

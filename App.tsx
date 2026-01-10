@@ -29,6 +29,7 @@ import { recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, c
 import { formatUsername } from './utils/username';
 import { supabase, supabaseUrl, supabaseAnonKey } from './src/lib/supabase';
 import { useSession } from './components/SessionProvider';
+import { logErrorToSupabase } from './services/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeToast } from './components/WelcomeToast';
 import { Toast } from './components/Toast';
@@ -302,6 +303,44 @@ const AppContent: React.FC = () => {
       }
     };
     setupStatusBar();
+  }, []);
+
+  // Global error logging: Intercept unhandled promise rejections (e.g., failed Supabase fetches)
+  // This captures errors that don't get caught by ErrorBoundary (like async errors in event handlers)
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('Unhandled promise rejection detected:', event.reason);
+      
+      // Create an Error object from the rejection reason if it's not already an Error
+      let error: Error;
+      if (event.reason instanceof Error) {
+        error = event.reason;
+      } else {
+        // Convert non-Error rejection reasons to Error objects
+        error = new Error(String(event.reason || 'Unhandled promise rejection'));
+        // Try to preserve stack trace if available
+        if (event.reason && typeof event.reason === 'object' && 'stack' in event.reason) {
+          error.stack = String(event.reason.stack);
+        }
+      }
+      
+      // Log to Supabase (fire-and-forget)
+      logErrorToSupabase(error, null).catch((logError) => {
+        // Silently catch any errors from logging
+        console.warn('Failed to log unhandled rejection to Supabase (non-blocking):', logError);
+      });
+      
+      // Note: We don't call event.preventDefault() to allow default browser behavior
+      // But we do log it for monitoring purposes
+    };
+
+    // Add the event listener
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    // Cleanup: Remove the listener when component unmounts
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
   }, []);
 
   useEffect(() => {
@@ -1333,13 +1372,16 @@ const AppContent: React.FC = () => {
     }
   }, [isRedirecting, setIsRedirecting]);
 
-  // In App.tsx Guard: Update render logic to check for isRedirecting flag
-  // STATE VERIFICATION: If profile is loaded, bypass loading screen immediately
-  // Priority 1: Loading/Checking session or Redirecting (unless profile is already loaded)
-  // FIX STUCK SIGN-IN: Show guest button when redirecting to allow user to escape stuck state
-  if ((!isInitialized || isRedirecting) && !profile) {
+  // Redefine the 'Ready' State: Derived boolean ensures proper loading gate
+  // If a session exists, we must wait for the profile to load before hiding the loading screen.
+  // If no session exists, we proceed to the landing page normally.
+  const isAppReady = isInitialized && (session ? !!profile : true);
+  
+  // Refactor the Loading Gate: Use isAppReady instead of just !isInitialized
+  // Prevent Partial Renders: Don't mount any components until isAppReady is true
+  if (!isAppReady) {
     const message = isRedirecting ? "Connecting to provider..." : "Verifying session...";
-    console.log('App: Showing loading screen', { isInitialized, isRedirecting, hasProfile: !!profile, message });
+    console.log('App: Showing loading screen', { isInitialized, isRedirecting, hasSession: !!session, hasProfile: !!profile, isAppReady, message });
     return (
       <div className="relative">
         <LoadingScreen
@@ -1351,24 +1393,17 @@ const AppContent: React.FC = () => {
     );
   }
   
-  // Step B: Now that we are CERTAIN initialization is done, check for the session (source of truth)
+  // Step B: Now that we are CERTAIN app is ready, check for the session (source of truth)
   // App.tsx Logic Change: Trust the Session, not the User ID
   // If hasSession is true, we MUST show the game, even if the ID extraction is lagging
   const hasSession = !!session;
   const hasSessionUser = !!session?.user;
   const hasValidSession = hasSession && hasSessionUser; // Trust session object, not just user ID
   
-  if (hasValidSession) {
-    console.log('App: ✅ Initialization complete, session confirmed, rendering game', {
-      hasSession: !!session,
-      hasSessionUser: !!session?.user,
-      userId: session?.user?.id || '(repairing...)',
-      trustSession: true // We trust the session object, not just the ID
-    });
-    // Continue to render main game app below
-  } else if (!isGuest) {
-    // Step C: Only if initialization is done AND there is no user, show Landing
-    console.log('App: Initialization complete, no user found - showing landing/sign-in screen');
+  // Prevent Partial Renders: Only render AuthScreen if no session and not a guest
+  if (!hasValidSession && !isGuest) {
+    // Step C: Only if app is ready AND there is no user, show Landing
+    console.log('App: App ready, no user found - showing landing/sign-in screen');
     
     // Check if we just came back from auth/callback (browser might be blocking cookies)
     const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
@@ -1395,8 +1430,8 @@ const AppContent: React.FC = () => {
     );
   }
   
-  // 3. If session || isGuest, show Main Game App
-  console.log('App: Rendering main app content', { hasSession: !!session, isGuest });
+  // 3. If session || isGuest, show Main Game App (only rendered when isAppReady is true)
+  console.log('App: Rendering main app content', { hasSession: !!session, isGuest, hasProfile: !!profile });
 
   return (
     <BillingProvider 

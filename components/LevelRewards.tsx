@@ -76,7 +76,17 @@ export const LevelRewards: React.FC<LevelRewardsProps> = ({ onClose, profile, in
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const currentLevel = useMemo(() => profile ? calculateLevel(profile.xp) : 1, [profile]);
+  // SVG SAFETY: Ensure level is always a valid number, never undefined during Ghost Session initialization
+  const currentLevel = useMemo(() => {
+    if (!profile || profile.xp === undefined || profile.xp === null) {
+      return 1; // Default to level 1 if profile or xp is invalid
+    }
+    const calculatedLevel = calculateLevel(profile.xp);
+    // Ensure calculated level is valid
+    return (typeof calculatedLevel === 'number' && !isNaN(calculatedLevel) && calculatedLevel > 0) 
+      ? calculatedLevel 
+      : 1;
+  }, [profile]);
   const maxLevelDisplay = 60;
 
   const progressSteps = useMemo(() => {

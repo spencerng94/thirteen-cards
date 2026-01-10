@@ -4,6 +4,7 @@ import { calculateLevel, getXpForLevel } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 import { CurrencyIcon } from './Store';
 import { useGemBalance } from '../hooks/useGemBalance';
+import { isValidNumber } from '../utils/svgSanitizer';
 
 /* FIXED: Added onOpenGemPacks to UserBarProps interface */
 interface UserBarProps {
@@ -115,15 +116,13 @@ export const UserBar: React.FC<UserBarProps> = ({
           <div className="relative">
             <div className="absolute -inset-2 bg-yellow-500/20 blur-lg opacity-0 group-hover/coin:opacity-100 transition-opacity duration-300 rounded-full"></div>
             {(() => {
-              // SVG CRASH PREVENTION: Wrap Gem/Coin icons in check to prevent 'Expected number' error
-              // Check: if (!gems && gems !== 0) return null;
+              // SVG CRASH PREVENTION: Use centralized utility to validate currency values
               const coinsValue = displayProfile.coins;
               // Only render if coins is a valid number (0 is valid, null/undefined are not)
-              if (coinsValue === null || coinsValue === undefined || (typeof coinsValue !== 'number')) {
+              if (!isValidNumber(coinsValue)) {
                 return null; // Don't render SVG if coins is null/undefined/non-number
               }
-              const safeCoins = typeof coinsValue === 'number' && !isNaN(coinsValue) ? coinsValue : 0;
-              return <CurrencyIcon type="GOLD" size="sm" coins={safeCoins} />;
+              return <CurrencyIcon type="GOLD" size="sm" coins={coinsValue} />;
             })()}
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">
@@ -145,15 +144,13 @@ export const UserBar: React.FC<UserBarProps> = ({
           <div className="relative">
             <div className="absolute -inset-2 bg-pink-500/20 blur-lg opacity-0 group-hover/gem:opacity-100 transition-opacity duration-300 rounded-full"></div>
             {(() => {
-              // SVG CRASH PREVENTION: Wrap Gem/Coin icons in check to prevent 'Expected number' error
-              // Check: if (!gems && gems !== 0) return null;
+              // SVG CRASH PREVENTION: Use centralized utility to validate currency values
               const gemsValue = displayGems;
               // Only render if gems is a valid number (0 is valid, null/undefined are not)
-              if (gemsValue === null || gemsValue === undefined || (typeof gemsValue !== 'number')) {
+              if (!isValidNumber(gemsValue)) {
                 return null; // Don't render SVG if gems is null/undefined/non-number
               }
-              const safeGems = typeof gemsValue === 'number' && !isNaN(gemsValue) ? gemsValue : 0;
-              return <CurrencyIcon type="GEMS" size="sm" gems={safeGems} />;
+              return <CurrencyIcon type="GEMS" size="sm" gems={gemsValue} />;
             })()}
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-pink-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(236,72,153,0.4)]">

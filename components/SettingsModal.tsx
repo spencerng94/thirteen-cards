@@ -5,6 +5,7 @@ import { BackgroundTheme, AiDifficulty } from '../types';
 import { SignOutButton } from './SignOutButton';
 import { PREMIUM_BOARDS } from './UserHub';
 import { FeedbackModal } from './FeedbackModal';
+import { useVersionCheck } from '../hooks/useVersionCheck';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -53,6 +54,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const isUpdateAvailable = useVersionCheck();
+
+  const handleUpdate = () => {
+    // Force a hard refresh to bypass cache and load new version
+    // Session should be preserved since Supabase uses localStorage
+    window.location.reload();
+  };
 
   const getDifficultyStyles = (d: AiDifficulty, active: boolean) => {
     if (!active) return "text-gray-500 hover:text-gray-300 bg-white/[0.02] border-white/5";
@@ -279,6 +287,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                   <span className="relative z-10 text-white flex items-center justify-center gap-3 drop-shadow-md">
                     Apply & Save Changes <span className="text-xl">✅</span>
+                  </span>
+                </button>
+             )}
+
+             {/* Update Available Button */}
+             {isUpdateAvailable && (
+                <button
+                  onClick={handleUpdate}
+                  className="group w-full relative overflow-hidden py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all duration-300 active:scale-95 border border-yellow-400/50 shadow-[0_15px_40px_rgba(234,179,8,0.4)] animate-pulse"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 group-hover:scale-110 transition-transform duration-700"></div>
+                  <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.3)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_2s_infinite] pointer-events-none"></div>
+                  <span className="relative z-10 text-black flex items-center justify-center gap-3 drop-shadow-md font-bold">
+                    ✨ Update Available (Click to Refresh)
                   </span>
                 </button>
              )}

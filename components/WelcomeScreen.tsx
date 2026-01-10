@@ -228,25 +228,25 @@ const FriendsCardIcon = () => (
         </feMerge>
       </filter>
     </defs>
-    {/* Clubs symbol - proper card suit clubs shape with three rounded lobes and stem */}
-    {/* Top left lobe */}
-    <circle cx="35" cy="30" r="12" fill="url(#friendsCardGrad)" filter="url(#friendsGlow)" stroke="#3b82f6" strokeWidth="1.5" />
-    {/* Top right lobe */}
-    <circle cx="65" cy="30" r="12" fill="url(#friendsCardGrad)" filter="url(#friendsGlow)" stroke="#3b82f6" strokeWidth="1.5" />
-    {/* Bottom lobe */}
-    <circle cx="50" cy="50" r="12" fill="url(#friendsCardGrad)" filter="url(#friendsGlow)" stroke="#3b82f6" strokeWidth="1.5" />
-    {/* Stem */}
+    {/* Clubs symbol - proper card suit clubs shape with three overlapping rounded lobes and stem */}
+    {/* Top lobe - single circle */}
+    <circle cx="50" cy="32" r="15" fill="url(#friendsCardGrad)" filter="url(#friendsGlow)" stroke="#3b82f6" strokeWidth="1.5" />
+    {/* Bottom left lobe */}
+    <circle cx="35" cy="50" r="15" fill="url(#friendsCardGrad)" filter="url(#friendsGlow)" stroke="#3b82f6" strokeWidth="1.5" />
+    {/* Bottom right lobe */}
+    <circle cx="65" cy="50" r="15" fill="url(#friendsCardGrad)" filter="url(#friendsGlow)" stroke="#3b82f6" strokeWidth="1.5" />
+    {/* Stem pointing downward */}
     <path 
-      d="M 50 62 L 50 85 L 45 85 L 45 75 L 50 75 Z" 
+      d="M50 65 L48 92 L52 92 Z" 
       fill="url(#friendsCardGrad)" 
       filter="url(#friendsGlow)"
       stroke="#3b82f6" 
       strokeWidth="1.5"
     />
     {/* Small white circles inside each lobe - card motif */}
-    <circle cx="35" cy="30" r="5" fill="#ffffff" opacity="0.95" />
-    <circle cx="65" cy="30" r="5" fill="#ffffff" opacity="0.95" />
-    <circle cx="50" cy="50" r="5" fill="#ffffff" opacity="0.95" />
+    <circle cx="50" cy="32" r="5.5" fill="#ffffff" opacity="0.95" />
+    <circle cx="35" cy="50" r="5.5" fill="#ffffff" opacity="0.95" />
+    <circle cx="65" cy="50" r="5.5" fill="#ffffff" opacity="0.95" />
   </svg>
 );
 

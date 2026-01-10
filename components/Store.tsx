@@ -20,6 +20,7 @@ import { SanctumSnapFinisher } from './SanctumSnapFinisher';
 import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
 import { KissMyShibaFinisher } from './KissMyShibaFinisher';
 import { ChatBubble } from './ChatBubble';
+import { sanitizePath, safeSVGNumber, isValidNumber } from '../utils/svgSanitizer';
 
 // Helper function to format time ago
 const getTimeAgo = (date: Date): string => {
@@ -233,18 +234,12 @@ export const getDailyDealTimeRemaining = (): { hours: number; minutes: number; s
 };
 
 /**
- * SVG Path Fallback Helper: Ensures path 'd' attribute defaults to empty string
- * FIX SVG PATH: Add fallback (e.g., d={pathData || ""}) to prevent NaN error when data hasn't loaded yet
- * This prevents '<path> attribute d: Expected number' error when gem/coin counts are not yet loaded
- * Change: d={pathData} To: d={pathData || ""} to ensure values default to empty string instead of undefined
+ * SVG Path Fallback Helper: Ensures path 'd' attribute defaults to safe fallback
+ * Uses centralized sanitization utility to prevent NaN/undefined errors in production
+ * @deprecated Use sanitizePath from utils/svgSanitizer.ts directly instead
  */
 const getSVGPath = (pathData: string | undefined | null | number): string => {
-  // SVG FALLBACK: Default to empty string if pathData is undefined, null, NaN, or invalid
-  // This ensures the d attribute always gets a valid string, preventing NaN errors
-  if (!pathData || typeof pathData !== 'string' || pathData.trim() === '' || pathData === 'NaN' || pathData === 'undefined') {
-    return '';
-  }
-  return pathData;
+  return sanitizePath(pathData, "M0 0");
 };
 
 /**
@@ -252,16 +247,15 @@ const getSVGPath = (pathData: string | undefined | null | number): string => {
  * SANITIZE SVG DATA: Only render if currency value is a valid number (when provided)
  */
 const CoinIconSVG: React.FC<{ coins?: number | null }> = ({ coins }) => {
-  // SANITIZE SVG DATA: Wrap SVG in condition that checks if currency value is a valid number
-  // Example: {typeof coins === 'number' && <path d={...} />}
-  // If coins is provided, validate it's a number before rendering; if not provided, render normally (icon-only)
-  if (coins !== undefined && coins !== null && (typeof coins !== 'number' || isNaN(coins))) {
+  // SANITIZE SVG DATA: Only render if coins is valid (when provided)
+  // If coins is provided, validate it's a valid number; if not provided, render normally (icon-only)
+  if (coins !== undefined && coins !== null && !isValidNumber(coins)) {
     return null; // Don't render if coins is provided but invalid
   }
   
-  // SVG FALLBACK: Ensure path 'd' attribute defaults to empty string if values are invalid
-  const path1 = getSVGPath("M 10 50 A 40 40 0 0 1 50 10");
-  const path2 = getSVGPath("M 90 50 A 40 40 0 0 1 50 90");
+  // SVG FALLBACK: Use sanitizePath to ensure all path 'd' attributes are safe
+  const path1 = sanitizePath("M 10 50 A 40 40 0 0 1 50 10", "M0 0");
+  const path2 = sanitizePath("M 90 50 A 40 40 0 0 1 50 90", "M0 0");
   
   return (
   <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -316,9 +310,9 @@ const CoinIconSVG: React.FC<{ coins?: number | null }> = ({ coins }) => {
     </g>
     
     {/* Edge highlights for 3D effect */}
-    {/* SVG FALLBACK: d={pathData || ""} pattern to prevent NaN error when data hasn't loaded yet */}
-    <path d={path1 || ""} fill="none" stroke="#FFF9C4" strokeWidth="1.5" opacity="0.7" />
-    <path d={path2 || ""} fill="none" stroke="#E65100" strokeWidth="1.5" opacity="0.5" />
+    {/* SVG SAFETY: Using sanitizePath ensures path 'd' attributes never contain NaN/undefined */}
+    <path d={path1} fill="none" stroke="#FFF9C4" strokeWidth="1.5" opacity="0.7" />
+    <path d={path2} fill="none" stroke="#E65100" strokeWidth="1.5" opacity="0.5" />
   </svg>
   );
 };
@@ -328,22 +322,21 @@ const CoinIconSVG: React.FC<{ coins?: number | null }> = ({ coins }) => {
  * SANITIZE SVG DATA: Only render if currency value is a valid number (when provided)
  */
 const GemIconSVG: React.FC<{ gems?: number | null }> = ({ gems }) => {
-  // SANITIZE SVG DATA: Wrap SVG in condition that checks if currency value is a valid number
-  // Example: {typeof gems === 'number' && <path d={...} />}
-  // If gems is provided, validate it's a number before rendering; if not provided, render normally (icon-only)
-  if (gems !== undefined && gems !== null && (typeof gems !== 'number' || isNaN(gems))) {
+  // SANITIZE SVG DATA: Only render if gems is valid (when provided)
+  // If gems is provided, validate it's a valid number; if not provided, render normally (icon-only)
+  if (gems !== undefined && gems !== null && !isValidNumber(gems)) {
     return null; // Don't render if gems is provided but invalid
   }
   
-  // SVG FALLBACK: Ensure path 'd' attribute defaults to empty string if values are invalid
-  const pathMain = getSVGPath("M50 8 L75 28 L75 58 L50 78 L25 58 L25 28 Z");
-  const pathTop = getSVGPath("M50 8 L75 28 L50 28 Z");
-  const pathLeft = getSVGPath("M50 8 L25 28 L25 58 L50 38 Z");
-  const pathRight = getSVGPath("M50 8 L75 28 L75 58 L50 38 Z");
-  const pathBottom1 = getSVGPath("M25 58 L50 78 L50 58 Z");
-  const pathBottom2 = getSVGPath("M75 58 L50 78 L50 58 Z");
-  const pathLines1 = getSVGPath("M50 8 L50 78 M25 28 L75 28 M25 58 L75 58");
-  const pathLines2 = getSVGPath("M50 8 L25 28 M50 8 L75 28 M25 58 L50 78 M75 58 L50 78");
+  // SVG FALLBACK: Use sanitizePath to ensure all path 'd' attributes are safe
+  const pathMain = sanitizePath("M50 8 L75 28 L75 58 L50 78 L25 58 L25 28 Z", "M0 0");
+  const pathTop = sanitizePath("M50 8 L75 28 L50 28 Z", "M0 0");
+  const pathLeft = sanitizePath("M50 8 L25 28 L25 58 L50 38 Z", "M0 0");
+  const pathRight = sanitizePath("M50 8 L75 28 L75 58 L50 38 Z", "M0 0");
+  const pathBottom1 = sanitizePath("M25 58 L50 78 L50 58 Z", "M0 0");
+  const pathBottom2 = sanitizePath("M75 58 L50 78 L50 58 Z", "M0 0");
+  const pathLines1 = sanitizePath("M50 8 L50 78 M25 28 L75 28 M25 58 L75 58", "M0 0");
+  const pathLines2 = sanitizePath("M50 8 L25 28 M50 8 L75 28 M25 58 L50 78 M75 58 L50 78", "M0 0");
   
   return (
   <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -382,28 +375,28 @@ const GemIconSVG: React.FC<{ gems?: number | null }> = ({ gems }) => {
     </defs>
     
     {/* Main gem body - faceted diamond */}
-    {/* SVG FALLBACK: d={pathData || ""} pattern to prevent NaN error when data hasn't loaded yet */}
-    <path d={pathMain || ""} fill="url(#gemGrad1)" filter="url(#gemGlow)" stroke="#FFB3E6" strokeWidth="1.5" opacity="0.9" />
+    {/* SVG SAFETY: Using sanitizePath ensures path 'd' attributes never contain NaN/undefined */}
+    <path d={pathMain} fill="url(#gemGrad1)" filter="url(#gemGlow)" stroke="#FFB3E6" strokeWidth="1.5" opacity="0.9" />
     
     {/* Top facet highlight */}
-    <path d={pathTop || ""} fill="url(#gemHighlight)" opacity="0.7" />
+    <path d={pathTop} fill="url(#gemHighlight)" opacity="0.7" />
     
     {/* Left facet */}
-    <path d={pathLeft || ""} fill="url(#gemGrad2)" opacity="0.8" />
+    <path d={pathLeft} fill="url(#gemGrad2)" opacity="0.8" />
     
     {/* Right facet */}
-    <path d={pathRight || ""} fill="url(#gemGrad2)" opacity="0.6" />
+    <path d={pathRight} fill="url(#gemGrad2)" opacity="0.6" />
     
     {/* Bottom facets */}
-    <path d={pathBottom1 || ""} fill="url(#gemGrad2)" opacity="0.7" />
-    <path d={pathBottom2 || ""} fill="url(#gemGrad2)" opacity="0.5" />
+    <path d={pathBottom1} fill="url(#gemGrad2)" opacity="0.7" />
+    <path d={pathBottom2} fill="url(#gemGrad2)" opacity="0.5" />
     
     {/* Inner crystal core */}
     <ellipse cx="50" cy="43" rx="20" ry="25" fill="url(#gemHighlight)" opacity="0.4" filter="url(#gemInnerGlow)" />
     
     {/* Facet lines for depth */}
-    <path d={pathLines1 || ""} stroke="#FFB3E6" strokeWidth="0.8" opacity="0.4" />
-    <path d={pathLines2 || ""} stroke="#FFFFFF" strokeWidth="0.6" opacity="0.5" />
+    <path d={pathLines1} stroke="#FFB3E6" strokeWidth="0.8" opacity="0.4" />
+    <path d={pathLines2} stroke="#FFFFFF" strokeWidth="0.6" opacity="0.5" />
     
     {/* Sparkle effects */}
     <circle cx="50" cy="20" r="2" fill="#FFFFFF" opacity="0.9" />
@@ -565,16 +558,15 @@ export const CurrencyIcon: React.FC<{
   coins?: number | null; // SANITIZE SVG DATA: Optional currency value to validate
   gems?: number | null;  // SANITIZE SVG DATA: Optional currency value to validate
 }> = ({ type, size = 'sm', className = "", coins, gems }) => {
-  // SANITIZE SVG DATA: Wrap the entire SVG in a condition that checks if currency value is a valid number
-  // Example: {typeof gems === 'number' && <CurrencyIcon type="GEMS" gems={gems} />}
-  // If value is provided, validate it's a valid number; if not provided, render normally (for icon-only display)
+  // SANITIZE SVG DATA: Validate currency values before rendering
+  // If value is provided, it must be a valid number; if not provided, render normally (for icon-only display)
   
-  // Validate currency value if provided
-  if (type === 'GEMS' && gems !== undefined && gems !== null && (typeof gems !== 'number' || isNaN(gems))) {
+  // Validate currency value if provided using centralized utility
+  if (type === 'GEMS' && gems !== undefined && gems !== null && !isValidNumber(gems)) {
     console.warn('CurrencyIcon: Invalid gems value, not rendering icon', gems);
     return null;
   }
-  if (type === 'GOLD' && coins !== undefined && coins !== null && (typeof coins !== 'number' || isNaN(coins))) {
+  if (type === 'GOLD' && coins !== undefined && coins !== null && !isValidNumber(coins)) {
     console.warn('CurrencyIcon: Invalid coins value, not rendering icon', coins);
     return null;
   }
@@ -2732,26 +2724,17 @@ export const Store: React.FC<{
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.08)_0%,transparent_70%)] pointer-events-none"></div>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(236,72,153,0.05)_0%,transparent_70%)] pointer-events-none"></div>
         
-        {/* Premium Header with Currency - Mobile First */}
-        <div className="relative px-5 sm:px-6 md:px-8 lg:px-10 pt-5 sm:pt-6 md:pt-8 lg:pt-10 pb-4 sm:pb-6 border-b border-white/20 bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent backdrop-blur-xl">
-          {/* Close Button - Top Right with spacing */}
-          <button 
-            onClick={onClose} 
-            className="absolute top-5 right-5 sm:top-6 sm:right-6 md:top-8 md:right-8 z-50 group w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] border-2 border-white/20 hover:border-white/30 text-white/70 hover:text-white transition-all active:scale-95 shadow-lg backdrop-blur-sm flex items-center justify-center touch-manipulation"
-          >
-            <svg className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <div className="flex flex-col gap-4 mb-4 sm:mb-6 pr-14 sm:pr-16 md:pr-20">
-            {/* Premium Currency Display - Always Visible */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        {/* Premium Header with Currency - Mobile First, Compact on Desktop */}
+        <div className="relative px-5 sm:px-6 md:px-6 lg:px-8 pt-5 sm:pt-6 md:pt-4 lg:pt-5 pb-4 sm:pb-6 md:pb-3 lg:pb-4 border-b border-white/20 bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent backdrop-blur-xl">
+          {/* Desktop: Top Bar with Currency and Close Button */}
+          <div className="hidden md:flex md:items-center md:justify-between md:mb-3 lg:mb-4">
+            {/* Desktop: Currency Display - Compact Horizontal */}
+            <div className="flex items-center gap-2 lg:gap-3">
               <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500/30 via-yellow-600/20 to-yellow-500/30 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <div className="relative bg-gradient-to-br from-yellow-500/20 via-yellow-600/15 to-yellow-500/20 backdrop-blur-2xl border-2 border-yellow-500/30 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 shadow-[0_8px_30px_rgba(234,179,8,0.3)]">
-                  <CurrencyIcon type="GOLD" size="sm" className="!w-4 !h-4 sm:!w-5 sm:!h-5" />
-                  <span className="text-sm sm:text-base font-bold text-yellow-300 font-mono drop-shadow-[0_0_10px_rgba(234,179,8,0.5)] whitespace-nowrap">
+                <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500/30 via-yellow-600/20 to-yellow-500/30 rounded-lg blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="relative bg-gradient-to-br from-yellow-500/20 via-yellow-600/15 to-yellow-500/20 backdrop-blur-2xl border-2 border-yellow-500/30 rounded-lg px-2.5 lg:px-3 py-1.5 lg:py-2 flex items-center gap-1.5 lg:gap-2 shadow-[0_8px_30px_rgba(234,179,8,0.3)]">
+                  <CurrencyIcon type="GOLD" size="sm" className="!w-4 !h-4 lg:!w-5 lg:!h-5" />
+                  <span className="text-xs lg:text-sm font-bold text-yellow-300 font-mono drop-shadow-[0_0_10px_rgba(234,179,8,0.5)] whitespace-nowrap">
                     {profile?.coins.toLocaleString() || 0}
                   </span>
                 </div>
@@ -2761,35 +2744,129 @@ export const Store: React.FC<{
                   e.stopPropagation();
                   if (onOpenGemPacks) {
                     onOpenGemPacks();
-                    onClose(); // Close the shop when opening gem packs
+                    onClose();
                   }
                 }}
                 className="relative group cursor-pointer"
               >
-                <div className="absolute -inset-1 bg-gradient-to-r from-pink-500/30 via-pink-600/20 to-pink-500/30 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <div className="relative bg-gradient-to-br from-pink-500/20 via-pink-600/15 to-pink-500/20 backdrop-blur-2xl border-2 border-pink-500/30 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 shadow-[0_8px_30px_rgba(236,72,153,0.3)] transition-transform duration-300 group-hover:scale-105">
-                  <CurrencyIcon type="GEMS" size="sm" className="!w-4 !h-4 sm:!w-5 sm:!h-5" />
-                  <span className="text-sm sm:text-base font-bold text-pink-300 font-mono drop-shadow-[0_0_10px_rgba(236,72,153,0.5)] whitespace-nowrap">
+                <div className="absolute -inset-1 bg-gradient-to-r from-pink-500/30 via-pink-600/20 to-pink-500/30 rounded-lg blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="relative bg-gradient-to-br from-pink-500/20 via-pink-600/15 to-pink-500/20 backdrop-blur-2xl border-2 border-pink-500/30 rounded-lg px-2.5 lg:px-3 py-1.5 lg:py-2 flex items-center gap-1.5 lg:gap-2 shadow-[0_8px_30px_rgba(236,72,153,0.3)] transition-transform duration-300 group-hover:scale-105">
+                  <CurrencyIcon type="GEMS" size="sm" className="!w-4 !h-4 lg:!w-5 lg:!h-5" />
+                  <span className="text-xs lg:text-sm font-bold text-pink-300 font-mono drop-shadow-[0_0_10px_rgba(236,72,153,0.5)] whitespace-nowrap">
                     {(profile?.gems || 0).toLocaleString()}
                   </span>
                 </div>
               </button>
             </div>
+            {/* Desktop: Close Button */}
+            <button 
+              onClick={onClose} 
+              className="z-50 group w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] border-2 border-white/20 hover:border-white/30 text-white/70 hover:text-white transition-all active:scale-95 shadow-lg backdrop-blur-sm flex items-center justify-center"
+            >
+              <svg className="w-5 h-5 lg:w-6 lg:h-6 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
-          {/* Premium Title Section - Mobile Optimized */}
-          <div className="flex flex-col items-center mb-6 sm:mb-8 px-2">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 via-yellow-300 to-yellow-500 uppercase tracking-tight italic font-serif mb-2 sm:mb-3 drop-shadow-[0_4px_30px_rgba(251,191,36,0.5)] px-2">
+          {/* Mobile: Currency and Close Button - Original Layout */}
+          <div className="md:hidden">
+            <button 
+              onClick={onClose} 
+              className="absolute top-5 right-5 sm:top-6 sm:right-6 z-50 group w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] border-2 border-white/20 hover:border-white/30 text-white/70 hover:text-white transition-all active:scale-95 shadow-lg backdrop-blur-sm flex items-center justify-center touch-manipulation"
+            >
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="flex flex-col gap-4 mb-4 sm:mb-6 pr-14 sm:pr-16">
+              {/* Mobile: Premium Currency Display */}
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500/30 via-yellow-600/20 to-yellow-500/30 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="relative bg-gradient-to-br from-yellow-500/20 via-yellow-600/15 to-yellow-500/20 backdrop-blur-2xl border-2 border-yellow-500/30 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 shadow-[0_8px_30px_rgba(234,179,8,0.3)]">
+                    <CurrencyIcon type="GOLD" size="sm" className="!w-4 !h-4 sm:!w-5 sm:!h-5" />
+                    <span className="text-sm sm:text-base font-bold text-yellow-300 font-mono drop-shadow-[0_0_10px_rgba(234,179,8,0.5)] whitespace-nowrap">
+                      {profile?.coins.toLocaleString() || 0}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenGemPacks) {
+                      onOpenGemPacks();
+                      onClose();
+                    }
+                  }}
+                  className="relative group cursor-pointer"
+                >
+                  <div className="absolute -inset-1 bg-gradient-to-r from-pink-500/30 via-pink-600/20 to-pink-500/30 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="relative bg-gradient-to-br from-pink-500/20 via-pink-600/15 to-pink-500/20 backdrop-blur-2xl border-2 border-pink-500/30 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 shadow-[0_8px_30px_rgba(236,72,153,0.3)] transition-transform duration-300 group-hover:scale-105">
+                    <CurrencyIcon type="GEMS" size="sm" className="!w-4 !h-4 sm:!w-5 sm:!h-5" />
+                    <span className="text-sm sm:text-base font-bold text-pink-300 font-mono drop-shadow-[0_0_10px_rgba(236,72,153,0.5)] whitespace-nowrap">
+                      {(profile?.gems || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Title Section - Smaller on Desktop */}
+          <div className="flex flex-col items-center mb-4 sm:mb-6 md:mb-3 lg:mb-4 px-2">
+            <h2 className="text-3xl sm:text-4xl md:text-2xl lg:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 via-yellow-300 to-yellow-500 uppercase tracking-tight italic font-serif mb-1 sm:mb-2 md:mb-1 lg:mb-1.5 drop-shadow-[0_4px_30px_rgba(251,191,36,0.5)] px-2">
               XIII SHOP
             </h2>
-            <p className="text-xs sm:text-sm md:text-base font-semibold text-white/60 uppercase tracking-wider text-center px-2">
+            <p className="text-xs sm:text-sm md:text-[10px] lg:text-xs font-semibold text-white/60 uppercase tracking-wider text-center px-2 hidden md:block">
               Purchase items to customize your experience
             </p>
-        </div>
+            <p className="text-xs sm:text-sm font-semibold text-white/60 uppercase tracking-wider text-center px-2 md:hidden">
+              Purchase items to customize your experience
+            </p>
+          </div>
 
-          {/* Premium Navigation Tabs - Wraps on Mobile, Single Row on Desktop */}
-          <div className="w-full px-2 sm:px-4 md:px-6">
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-wrap sm:flex-nowrap justify-center">
+          {/* Navigation Tabs and DEALS - Compact Row on Desktop */}
+          <div className="w-full px-2 sm:px-4 md:px-3 lg:px-4">
+            {/* Desktop: Tabs and DEALS in same row */}
+            <div className="hidden md:flex md:items-center md:gap-2 lg:gap-3 md:justify-center md:flex-wrap">
+              {(['SLEEVES', 'EMOTES', 'BOARDS', 'ITEMS', 'FINISHERS', 'QUICK_CHATS'] as const).map(tab => {
+                const displayName = tab.replace(/_/g, ' ');
+                return (
+                <button 
+                  key={tab} 
+                  onClick={() => setActiveTab(tab)} 
+                  className={`relative px-2.5 lg:px-3 py-1.5 lg:py-2 rounded-lg lg:rounded-xl text-[10px] lg:text-xs font-bold uppercase tracking-wide transition-all duration-300 overflow-hidden group whitespace-nowrap touch-manipulation flex-shrink-0 ${
+                    activeTab === tab 
+                      ? 'bg-gradient-to-br from-yellow-500/40 via-yellow-600/35 to-yellow-500/40 text-white border-2 border-yellow-500/60 shadow-[0_0_30px_rgba(251,191,36,0.5)]' 
+                      : 'bg-white/[0.08] text-white/60 hover:text-white/90 hover:bg-white/[0.12] border-2 border-white/15 hover:border-white/25'
+                  }`}
+                >
+                  {activeTab === tab && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                  )}
+                  <span className="relative z-10">{displayName}</span>
+                </button>
+              )})}
+              {/* Desktop: DEALS as part of tabs row */}
+              <button
+                onClick={() => setActiveTab('DEALS')}
+                className={`relative px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg lg:rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-wide transition-all duration-500 overflow-hidden group touch-manipulation ${
+                  activeTab === 'DEALS'
+                    ? 'bg-gradient-to-br from-pink-500/60 via-purple-500/50 to-pink-500/60 text-white border-2 border-pink-400/80 shadow-[0_0_30px_rgba(236,72,153,0.7)] scale-105'
+                    : 'bg-gradient-to-br from-pink-500/40 via-purple-500/30 to-pink-500/40 text-white border-2 border-pink-400/60 shadow-[0_0_20px_rgba(236,72,153,0.5)] hover:scale-105 hover:shadow-[0_0_30px_rgba(236,72,153,0.8)]'
+                }`}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                <div className="absolute -inset-1 bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 rounded-lg lg:rounded-xl opacity-50 blur-lg animate-pulse"></div>
+                <span className="relative z-10 flex items-center gap-1">
+                  <span>🔥</span>
+                  <span>DEALS</span>
+                </span>
+              </button>
+            </div>
+            {/* Mobile: Tabs (original layout) */}
+            <div className="md:hidden flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap justify-center">
             {(['SLEEVES', 'EMOTES', 'BOARDS', 'ITEMS', 'FINISHERS', 'QUICK_CHATS'] as const).map(tab => {
               const displayName = tab.replace(/_/g, ' ');
               return (
@@ -2811,8 +2888,8 @@ export const Store: React.FC<{
             </div>
           </div>
 
-          {/* DEALS Button - Stylistically Distinct Row */}
-          <div className="w-full flex items-center justify-center mt-3 sm:mt-4 px-3 sm:px-4 md:px-6">
+          {/* Mobile: DEALS Button - Stylistically Distinct Row */}
+          <div className="md:hidden w-full flex items-center justify-center mt-3 sm:mt-4 px-3 sm:px-4">
             <button
               onClick={() => setActiveTab('DEALS')}
               className={`relative px-6 sm:px-8 md:px-10 lg:px-12 py-3 sm:py-3.5 md:py-4 rounded-xl sm:rounded-2xl md:rounded-3xl text-sm sm:text-base md:text-lg lg:text-xl font-black uppercase tracking-wider transition-all duration-500 overflow-hidden group touch-manipulation ${
@@ -2837,9 +2914,9 @@ export const Store: React.FC<{
         </div>
 
         {/* Premium Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 lg:p-10 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-4 lg:p-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
           {/* Free Gems Card - Top of Shop */}
-          <div className="mb-4 sm:mb-6">
+          <div className="mb-4 sm:mb-6 md:mb-3 lg:mb-4">
             <FreeGemsCard 
               profile={profile} 
               onRefresh={onRefreshProfile}

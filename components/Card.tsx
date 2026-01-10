@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { Card as CardType, Suit, Rank } from '../types';
+import { sanitizePath, safeSVGNumber } from '../utils/svgSanitizer';
 
 /* Added ROYAL_CROSS to CardCoverStyle */
 export type CardCoverStyle = 'BLUE' | 'RED' | 'PATTERN' | 'GOLDEN_IMPERIAL' | 'VOID_ONYX' | 'ROYAL_JADE' | 'CRYSTAL_EMERALD' | 'DRAGON_SCALE' | 'NEON_CYBER' | 'PIXEL_CITY_LIGHTS' | 'AMETHYST_ROYAL' | 'CHERRY_BLOSSOM_NOIR' | 'AETHER_VOID' | 'DIVINE_ROYAL' | 'EMPERORS_HUBRIS' | 'WITS_END' | 'SOVEREIGN_SPADE' | 'SOVEREIGN_CLUB' | 'SOVEREIGN_DIAMOND' | 'SOVEREIGN_HEART' | 'ROYAL_CROSS';
@@ -230,12 +231,11 @@ const CardComponent: React.FC<CardProps> = ({
                 <stop offset="100%" stopColor="#3d280a" />
               </linearGradient>
             </defs>
-            {/* FIX SVG PATH MATH: Ensure path 'd' attribute always has valid SVG path data */}
-            {/* Fallback to "M0 0" (valid SVG move command) if pathData is null/undefined to prevent 'Expected number' error */}
+            {/* SVG SAFETY: Using sanitizePath ensures path 'd' attributes never contain NaN/undefined */}
             {(() => {
               const pathData = SUIT_PATH_DATA[type];
-              // Fallback to "M0 0" instead of empty string to prevent NaN/undefined errors
-              const safePathData = (pathData && typeof pathData === 'string' && pathData.trim() !== '') ? pathData : "M0 0";
+              // Use centralized sanitization utility to prevent NaN/undefined errors
+              const safePathData = sanitizePath(pathData, "M0 0");
               return (
                 <>
                   <path d={safePathData} fill={`url(#goldMetallicPremium-${type})`} />
@@ -262,10 +262,10 @@ const CardComponent: React.FC<CardProps> = ({
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="relative group/royal">
                   <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)] fill-white opacity-100">
-                    <path d="M50 20 L55 35 L70 35 L60 45 L65 60 L50 50 L35 60 L40 45 L30 35 L45 35 Z" opacity="0.8" />
-                    <path d="M48 10 H52 V80 H48 Z" />
-                    <path d="M20 42 H80 V46 H20 Z" />
-                    <circle cx="50" cy="45" r="12" fill="none" stroke="white" strokeWidth="2" />
+                    <path d={sanitizePath("M50 20 L55 35 L70 35 L60 45 L65 60 L50 50 L35 60 L40 45 L30 35 L45 35 Z", "M0 0")} opacity="0.8" />
+                    <path d={sanitizePath("M48 10 H52 V80 H48 Z", "M0 0")} />
+                    <path d={sanitizePath("M20 42 H80 V46 H20 Z", "M0 0")} />
+                    <circle cx={safeSVGNumber(50, 50)} cy={safeSVGNumber(45, 45)} r={safeSVGNumber(12, 12)} fill="none" stroke="white" strokeWidth="2" />
                   </svg>
                   {!disableEffects && (
                     <div className="absolute inset-[-30px]">
@@ -311,9 +311,9 @@ const CardComponent: React.FC<CardProps> = ({
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="relative group/void">
                         <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_0_12px_rgba(168,85,247,0.6)] fill-purple-500 opacity-60">
-                             <path d="M50 20 C30 20 10 50 10 50 C10 50 30 80 50 80 C70 80 90 50 90 50 C90 50 70 20 50 20 Z M50 65 C41.7 65 35 58.3 35 50 C35 41.7 41.7 35 50 35 C58.3 35 65 41.7 65 50 C65 58.3 58.3 65 50 65 Z" />
-                             <circle cx="50" cy="50" r="8" className="animate-pulse" />
-                             <path d="M40 30 L30 20 M60 30 L70 20 M40 70 L30 80 M60 70 L70 80" stroke="currentColor" strokeWidth="2" />
+                             <path d={sanitizePath("M50 20 C30 20 10 50 10 50 C10 50 30 80 50 80 C70 80 90 50 90 50 C90 50 70 20 50 20 Z M50 65 C41.7 65 35 58.3 35 50 C35 41.7 41.7 35 50 35 C58.3 35 65 41.7 65 50 C65 58.3 58.3 65 50 65 Z", "M0 0")} />
+                             <circle cx={safeSVGNumber(50, 50)} cy={safeSVGNumber(50, 50)} r={safeSVGNumber(8, 8)} className="animate-pulse" />
+                             <path d={sanitizePath("M40 30 L30 20 M60 30 L70 20 M40 70 L30 80 M60 70 L70 80", "M0 0")} stroke="currentColor" strokeWidth="2" />
                         </svg>
                         {!disableEffects && (
                             <div className="absolute inset-0">
@@ -340,27 +340,18 @@ const CardComponent: React.FC<CardProps> = ({
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="relative group/dragon">
                         <svg viewBox="0 0 100 100" className="w-16 h-16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] fill-[#3d2b1f] opacity-80 filter grayscale-[0.2]">
-                             {/* SVG PATH SAFETY: Ensure path 'd' attribute has valid string, never NaN or undefined */}
-                             {/* Fallback to empty string if pathData is null/undefined to prevent 'Expected number' error */}
+                             {/* SVG SAFETY: Using sanitizePath and safeSVGNumber ensures all SVG attributes are safe */}
                              {(() => {
-                               // SVG PATH SAFETY: Ensure pathData is always a valid string - if generatePath would return null/undefined, use fallback
-                               // Example: const pathData = generatePath(someValue || 0);
-                               const pathData1: string | null | undefined = "M50 10 C55 10 60 15 60 20 C60 25 55 30 50 30 C45 30 40 25 40 20 C40 15 45 10 50 10 Z M50 80 C30 80 15 65 15 45 C15 25 30 10 50 10 C70 10 85 25 85 45 C85 65 70 80 50 80 Z M50 35 C50 35 30 50 30 65 C30 80 50 90 50 90 C50 90 70 80 70 65 C70 50 50 35 Z";
-                               const pathData2: string | null | undefined = "M82 45 C82 20 60 15 50 15 C40 15 18 20 18 45 C18 65 35 85 50 85 C65 85 82 65 82 45 M50 25 C58 25 65 32 65 40 C65 48 58 55 50 55 C42 55 35 48 35 40 C35 32 42 25 50 25";
-                               const opacityValue: number | null | undefined = 0.3;
-                               const circleCx: number | null | undefined = 50;
-                               const circleCy: number | null | undefined = 40;
-                               const circleR: number | null | undefined = 5;
-                               // FIX SVG PATH MATH: Ensure path 'd' attribute always has valid SVG path data
-                               // Fallback to "M0 0" (valid SVG move command) instead of empty string to prevent 'Expected number' error
-                               // If pathData is null/undefined/NaN, use fallback: const pathData = generatePath(someValue || 0);
-                               const safePath1 = (pathData1 && typeof pathData1 === 'string' && pathData1.trim() !== '') ? pathData1 : "M0 0";
-                               const safePath2 = (pathData2 && typeof pathData2 === 'string' && pathData2.trim() !== '') ? pathData2 : "M0 0";
-                               // Ensure all numeric values are valid numbers with fallbacks - prevent NaN or undefined
-                               const safeOpacity = (typeof opacityValue === 'number' && !isNaN(opacityValue)) ? opacityValue : 0.3;
-                               const safeCx = (typeof circleCx === 'number' && !isNaN(circleCx)) ? circleCx : 50;
-                               const safeCy = (typeof circleCy === 'number' && !isNaN(circleCy)) ? circleCy : 40;
-                               const safeR = (typeof circleR === 'number' && !isNaN(circleR) && circleR > 0) ? circleR : 5;
+                               const pathData1 = "M50 10 C55 10 60 15 60 20 C60 25 55 30 50 30 C45 30 40 25 40 20 C40 15 45 10 50 10 Z M50 80 C30 80 15 65 15 45 C15 25 30 10 50 10 C70 10 85 25 85 45 C85 65 70 80 50 80 Z M50 35 C50 35 30 50 30 65 C30 80 50 90 50 90 C50 90 70 80 70 65 C70 50 50 35 Z";
+                               const pathData2 = "M82 45 C82 20 60 15 50 15 C40 15 18 20 18 45 C18 65 35 85 50 85 C65 85 82 65 82 45 M50 25 C58 25 65 32 65 40 C65 48 58 55 50 55 C42 55 35 48 35 40 C35 32 42 25 50 25";
+                               // Use centralized sanitization utilities to prevent NaN/undefined errors
+                               const safePath1 = sanitizePath(pathData1, "M0 0");
+                               const safePath2 = sanitizePath(pathData2, "M0 0");
+                               // Sanitize all numeric SVG attributes
+                               const safeOpacity = safeSVGNumber(0.3, 0.3);
+                               const safeCx = safeSVGNumber(50, 50);
+                               const safeCy = safeSVGNumber(40, 40);
+                               const safeR = safeSVGNumber(5, 5);
                                return (
                                  <>
                                    <path d={safePath1} opacity={safeOpacity} />

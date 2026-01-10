@@ -43,7 +43,12 @@ const SettingsIcon = () => (
   </svg>
 );
 
-const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
+const RankBadge: React.FC<{ rank: number | undefined | null }> = ({ rank }) => {
+  // SVG SAFETY: Protect against undefined rank during Ghost Session initialization
+  if (rank === undefined || rank === null || !Number.isInteger(rank) || rank < 1) {
+    return null; // Don't render badge if rank is invalid
+  }
+
   const configs: Record<number, { emoji: string; bg: string; text: string; label: string }> = {
     1: { emoji: '🥇', bg: 'bg-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.8)]', text: 'text-black', label: 'WINNER' },
     2: { emoji: '🥈', bg: 'bg-gray-300 shadow-[0_0_15px_rgba(209,213,219,0.6)]', text: 'text-black', label: 'ELITE' },
@@ -185,7 +190,7 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
                     )}
                 </div>
 
-                {isFinished && <RankBadge rank={player.finishedRank!} />}
+                {isFinished && player.finishedRank && <RankBadge rank={player.finishedRank} />}
 
                 {player.hasPassed && !isFinished && (
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] rounded-full flex items-center justify-center z-10">

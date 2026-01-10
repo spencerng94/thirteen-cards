@@ -238,6 +238,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isInitialized, setIsInitialized] = useState(false);
   // Redirecting state: Track when OAuth redirect is in progress
   const [isRedirecting, setIsRedirecting] = useState(false);
+  // Initialization timeout: Safety timeout to prevent infinite loading
+  const [initializationTimeout, setInitializationTimeout] = useState(false);
+  const initializationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ROBUST AUTH: Ensure onAuthStateChange listener is the ABSOLUTE FIRST thing that runs
   // This must run before any components try to fetch data to ensure session is initialized
@@ -360,6 +363,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     
     subscriptionRef.current = subscription;
     console.log('SessionProvider: ✅ Auth listener set up successfully (ABSOLUTE FIRST)');
+    
+    // Initialization Timeout: Add 5-second safety timeout to prevent infinite loading
+    // Set up timeout immediately when effect runs
+    initializationTimeoutRef.current = setTimeout(() => {
+      console.warn('SessionProvider: Initialization timeout (5s) - setting initializationTimeout=true to prevent infinite loading');
+      setInitializationTimeout(true);
+      // If timeout is reached, still allow initialization to complete so app can proceed
+      setIsInitialized(true);
+      setLoading(false);
+    }, 5000); // 5 second timeout
     
     // Ready Protocol: Wrap entire initialization in try/finally to ensure isInitialized is set
     const initializeAuth = async () => {
@@ -1127,9 +1140,19 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       } catch (err) {
         console.error('SessionProvider: Error during initialization:', err);
       } finally {
+        // Clear timeout if initialization completes before timeout
+        if (initializationTimeoutRef.current) {
+          clearTimeout(initializationTimeoutRef.current);
+          initializationTimeoutRef.current = null;
+        }
+        
         // Ready Protocol: Set isInitialized to true after ALL recovery attempts are complete
+        // OR if timeout has been reached (prevents infinite loading)
         // This ensures App.tsx never sees a null user state while recovery is still in progress
-        console.log('SessionProvider: ✅ Initialization complete, setting isInitialized=true');
+        // But also allows the app to proceed if initialization is stuck
+        console.log('SessionProvider: ✅ Initialization complete, setting isInitialized=true', {
+          timeoutReached: initializationTimeout
+        });
         setIsInitialized(true);
         setLoading(false);
         
@@ -1139,7 +1162,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           hasUser: !!user,
           sessionUserId: session?.user?.id,
           userStateId: user?.id,
-          isInitialized: true
+          isInitialized: true,
+          initializationTimeout
         });
       }
     };
@@ -1152,6 +1176,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.log('SessionProvider: Cleaning up auth listener');
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
+      }
+      if (initializationTimeoutRef.current) {
+        clearTimeout(initializationTimeoutRef.current);
+        initializationTimeoutRef.current = null;
       }
       listenerSetupRef.current = false;
     };
