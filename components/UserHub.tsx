@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, BackgroundTheme, AiDifficulty, Emote, HubTab } from '../types';
 import { calculateLevel, getXpForLevel, DEFAULT_AVATARS, PREMIUM_AVATARS, buyItem, getAvatarName, updateProfileAvatar, fetchEmotes } from '../services/supabase';
 import { CardCoverStyle, Card } from './Card';
@@ -4006,9 +4006,33 @@ export const UserHub: React.FC<UserHubProps> = ({
     const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
     const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
 
+    // Hard Lock: Prevent multiple simultaneous emotes fetches
+    const isFetchingEmotesRef = useRef(false);
+    const emotesFetchedRef = useRef(false);
+
     // Fetch remote emotes
     useEffect(() => {
-        fetchEmotes().then(setRemoteEmotes).catch(console.error);
+        // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
+        if (!emotesFetchedRef.current && !isFetchingEmotesRef.current) {
+            isFetchingEmotesRef.current = true;
+            fetchEmotes()
+                .then((emotes) => {
+                    setRemoteEmotes(emotes || []);
+                    emotesFetchedRef.current = true;
+                })
+                .catch((err: any) => {
+                    // Silently handle AbortError - will retry on next render if needed
+                    if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+                        console.warn('UserHub: Emotes fetch aborted (will retry on next render)');
+                        emotesFetchedRef.current = false; // Allow retry
+                    } else {
+                        console.error('UserHub: Error fetching emotes:', err);
+                    }
+                })
+                .finally(() => {
+                    isFetchingEmotesRef.current = false;
+                });
+        }
     }, []);
 
     // Handle LEVEL_REWARDS tab - open as modal instead

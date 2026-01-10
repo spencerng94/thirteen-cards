@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme, Emote, Card as CardType, Rank, Suit } from '../types';
 import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, buyFinisherPack, buyPack, equipFinisher, Finisher, processAdReward, fetchChatPresets, ChatPreset, purchasePhrase, incrementGems, processGemTransaction, claimAdRewardGems, fetchWeeklyRewardStatus } from '../services/supabase';
@@ -1561,58 +1561,94 @@ export const Store: React.FC<{
   }, []); // Run once when Store opens
 
 
+  // Hard Lock: Prevent multiple simultaneous fetches during re-renders
+  const isFetchingEmotesRef = useRef(false);
+  const isFetchingFinishersRef = useRef(false);
+  const isFetchingChatPresetsRef = useRef(false);
+  const emotesFetchedRef = useRef(false);
+  const finishersFetchedRef = useRef(false);
+  const chatPresetsFetchedRef = useRef(false);
+
   useEffect(() => { 
-    // Fetch emotes when component mounts - force refresh to bypass cache
-    const loadEmotes = async () => {
-      if (typeof fetchEmotes === 'function') {
-        try {
-          // Force refresh to bypass any caching
-          const emotes = await fetchEmotes(true);
+    // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
+    if (!emotesFetchedRef.current && !isFetchingEmotesRef.current && typeof fetchEmotes === 'function') {
+      isFetchingEmotesRef.current = true;
+      console.log('🛍️ Store: Fetching emotes...');
+      fetchEmotes(true)
+        .then((emotes) => {
           console.log(`🛍️ Store: Loaded ${emotes?.length || 0} emotes from Supabase`);
           if (emotes && emotes.length > 0) {
             console.log('📋 Emote triggers:', emotes.map(e => e.trigger_code));
             console.log('📋 Emote file paths:', emotes.map(e => e.file_path));
           }
           setRemoteEmotes(emotes || []);
-        } catch (err) {
-          console.error('❌ Error fetching emotes in Store:', err);
-          setRemoteEmotes([]);
-        }
-      }
-    };
+          emotesFetchedRef.current = true;
+        })
+        .catch((err: any) => {
+          // Silently handle AbortError - will retry on next render if needed
+          if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+            console.warn('Store: Emotes fetch aborted (will retry on next render)');
+            emotesFetchedRef.current = false; // Allow retry
+          } else {
+            console.error('❌ Store: Error fetching emotes:', err);
+            setRemoteEmotes([]);
+          }
+        })
+        .finally(() => {
+          isFetchingEmotesRef.current = false;
+        });
+    }
     
-    // Fetch finishers
-    const loadFinishers = async () => {
-      if (typeof fetchFinishers === 'function') {
-        try {
-          const finishersData = await fetchFinishers();
+    // HARD LOCK: Fetch finishers only once, prevent multiple simultaneous fetches
+    if (!finishersFetchedRef.current && !isFetchingFinishersRef.current && typeof fetchFinishers === 'function') {
+      isFetchingFinishersRef.current = true;
+      console.log('⚔️ Store: Fetching finishers...');
+      fetchFinishers()
+        .then((finishersData) => {
           console.log(`⚔️ Store: Loaded ${finishersData?.length || 0} finishers from Supabase`);
           setFinishers(finishersData || []);
-        } catch (err) {
-          console.error('❌ Error fetching finishers in Store:', err);
-          setFinishers([]);
-        }
-      }
-    };
+          finishersFetchedRef.current = true;
+        })
+        .catch((err: any) => {
+          // Silently handle AbortError - will retry on next render if needed
+          if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+            console.warn('Store: Finishers fetch aborted (will retry on next render)');
+            finishersFetchedRef.current = false; // Allow retry
+          } else {
+            console.error('❌ Store: Error fetching finishers:', err);
+            setFinishers([]);
+          }
+        })
+        .finally(() => {
+          isFetchingFinishersRef.current = false;
+        });
+    }
     
-    // Fetch chat presets
-    const loadChatPresets = async () => {
-      if (typeof fetchChatPresets === 'function') {
-        try {
-          const presets = await fetchChatPresets();
+    // HARD LOCK: Fetch chat presets only once, prevent multiple simultaneous fetches
+    if (!chatPresetsFetchedRef.current && !isFetchingChatPresetsRef.current && typeof fetchChatPresets === 'function') {
+      isFetchingChatPresetsRef.current = true;
+      console.log('💬 Store: Fetching chat presets...');
+      fetchChatPresets()
+        .then((presets) => {
           console.log(`💬 Store: Loaded ${presets?.length || 0} chat presets from Supabase`);
           setChatPresets(presets || []);
-        } catch (err) {
-          console.error('❌ Error fetching chat presets in Store:', err);
-          setChatPresets([]);
-        }
-      }
-    };
-    
-    loadEmotes();
-    loadFinishers();
-    loadChatPresets();
-  }, []);
+          chatPresetsFetchedRef.current = true;
+        })
+        .catch((err: any) => {
+          // Silently handle AbortError - will retry on next render if needed
+          if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+            console.warn('Store: Chat presets fetch aborted (will retry on next render)');
+            chatPresetsFetchedRef.current = false; // Allow retry
+          } else {
+            console.error('❌ Store: Error fetching chat presets:', err);
+            setChatPresets([]);
+          }
+        })
+        .finally(() => {
+          isFetchingChatPresetsRef.current = false;
+        });
+    }
+  }, []); // Only run once on mount
 
   const hasVoucher = useMemo(() => (profile?.inventory?.items['GENERAL_10_OFF'] || 0) > 0, [profile]);
 

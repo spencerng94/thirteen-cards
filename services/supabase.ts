@@ -361,84 +361,122 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
   
   // Bulletproof Rule: No AbortController for startup requests
   // These requests must finish no matter what - component re-renders should not cancel them
+  // Retry logic: Handle Supabase's internal AbortController gracefully
+  const maxRetries = 3;
+  let fetchedData: any[] | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      if (attempt > 0) {
+        // Exponential backoff: wait before retry (100ms, 200ms, 400ms)
+        const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
+        console.log(`fetchEmotes: Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
       const { data, error } = await supabase
         .from('emotes')
         .select('*')
         .order('name', { ascending: true });
       
       if (error) {
+        // Check if it's an AbortError - retry if we haven't exceeded max retries
+        const isAbortError = error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted');
+        if (isAbortError && attempt < maxRetries - 1) {
+          continue; // Retry
+        }
         console.error('Error fetching emotes:', error);
         return [];
       }
-    
-    // Premium emote pricing - override database prices for specific emotes
-    // Match by exact name (case-sensitive) or by trigger_code for flexibility
-    const PREMIUM_EMOTE_PRICES: Record<string, number> = {
-      'Game Over': 650,
-      'Doge Focus': 650,
-      'Lunar New Year': 450,
-      'The Mooner': 450,
-      'Seductive': 450,
-      'Seductive Dealer': 450
-    };
-    
-    // Also map by trigger_code for additional safety
-    const PREMIUM_TRIGGER_PRICES: Record<string, number> = {
-      ':game_over:': 650,
-      ':doge_focus:': 650,
-      ':lunar_new_year:': 450,
-      ':the_mooner:': 450,
-      ':heart_eyes:': 450,
-      ':seductive:': 450
-    };
-    
-    // Map database fields to our Emote interface
-    // Database uses 'shortcode', our code uses 'trigger_code'
-    // Default price is 200 gems, but premium emotes have custom prices
-    const emotes: Emote[] = (data || []).map((e: any) => {
-      const emoteName = e.name || '';
-      const triggerCode = (e.shortcode || e.trigger_code || '').toLowerCase();
       
-      // Check both name and trigger_code for premium pricing
-      const premiumPriceByName = PREMIUM_EMOTE_PRICES[emoteName];
-      const premiumPriceByTrigger = PREMIUM_TRIGGER_PRICES[triggerCode];
-      const premiumPrice = premiumPriceByName !== undefined ? premiumPriceByName : premiumPriceByTrigger;
-      
-      const finalPrice = premiumPrice !== undefined ? premiumPrice : (e.price || 200);
-      
-      // Log premium pricing for debugging
-      if (premiumPrice !== undefined) {
-        console.log(`💰 Premium pricing for "${emoteName}" (${triggerCode}): ${finalPrice} gems`);
+      // Success - store data and break out of retry loop
+      fetchedData = data || [];
+      break;
+    } catch (e: any) {
+      // Check if it's an AbortError - retry if we haven't exceeded max retries
+      const isAbortError = e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('signal is aborted');
+      if (isAbortError && attempt < maxRetries - 1) {
+        continue; // Retry
       }
       
-      // Normalize fallback emoji - ensure it's a valid string
-      // The database migration will normalize old Apple emoji characters
-      // This is just a safety check to ensure we always have a valid fallback
-      const fallbackEmoji = (e.fallback_emoji || '👤').trim() || '👤';
-      
-      return {
-        id: e.id,
-        name: emoteName,
-        file_path: e.file_path,
-        trigger_code: e.shortcode || e.trigger_code || '', // Map shortcode to trigger_code
-        fallback_emoji: fallbackEmoji,
-        price: finalPrice
-      };
-    });
-    
-      console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
-        name: e.name, 
-        trigger: e.trigger_code, 
-        file_path: e.file_path,
-        price: e.price 
-      })));
-      
-      return emotes;
-    } catch (e: any) {
-      console.error('Exception fetching emotes:', e);
+      // If it's not an AbortError or we've exceeded max retries, return empty array
+      console.error(`fetchEmotes: Failed after ${attempt + 1} attempts:`, e);
       return [];
     }
+  }
+  
+  // If we exhausted retries, return empty array
+  if (!fetchedData) {
+    console.error(`fetchEmotes: Failed after ${maxRetries} attempts due to AbortError`);
+    return [];
+  }
+  
+  // Process the successfully fetched data
+  const data = fetchedData;
+  
+  // Premium emote pricing - override database prices for specific emotes
+  // Match by exact name (case-sensitive) or by trigger_code for flexibility
+  const PREMIUM_EMOTE_PRICES: Record<string, number> = {
+    'Game Over': 650,
+    'Doge Focus': 650,
+    'Lunar New Year': 450,
+    'The Mooner': 450,
+    'Seductive': 450,
+    'Seductive Dealer': 450
+  };
+  
+  // Also map by trigger_code for additional safety
+  const PREMIUM_TRIGGER_PRICES: Record<string, number> = {
+    ':game_over:': 650,
+    ':doge_focus:': 650,
+    ':lunar_new_year:': 450,
+    ':the_mooner:': 450,
+    ':heart_eyes:': 450,
+    ':seductive:': 450
+  };
+  
+  // Map database fields to our Emote interface
+  // Database uses 'shortcode', our code uses 'trigger_code'
+  // Default price is 200 gems, but premium emotes have custom prices
+  const emotes: Emote[] = (data || []).map((e: any) => {
+    const emoteName = e.name || '';
+    const triggerCode = (e.shortcode || e.trigger_code || '').toLowerCase();
+    
+    // Check both name and trigger_code for premium pricing
+    const premiumPriceByName = PREMIUM_EMOTE_PRICES[emoteName];
+    const premiumPriceByTrigger = PREMIUM_TRIGGER_PRICES[triggerCode];
+    const premiumPrice = premiumPriceByName !== undefined ? premiumPriceByName : premiumPriceByTrigger;
+    
+    const finalPrice = premiumPrice !== undefined ? premiumPrice : (e.price || 200);
+    
+    // Log premium pricing for debugging
+    if (premiumPrice !== undefined) {
+      console.log(`💰 Premium pricing for "${emoteName}" (${triggerCode}): ${finalPrice} gems`);
+    }
+    
+    // Normalize fallback emoji - ensure it's a valid string
+    // The database migration will normalize old Apple emoji characters
+    // This is just a safety check to ensure we always have a valid fallback
+    const fallbackEmoji = (e.fallback_emoji || '👤').trim() || '👤';
+    
+    return {
+      id: e.id,
+      name: emoteName,
+      file_path: e.file_path,
+      trigger_code: e.shortcode || e.trigger_code || '', // Map shortcode to trigger_code
+      fallback_emoji: fallbackEmoji,
+      price: finalPrice
+    };
+  });
+  
+  console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
+    name: e.name, 
+    trigger: e.trigger_code, 
+    file_path: e.file_path,
+    price: e.price 
+  })));
+  
+  return emotes;
 };
 
 const EVENT_TARGETS = { daily_play: 1, daily_win: 1, weekly_bombs: 3, weekly_play: 13, weekly_win: 13 };
@@ -2081,14 +2119,31 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
   
   // Network Hardening: No AbortController for startup requests
   // These requests must finish no matter what - component re-renders should not cancel them
+  // Retry logic: Handle Supabase's internal AbortController gracefully
+  const maxRetries = 3;
+  let fetchedData: any[] | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-    console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey });
+      if (attempt > 0) {
+        // Exponential backoff: wait before retry (100ms, 200ms, 400ms)
+        const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
+        console.log(`fetchFinishers: Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey, attempt: attempt + 1 });
       const { data, error } = await supabase
         .from('finishers')
         .select('*')
         .order('price', { ascending: true });
       
       if (error) {
+        // Check if it's an AbortError - retry if we haven't exceeded max retries
+        const isAbortError = error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted');
+        if (isAbortError && attempt < maxRetries - 1) {
+          continue; // Retry
+        }
         console.error('❌ Error fetching finishers:', error);
         console.error('Error details:', { 
           message: error.message, 
@@ -2104,13 +2159,31 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
         return [];
       }
       
-      console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
-      return (data || []) as Finisher[];
+      // Success - store data and break out of retry loop
+      fetchedData = data;
+      break;
     } catch (e: any) {
-      console.error('❌ Exception fetching finishers:', e);
+      // Check if it's an AbortError - retry if we haven't exceeded max retries
+      const isAbortError = e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('signal is aborted');
+      if (isAbortError && attempt < maxRetries - 1) {
+        continue; // Retry
+      }
+      
+      // If it's not an AbortError or we've exceeded max retries, return empty array
+      console.error(`❌ fetchFinishers: Failed after ${attempt + 1} attempts:`, e);
       console.error('Exception details:', { message: e?.message, stack: e?.stack });
       return [];
     }
+  }
+  
+  // If we exhausted retries, return empty array
+  if (!fetchedData) {
+    console.error(`fetchFinishers: Failed after ${maxRetries} attempts due to AbortError`);
+    return [];
+  }
+  
+  console.log(`✅ Successfully fetched ${fetchedData.length} finishers:`, fetchedData.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
+  return fetchedData as Finisher[];
 };
 
 export const buyFinisher = async (userId: string, finisherId: string): Promise<boolean> => {
@@ -2402,54 +2475,92 @@ export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
     return defaultPresets;
   }
   
-  try {
-    const { data, error } = await supabase
-      .from('chat_presets')
-      .select('*')
-      .order('price', { ascending: true });
-    
-    if (error) {
-      console.error('Error fetching chat presets:', error);
+  // Retry logic: Handle Supabase's internal AbortController gracefully
+  const maxRetries = 3;
+  let fetchedData: any[] | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Exponential backoff: wait before retry (100ms, 200ms, 400ms)
+        const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
+        console.log(`fetchChatPresets: Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      const { data, error } = await supabase
+        .from('chat_presets')
+        .select('*')
+        .order('price', { ascending: true });
+      
+      if (error) {
+        // Check if it's an AbortError - retry if we haven't exceeded max retries
+        const isAbortError = error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted');
+        if (isAbortError && attempt < maxRetries - 1) {
+          continue; // Retry
+        }
+        console.error('Error fetching chat presets:', error);
+        return defaultPresets;
+      }
+      
+      // Success - store data and break out of retry loop
+      fetchedData = data || [];
+      break;
+    } catch (e: any) {
+      // Check if it's an AbortError - retry if we haven't exceeded max retries
+      const isAbortError = e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('signal is aborted');
+      if (isAbortError && attempt < maxRetries - 1) {
+        continue; // Retry
+      }
+      
+      // If it's not an AbortError or we've exceeded max retries, return defaults
+      console.error(`fetchChatPresets: Failed after ${attempt + 1} attempts:`, e);
       return defaultPresets;
     }
-    
-    const dbPresets = (data || []).map((p: any) => ({
-      id: p.id,
-      phrase: p.phrase,
-      style: p.style || 'standard',
-      bundle_id: p.bundle_id || null,
-      price: p.price || 100,
-      created_at: p.created_at
-    })) as ChatPreset[];
-    
-    // Combine default presets with database presets
-    // Deduplicate by phrase text (case-insensitive) to avoid duplicate phrases
-    const seenPhrases = new Set<string>();
-    const uniquePresets: ChatPreset[] = [];
-    
-    // First, add default presets (they take priority)
-    defaultPresets.forEach(p => {
-      const phraseKey = p.phrase.toLowerCase().trim();
-      if (!seenPhrases.has(phraseKey)) {
-        seenPhrases.add(phraseKey);
-        uniquePresets.push(p);
-      }
-    });
-    
-    // Then, add database presets (skip if phrase already exists)
-    dbPresets.forEach(p => {
-      const phraseKey = p.phrase.toLowerCase().trim();
-      if (!seenPhrases.has(phraseKey)) {
-        seenPhrases.add(phraseKey);
-        uniquePresets.push(p);
-      }
-    });
-    
-    return uniquePresets;
-  } catch (e) {
-    console.error('Exception fetching chat presets:', e);
+  }
+  
+  // If we exhausted retries, return defaults
+  if (!fetchedData) {
+    console.error(`fetchChatPresets: Failed after ${maxRetries} attempts due to AbortError, returning defaults`);
     return defaultPresets;
   }
+  
+  // Process the successfully fetched data
+  const data = fetchedData;
+  
+  const dbPresets = (data || []).map((p: any) => ({
+    id: p.id,
+    phrase: p.phrase,
+    style: p.style || 'standard',
+    bundle_id: p.bundle_id || null,
+    price: p.price || 100,
+    created_at: p.created_at
+  })) as ChatPreset[];
+  
+  // Combine default presets with database presets
+  // Deduplicate by phrase text (case-insensitive) to avoid duplicate phrases
+  const seenPhrases = new Set<string>();
+  const uniquePresets: ChatPreset[] = [];
+  
+  // First, add default presets (they take priority)
+  defaultPresets.forEach(p => {
+    const phraseKey = p.phrase.toLowerCase().trim();
+    if (!seenPhrases.has(phraseKey)) {
+      seenPhrases.add(phraseKey);
+      uniquePresets.push(p);
+    }
+  });
+  
+  // Then, add database presets (skip if phrase already exists)
+  dbPresets.forEach(p => {
+    const phraseKey = p.phrase.toLowerCase().trim();
+    if (!seenPhrases.has(phraseKey)) {
+      seenPhrases.add(phraseKey);
+      uniquePresets.push(p);
+    }
+  });
+  
+  return uniquePresets;
 };
 
 export const purchasePhrase = async (userId: string, phraseId: string): Promise<boolean> => {

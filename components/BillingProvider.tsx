@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Purchases, PurchasesPackage, CustomerInfo } from '@revenuecat/purchases-capacitor';
 import { supabase } from '../src/lib/supabase';
@@ -87,14 +87,36 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
   const [hasLoggedIn, setHasLoggedIn] = useState(false);
   const isNative = Capacitor.isNativePlatform();
 
+  // Hard Lock: Prevent multiple simultaneous gem balance fetches
+  const isFetchingGemBalanceRef = useRef(false);
+  const gemBalanceFetchedRef = useRef(false);
+  const lastUserIdRef = useRef<string | null>(null);
+  const lastProfileIdRef = useRef<string | null>(null);
+
   // Fetch gem balance from Supabase profiles table
-  // Stabilize: Only trigger when userId is stable and defined
+  // Stabilize: Only trigger when userId is stable and defined, and wait for profile to be loaded
   const fetchGemBalance = useCallback(async () => {
     const userId = session?.user?.id;
     if (!userId || userId === 'pending') {
       setGemBalance(null);
       return;
     }
+
+    // HARD LOCK: Prevent multiple simultaneous fetches for the same user
+    if (isFetchingGemBalanceRef.current) {
+      console.log('BillingProvider: Gem balance fetch already in progress, skipping...');
+      return;
+    }
+
+    // If we've already fetched for this user, don't re-fetch unless explicitly requested
+    if (gemBalanceFetchedRef.current && lastUserIdRef.current === userId && gemBalance !== null) {
+      console.log('BillingProvider: Gem balance already fetched for this user, skipping...');
+      return;
+    }
+
+    // HARD LOCK: Set lock immediately to prevent other renders from triggering this
+    isFetchingGemBalanceRef.current = true;
+    lastUserIdRef.current = userId;
 
     try {
       console.log(`BillingProvider: 💎 Fetching gem balance from Supabase for UUID: ${userId}...`);
@@ -103,6 +125,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       if (userProfile) {
         const gems = userProfile.gems ?? 0;
         setGemBalance(gems);
+        gemBalanceFetchedRef.current = true;
         console.log('BillingProvider: ✅ Gem balance fetched:', gems);
         
         // Notify parent component of gem update
@@ -112,17 +135,22 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       } else {
         console.warn('BillingProvider: No profile found for user');
         setGemBalance(0);
+        gemBalanceFetchedRef.current = true;
       }
     } catch (err: any) {
       // Silence AbortError - don't trigger state updates that would cause another render
       if (err?.name === 'AbortError' || err?.message?.includes('aborted') || err?.message === 'PROFILE_FETCH_ABORTED' || (err as any).isAbortError) {
         console.warn('BillingProvider: Gem balance fetch was aborted (silenced - no state update)');
+        gemBalanceFetchedRef.current = false; // Allow retry on next render
         return; // Don't set error state, don't trigger re-render
       }
       console.error('BillingProvider: ❌ Failed to fetch gem balance:', err);
       setError(err.message || 'Failed to fetch gem balance');
+    } finally {
+      // UNLOCK: Always release the lock in finally block
+      isFetchingGemBalanceRef.current = false;
     }
-  }, [session?.user?.id, onGemsUpdate]);
+  }, [session?.user?.id, onGemsUpdate]); // Don't include gemBalance - check via ref instead
 
   // Initialize RevenueCat - only on native platforms
   useEffect(() => {
@@ -244,16 +272,42 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
 
   // Fetch gem balance when session changes or profile is provided
   // Stabilize: Only trigger when userId is stable and defined (not 'pending')
+  // Wait for profile to be loaded before fetching gem balance
   const stableUserId = session?.user?.id && session.user.id !== 'pending' ? session.user.id : null;
   useEffect(() => {
-    if (initialProfile?.gems !== undefined) {
-      setGemBalance(initialProfile.gems ?? 0);
-    } else if (stableUserId) {
-      fetchGemBalance();
-    } else {
-      setGemBalance(null);
+    // HARD LOCK: Prevent re-fetching if profile ID hasn't changed
+    const currentProfileId = initialProfile?.id || null;
+    if (currentProfileId === lastProfileIdRef.current && gemBalanceFetchedRef.current) {
+      // Profile ID unchanged and already fetched - skip
+      return;
     }
-  }, [stableUserId, initialProfile?.gems, fetchGemBalance]);
+    
+    // Update last profile ID
+    lastProfileIdRef.current = currentProfileId;
+    
+    // If profile is provided with gems and ID matches stableUserId, use it directly
+    if (initialProfile?.gems !== undefined && initialProfile?.id && initialProfile.id === stableUserId) {
+      setGemBalance(initialProfile.gems ?? 0);
+      gemBalanceFetchedRef.current = true;
+      lastUserIdRef.current = stableUserId;
+      console.log('BillingProvider: ✅ Gem balance set from initial profile:', initialProfile.gems);
+    } else if (stableUserId && initialProfile?.id && initialProfile.id === stableUserId) {
+      // Profile is loaded (initialProfile.id matches stableUserId) - safe to fetch gem balance
+      // Only fetch if we haven't already fetched for this user or if profile ID changed
+      if (!gemBalanceFetchedRef.current || lastUserIdRef.current !== stableUserId) {
+        fetchGemBalance();
+      }
+    } else if (stableUserId && !initialProfile) {
+      // Stable user ID exists but profile not loaded yet - wait for profile to load
+      console.log('BillingProvider: Waiting for profile to load before fetching gem balance...');
+    } else if (!stableUserId) {
+      // No stable user ID - clear gem balance
+      setGemBalance(null);
+      gemBalanceFetchedRef.current = false;
+      lastUserIdRef.current = null;
+      lastProfileIdRef.current = null;
+    }
+  }, [stableUserId, initialProfile?.id, initialProfile?.gems, fetchGemBalance]); // Wait for profile.id to match stableUserId
 
   // Auto-refresh gem balance when returning from Stripe redirect
   useEffect(() => {
