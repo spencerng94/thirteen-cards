@@ -370,10 +370,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       equipped: boolean
   } | null>(null);
 
-  // LOCKED FETCHER PATTERN: Single persistent fetch lock
-  // CRITICAL: Do NOT reset isFetching.current on unmount - only reset after successful load or major error
-  // This ensures fetches complete even if component re-renders
-  const isFetching = useRef(false);
+  // ONCE-PER-SESSION LOCK: Track if assets have been fetched in this browser session
+  // This prevents double-fetch race conditions that cause AbortErrors in production
+  const SESSION_ASSETS_FETCHED_KEY = 'thirteen_session_assets_fetched';
+  const hasFetched = useRef(false);
   const emotesFetchedRef = useRef(false);
   const finishersFetchedRef = useRef(false);
 
@@ -385,11 +385,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       return;
     }
     
-    // LOCKED FETCHER: Exit if a fetch is already in progress
-    // This prevents concurrent fetches during rapid re-renders
-    if (isFetching.current) {
-      console.log('WelcomeScreen: Fetch already in progress, skipping to prevent concurrent requests');
-      // Try to load from cache if available while fetch is in progress
+    // ONCE-PER-SESSION LOCK: If assets have already been fetched in this session, return early
+    // This prevents the double-fetch that causes race conditions and AbortErrors
+    if (hasFetched.current || sessionStorage.getItem(SESSION_ASSETS_FETCHED_KEY) === 'true') {
+      console.log('WelcomeScreen: Assets already fetched in this session, skipping to prevent race condition');
+      // Try to load from cache if available
       if (!emotesFetchedRef.current && globalFetchCache?.emotes?.data) {
         setRemoteEmotes(globalFetchCache.emotes.data);
         emotesFetchedRef.current = true;
@@ -404,16 +404,22 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     // Only fetch if we haven't already fetched successfully
     if (emotesFetchedRef.current && finishersFetchedRef.current) {
       console.log('WelcomeScreen: Assets already fetched successfully, skipping duplicate fetches');
+      hasFetched.current = true;
+      sessionStorage.setItem(SESSION_ASSETS_FETCHED_KEY, 'true');
       return;
     }
     
-    // LOCKED FETCHER: Set lock immediately - prevents any concurrent requests
-    isFetching.current = true;
+    // ONCE-PER-SESSION LOCK: Set flag immediately to prevent concurrent fetches
+    hasFetched.current = true;
+    sessionStorage.setItem(SESSION_ASSETS_FETCHED_KEY, 'true');
     
     console.log('WelcomeScreen: Profile ID confirmed, fetching global assets (emotes/finishers)...');
     
-    // BANISH ABORT CONTROLLERS: No AbortController or signal passed to Supabase queries
+    // DISABLE ABORT SIGNALS FOR ASSETS: No AbortController, no .abort() call, no cleanup
+    // In production, it's safer to let these one-time fetches complete even if component re-renders
     // The fetch functions themselves handle locking - we just call them and let them complete
+    // NO CLEANUP FUNCTION: We intentionally don't return a cleanup function that would abort fetches
+    
     // Fetch emotes
     if (!emotesFetchedRef.current) {
       fetchEmotes()
@@ -421,11 +427,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           setRemoteEmotes(emotes || []);
           emotesFetchedRef.current = true;
           console.log(`✅ WelcomeScreen: Loaded ${emotes?.length || 0} emotes`);
-          
-          // Unlock only after BOTH fetches complete successfully
-          if (finishersFetchedRef.current) {
-            isFetching.current = false;
-          }
         })
         .catch((err: any) => {
           console.error('WelcomeScreen: Error fetching emotes:', err);
@@ -436,8 +437,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           } else {
             setRemoteEmotes([]);
           }
-          // Unlock on error - allow retry on next render if needed
-          isFetching.current = false;
         });
     }
     
@@ -451,11 +450,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           }
           setFinishers(finishersData || []);
           finishersFetchedRef.current = true;
-          
-          // Unlock only after BOTH fetches complete successfully
-          if (emotesFetchedRef.current) {
-            isFetching.current = false;
-          }
         })
         .catch((err: any) => {
           console.error('❌ WelcomeScreen: Error fetching finishers:', err);
@@ -466,18 +460,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           } else {
             setFinishers([]);
           }
-          // Unlock on error - allow retry on next render if needed
-          isFetching.current = false;
         });
     }
     
-    // If both are already fetched, unlock immediately
-    if (emotesFetchedRef.current && finishersFetchedRef.current) {
-      isFetching.current = false;
-    }
-    
-    // CRITICAL: Do NOT reset isFetching.current in cleanup
-    // The lock persists across unmounts to ensure fetches complete
+    // CRITICAL: NO CLEANUP FUNCTION - Do NOT return a cleanup that would abort fetches
+    // We want these fetches to complete even if the component unmounts
+    // This prevents AbortError loops in production during rapid re-renders
   }, [profile?.id]); // Only depend on profile.id - fetch when it's ready from context
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {

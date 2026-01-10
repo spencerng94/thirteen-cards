@@ -233,9 +233,33 @@ export const getDailyDealTimeRemaining = (): { hours: number; minutes: number; s
 };
 
 /**
+ * SVG Path Validation Helper: Ensures path 'd' attribute is valid
+ * Prevents NaN or undefined values in SVG paths that cause rendering errors
+ */
+const validateSVGPath = (pathData: string | undefined | null): string => {
+  if (!pathData || typeof pathData !== 'string' || pathData.trim() === '') {
+    return '';
+  }
+  // Ensure path contains only valid SVG path commands and numbers
+  // Basic validation - path should start with M (moveto) or L (lineto) etc.
+  const validPathPattern = /^[MmLlHhVvCcSsQqTtAaZz\s\d\.\-\+,]+$/;
+  if (!validPathPattern.test(pathData)) {
+    console.warn('CurrencyIcon: Invalid SVG path detected, using empty string');
+    return '';
+  }
+  return pathData;
+};
+
+/**
  * Premium Final Fantasy-Inspired Gold Coin
  */
-const CoinIconSVG = () => (
+const CoinIconSVG = () => {
+  // SVG PATH SAFETY: Validate all path 'd' attributes to ensure they're valid strings
+  // All paths are hardcoded, but we validate them to prevent any NaN/undefined values
+  const path1 = validateSVGPath("M 10 50 A 40 40 0 0 1 50 10");
+  const path2 = validateSVGPath("M 90 50 A 40 40 0 0 1 50 90");
+  
+  return (
   <svg viewBox="0 0 100 100" className="w-full h-full">
     <defs>
       <radialGradient id="goldCoinGrad" cx="30%" cy="30%">
@@ -288,15 +312,29 @@ const CoinIconSVG = () => (
     </g>
     
     {/* Edge highlights for 3D effect */}
-    <path d="M 10 50 A 40 40 0 0 1 50 10" fill="none" stroke="#FFF9C4" strokeWidth="1.5" opacity="0.7" />
-    <path d="M 90 50 A 40 40 0 0 1 50 90" fill="none" stroke="#E65100" strokeWidth="1.5" opacity="0.5" />
+    {/* SVG PATH SAFETY: Use validated path strings - ensures no NaN/undefined values */}
+    {path1 && <path d={path1} fill="none" stroke="#FFF9C4" strokeWidth="1.5" opacity="0.7" />}
+    {path2 && <path d={path2} fill="none" stroke="#E65100" strokeWidth="1.5" opacity="0.5" />}
   </svg>
-);
+  );
+};
 
 /**
  * Premium Final Fantasy-Inspired Gem Crystal
  */
-const GemIconSVG = () => (
+const GemIconSVG = () => {
+  // SVG PATH SAFETY: Validate all path 'd' attributes to ensure they're valid strings
+  // All paths are hardcoded, but we validate them to prevent any NaN/undefined values
+  const pathMain = validateSVGPath("M50 8 L75 28 L75 58 L50 78 L25 58 L25 28 Z");
+  const pathTop = validateSVGPath("M50 8 L75 28 L50 28 Z");
+  const pathLeft = validateSVGPath("M50 8 L25 28 L25 58 L50 38 Z");
+  const pathRight = validateSVGPath("M50 8 L75 28 L75 58 L50 38 Z");
+  const pathBottom1 = validateSVGPath("M25 58 L50 78 L50 58 Z");
+  const pathBottom2 = validateSVGPath("M75 58 L50 78 L50 58 Z");
+  const pathLines1 = validateSVGPath("M50 8 L50 78 M25 28 L75 28 M25 58 L75 58");
+  const pathLines2 = validateSVGPath("M50 8 L25 28 M50 8 L75 28 M25 58 L50 78 M75 58 L50 78");
+  
+  return (
   <svg viewBox="0 0 100 100" className="w-full h-full">
     <defs>
       <linearGradient id="gemGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -333,27 +371,27 @@ const GemIconSVG = () => (
     </defs>
     
     {/* Main gem body - faceted diamond */}
-    <path d="M50 8 L75 28 L75 58 L50 78 L25 58 L25 28 Z" fill="url(#gemGrad1)" filter="url(#gemGlow)" stroke="#FFB3E6" strokeWidth="1.5" opacity="0.9" />
+    {pathMain && <path d={pathMain} fill="url(#gemGrad1)" filter="url(#gemGlow)" stroke="#FFB3E6" strokeWidth="1.5" opacity="0.9" />}
     
     {/* Top facet highlight */}
-    <path d="M50 8 L75 28 L50 28 Z" fill="url(#gemHighlight)" opacity="0.7" />
+    {pathTop && <path d={pathTop} fill="url(#gemHighlight)" opacity="0.7" />}
     
     {/* Left facet */}
-    <path d="M50 8 L25 28 L25 58 L50 38 Z" fill="url(#gemGrad2)" opacity="0.8" />
+    {pathLeft && <path d={pathLeft} fill="url(#gemGrad2)" opacity="0.8" />}
     
     {/* Right facet */}
-    <path d="M50 8 L75 28 L75 58 L50 38 Z" fill="url(#gemGrad2)" opacity="0.6" />
+    {pathRight && <path d={pathRight} fill="url(#gemGrad2)" opacity="0.6" />}
     
     {/* Bottom facets */}
-    <path d="M25 58 L50 78 L50 58 Z" fill="url(#gemGrad2)" opacity="0.7" />
-    <path d="M75 58 L50 78 L50 58 Z" fill="url(#gemGrad2)" opacity="0.5" />
+    {pathBottom1 && <path d={pathBottom1} fill="url(#gemGrad2)" opacity="0.7" />}
+    {pathBottom2 && <path d={pathBottom2} fill="url(#gemGrad2)" opacity="0.5" />}
     
     {/* Inner crystal core */}
     <ellipse cx="50" cy="43" rx="20" ry="25" fill="url(#gemHighlight)" opacity="0.4" filter="url(#gemInnerGlow)" />
     
     {/* Facet lines for depth */}
-    <path d="M50 8 L50 78 M25 28 L75 28 M25 58 L75 58" stroke="#FFB3E6" strokeWidth="0.8" opacity="0.4" />
-    <path d="M50 8 L25 28 M50 8 L75 28 M25 58 L50 78 M75 58 L50 78" stroke="#FFFFFF" strokeWidth="0.6" opacity="0.5" />
+    {pathLines1 && <path d={pathLines1} stroke="#FFB3E6" strokeWidth="0.8" opacity="0.4" />}
+    {pathLines2 && <path d={pathLines2} stroke="#FFFFFF" strokeWidth="0.6" opacity="0.5" />}
     
     {/* Sparkle effects */}
     <circle cx="50" cy="20" r="2" fill="#FFFFFF" opacity="0.9" />
@@ -361,7 +399,8 @@ const GemIconSVG = () => (
     <circle cx="35" cy="35" r="1.5" fill="#FFFFFF" opacity="0.8" />
     <circle cx="50" cy="65" r="1.5" fill="#FFB3E6" opacity="0.7" />
   </svg>
-);
+  );
+};
 
 /* Unique Item Icons */
 const XpBoosterIcon = () => (
