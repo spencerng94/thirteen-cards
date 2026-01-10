@@ -483,8 +483,32 @@ export const GameTable: React.FC<GameTableProps> = ({
       return next; 
     }); 
   }, [myHand]);
-  useEffect(() => { if (typeof fetchEmotes === 'function') fetchEmotes().then(setRemoteEmotes); }, []);
-  useEffect(() => { if (typeof fetchChatPresets === 'function') fetchChatPresets().then(setChatPresets); }, []);
+  // FETCH GUARD: Ensure fetchEmotes, fetchChatPresets only run once
+  // Remove AbortControllers - let Supabase requests finish even if component re-renders
+  const hasFetchedEmotes = useRef(false);
+  const hasFetchedChatPresets = useRef(false);
+  
+  useEffect(() => { 
+    if (hasFetchedEmotes.current) return;
+    if (typeof fetchEmotes === 'function') {
+      hasFetchedEmotes.current = true;
+      fetchEmotes().then(setRemoteEmotes).catch((err) => {
+        console.error('GameTable: Error fetching emotes:', err);
+        setRemoteEmotes([]);
+      });
+    }
+  }, []);
+  
+  useEffect(() => { 
+    if (hasFetchedChatPresets.current) return;
+    if (typeof fetchChatPresets === 'function') {
+      hasFetchedChatPresets.current = true;
+      fetchChatPresets().then(setChatPresets).catch((err) => {
+        console.error('GameTable: Error fetching chat presets:', err);
+        setChatPresets([]);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const handleReceiveEmote = ({ playerId, emote }: { playerId: string; emote: string }) => {

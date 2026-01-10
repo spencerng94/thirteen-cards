@@ -370,25 +370,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       equipped: boolean
   } | null>(null);
 
-  // ONCE-PER-SESSION LOCK: Track if assets have been fetched in this browser session
-  // This prevents double-fetch race conditions that cause AbortErrors in production
-  const SESSION_ASSETS_FETCHED_KEY = 'thirteen_session_assets_fetched';
+  // FETCH GUARD: Ensure fetchEmotes, fetchFinishers only run once
+  // Example: if (hasFetched.current) return; hasFetched.current = true;
+  // Use useRef to prevent multiple concurrent fetches that cause AbortController race conditions
   const hasFetched = useRef(false);
   const emotesFetchedRef = useRef(false);
   const finishersFetchedRef = useRef(false);
 
   useEffect(() => {
-    // VERIFY CONTEXT: Ensure profile is from props (which comes from Global Context)
-    // Wait for profile.id to be ready before fetching
-    if (!profile?.id || profile.id === 'guest' || profile.id === 'pending' || profile.id === '') {
-      console.log(`WelcomeScreen: Waiting for profile.id from context - currentProfileId: ${profile?.id || 'undefined'}`);
-      return;
-    }
-    
-    // ONCE-PER-SESSION LOCK: If assets have already been fetched in this session, return early
-    // This prevents the double-fetch that causes race conditions and AbortErrors
-    if (hasFetched.current || sessionStorage.getItem(SESSION_ASSETS_FETCHED_KEY) === 'true') {
-      console.log('WelcomeScreen: Assets already fetched in this session, skipping to prevent race condition');
+    // FETCH GUARD: Return early if already fetched - prevents AbortController race conditions
+    // Check this FIRST before any other logic - example: if (hasFetched.current) return;
+    if (hasFetched.current) {
+      console.log('WelcomeScreen: Fetch guard - assets already fetched, skipping to prevent race condition');
       // Try to load from cache if available
       if (!emotesFetchedRef.current && globalFetchCache?.emotes?.data) {
         setRemoteEmotes(globalFetchCache.emotes.data);
@@ -401,26 +394,24 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       return;
     }
     
-    // Only fetch if we haven't already fetched successfully
-    if (emotesFetchedRef.current && finishersFetchedRef.current) {
-      console.log('WelcomeScreen: Assets already fetched successfully, skipping duplicate fetches');
-      hasFetched.current = true;
-      sessionStorage.setItem(SESSION_ASSETS_FETCHED_KEY, 'true');
+    // DEPENDENCY CHECK: Make sure fetches only trigger when profile.id is actually present
+    // Wait for profile.id to be ready before fetching - critical for preventing AbortErrors
+    if (!profile?.id || profile.id === 'guest' || profile.id === 'pending' || profile.id === '') {
+      console.log(`WelcomeScreen: Waiting for profile.id from context - currentProfileId: ${profile?.id || 'undefined'}`);
       return;
     }
     
-    // ONCE-PER-SESSION LOCK: Set flag immediately to prevent concurrent fetches
+    // SET FETCH GUARD IMMEDIATELY: hasFetched.current = true
+    // This must be set BEFORE calling fetchEmotes/fetchFinishers to prevent race conditions
     hasFetched.current = true;
-    sessionStorage.setItem(SESSION_ASSETS_FETCHED_KEY, 'true');
     
     console.log('WelcomeScreen: Profile ID confirmed, fetching global assets (emotes/finishers)...');
     
-    // DISABLE ABORT SIGNALS FOR ASSETS: No AbortController, no .abort() call, no cleanup
-    // In production, it's safer to let these one-time fetches complete even if component re-renders
-    // The fetch functions themselves handle locking - we just call them and let them complete
-    // NO CLEANUP FUNCTION: We intentionally don't return a cleanup function that would abort fetches
+    // REMOVE ABORTCONTROLLERS: In WelcomeScreen.tsx, remove the AbortController entirely
+    // Let the Supabase request finish even if the component re-renders
+    // No cleanup function - we intentionally don't return a cleanup that would abort fetches
     
-    // Fetch emotes
+    // Fetch emotes - function handles its own internal locking
     if (!emotesFetchedRef.current) {
       fetchEmotes()
         .then((emotes) => {
@@ -440,7 +431,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         });
     }
     
-    // Fetch finishers
+    // Fetch finishers - function handles its own internal locking
     if (!finishersFetchedRef.current) {
       fetchFinishers()
         .then((finishersData) => {
@@ -464,9 +455,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     }
     
     // CRITICAL: NO CLEANUP FUNCTION - Do NOT return a cleanup that would abort fetches
-    // We want these fetches to complete even if the component unmounts
-    // This prevents AbortError loops in production during rapid re-renders
-  }, [profile?.id]); // Only depend on profile.id - fetch when it's ready from context
+    // Remove AbortControllers entirely - let Supabase requests finish even if component re-renders
+    // This stops AbortController from being so aggressive with our asset fetches
+  }, [profile?.id]); // DEPENDENCY CHECK: Only depend on profile.id - fetches only trigger when it's actually present
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {

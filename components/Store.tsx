@@ -234,17 +234,25 @@ export const getDailyDealTimeRemaining = (): { hours: number; minutes: number; s
 
 /**
  * SVG Path Validation Helper: Ensures path 'd' attribute is valid
- * Prevents NaN or undefined values in SVG paths that cause rendering errors
+ * FIX SVG PATH: Ensure path data defaults to empty string if numeric values are not yet loaded
+ * Prevents NaN or undefined values in SVG paths that cause rendering errors: <path> attribute d: Expected number
  */
-const validateSVGPath = (pathData: string | undefined | null): string => {
+const validateSVGPath = (pathData: string | undefined | null | number): string => {
+  // FIX SVG PATH: Default to empty string if pathData is undefined, null, or not a valid string
   if (!pathData || typeof pathData !== 'string' || pathData.trim() === '') {
     return '';
   }
   // Ensure path contains only valid SVG path commands and numbers
   // Basic validation - path should start with M (moveto) or L (lineto) etc.
+  // Ensure numeric values in path are valid - check for NaN patterns
   const validPathPattern = /^[MmLlHhVvCcSsQqTtAaZz\s\d\.\-\+,]+$/;
   if (!validPathPattern.test(pathData)) {
     console.warn('CurrencyIcon: Invalid SVG path detected, using empty string');
+    return '';
+  }
+  // Additional check: Ensure path doesn't contain "NaN" as a string (from invalid calculations)
+  if (pathData.includes('NaN') || pathData.includes('undefined')) {
+    console.warn('CurrencyIcon: SVG path contains NaN or undefined, using empty string');
     return '';
   }
   return pathData;
@@ -1622,19 +1630,27 @@ export const Store: React.FC<{
   }, []); // Run once when Store opens
 
 
-  // LOCKED FETCHER PATTERN: Store assets are fetched by fetchEmotes/fetchFinishers/fetchChatPresets
-  // These functions already have module-level locks - we just call them and let them handle everything
-  // BANISH ABORT CONTROLLERS: No AbortController handling needed - fetch functions handle it internally
-  const emotesFetchedRef = useRef(false);
-  const finishersFetchedRef = useRef(false);
-  const chatPresetsFetchedRef = useRef(false);
+  // FETCH GUARD: Ensure fetchEmotes, fetchFinishers, fetchChatPresets only run once
+  // Remove AbortControllers - let Supabase requests finish even if component re-renders
+  const hasFetchedEmotes = useRef(false);
+  const hasFetchedFinishers = useRef(false);
+  const hasFetchedChatPresets = useRef(false);
 
   useEffect(() => { 
-    // BANISH ABORT CONTROLLERS: Simply call the fetch functions - they handle locking internally
-    // No AbortController, no signal, no error handling for aborts - let them complete
+    // FETCH GUARD: Return early if already fetched - prevents AbortController race conditions
+    // Check this FIRST before any fetch attempt - example: if (hasFetched.current) return;
+    if (hasFetchedEmotes.current && hasFetchedFinishers.current && hasFetchedChatPresets.current) {
+      console.log('🛍️ Store: Fetch guard - all assets already fetched, skipping to prevent race condition');
+      return;
+    }
     
-    // Fetch emotes - function handles locking internally
-    if (!emotesFetchedRef.current && typeof fetchEmotes === 'function') {
+    // REMOVE ABORTCONTROLLERS: In Store fetching hooks, remove the AbortController entirely
+    // Let the Supabase request finish even if the component re-renders
+    // No cleanup function - we intentionally don't return a cleanup that would abort fetches
+    
+    // Fetch emotes - function handles its own internal locking
+    if (!hasFetchedEmotes.current && typeof fetchEmotes === 'function') {
+      hasFetchedEmotes.current = true; // Set guard BEFORE fetch to prevent concurrent requests
       console.log('🛍️ Store: Fetching emotes...');
       fetchEmotes(true)
         .then((emotes) => {
@@ -1644,7 +1660,6 @@ export const Store: React.FC<{
             console.log('📋 Emote file paths:', emotes.map(e => e.file_path));
           }
           setRemoteEmotes(emotes || []);
-          emotesFetchedRef.current = true;
         })
         .catch((err: any) => {
           console.error('❌ Store: Error fetching emotes:', err);
@@ -1653,36 +1668,38 @@ export const Store: React.FC<{
         });
     }
     
-    // Fetch finishers - function handles locking internally
-    if (!finishersFetchedRef.current && typeof fetchFinishers === 'function') {
+    // Fetch finishers - function handles its own internal locking
+    if (!hasFetchedFinishers.current && typeof fetchFinishers === 'function') {
+      hasFetchedFinishers.current = true; // Set guard BEFORE fetch to prevent concurrent requests
       console.log('⚔️ Store: Fetching finishers...');
       fetchFinishers()
         .then((finishersData) => {
           console.log(`⚔️ Store: Loaded ${finishersData?.length || 0} finishers from Supabase`);
           setFinishers(finishersData || []);
-          finishersFetchedRef.current = true;
         })
         .catch((err: any) => {
           console.error('❌ Store: Error fetching finishers:', err);
-          // Try to use cached data if available
           setFinishers([]);
         });
     }
     
-    // Fetch chat presets - function handles locking internally
-    if (!chatPresetsFetchedRef.current && typeof fetchChatPresets === 'function') {
+    // Fetch chat presets - function handles its own internal locking
+    if (!hasFetchedChatPresets.current && typeof fetchChatPresets === 'function') {
+      hasFetchedChatPresets.current = true; // Set guard BEFORE fetch to prevent concurrent requests
       console.log('💬 Store: Fetching chat presets...');
       fetchChatPresets()
         .then((presets) => {
           console.log(`💬 Store: Loaded ${presets?.length || 0} chat presets from Supabase`);
           setChatPresets(presets || []);
-          chatPresetsFetchedRef.current = true;
         })
         .catch((err: any) => {
           console.error('❌ Store: Error fetching chat presets:', err);
           setChatPresets([]);
         });
     }
+    
+    // CRITICAL: NO CLEANUP FUNCTION - Do NOT return a cleanup that would abort fetches
+    // Remove AbortControllers entirely - let Supabase requests finish even if component re-renders
   }, []); // Only run once on mount
 
   const hasVoucher = useMemo(() => (profile?.inventory?.items['GENERAL_10_OFF'] || 0) > 0, [profile]);
