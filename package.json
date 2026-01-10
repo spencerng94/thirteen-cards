@@ -9,6 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
     "mobile:build": "npm run build && npx cap copy android && npx cap open android"
   },
   "dependencies": {
@@ -36,6 +39,7 @@
     "uuid": "^11.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@types/cors": "^2.8.17",

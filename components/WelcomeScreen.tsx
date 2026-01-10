@@ -371,31 +371,47 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   } | null>(null);
 
   // Hard Lock: Prevent multiple simultaneous fetches during re-renders
+  // Ref-Lock: Track if we've already attempted a fetch (prevents double-fetch in React Strict Mode)
   const isFetchingEmotesRef = useRef(false);
   const isFetchingFinishersRef = useRef(false);
   const emotesFetchedRef = useRef(false);
   const finishersFetchedRef = useRef(false);
   const lastProfileIdRef = useRef<string | null>(null);
+  const hasAttemptedFetchRef = useRef(false); // Ref-Lock: Prevent double-fetch in React Strict Mode
 
   useEffect(() => {
-    // Allow fetching emotes/finishers for guests or when profile is loaded
-    // Emotes/finishers are public data - don't require a valid user ID
-    const currentProfileId = profile?.id || null;
-    console.log(`WelcomeScreen: useEffect triggered - profile?.id: ${profile?.id}, profile: ${profile ? 'exists' : 'null'}, isGuest: ${isGuest}`);
+    // PART 1 FIX: Do not trigger fetchEmotes or fetchFinishers until profile.id is explicitly defined
+    // For authenticated users, wait for profile.id; for guests, allow fetching
+    const currentProfileId = profile?.id;
+    const hasValidProfileId = currentProfileId && currentProfileId !== 'guest' && currentProfileId !== 'pending' && currentProfileId !== '';
     
-    // Only fetch if profile ID changed or if we haven't fetched yet
-    // If profile ID is the same as last time and we've already fetched, skip
-    if (currentProfileId === lastProfileIdRef.current && emotesFetchedRef.current && finishersFetchedRef.current) {
-      console.log('WelcomeScreen: Profile ID unchanged and data already fetched, skipping duplicate fetches');
+    // For authenticated users, require a valid profile.id before fetching
+    if (!isGuest && !hasValidProfileId) {
+      console.log(`WelcomeScreen: Waiting for profile.id before fetching emotes/finishers - currentProfileId: ${currentProfileId}`);
       return;
     }
     
-    // Update last profile ID
-    lastProfileIdRef.current = currentProfileId;
+    // Ref-Lock: Prevent double-fetch in React Strict Mode
+    // If we've already attempted a fetch for this profile ID, don't fetch again
+    if (hasAttemptedFetchRef.current && currentProfileId === lastProfileIdRef.current) {
+      console.log('WelcomeScreen: Already attempted fetch for this profile ID, skipping (React Strict Mode guard)');
+      return;
+    }
     
-    // Allow fetching emotes/finishers even without a profile (guest mode or during loading)
-    // These are public data that should be available to everyone
-    console.log(`WelcomeScreen: Attempting to fetch emotes/finishers - emotesFetched: ${emotesFetchedRef.current}, finishersFetched: ${finishersFetchedRef.current}, isFetchingEmotes: ${isFetchingEmotesRef.current}, isFetchingFinishers: ${isFetchingFinishersRef.current}`);
+    // Update last profile ID and mark that we've attempted a fetch
+    lastProfileIdRef.current = currentProfileId || null;
+    
+    // Only fetch if we haven't already fetched successfully
+    if (emotesFetchedRef.current && finishersFetchedRef.current) {
+      console.log('WelcomeScreen: Data already fetched successfully, skipping duplicate fetches');
+      return;
+    }
+    
+    // Mark that we've attempted a fetch (Ref-Lock for React Strict Mode)
+    hasAttemptedFetchRef.current = true;
+    
+    console.log(`WelcomeScreen: Profile ID confirmed (${currentProfileId}), fetching emotes/finishers...`);
+    
     // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
     // Use global cache - if fetch is already in progress, it will return the same promise
     if (!emotesFetchedRef.current && !isFetchingEmotesRef.current) {
@@ -412,6 +428,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
             console.warn('WelcomeScreen: Emotes fetch aborted (global cache will retry)');
             emotesFetchedRef.current = false; // Allow retry
+            hasAttemptedFetchRef.current = false; // Reset ref-lock on abort to allow retry
           } else {
             console.error('WelcomeScreen: Error fetching emotes:', err);
             setRemoteEmotes([]);
@@ -441,6 +458,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
             console.warn('WelcomeScreen: Finishers fetch aborted (global cache will retry)');
             finishersFetchedRef.current = false; // Allow retry
+            hasAttemptedFetchRef.current = false; // Reset ref-lock on abort to allow retry
           } else {
             console.error('❌ WelcomeScreen: Error fetching finishers:', err);
             setFinishers([]);
@@ -450,7 +468,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           isFetchingFinishersRef.current = false;
         });
     }
-  }, [profile?.id, isGuest]); // Only depend on profile ID and guest status (allow fetching without profile)
+  }, [profile?.id, isGuest]); // Only depend on profile ID and guest status
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {
