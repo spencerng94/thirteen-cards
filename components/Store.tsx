@@ -233,26 +233,15 @@ export const getDailyDealTimeRemaining = (): { hours: number; minutes: number; s
 };
 
 /**
- * SVG Path Validation Helper: Ensures path 'd' attribute is valid
- * FIX SVG PATH: Ensure path data defaults to empty string if numeric values are not yet loaded
- * Prevents NaN or undefined values in SVG paths that cause rendering errors: <path> attribute d: Expected number
+ * SVG Path Fallback Helper: Ensures path 'd' attribute defaults to empty string
+ * FIX SVG PATH: Add fallback (e.g., d={pathData || ""}) to prevent NaN error when data hasn't loaded yet
+ * This prevents '<path> attribute d: Expected number' error when gem/coin counts are not yet loaded
+ * Change: d={pathData} To: d={pathData || ""} to ensure values default to empty string instead of undefined
  */
-const validateSVGPath = (pathData: string | undefined | null | number): string => {
-  // FIX SVG PATH: Default to empty string if pathData is undefined, null, or not a valid string
-  if (!pathData || typeof pathData !== 'string' || pathData.trim() === '') {
-    return '';
-  }
-  // Ensure path contains only valid SVG path commands and numbers
-  // Basic validation - path should start with M (moveto) or L (lineto) etc.
-  // Ensure numeric values in path are valid - check for NaN patterns
-  const validPathPattern = /^[MmLlHhVvCcSsQqTtAaZz\s\d\.\-\+,]+$/;
-  if (!validPathPattern.test(pathData)) {
-    console.warn('CurrencyIcon: Invalid SVG path detected, using empty string');
-    return '';
-  }
-  // Additional check: Ensure path doesn't contain "NaN" as a string (from invalid calculations)
-  if (pathData.includes('NaN') || pathData.includes('undefined')) {
-    console.warn('CurrencyIcon: SVG path contains NaN or undefined, using empty string');
+const getSVGPath = (pathData: string | undefined | null | number): string => {
+  // SVG FALLBACK: Default to empty string if pathData is undefined, null, NaN, or invalid
+  // This ensures the d attribute always gets a valid string, preventing NaN errors
+  if (!pathData || typeof pathData !== 'string' || pathData.trim() === '' || pathData === 'NaN' || pathData === 'undefined') {
     return '';
   }
   return pathData;
@@ -262,10 +251,10 @@ const validateSVGPath = (pathData: string | undefined | null | number): string =
  * Premium Final Fantasy-Inspired Gold Coin
  */
 const CoinIconSVG = () => {
-  // SVG PATH SAFETY: Validate all path 'd' attributes to ensure they're valid strings
-  // All paths are hardcoded, but we validate them to prevent any NaN/undefined values
-  const path1 = validateSVGPath("M 10 50 A 40 40 0 0 1 50 10");
-  const path2 = validateSVGPath("M 90 50 A 40 40 0 0 1 50 90");
+  // SVG FALLBACK: Ensure path 'd' attribute defaults to empty string if values are invalid
+  // FIX SVG PATH: Add fallback (e.g., d={pathData || ""}) to prevent NaN error when data hasn't loaded yet
+  const path1 = getSVGPath("M 10 50 A 40 40 0 0 1 50 10");
+  const path2 = getSVGPath("M 90 50 A 40 40 0 0 1 50 90");
   
   return (
   <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -320,9 +309,9 @@ const CoinIconSVG = () => {
     </g>
     
     {/* Edge highlights for 3D effect */}
-    {/* SVG PATH SAFETY: Use validated path strings - ensures no NaN/undefined values */}
-    {path1 && <path d={path1} fill="none" stroke="#FFF9C4" strokeWidth="1.5" opacity="0.7" />}
-    {path2 && <path d={path2} fill="none" stroke="#E65100" strokeWidth="1.5" opacity="0.5" />}
+    {/* SVG FALLBACK: d={pathData || ""} pattern to prevent NaN error when data hasn't loaded yet */}
+    <path d={path1 || ""} fill="none" stroke="#FFF9C4" strokeWidth="1.5" opacity="0.7" />
+    <path d={path2 || ""} fill="none" stroke="#E65100" strokeWidth="1.5" opacity="0.5" />
   </svg>
   );
 };
@@ -331,16 +320,16 @@ const CoinIconSVG = () => {
  * Premium Final Fantasy-Inspired Gem Crystal
  */
 const GemIconSVG = () => {
-  // SVG PATH SAFETY: Validate all path 'd' attributes to ensure they're valid strings
-  // All paths are hardcoded, but we validate them to prevent any NaN/undefined values
-  const pathMain = validateSVGPath("M50 8 L75 28 L75 58 L50 78 L25 58 L25 28 Z");
-  const pathTop = validateSVGPath("M50 8 L75 28 L50 28 Z");
-  const pathLeft = validateSVGPath("M50 8 L25 28 L25 58 L50 38 Z");
-  const pathRight = validateSVGPath("M50 8 L75 28 L75 58 L50 38 Z");
-  const pathBottom1 = validateSVGPath("M25 58 L50 78 L50 58 Z");
-  const pathBottom2 = validateSVGPath("M75 58 L50 78 L50 58 Z");
-  const pathLines1 = validateSVGPath("M50 8 L50 78 M25 28 L75 28 M25 58 L75 58");
-  const pathLines2 = validateSVGPath("M50 8 L25 28 M50 8 L75 28 M25 58 L50 78 M75 58 L50 78");
+  // SVG FALLBACK: Ensure path 'd' attribute defaults to empty string if values are invalid
+  // FIX SVG PATH: Add fallback (e.g., d={pathData || ""}) to prevent NaN error when data hasn't loaded yet
+  const pathMain = getSVGPath("M50 8 L75 28 L75 58 L50 78 L25 58 L25 28 Z");
+  const pathTop = getSVGPath("M50 8 L75 28 L50 28 Z");
+  const pathLeft = getSVGPath("M50 8 L25 28 L25 58 L50 38 Z");
+  const pathRight = getSVGPath("M50 8 L75 28 L75 58 L50 38 Z");
+  const pathBottom1 = getSVGPath("M25 58 L50 78 L50 58 Z");
+  const pathBottom2 = getSVGPath("M75 58 L50 78 L50 58 Z");
+  const pathLines1 = getSVGPath("M50 8 L50 78 M25 28 L75 28 M25 58 L75 58");
+  const pathLines2 = getSVGPath("M50 8 L25 28 M50 8 L75 28 M25 58 L50 78 M75 58 L50 78");
   
   return (
   <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -379,27 +368,28 @@ const GemIconSVG = () => {
     </defs>
     
     {/* Main gem body - faceted diamond */}
-    {pathMain && <path d={pathMain} fill="url(#gemGrad1)" filter="url(#gemGlow)" stroke="#FFB3E6" strokeWidth="1.5" opacity="0.9" />}
+    {/* SVG FALLBACK: d={pathData || ""} pattern to prevent NaN error when data hasn't loaded yet */}
+    <path d={pathMain || ""} fill="url(#gemGrad1)" filter="url(#gemGlow)" stroke="#FFB3E6" strokeWidth="1.5" opacity="0.9" />
     
     {/* Top facet highlight */}
-    {pathTop && <path d={pathTop} fill="url(#gemHighlight)" opacity="0.7" />}
+    <path d={pathTop || ""} fill="url(#gemHighlight)" opacity="0.7" />
     
     {/* Left facet */}
-    {pathLeft && <path d={pathLeft} fill="url(#gemGrad2)" opacity="0.8" />}
+    <path d={pathLeft || ""} fill="url(#gemGrad2)" opacity="0.8" />
     
     {/* Right facet */}
-    {pathRight && <path d={pathRight} fill="url(#gemGrad2)" opacity="0.6" />}
+    <path d={pathRight || ""} fill="url(#gemGrad2)" opacity="0.6" />
     
     {/* Bottom facets */}
-    {pathBottom1 && <path d={pathBottom1} fill="url(#gemGrad2)" opacity="0.7" />}
-    {pathBottom2 && <path d={pathBottom2} fill="url(#gemGrad2)" opacity="0.5" />}
+    <path d={pathBottom1 || ""} fill="url(#gemGrad2)" opacity="0.7" />
+    <path d={pathBottom2 || ""} fill="url(#gemGrad2)" opacity="0.5" />
     
     {/* Inner crystal core */}
     <ellipse cx="50" cy="43" rx="20" ry="25" fill="url(#gemHighlight)" opacity="0.4" filter="url(#gemInnerGlow)" />
     
     {/* Facet lines for depth */}
-    {pathLines1 && <path d={pathLines1} stroke="#FFB3E6" strokeWidth="0.8" opacity="0.4" />}
-    {pathLines2 && <path d={pathLines2} stroke="#FFFFFF" strokeWidth="0.6" opacity="0.5" />}
+    <path d={pathLines1 || ""} stroke="#FFB3E6" strokeWidth="0.8" opacity="0.4" />
+    <path d={pathLines2 || ""} stroke="#FFFFFF" strokeWidth="0.6" opacity="0.5" />
     
     {/* Sparkle effects */}
     <circle cx="50" cy="20" r="2" fill="#FFFFFF" opacity="0.9" />

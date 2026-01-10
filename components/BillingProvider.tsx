@@ -87,15 +87,14 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
   const [hasLoggedIn, setHasLoggedIn] = useState(false);
   const isNative = Capacitor.isNativePlatform();
 
-  // Hard Lock: Prevent multiple simultaneous gem balance fetches
-  const isFetchingRef = useRef(false); // Single ref to prevent ANY concurrent fetch
-  const isFetchingGemBalanceRef = useRef(false);
+  // FETCH LOCK: Use useRef(false) to prevent multiple simultaneous fetch calls
+  // Example: if (hasFetched.current) return; hasFetched.current = true;
+  const hasFetchedGemBalance = useRef(false);
   const gemBalanceFetchedRef = useRef(false);
-  const lastUserIdRef = useRef<string | null>(null);
-  const lastProfileIdRef = useRef<string | null>(null);
 
   // Fetch gem balance from Supabase profiles table
-  // Stabilize: Only trigger when userId is stable and defined, and wait for profile to be loaded
+  // REMOVE ABORT SIGNAL: Remove signal: controller.signal from the Supabase queries
+  // Let the Supabase request finish even if the component re-renders
   const fetchGemBalance = useCallback(async () => {
     const userId = session?.user?.id;
     if (!userId || userId === 'pending') {
@@ -103,31 +102,21 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       return;
     }
 
-    // CRITICAL: Check if ANY fetch is in progress - prevent concurrent requests
-    if (isFetchingRef.current) {
-      console.log('BillingProvider: Fetch already in progress, skipping to prevent concurrent requests');
+    // FETCH LOCK: Use useRef(false) to prevent multiple simultaneous fetch calls
+    // Example: if (hasFetched.current) return; hasFetched.current = true;
+    if (hasFetchedGemBalance.current) {
+      console.log('BillingProvider: Fetch guard - gem balance fetch already in progress, skipping to prevent race condition');
       return;
     }
 
-    // HARD LOCK: Prevent multiple simultaneous fetches for the same user
-    if (isFetchingGemBalanceRef.current) {
-      console.log('BillingProvider: Gem balance fetch already in progress, skipping...');
-      return;
-    }
-
-    // If we've already fetched for this user, don't re-fetch unless explicitly requested
-    if (gemBalanceFetchedRef.current && lastUserIdRef.current === userId && gemBalance !== null) {
-      console.log('BillingProvider: Gem balance already fetched for this user, skipping...');
-      return;
-    }
-
-    // HARD LOCK: Set lock immediately to prevent other renders from triggering this
-    isFetchingRef.current = true;
-    isFetchingGemBalanceRef.current = true;
-    lastUserIdRef.current = userId;
+    // FETCH LOCK: Set guard immediately BEFORE fetch to prevent concurrent requests
+    hasFetchedGemBalance.current = true;
 
     try {
       console.log(`BillingProvider: 💎 Fetching gem balance from Supabase for UUID: ${userId}...`);
+      // REMOVE ABORT SIGNAL: No signal property passed to fetchProfile
+      // Let Supabase handle the request normally, no cancellation on re-renders
+      // Remove AbortController handling - let the request finish even if component re-renders
       const userProfile = await fetchProfile(userId);
       
       if (userProfile) {
@@ -145,21 +134,17 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
         setGemBalance(0);
         gemBalanceFetchedRef.current = true;
       }
+      // Only clear guard after successful fetch - allows retry on error
+      hasFetchedGemBalance.current = false;
     } catch (err: any) {
-      // Silence AbortError - don't trigger state updates that would cause another render
-      if (err?.name === 'AbortError' || err?.message?.includes('aborted') || err?.message === 'PROFILE_FETCH_ABORTED' || (err as any).isAbortError) {
-        console.warn('BillingProvider: Gem balance fetch was aborted (silenced - no state update)');
-        gemBalanceFetchedRef.current = false; // Allow retry on next render
-        return; // Don't set error state, don't trigger re-render
-      }
       console.error('BillingProvider: ❌ Failed to fetch gem balance:', err);
+      // Don't handle AbortError specially - let it propagate naturally
+      // The fetch guard prevents concurrent requests, so errors should be rare
       setError(err.message || 'Failed to fetch gem balance');
-    } finally {
-      // UNLOCK: Always release the lock in finally block
-      isFetchingGemBalanceRef.current = false;
-      isFetchingRef.current = false;
+      // Clear guard on error to allow retry on next render
+      hasFetchedGemBalance.current = false;
     }
-  }, [session?.user?.id, onGemsUpdate]); // Don't include gemBalance - check via ref instead
+  }, [session?.user?.id, onGemsUpdate]);
 
   // Initialize RevenueCat - only on native platforms
   useEffect(() => {
@@ -280,43 +265,32 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
   }, [session, hasLoggedIn, isInitialized, isNative]);
 
   // Fetch gem balance when session changes or profile is provided
-  // CRITICAL: Wait for profile.id to be ready before fetching or using profile data
+  // DEPENDENCY CHECK: Make sure fetches only trigger when profile.id is actually present
   // Stabilize: Only trigger when userId is stable and defined (not 'pending')
-  // Wait for profile to be loaded before fetching gem balance
   const stableUserId = session?.user?.id && session.user.id !== 'pending' ? session.user.id : null;
   useEffect(() => {
-    // CRITICAL GUARD: Wait for profile.id to be ready
+    // DEPENDENCY CHECK: Wait for profile.id to be ready before fetching
     // Don't proceed if profile.id is missing, pending, or empty
     if (!initialProfile?.id || initialProfile.id === 'pending' || initialProfile.id === '' || initialProfile.id === 'guest') {
-      if (stableUserId && !initialProfile) {
-        // Stable user ID exists but profile not loaded yet - wait for profile to load
-        // This is expected during initialization, don't log
-        return;
-      } else if (!stableUserId) {
+      if (!stableUserId) {
         // No stable user ID - clear gem balance
         setGemBalance(null);
         gemBalanceFetchedRef.current = false;
-        lastUserIdRef.current = null;
-        lastProfileIdRef.current = null;
         return;
       }
       // Profile.id not ready yet, wait
       return;
     }
     
-    // HARD LOCK: Prevent re-fetching if profile ID hasn't changed
-    const currentProfileId = initialProfile.id;
-    if (currentProfileId === lastProfileIdRef.current && gemBalanceFetchedRef.current) {
-      // Profile ID unchanged and already fetched - skip
+    // FETCH LOCK: Prevent re-fetching if already fetched for this profile
+    if (gemBalanceFetchedRef.current && initialProfile?.gems !== undefined) {
+      // Already fetched and gems are available - skip
       return;
     }
     
-    // Update last profile ID
-    lastProfileIdRef.current = currentProfileId;
-    
     // Debug: Log profile state to verify data
     if (initialProfile) {
-      console.log(`BillingProvider: Profile received - id: ${initialProfile.id}, username: ${initialProfile.username}, discriminator: ${initialProfile.discriminator}, gems: ${initialProfile.gems}, coins: ${initialProfile.coins}, stableUserId: ${stableUserId}`);
+      console.log(`BillingProvider: Profile received - id: ${initialProfile.id}, username: ${initialProfile.username}, gems: ${initialProfile.gems}, coins: ${initialProfile.coins}`);
     }
     
     // If profile is provided with gems and ID matches stableUserId, use it directly
@@ -325,20 +299,19 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       const gemsFromProfile = initialProfile.gems ?? 0;
       setGemBalance(gemsFromProfile);
       gemBalanceFetchedRef.current = true;
-      lastUserIdRef.current = stableUserId;
       console.log('BillingProvider: ✅ Gem balance set from initial profile:', gemsFromProfile);
       if (onGemsUpdate) {
         onGemsUpdate(gemsFromProfile);
       }
     } else if (stableUserId && initialProfile.id === stableUserId && (initialProfile.gems === undefined || initialProfile.gems === null)) {
       // Profile is loaded but gems not set yet - fetch gem balance
-      // Only fetch if we haven't already fetched for this user or if profile ID changed
-      if (!gemBalanceFetchedRef.current || lastUserIdRef.current !== stableUserId) {
+      // Only fetch if we haven't already fetched (check guard in fetchGemBalance)
+      if (!hasFetchedGemBalance.current && !gemBalanceFetchedRef.current) {
         console.log('BillingProvider: Profile loaded but gems missing, fetching gem balance...');
         fetchGemBalance();
       }
     }
-  }, [stableUserId, initialProfile?.id, initialProfile?.gems, fetchGemBalance, onGemsUpdate]); // Wait for profile.id to match stableUserId
+  }, [stableUserId, initialProfile?.id, initialProfile?.gems, fetchGemBalance, onGemsUpdate]); // DEPENDENCY CHECK: Wait for profile.id to be present
 
   // Auto-refresh gem balance when returning from Stripe redirect
   useEffect(() => {
