@@ -378,82 +378,77 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const lastProfileIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Wait for ID: Do not trigger fetches until userId is a valid UUID (not empty, not 'repairing')
-    // Check if we have a valid session with user ID from props or context
-    const hasValidUserId = profile?.id && profile.id !== 'guest' && profile.id !== 'pending' && profile.id !== '';
+    // Allow fetching emotes/finishers for guests or when profile is loaded
+    // Emotes/finishers are public data - don't require a valid user ID
     const currentProfileId = profile?.id || null;
     
     // Only fetch if profile ID changed or if we haven't fetched yet
-    // If profile ID is the same as last time, don't re-fetch (prevents re-render loops)
-    if (currentProfileId === lastProfileIdRef.current && (emotesFetchedRef.current || finishersFetchedRef.current)) {
-      console.log('WelcomeScreen: Profile ID unchanged, skipping duplicate fetches');
+    // If profile ID is the same as last time and we've already fetched, skip
+    if (currentProfileId === lastProfileIdRef.current && emotesFetchedRef.current && finishersFetchedRef.current) {
+      console.log('WelcomeScreen: Profile ID unchanged and data already fetched, skipping duplicate fetches');
       return;
     }
     
     // Update last profile ID
     lastProfileIdRef.current = currentProfileId;
     
-    // Only fetch if we have a valid user ID or if we're a guest (guest can still see emotes)
-    if (hasValidUserId || isGuest) {
-      // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
-      if (!emotesFetchedRef.current && !isFetchingEmotesRef.current) {
-        isFetchingEmotesRef.current = true;
-        console.log('WelcomeScreen: Fetching emotes...');
-        fetchEmotes()
-          .then((emotes) => {
-            setRemoteEmotes(emotes || []);
-            emotesFetchedRef.current = true;
-            console.log(`✅ WelcomeScreen: Loaded ${emotes?.length || 0} emotes`);
-          })
-          .catch((err: any) => {
-            // Silently handle AbortError - will retry on next render if needed
-            if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
-              console.warn('WelcomeScreen: Emotes fetch aborted (will retry on next render)');
-              emotesFetchedRef.current = false; // Allow retry
-            } else {
-              console.error('WelcomeScreen: Error fetching emotes:', err);
-              setRemoteEmotes([]);
-            }
-          })
-          .finally(() => {
-            isFetchingEmotesRef.current = false;
-          });
-      }
-      
-      // HARD LOCK: Fetch finishers only once, prevent multiple simultaneous fetches
-      if (!finishersFetchedRef.current && !isFetchingFinishersRef.current) {
-        isFetchingFinishersRef.current = true;
-        console.log('WelcomeScreen: Fetching finishers...');
-        fetchFinishers()
-          .then((finishersData) => {
-            console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
-            if (finishersData && finishersData.length > 0) {
-              console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
-            }
-            setFinishers(finishersData || []);
-            finishersFetchedRef.current = true;
-          })
-          .catch((err: any) => {
-            // Silently handle AbortError - will retry on next render if needed
-            if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
-              console.warn('WelcomeScreen: Finishers fetch aborted (will retry on next render)');
-              finishersFetchedRef.current = false; // Allow retry
-            } else {
-              console.error('❌ WelcomeScreen: Error fetching finishers:', err);
-              setFinishers([]);
-            }
-          })
-          .finally(() => {
-            isFetchingFinishersRef.current = false;
-          });
-      }
-    } else {
-      console.log('WelcomeScreen: Waiting for valid user ID before fetching emotes/finishers', {
-        profileId: profile?.id,
-        isGuest
-      });
+    // Allow fetching emotes/finishers even without a profile (guest mode or during loading)
+    // These are public data that should be available to everyone
+    // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
+    // Use global cache - if fetch is already in progress, it will return the same promise
+    if (!emotesFetchedRef.current && !isFetchingEmotesRef.current) {
+      isFetchingEmotesRef.current = true;
+      console.log('WelcomeScreen: Fetching emotes...');
+      fetchEmotes()
+        .then((emotes) => {
+          setRemoteEmotes(emotes || []);
+          emotesFetchedRef.current = true;
+          console.log(`✅ WelcomeScreen: Loaded ${emotes?.length || 0} emotes`);
+        })
+        .catch((err: any) => {
+          // Silently handle AbortError - global cache will handle retries
+          if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+            console.warn('WelcomeScreen: Emotes fetch aborted (global cache will retry)');
+            emotesFetchedRef.current = false; // Allow retry
+          } else {
+            console.error('WelcomeScreen: Error fetching emotes:', err);
+            setRemoteEmotes([]);
+          }
+        })
+        .finally(() => {
+          isFetchingEmotesRef.current = false;
+        });
     }
-  }, [profile?.id, isGuest]); // Only depend on profile ID and guest status
+    
+    // HARD LOCK: Fetch finishers only once, prevent multiple simultaneous fetches
+    // Use global cache - if fetch is already in progress, it will return the same promise
+    if (!finishersFetchedRef.current && !isFetchingFinishersRef.current) {
+      isFetchingFinishersRef.current = true;
+      console.log('WelcomeScreen: Fetching finishers...');
+      fetchFinishers()
+        .then((finishersData) => {
+          console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
+          if (finishersData && finishersData.length > 0) {
+            console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
+          }
+          setFinishers(finishersData || []);
+          finishersFetchedRef.current = true;
+        })
+        .catch((err: any) => {
+          // Silently handle AbortError - global cache will handle retries
+          if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+            console.warn('WelcomeScreen: Finishers fetch aborted (global cache will retry)');
+            finishersFetchedRef.current = false; // Allow retry
+          } else {
+            console.error('❌ WelcomeScreen: Error fetching finishers:', err);
+            setFinishers([]);
+          }
+        })
+        .finally(() => {
+          isFetchingFinishersRef.current = false;
+        });
+    }
+  }, [profile?.id, isGuest]); // Only depend on profile ID and guest status (allow fetching without profile)
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {

@@ -286,20 +286,26 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     lastProfileIdRef.current = currentProfileId;
     
     // If profile is provided with gems and ID matches stableUserId, use it directly
+    // This is the preferred path - use profile data directly without fetching
     if (initialProfile?.gems !== undefined && initialProfile?.id && initialProfile.id === stableUserId) {
-      setGemBalance(initialProfile.gems ?? 0);
+      const gemsFromProfile = initialProfile.gems ?? 0;
+      setGemBalance(gemsFromProfile);
       gemBalanceFetchedRef.current = true;
       lastUserIdRef.current = stableUserId;
-      console.log('BillingProvider: ✅ Gem balance set from initial profile:', initialProfile.gems);
-    } else if (stableUserId && initialProfile?.id && initialProfile.id === stableUserId) {
-      // Profile is loaded (initialProfile.id matches stableUserId) - safe to fetch gem balance
+      console.log('BillingProvider: ✅ Gem balance set from initial profile:', gemsFromProfile);
+      if (onGemsUpdate) {
+        onGemsUpdate(gemsFromProfile);
+      }
+    } else if (stableUserId && initialProfile?.id && initialProfile.id === stableUserId && initialProfile.gems === undefined) {
+      // Profile is loaded but gems not set yet - fetch gem balance
       // Only fetch if we haven't already fetched for this user or if profile ID changed
       if (!gemBalanceFetchedRef.current || lastUserIdRef.current !== stableUserId) {
+        console.log('BillingProvider: Profile loaded but gems missing, fetching gem balance...');
         fetchGemBalance();
       }
     } else if (stableUserId && !initialProfile) {
       // Stable user ID exists but profile not loaded yet - wait for profile to load
-      console.log('BillingProvider: Waiting for profile to load before fetching gem balance...');
+      // Don't log here - this is expected during initialization
     } else if (!stableUserId) {
       // No stable user ID - clear gem balance
       setGemBalance(null);
@@ -307,7 +313,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       lastUserIdRef.current = null;
       lastProfileIdRef.current = null;
     }
-  }, [stableUserId, initialProfile?.id, initialProfile?.gems, fetchGemBalance]); // Wait for profile.id to match stableUserId
+  }, [stableUserId, initialProfile?.id, initialProfile?.gems, fetchGemBalance, onGemsUpdate]); // Wait for profile.id to match stableUserId
 
   // Auto-refresh gem balance when returning from Stripe redirect
   useEffect(() => {
