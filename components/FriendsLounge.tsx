@@ -17,7 +17,6 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'FRIENDS' | 'SEARCH'>('FRIENDS');
   const [pendingRequests, setPendingRequests] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -63,12 +62,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
     }
   };
 
-  // Handle deep linking: if URL has ?friend=Name#1234, open SEARCH tab and fill search bar
+  // Handle deep linking: if URL has ?friend=Name#1234, fill search bar and search
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const friendParam = params.get('friend');
     if (friendParam && !isGuest && profile) {
-      setActiveTab('SEARCH');
       setSearchQuery(friendParam);
       // Trigger search after a short delay to ensure friends list is loaded
       const searchTimeout = setTimeout(() => {
@@ -147,83 +145,81 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(59,130,246,0.08)_0%,transparent_70%)]"></div>
 
         {/* Header */}
-        <div className="relative z-10 p-6 sm:p-8 border-b border-white/20 bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent flex justify-between items-center">
-          <div className="flex flex-col gap-2 flex-1">
-            <h2 className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-blue-400 via-blue-300 to-blue-500 uppercase italic tracking-tight font-serif leading-none drop-shadow-[0_4px_20px_rgba(59,130,246,0.3)]">
-              FRIENDS LOUNGE
-            </h2>
-            <div className="flex items-center gap-4">
-              <p className="text-xs sm:text-sm font-semibold text-white/60 uppercase tracking-wide">
-                {friendCount} / {maxFriends} Friends
-              </p>
-              {profile && !isGuest && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-white/40 uppercase tracking-wide">Your ID:</span>
-                  <CopyUsername username={profile.username} discriminator={profile.discriminator} className="text-sm" />
-                  <button
-                    onClick={() => {
-                      const shareUrl = `${window.location.origin}${window.location.pathname}?friend=${encodeURIComponent(profile.username || '')}`;
-                      if (navigator.share) {
-                        navigator.share({
-                          title: 'Add me on XIII Cards!',
-                          text: `Add me as a friend: ${profile.username}`,
-                          url: shareUrl
-                        }).catch(() => {
-                          // Fallback to clipboard if share fails
+        <div className="relative z-10 p-6 sm:p-8 border-b border-white/20 bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex flex-col gap-2 flex-1">
+              <h2 className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-blue-400 via-blue-300 to-blue-500 uppercase italic tracking-tight font-serif leading-none drop-shadow-[0_4px_20px_rgba(59,130,246,0.3)]">
+                FRIENDS LOUNGE
+              </h2>
+              <div className="flex items-center gap-4">
+                <p className="text-xs sm:text-sm font-semibold text-white/60 uppercase tracking-wide">
+                  {friendCount} / {maxFriends} Friends
+                </p>
+                {profile && !isGuest && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-white/40 uppercase tracking-wide">Your ID:</span>
+                    <CopyUsername username={profile.username} discriminator={profile.discriminator} className="text-sm" />
+                    <button
+                      onClick={() => {
+                        const shareUrl = `${window.location.origin}${window.location.pathname}?friend=${encodeURIComponent(profile.username || '')}`;
+                        if (navigator.share) {
+                          navigator.share({
+                            title: 'Add me on XIII Cards!',
+                            text: `Add me as a friend: ${profile.username}`,
+                            url: shareUrl
+                          }).catch(() => {
+                            // Fallback to clipboard if share fails
+                            navigator.clipboard.writeText(shareUrl);
+                          });
+                        } else {
+                          // Fallback to clipboard
                           navigator.clipboard.writeText(shareUrl);
-                        });
-                      } else {
-                        // Fallback to clipboard
-                        navigator.clipboard.writeText(shareUrl);
-                      }
-                    }}
-                    className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg text-blue-300 text-[10px] font-bold uppercase tracking-wide transition-all"
-                    title="Share My ID"
-                  >
-                    Share
-                  </button>
-                </div>
-              )}
+                        }
+                      }}
+                      className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg text-blue-300 text-[10px] font-bold uppercase tracking-wide transition-all"
+                      title="Share My ID"
+                    >
+                      Share
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+            <button 
+              onClick={onClose} 
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] border-2 border-white/20 hover:border-white/30 text-white/70 hover:text-white flex items-center justify-center transition-all active:scale-95 group backdrop-blur-sm shadow-lg shrink-0"
+            >
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <button 
-            onClick={onClose} 
-            className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] border-2 border-white/20 hover:border-white/30 text-white/70 hover:text-white flex items-center justify-center transition-all active:scale-95 group backdrop-blur-sm shadow-lg shrink-0"
-          >
-            <svg className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="relative z-10 px-6 sm:px-8 pt-4 pb-2 flex gap-4 border-b border-white/10">
-          <button
-            onClick={() => setActiveTab('FRIENDS')}
-            className={`pb-3 px-4 text-sm font-bold uppercase tracking-wide transition-all relative ${
-              activeTab === 'FRIENDS' 
-                ? 'text-blue-400' 
-                : 'text-white/50 hover:text-white/70'
-            }`}
-          >
-            FRIENDS
-            {activeTab === 'FRIENDS' && (
-              <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-500 rounded-t-full"></div>
+          
+          {/* Search Bar */}
+          <div className="relative mt-4">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder={isGuest || !profile ? "Sign in to search for users..." : "Search by username (e.g., Name#0000 or Name)..."}
+              disabled={isGuest || !profile}
+              className="w-full px-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            {searchQuery && !isGuest && profile && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                aria-label="Clear search"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             )}
-          </button>
-          <button
-            onClick={() => setActiveTab('SEARCH')}
-            className={`pb-3 px-4 text-sm font-bold uppercase tracking-wide transition-all relative ${
-              activeTab === 'SEARCH' 
-                ? 'text-blue-400' 
-                : 'text-white/50 hover:text-white/70'
-            }`}
-          >
-            SEARCH
-            {activeTab === 'SEARCH' && (
-              <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-500 rounded-t-full"></div>
-            )}
-          </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -234,7 +230,67 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
             </div>
           )}
 
-          {activeTab === 'FRIENDS' ? (
+          {searchQuery.trim() ? (
+            // Show search results when searching
+            <div className="space-y-3">
+              {loading && searchResults.length === 0 ? (
+                <div className="text-center py-12 text-white/50">Searching...</div>
+              ) : searchResults.length === 0 ? (
+                <div className="text-center py-12 text-white/50">No users found</div>
+              ) : (
+                searchResults.map((user) => {
+                  const userLevel = calculateLevel(user.xp || 0);
+                  return (
+                    <div
+                      key={user.id}
+                      className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                            <span className="text-xl sm:text-2xl">{user.avatar_url || ':cool:'}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <CopyUsername username={user.username} className="text-base sm:text-lg" />
+                              <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
+                                Lv {userLevel}
+                              </span>
+                            </div>
+                            <p className="text-xs text-white/50 mt-1">
+                              {user.wins || 0} wins • {user.games_played || 0} games
+                            </p>
+                          </div>
+                        </div>
+                        {profile && user.id === profile.id ? (
+                          <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/30 text-xs font-bold uppercase tracking-wide">
+                            You
+                          </div>
+                        ) : friendCount >= maxFriends ? (
+                          <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/30 text-xs font-bold uppercase tracking-wide">
+                            Limit
+                          </div>
+                        ) : pendingRequests.has(user.id) ? (
+                          <div className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-bold uppercase tracking-wide">
+                            Pending
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleAddFriend(user.id)}
+                            disabled={loading || pendingRequests.has(user.id)}
+                            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-xl text-blue-300 text-xs font-bold uppercase tracking-wide transition-all disabled:opacity-50"
+                          >
+                            Add
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            // Show friends list when not searching
             <div className="space-y-3">
               {loading && friends.length === 0 ? (
                 <div className="text-center py-12 text-white/50">Loading friends...</div>
@@ -281,76 +337,6 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
                     </div>
                   );
                 })
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  placeholder="Search by username (e.g., Name#0000 or Name)..."
-                  className="w-full px-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                />
-              </div>
-
-              {loading && searchResults.length === 0 && searchQuery ? (
-                <div className="text-center py-12 text-white/50">Searching...</div>
-              ) : searchResults.length === 0 && searchQuery ? (
-                <div className="text-center py-12 text-white/50">No users found</div>
-              ) : (
-                <div className="space-y-3">
-                  {searchResults.map((user) => {
-                    const userLevel = calculateLevel(user.xp || 0);
-                    return (
-                      <div
-                        key={user.id}
-                        className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
-                              <span className="text-xl sm:text-2xl">{user.avatar_url || ':cool:'}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <CopyUsername username={user.username} className="text-base sm:text-lg" />
-                                <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
-                                  Lv {userLevel}
-                                </span>
-                              </div>
-                              <p className="text-xs text-white/50 mt-1">
-                                {user.wins || 0} wins • {user.games_played || 0} games
-                              </p>
-                            </div>
-                          </div>
-                          {user.id === profile.id ? (
-                            <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/30 text-xs font-bold uppercase tracking-wide">
-                              You
-                            </div>
-                          ) : friendCount >= maxFriends ? (
-                            <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/30 text-xs font-bold uppercase tracking-wide">
-                              Limit
-                            </div>
-                          ) : pendingRequests.has(user.id) ? (
-                            <div className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-bold uppercase tracking-wide">
-                              Pending
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleAddFriend(user.id)}
-                              disabled={loading || pendingRequests.has(user.id)}
-                              className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-xl text-blue-300 text-xs font-bold uppercase tracking-wide transition-all disabled:opacity-50"
-                            >
-                              Add
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
               )}
             </div>
           )}
