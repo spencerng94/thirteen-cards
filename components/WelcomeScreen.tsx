@@ -381,6 +381,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     // Allow fetching emotes/finishers for guests or when profile is loaded
     // Emotes/finishers are public data - don't require a valid user ID
     const currentProfileId = profile?.id || null;
+    console.log(`WelcomeScreen: useEffect triggered - profile?.id: ${profile?.id}, profile: ${profile ? 'exists' : 'null'}, isGuest: ${isGuest}`);
     
     // Only fetch if profile ID changed or if we haven't fetched yet
     // If profile ID is the same as last time and we've already fetched, skip
@@ -394,6 +395,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     
     // Allow fetching emotes/finishers even without a profile (guest mode or during loading)
     // These are public data that should be available to everyone
+    console.log(`WelcomeScreen: Attempting to fetch emotes/finishers - emotesFetched: ${emotesFetchedRef.current}, finishersFetched: ${finishersFetchedRef.current}, isFetchingEmotes: ${isFetchingEmotesRef.current}, isFetchingFinishers: ${isFetchingFinishersRef.current}`);
     // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
     // Use global cache - if fetch is already in progress, it will return the same promise
     if (!emotesFetchedRef.current && !isFetchingEmotesRef.current) {

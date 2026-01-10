@@ -649,11 +649,13 @@ const AppContent: React.FC = () => {
       
       // State Sync: Ensure profile is set so hasProfile becomes true
       // Use functional update to prevent triggering re-renders that cause re-initialization
+      console.log(`App: Setting profile state - username: ${data.username}, discriminator: ${data.discriminator}, gems: ${data.gems}, coins: ${data.coins}`);
       setProfile(prevProfile => {
         // Only update if data is different to prevent unnecessary re-renders
         if (prevProfile?.id === data.id && JSON.stringify(prevProfile) === JSON.stringify(data)) {
           return prevProfile;
         }
+        console.log(`App: Profile state updated - prev: ${prevProfile?.id || 'null'}, new: ${data.id}`);
         return data;
       });
       isInitialDataLoaded.current = true; // Mark as loaded

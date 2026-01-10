@@ -42,10 +42,16 @@ export const UserBar: React.FC<UserBarProps> = ({
     level: 1
   } as Partial<UserProfile>;
   
+  // Debug: Log profile data to verify gems/coins are present
+  if (profile) {
+    console.log(`UserBar: Profile data - username: ${profile.username}, discriminator: ${profile.discriminator}, gems: ${profile.gems}, coins: ${profile.coins}, realtimeGemCount: ${realtimeGemCount}`);
+  }
+  
   // Use realtime gem count if available and user is not a guest, otherwise fall back to profile
-  const displayGems = (!isGuest && realtimeGemCount !== null) 
+  // Profile gems take precedence if realtime count is null
+  const displayGems = (!isGuest && realtimeGemCount !== null && realtimeGemCount !== undefined) 
     ? realtimeGemCount 
-    : (displayProfile.gems || 0);
+    : (displayProfile.gems ?? 0);
 
   const currentLevel = isLoading ? 1 : calculateLevel(displayProfile.xp || 0);
   const nextLevelXp = getXpForLevel(currentLevel + 1);

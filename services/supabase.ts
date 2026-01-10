@@ -413,12 +413,12 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
           await new Promise(resolve => setTimeout(resolve, delay));
         }
         
-        const { data, error } = await supabase
-          .from('emotes')
-          .select('*')
-          .order('name', { ascending: true });
-        
-        if (error) {
+      const { data, error } = await supabase
+        .from('emotes')
+        .select('*')
+        .order('name', { ascending: true });
+      
+      if (error) {
           // Check if it's an AbortError - Supabase wraps it in error.message
           const errorMessage = error.message || '';
           const errorDetails = (error as any).details || '';
@@ -430,11 +430,11 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
           if (isAbortError && attempt < maxRetries - 1) {
             console.log(`fetchEmotes: AbortError detected on attempt ${attempt + 1}, will retry...`);
             continue; // Retry
-          }
-          console.error('Error fetching emotes:', error);
-          globalFetchCache.emotes.promise = null; // Clear promise on error
-          return [];
         }
+        console.error('Error fetching emotes:', error);
+          globalFetchCache.emotes.promise = null; // Clear promise on error
+        return [];
+      }
         
         // Success - store data and break out of retry loop
         fetchedData = data || [];
@@ -525,19 +525,19 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
       };
     });
     
-    console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
-      name: e.name, 
-      trigger: e.trigger_code, 
-      file_path: e.file_path,
-      price: e.price 
-    })));
+      console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
+        name: e.name, 
+        trigger: e.trigger_code, 
+        file_path: e.file_path,
+        price: e.price 
+      })));
     
     // Store in global cache
     globalFetchCache.emotes.data = emotes;
     globalFetchCache.emotes.timestamp = Date.now();
     globalFetchCache.emotes.promise = null; // Clear promise after success
-    
-    return emotes;
+      
+      return emotes;
   })();
   
   // Store the promise in cache so other components can use it
@@ -879,7 +879,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
       throw notFoundError;
     }
     
-    if (data) {
+  if (data) {
       console.log(`✅ fetchProfile: Profile found for UUID: ${userId}`);
       // Ensure we use 'gems' column (not 'gem_count') and 'username' + 'discriminator' (separate columns)
       // Database uses separate 'username' and 'discriminator' columns
@@ -921,6 +921,9 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
         discriminator: discriminator, // 4-digit discriminator (1000-9999)
         turn_timer_setting: data.turn_timer_setting ?? 0 
       } as UserProfile;
+      
+      // Debug: Log the profile data to verify gems/coins are correctly mapped
+      console.log(`✅ fetchProfile: Profile data mapped - username: ${profile.username}, discriminator: ${profile.discriminator}, gems: ${profile.gems}, coins: ${profile.coins}, currency: ${profile.currency}`);
     // Normalize level for legacy users: ensure level matches calculated level based on XP
     const calculatedLevel = calculateLevel(profile.xp || 0);
     if (profile.level !== calculatedLevel) {
@@ -988,10 +991,10 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
       // Continue without email - it will be backfilled by migration
     }
   
-    // New user - generate username with discriminator from Google metadata
-    // baseUsername should come from Google OAuth metadata (full_name, name, or display_name)
-    const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
-    const defaultProfile = await getDefaultProfile(userId, currentAvatar, cleanBaseUsername);
+  // New user - generate username with discriminator from Google metadata
+  // baseUsername should come from Google OAuth metadata (full_name, name, or display_name)
+  const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
+  const defaultProfile = await getDefaultProfile(userId, currentAvatar, cleanBaseUsername);
   // Save the new profile immediately for Google OAuth users
   console.log('🔵 fetchProfile: Attempting to upsert new user profile:', {
     userId,
@@ -2218,12 +2221,12 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
         }
         
         console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey, attempt: attempt + 1 });
-        const { data, error } = await supabase
-          .from('finishers')
-          .select('*')
-          .order('price', { ascending: true });
-        
-        if (error) {
+      const { data, error } = await supabase
+        .from('finishers')
+        .select('*')
+        .order('price', { ascending: true });
+      
+      if (error) {
           // Check if it's an AbortError - Supabase wraps it in error.message
           const errorMessage = error.message || '';
           const errorDetails = error.details || '';
@@ -2235,28 +2238,28 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
           if (isAbortError && attempt < maxRetries - 1) {
             console.log(`fetchFinishers: AbortError detected on attempt ${attempt + 1}, will retry...`);
             continue; // Retry
-          }
-          console.error('❌ Error fetching finishers:', error);
-          console.error('Error details:', { 
-            message: error.message, 
-            code: error.code, 
-            details: error.details,
-            hint: error.hint 
-          });
+        }
+        console.error('❌ Error fetching finishers:', error);
+        console.error('Error details:', { 
+          message: error.message, 
+          code: error.code, 
+          details: error.details,
+          hint: error.hint 
+        });
           globalFetchCache.finishers.promise = null; // Clear promise on error
-          return [];
-        }
+        return [];
+      }
     
-        if (!data || data.length === 0) {
-          console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
+      if (!data || data.length === 0) {
+        console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
           globalFetchCache.finishers.promise = null; // Clear promise on empty data
-          return [];
-        }
-        
+        return [];
+      }
+      
         // Success - store data and break out of retry loop
         fetchedData = data;
         break;
-      } catch (e: any) {
+    } catch (e: any) {
         // Check if it's an AbortError - Supabase may throw it as an exception
         const errorMessage = e?.message || '';
         const errorDetails = e?.details || '';
@@ -2272,10 +2275,10 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
         
         // If it's not an AbortError or we've exceeded max retries, return empty array
         console.error(`❌ fetchFinishers: Failed after ${attempt + 1} attempts:`, e);
-        console.error('Exception details:', { message: e?.message, stack: e?.stack });
+      console.error('Exception details:', { message: e?.message, stack: e?.stack });
         globalFetchCache.finishers.promise = null; // Clear promise on error
-        return [];
-      }
+      return [];
+    }
     }
     
     // If we exhausted retries, return empty array
@@ -2619,12 +2622,12 @@ export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
           await new Promise(resolve => setTimeout(resolve, delay));
         }
         
-        const { data, error } = await supabase
-          .from('chat_presets')
-          .select('*')
-          .order('price', { ascending: true });
-        
-        if (error) {
+    const { data, error } = await supabase
+      .from('chat_presets')
+      .select('*')
+      .order('price', { ascending: true });
+    
+    if (error) {
           // Check if it's an AbortError - Supabase wraps it in error.message
           const errorMessage = error.message || '';
           const errorDetails = (error as any).details || '';
@@ -2637,10 +2640,10 @@ export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
             console.log(`fetchChatPresets: AbortError detected on attempt ${attempt + 1}, will retry...`);
             continue; // Retry
           }
-          console.error('Error fetching chat presets:', error);
+      console.error('Error fetching chat presets:', error);
           globalFetchCache.chatPresets.promise = null; // Clear promise on error
-          return defaultPresets;
-        }
+      return defaultPresets;
+    }
         
         // Success - store data and break out of retry loop
         fetchedData = data || [];

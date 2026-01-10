@@ -285,6 +285,11 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     // Update last profile ID
     lastProfileIdRef.current = currentProfileId;
     
+    // Debug: Log profile state to verify data
+    if (initialProfile) {
+      console.log(`BillingProvider: Profile received - id: ${initialProfile.id}, username: ${initialProfile.username}, discriminator: ${initialProfile.discriminator}, gems: ${initialProfile.gems}, coins: ${initialProfile.coins}, stableUserId: ${stableUserId}`);
+    }
+    
     // If profile is provided with gems and ID matches stableUserId, use it directly
     // This is the preferred path - use profile data directly without fetching
     if (initialProfile?.gems !== undefined && initialProfile?.id && initialProfile.id === stableUserId) {
@@ -296,7 +301,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       if (onGemsUpdate) {
         onGemsUpdate(gemsFromProfile);
       }
-    } else if (stableUserId && initialProfile?.id && initialProfile.id === stableUserId && initialProfile.gems === undefined) {
+    } else if (stableUserId && initialProfile?.id && initialProfile.id === stableUserId && (initialProfile.gems === undefined || initialProfile.gems === null)) {
       // Profile is loaded but gems not set yet - fetch gem balance
       // Only fetch if we haven't already fetched for this user or if profile ID changed
       if (!gemBalanceFetchedRef.current || lastUserIdRef.current !== stableUserId) {
