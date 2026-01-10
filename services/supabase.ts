@@ -8,26 +8,47 @@ import { generateDiscriminator } from '../utils/username';
 
 // Global fetch cache to prevent duplicate fetches across all components
 // This singleton ensures data is only fetched once, even if multiple components request it
-export const globalFetchCache = {
+// NOTE: Using explicit type annotation to allow mutations for caching
+type FetchCacheItem<T> = {
+  promise: Promise<T> | null;
+  data: T | null;
+  timestamp: number;
+  ttl: number;
+};
+
+type GlobalFetchCache = {
+  emotes: FetchCacheItem<Emote[]>;
+  finishers: FetchCacheItem<any[]>;
+  chatPresets: FetchCacheItem<any[]>;
+};
+
+export const globalFetchCache: GlobalFetchCache = {
   emotes: {
-    promise: null as Promise<Emote[]> | null,
-    data: null as Emote[] | null,
+    promise: null,
+    data: null,
     timestamp: 0,
     ttl: 5 * 60 * 1000, // 5 minutes cache
   },
   finishers: {
-    promise: null as Promise<any[]> | null,
-    data: null as any[] | null,
+    promise: null,
+    data: null,
     timestamp: 0,
     ttl: 5 * 60 * 1000, // 5 minutes cache
   },
   chatPresets: {
-    promise: null as Promise<any[]> | null,
-    data: null as any[] | null,
+    promise: null,
+    data: null,
     timestamp: 0,
     ttl: 5 * 60 * 1000, // 5 minutes cache
   },
-} as const;
+};
+
+// Global fetch locks - prevent concurrent fetches even during rapid re-renders
+// These are module-level (outside React) to persist across component unmounts
+// CRITICAL: Prevents AbortError loops by ensuring only one fetch happens at a time
+let isFetchingEmotes = false;
+let isFetchingFinishers = false;
+let isFetchingChatPresets = false;
 
 // Safely access environment variables
 const getEnv = (key: string): string | undefined => {
@@ -389,155 +410,122 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
     return globalFetchCache.emotes.data;
   }
   
+  // LOCKED FETCHER PATTERN: Prevent concurrent fetches
+  // Exit if a fetch is already in progress - prevents AbortError loops
+  if (isFetchingEmotes) {
+    console.log('fetchEmotes: Fetch already in progress, returning existing promise or cached data');
+    // Return existing promise if available, otherwise return cached data
+    if (globalFetchCache.emotes.promise) {
+      return globalFetchCache.emotes.promise;
+    }
+    // Return cached data even if stale, rather than starting new fetch
+    return globalFetchCache.emotes.data || [];
+  }
+  
   // Global Cache: If a fetch is already in progress, return that promise instead of starting a new one
   if (globalFetchCache.emotes.promise) {
     console.log('fetchEmotes: Fetch already in progress, returning existing promise');
     return globalFetchCache.emotes.promise;
   }
   
-  // Bulletproof Rule: No AbortController for startup requests
-  // These requests must finish no matter what - component re-renders should not cancel them
-  // Retry logic: Handle Supabase's internal AbortController gracefully
-  const maxRetries = 3;
-  let fetchedData: any[] | null = null;
+  // LOCKED FETCHER: Set lock immediately to prevent concurrent requests
+  isFetchingEmotes = true;
   
   // Create the fetch promise and store it in cache immediately
   const fetchPromise = (async () => {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          // Longer exponential backoff: wait before retry (2000ms, 4000ms, 8000ms)
-          // Longer delays give React more time to settle
-          const delay = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
-          console.log(`fetchEmotes: Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay (waiting for React to settle)...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-        
-        const { data, error } = await supabase
-          .from('emotes')
-          .select('*')
-          .order('name', { ascending: true });
-        
-        if (error) {
-          // Check if it's an AbortError - Supabase wraps it in error.message
-          const errorMessage = error.message || '';
-          const errorDetails = (error as any).details || '';
-          const isAbortError = error.name === 'AbortError' || 
-                              errorMessage.toLowerCase().includes('abort') || 
-                              errorMessage.toLowerCase().includes('signal is aborted') ||
-                              errorDetails.toLowerCase().includes('abort');
-          
-          if (isAbortError && attempt < maxRetries - 1) {
-            console.log(`fetchEmotes: AbortError detected on attempt ${attempt + 1}, will retry...`);
-            continue; // Retry
-          }
-          console.error('Error fetching emotes:', error);
-          globalFetchCache.emotes.promise = null; // Clear promise on error
-          return [];
-        }
-        
-        // Success - store data and break out of retry loop
-        fetchedData = data || [];
-        break;
-      } catch (e: any) {
-        // Check if it's an AbortError - Supabase may throw it as an exception
-        const errorMessage = e?.message || '';
-        const errorDetails = e?.details || '';
-        const isAbortError = e?.name === 'AbortError' || 
-                            errorMessage.toLowerCase().includes('abort') || 
-                            errorMessage.toLowerCase().includes('signal is aborted') ||
-                            errorDetails.toLowerCase().includes('abort');
-        
-        if (isAbortError && attempt < maxRetries - 1) {
-          console.log(`fetchEmotes: AbortError exception on attempt ${attempt + 1}, will retry...`);
-          continue; // Retry
-        }
-        
-        // If it's not an AbortError or we've exceeded max retries, return empty array
-        console.error(`fetchEmotes: Failed after ${attempt + 1} attempts:`, e);
-        globalFetchCache.emotes.promise = null; // Clear promise on error
-        return [];
-      }
-    }
-    
-    // If we exhausted retries, return empty array
-    if (!fetchedData) {
-      console.error(`fetchEmotes: Failed after ${maxRetries} attempts due to AbortError`);
-      globalFetchCache.emotes.promise = null; // Clear promise on failure
-      return [];
-    }
-    
-    // Process the successfully fetched data
-    const data = fetchedData;
-    
-    // Premium emote pricing - override database prices for specific emotes
-    // Match by exact name (case-sensitive) or by trigger_code for flexibility
-    const PREMIUM_EMOTE_PRICES: Record<string, number> = {
-      'Game Over': 650,
-      'Doge Focus': 650,
-      'Lunar New Year': 450,
-      'The Mooner': 450,
-      'Seductive': 450,
-      'Seductive Dealer': 450
-    };
-    
-    // Also map by trigger_code for additional safety
-    const PREMIUM_TRIGGER_PRICES: Record<string, number> = {
-      ':game_over:': 650,
-      ':doge_focus:': 650,
-      ':lunar_new_year:': 450,
-      ':the_mooner:': 450,
-      ':heart_eyes:': 450,
-      ':seductive:': 450
-    };
-    
-    // Map database fields to our Emote interface
-    // Database uses 'shortcode', our code uses 'trigger_code'
-    // Default price is 200 gems, but premium emotes have custom prices
-    const emotes: Emote[] = (data || []).map((e: any) => {
-      const emoteName = e.name || '';
-      const triggerCode = (e.shortcode || e.trigger_code || '').toLowerCase();
+    try {
+      // NO ABORT SIGNAL: Query without any abort controller
+      // Let Supabase handle the request normally, no cancellation on re-renders
+      const { data, error } = await supabase
+        .from('emotes')
+        .select('*')
+        .order('name', { ascending: true });
       
-      // Check both name and trigger_code for premium pricing
-      const premiumPriceByName = PREMIUM_EMOTE_PRICES[emoteName];
-      const premiumPriceByTrigger = PREMIUM_TRIGGER_PRICES[triggerCode];
-      const premiumPrice = premiumPriceByName !== undefined ? premiumPriceByName : premiumPriceByTrigger;
-      
-      const finalPrice = premiumPrice !== undefined ? premiumPrice : (e.price || 200);
-      
-      // Log premium pricing for debugging
-      if (premiumPrice !== undefined) {
-        console.log(`💰 Premium pricing for "${emoteName}" (${triggerCode}): ${finalPrice} gems`);
+      if (error) {
+        console.error('Error fetching emotes:', error);
+        // Return cached data on error if available, otherwise empty array
+        return globalFetchCache.emotes.data || [];
       }
       
-      // Normalize fallback emoji - ensure it's a valid string
-      // The database migration will normalize old Apple emoji characters
-      // This is just a safety check to ensure we always have a valid fallback
-      const fallbackEmoji = (e.fallback_emoji || '👤').trim() || '👤';
+      // Process the successfully fetched data
+      const fetchedData = data || [];
       
-      return {
-        id: e.id,
-        name: emoteName,
-        file_path: e.file_path,
-        trigger_code: e.shortcode || e.trigger_code || '', // Map shortcode to trigger_code
-        fallback_emoji: fallbackEmoji,
-        price: finalPrice
+      // Premium emote pricing - override database prices for specific emotes
+      // Match by exact name (case-sensitive) or by trigger_code for flexibility
+      const PREMIUM_EMOTE_PRICES: Record<string, number> = {
+        'Game Over': 650,
+        'Doge Focus': 650,
+        'Lunar New Year': 450,
+        'The Mooner': 450,
+        'Seductive': 450,
+        'Seductive Dealer': 450
       };
-    });
-    
+      
+      // Also map by trigger_code for additional safety
+      const PREMIUM_TRIGGER_PRICES: Record<string, number> = {
+        ':game_over:': 650,
+        ':doge_focus:': 650,
+        ':lunar_new_year:': 450,
+        ':the_mooner:': 450,
+        ':heart_eyes:': 450,
+        ':seductive:': 450
+      };
+      
+      // Map database fields to our Emote interface
+      // Database uses 'shortcode', our code uses 'trigger_code'
+      // Default price is 200 gems, but premium emotes have custom prices
+      const emotes: Emote[] = (fetchedData || []).map((e: any) => {
+        const emoteName = e.name || '';
+        const triggerCode = (e.shortcode || e.trigger_code || '').toLowerCase();
+        
+        // Check both name and trigger_code for premium pricing
+        const premiumPriceByName = PREMIUM_EMOTE_PRICES[emoteName];
+        const premiumPriceByTrigger = PREMIUM_TRIGGER_PRICES[triggerCode];
+        const premiumPrice = premiumPriceByName !== undefined ? premiumPriceByName : premiumPriceByTrigger;
+        
+        const finalPrice = premiumPrice !== undefined ? premiumPrice : (e.price || 200);
+        
+        // Log premium pricing for debugging
+        if (premiumPrice !== undefined) {
+          console.log(`💰 Premium pricing for "${emoteName}" (${triggerCode}): ${finalPrice} gems`);
+        }
+        
+        // Normalize fallback emoji - ensure it's a valid string
+        // The database migration will normalize old Apple emoji characters
+        // This is just a safety check to ensure we always have a valid fallback
+        const fallbackEmoji = (e.fallback_emoji || '👤').trim() || '👤';
+        
+        return {
+          id: e.id,
+          name: emoteName,
+          file_path: e.file_path,
+          trigger_code: e.shortcode || e.trigger_code || '', // Map shortcode to trigger_code
+          fallback_emoji: fallbackEmoji,
+          price: finalPrice
+        };
+      });
+      
       console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
         name: e.name, 
         trigger: e.trigger_code, 
         file_path: e.file_path,
         price: e.price 
       })));
-    
-    // Store in global cache
-    globalFetchCache.emotes.data = emotes;
-    globalFetchCache.emotes.timestamp = Date.now();
-    globalFetchCache.emotes.promise = null; // Clear promise after success
-    
-    return emotes;
+      
+      // Store in global cache
+      globalFetchCache.emotes.data = emotes;
+      globalFetchCache.emotes.timestamp = Date.now();
+      
+      return emotes;
+    } catch (err: any) {
+      console.error('fetchEmotes: Exception during fetch:', err);
+      // Return cached data on error if available, otherwise empty array
+      return globalFetchCache.emotes.data || [];
+    } finally {
+      // UNLOCK: Always release the lock in finally block
+      isFetchingEmotes = false;
+      globalFetchCache.emotes.promise = null; // Clear promise after completion
+    }
   })();
   
   // Store the promise in cache so other components can use it
@@ -2196,49 +2184,40 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
     return globalFetchCache.finishers.data as Finisher[];
   }
   
+  // LOCKED FETCHER PATTERN: Prevent concurrent fetches
+  // Exit if a fetch is already in progress - prevents AbortError loops
+  if (isFetchingFinishers) {
+    console.log('fetchFinishers: Fetch already in progress, returning existing promise or cached data');
+    // Return existing promise if available, otherwise return cached data
+    if (globalFetchCache.finishers.promise) {
+      return globalFetchCache.finishers.promise as Promise<Finisher[]>;
+    }
+    // Return cached data even if stale, rather than starting new fetch
+    return globalFetchCache.finishers.data as Finisher[] || [];
+  }
+  
   // Global Cache: If a fetch is already in progress, return that promise instead of starting a new one
   if (globalFetchCache.finishers.promise) {
     console.log('fetchFinishers: Fetch already in progress, returning existing promise');
     return globalFetchCache.finishers.promise as Promise<Finisher[]>;
   }
   
-  // Network Hardening: No AbortController for startup requests
-  // These requests must finish no matter what - component re-renders should not cancel them
-  // Retry logic: Handle Supabase's internal AbortController gracefully
-  const maxRetries = 3;
-  let fetchedData: any[] | null = null;
+  // LOCKED FETCHER: Set lock immediately to prevent concurrent requests
+  isFetchingFinishers = true;
   
   // Create the fetch promise and store it in cache immediately
   const fetchPromise = (async () => {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          // Longer exponential backoff: wait before retry (1000ms, 2000ms, 4000ms)
-          // Longer delays give React more time to settle
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          console.log(`fetchFinishers: Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay (waiting for React to settle)...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-        
-        console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey, attempt: attempt + 1 });
+    try {
+      console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey });
+      
+      // NO ABORT SIGNAL: Query without any abort controller
+      // Let Supabase handle the request normally, no cancellation on re-renders
       const { data, error } = await supabase
         .from('finishers')
         .select('*')
         .order('price', { ascending: true });
       
       if (error) {
-          // Check if it's an AbortError - Supabase wraps it in error.message
-          const errorMessage = error.message || '';
-          const errorDetails = error.details || '';
-          const isAbortError = error.name === 'AbortError' || 
-                              errorMessage.toLowerCase().includes('abort') || 
-                              errorMessage.toLowerCase().includes('signal is aborted') ||
-                              errorDetails.toLowerCase().includes('abort');
-          
-          if (isAbortError && attempt < maxRetries - 1) {
-            console.log(`fetchFinishers: AbortError detected on attempt ${attempt + 1}, will retry...`);
-            continue; // Retry
-        }
         console.error('❌ Error fetching finishers:', error);
         console.error('Error details:', { 
           message: error.message, 
@@ -2246,56 +2225,32 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
           details: error.details,
           hint: error.hint 
         });
-          globalFetchCache.finishers.promise = null; // Clear promise on error
-        return [];
+        // Return cached data on error if available, otherwise empty array
+        return globalFetchCache.finishers.data as Finisher[] || [];
       }
     
       if (!data || data.length === 0) {
         console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
-          globalFetchCache.finishers.promise = null; // Clear promise on empty data
-        return [];
+        return globalFetchCache.finishers.data as Finisher[] || [];
       }
       
-        // Success - store data and break out of retry loop
-        fetchedData = data;
-        break;
-    } catch (e: any) {
-        // Check if it's an AbortError - Supabase may throw it as an exception
-        const errorMessage = e?.message || '';
-        const errorDetails = e?.details || '';
-        const isAbortError = e?.name === 'AbortError' || 
-                            errorMessage.toLowerCase().includes('abort') || 
-                            errorMessage.toLowerCase().includes('signal is aborted') ||
-                            errorDetails.toLowerCase().includes('abort');
-        
-        if (isAbortError && attempt < maxRetries - 1) {
-          console.log(`fetchFinishers: AbortError exception on attempt ${attempt + 1}, will retry...`);
-          continue; // Retry
-        }
-        
-        // If it's not an AbortError or we've exceeded max retries, return empty array
-        console.error(`❌ fetchFinishers: Failed after ${attempt + 1} attempts:`, e);
-      console.error('Exception details:', { message: e?.message, stack: e?.stack });
-        globalFetchCache.finishers.promise = null; // Clear promise on error
-      return [];
+      console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
+      
+      // Store in global cache
+      globalFetchCache.finishers.data = data;
+      globalFetchCache.finishers.timestamp = Date.now();
+      
+      return data as Finisher[];
+    } catch (err: any) {
+      console.error(`❌ fetchFinishers: Exception during fetch:`, err);
+      console.error('Exception details:', { message: err?.message, stack: err?.stack });
+      // Return cached data on error if available, otherwise empty array
+      return globalFetchCache.finishers.data as Finisher[] || [];
+    } finally {
+      // UNLOCK: Always release the lock in finally block
+      isFetchingFinishers = false;
+      globalFetchCache.finishers.promise = null; // Clear promise after completion
     }
-    }
-    
-    // If we exhausted retries, return empty array
-    if (!fetchedData) {
-      console.error(`fetchFinishers: Failed after ${maxRetries} attempts due to AbortError`);
-      globalFetchCache.finishers.promise = null; // Clear promise on failure
-      return [];
-    }
-    
-    console.log(`✅ Successfully fetched ${fetchedData.length} finishers:`, fetchedData.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
-    
-    // Store in global cache
-    globalFetchCache.finishers.data = fetchedData;
-    globalFetchCache.finishers.timestamp = Date.now();
-    globalFetchCache.finishers.promise = null; // Clear promise after success
-    
-    return fetchedData as Finisher[];
   })();
   
   // Store the promise in cache so other components can use it
@@ -2600,123 +2555,94 @@ export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
     return globalFetchCache.chatPresets.data as ChatPreset[];
   }
   
+  // LOCKED FETCHER PATTERN: Prevent concurrent fetches
+  // Exit if a fetch is already in progress - prevents AbortError loops
+  if (isFetchingChatPresets) {
+    console.log('fetchChatPresets: Fetch already in progress, returning existing promise or cached data');
+    // Return existing promise if available, otherwise return cached data or defaults
+    if (globalFetchCache.chatPresets.promise) {
+      return globalFetchCache.chatPresets.promise as Promise<ChatPreset[]>;
+    }
+    // Return cached data even if stale, otherwise defaults
+    return globalFetchCache.chatPresets.data as ChatPreset[] || defaultPresets;
+  }
+  
   // Global Cache: If a fetch is already in progress, return that promise instead of starting a new one
   if (globalFetchCache.chatPresets.promise) {
     console.log('fetchChatPresets: Fetch already in progress, returning existing promise');
     return globalFetchCache.chatPresets.promise as Promise<ChatPreset[]>;
   }
   
-  // Retry logic: Handle Supabase's internal AbortController gracefully
-  const maxRetries = 3;
-  let fetchedData: any[] | null = null;
+  // LOCKED FETCHER: Set lock immediately to prevent concurrent requests
+  isFetchingChatPresets = true;
   
   // Create the fetch promise and store it in cache immediately
   const fetchPromise = (async () => {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          // Longer exponential backoff: wait before retry (1000ms, 2000ms, 4000ms)
-          // Longer delays give React more time to settle
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          console.log(`fetchChatPresets: Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay (waiting for React to settle)...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+    try {
+      // NO ABORT SIGNAL: Query without any abort controller
+      // Let Supabase handle the request normally, no cancellation on re-renders
+      const { data, error } = await supabase
+        .from('chat_presets')
+        .select('*')
+        .order('price', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching chat presets:', error);
+        // Return cached data or defaults on error
+        return globalFetchCache.chatPresets.data as ChatPreset[] || defaultPresets;
+      }
+      
+      // Process the successfully fetched data
+      const fetchedData = data || [];
+      
+      const dbPresets = (fetchedData || []).map((p: any) => ({
+        id: p.id,
+        phrase: p.phrase,
+        style: p.style || 'standard',
+        bundle_id: p.bundle_id || null,
+        price: p.price || 100,
+        created_at: p.created_at
+      })) as ChatPreset[];
+      
+      // Combine default presets with database presets
+      // Deduplicate by phrase text (case-insensitive) to avoid duplicate phrases
+      const seenPhrases = new Set<string>();
+      const uniquePresets: ChatPreset[] = [];
+      
+      // First, add default presets (they take priority)
+      defaultPresets.forEach(p => {
+        const phraseKey = p.phrase.toLowerCase().trim();
+        if (!seenPhrases.has(phraseKey)) {
+          seenPhrases.add(phraseKey);
+          uniquePresets.push(p);
         }
-        
-    const { data, error } = await supabase
-      .from('chat_presets')
-      .select('*')
-      .order('price', { ascending: true });
-    
-    if (error) {
-          // Check if it's an AbortError - Supabase wraps it in error.message
-          const errorMessage = error.message || '';
-          const errorDetails = (error as any).details || '';
-          const isAbortError = error.name === 'AbortError' || 
-                              errorMessage.toLowerCase().includes('abort') || 
-                              errorMessage.toLowerCase().includes('signal is aborted') ||
-                              errorDetails.toLowerCase().includes('abort');
-          
-          if (isAbortError && attempt < maxRetries - 1) {
-            console.log(`fetchChatPresets: AbortError detected on attempt ${attempt + 1}, will retry...`);
-            continue; // Retry
-          }
-      console.error('Error fetching chat presets:', error);
-          globalFetchCache.chatPresets.promise = null; // Clear promise on error
-      return defaultPresets;
-    }
-        
-        // Success - store data and break out of retry loop
-        fetchedData = data || [];
-        break;
-      } catch (e: any) {
-        // Check if it's an AbortError - Supabase may throw it as an exception
-        const errorMessage = e?.message || '';
-        const errorDetails = e?.details || '';
-        const isAbortError = e?.name === 'AbortError' || 
-                            errorMessage.toLowerCase().includes('abort') || 
-                            errorMessage.toLowerCase().includes('signal is aborted') ||
-                            errorDetails.toLowerCase().includes('abort');
-        
-        if (isAbortError && attempt < maxRetries - 1) {
-          console.log(`fetchChatPresets: AbortError exception on attempt ${attempt + 1}, will retry...`);
-          continue; // Retry
+      });
+      
+      // Then, add database presets (skip if phrase already exists)
+      dbPresets.forEach(p => {
+        const phraseKey = p.phrase.toLowerCase().trim();
+        if (!seenPhrases.has(phraseKey)) {
+          seenPhrases.add(phraseKey);
+          uniquePresets.push(p);
         }
-        
-        // If it's not an AbortError or we've exceeded max retries, return defaults
-        console.error(`fetchChatPresets: Failed after ${attempt + 1} attempts:`, e);
-        globalFetchCache.chatPresets.promise = null; // Clear promise on error
-        return defaultPresets;
-      }
+      });
+      
+      console.log(`✅ Successfully fetched ${uniquePresets.length} chat presets (${dbPresets.length} from DB + ${defaultPresets.length} defaults)`);
+      
+      // Store in global cache
+      globalFetchCache.chatPresets.data = uniquePresets;
+      globalFetchCache.chatPresets.timestamp = Date.now();
+      
+      return uniquePresets;
+    } catch (err: any) {
+      console.error('fetchChatPresets: Exception during fetch:', err);
+      // Return cached data or defaults on error
+      return globalFetchCache.chatPresets.data as ChatPreset[] || defaultPresets;
+    } finally {
+      // UNLOCK: Always release the lock in finally block
+      isFetchingChatPresets = false;
+      globalFetchCache.chatPresets.promise = null; // Clear promise after completion
     }
-    
-    // If we exhausted retries, return defaults
-    if (!fetchedData) {
-      console.error(`fetchChatPresets: Failed after ${maxRetries} attempts due to AbortError, returning defaults`);
-      globalFetchCache.chatPresets.promise = null; // Clear promise on failure
-      return defaultPresets;
-    }
-    
-    // Process the successfully fetched data
-    const data = fetchedData;
-    
-    const dbPresets = (data || []).map((p: any) => ({
-      id: p.id,
-      phrase: p.phrase,
-      style: p.style || 'standard',
-      bundle_id: p.bundle_id || null,
-      price: p.price || 100,
-      created_at: p.created_at
-    })) as ChatPreset[];
-    
-    // Combine default presets with database presets
-    // Deduplicate by phrase text (case-insensitive) to avoid duplicate phrases
-    const seenPhrases = new Set<string>();
-    const uniquePresets: ChatPreset[] = [];
-    
-    // First, add default presets (they take priority)
-    defaultPresets.forEach(p => {
-      const phraseKey = p.phrase.toLowerCase().trim();
-      if (!seenPhrases.has(phraseKey)) {
-        seenPhrases.add(phraseKey);
-        uniquePresets.push(p);
-      }
-    });
-    
-    // Then, add database presets (skip if phrase already exists)
-    dbPresets.forEach(p => {
-      const phraseKey = p.phrase.toLowerCase().trim();
-      if (!seenPhrases.has(phraseKey)) {
-        seenPhrases.add(phraseKey);
-        uniquePresets.push(p);
-      }
-    });
-    
-    // Store in global cache
-    globalFetchCache.chatPresets.data = uniquePresets;
-    globalFetchCache.chatPresets.timestamp = Date.now();
-    globalFetchCache.chatPresets.promise = null; // Clear promise after success
-    
-    return uniquePresets;
   })();
   
   // Store the promise in cache so other components can use it

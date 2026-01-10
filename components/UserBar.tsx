@@ -115,7 +115,11 @@ export const UserBar: React.FC<UserBarProps> = ({
             <CurrencyIcon type="GOLD" size="sm" />
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">
-            {isLoading ? '---' : (displayProfile.coins || 0) > 999 ? ((displayProfile.coins || 0) / 1000).toFixed(1) + 'k' : (displayProfile.coins || 0)}
+            {isLoading ? '---' : (() => {
+              const coins = Number(displayProfile.coins || 0);
+              if (isNaN(coins)) return '0';
+              return coins > 999 ? (coins / 1000).toFixed(1) + 'k' : coins.toString();
+            })()}
           </span>
         </button>
 
@@ -129,7 +133,11 @@ export const UserBar: React.FC<UserBarProps> = ({
             <CurrencyIcon type="GEMS" size="sm" />
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-pink-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(236,72,153,0.4)]">
-            {isLoading ? '---' : displayGems > 999 ? (displayGems / 1000).toFixed(1) + 'k' : displayGems}
+            {isLoading ? '---' : (() => {
+              const gems = Number(displayGems || 0);
+              if (isNaN(gems)) return '0';
+              return gems > 999 ? (gems / 1000).toFixed(1) + 'k' : gems.toString();
+            })()}
           </span>
         </button>
       </div>
