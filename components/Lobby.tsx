@@ -4,6 +4,7 @@ import { socket } from '../services/socket';
 import { BoardSurface } from './UserHub';
 import { VisualEmote } from './VisualEmote';
 import { fetchEmotes } from '../services/supabase';
+import { Toast } from './Toast';
 
 interface PublicRoom {
   id: string;
@@ -117,6 +118,7 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE'>(initialRoomCode ? 'PUBLIC' : 'PUBLIC');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [syncTimer, setSyncTimer] = useState(0);
+  const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
   useEffect(() => {
     if (initialRoomCode) {
@@ -188,6 +190,46 @@ export const Lobby: React.FC<LobbyProps> = ({
     socket.emit(SocketEvents.REQUEST_SYNC, { playerId: myId });
   };
 
+  // Helper function to convert technical error messages to user-friendly ones
+  const getUserFriendlyErrorMessage = (errorMessage: string): string => {
+    const errorLower = errorMessage.toLowerCase();
+    
+    // Rate limiting errors
+    if (errorLower.includes('rate limit') || errorLower.includes('too quickly')) {
+      return 'You\'re doing that too fast. Please wait a moment and try again.';
+    }
+    
+    // Network/connection errors
+    if (errorLower.includes('unable to create') || errorLower.includes('could not create')) {
+      return 'Unable to create room right now. Please check your connection and try again.';
+    }
+    
+    // Generic errors
+    return 'Something went wrong. Please try again.';
+  };
+
+  // Listen for socket errors related to room creation
+  useEffect(() => {
+    const handleError = (errorMessage: string) => {
+      // Only show toast for errors that might be related to room creation
+      // We'll check if we're on the CREATE tab or if the error seems room-creation related
+      if (activeTab === 'CREATE' || 
+          errorMessage.toLowerCase().includes('create') || 
+          errorMessage.toLowerCase().includes('room') ||
+          errorMessage.toLowerCase().includes('rate limit') ||
+          errorMessage.toLowerCase().includes('too quickly')) {
+        const friendlyMessage = getUserFriendlyErrorMessage(errorMessage);
+        setErrorToast({ show: true, message: friendlyMessage });
+      }
+    };
+
+    socket.on(SocketEvents.ERROR, handleError);
+
+    return () => {
+      socket.off(SocketEvents.ERROR, handleError);
+    };
+  }, [activeTab]);
+
   const createRoom = () => {
     socket.emit(SocketEvents.CREATE_ROOM, { 
       name: playerName, 
@@ -239,6 +281,14 @@ export const Lobby: React.FC<LobbyProps> = ({
   return (
     <BackgroundWrapper theme={backgroundTheme}>
       <div className="relative z-20 w-full max-w-5xl flex flex-col items-center">
+        
+        {errorToast.show && (
+          <Toast
+            message={errorToast.message}
+            type="error"
+            onClose={() => setErrorToast({ show: false, message: '' })}
+          />
+        )}
         
         {error && (
           <div className="fixed top-12 left-1/2 -translate-x-1/2 z-[100] px-8 py-4 bg-rose-600/90 backdrop-blur-xl border-2 border-rose-400 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-2xl animate-in slide-in-from-top-4 duration-200">

@@ -33,6 +33,10 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   request_sync: {
     maxRequests: 5,      // 5 sync requests
     windowMs: 10000      // per 10 seconds
+  },
+  create_room: {
+    maxRequests: 5,      // 5 room creations
+    windowMs: 30000      // per 30 seconds
   }
 };
 

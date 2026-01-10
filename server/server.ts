@@ -870,6 +870,13 @@ io.on('connection', (socket: Socket) => {
   socket.emit('public_rooms_list', getPublicRoomsList());
 
   socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName, turnTimer, selected_sleeve_id }) => {
+    // Rate limit check
+    const rateLimitResult = checkRateLimit(socket.id, 'create_room');
+    if (!rateLimitResult.allowed) {
+      socket.emit('error', 'You\'re creating rooms too quickly. Please wait a moment and try again.');
+      return;
+    }
+    
     // SECURITY: Sanitize and validate input
     const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
     const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
@@ -880,23 +887,28 @@ io.on('connection', (socket: Socket) => {
     // Validate and sanitize sleeve_id
     const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
-    const roomId = generateRoomCode();
-    const pId = playerId || uuidv4();
-    rooms[roomId] = {
-      id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
-      isPublic: isPublic === true,
-      roomName: sanitizedRoomName,
-      turnDuration: validTurnTimer * 1000,
-      players: [{ id: pId, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null, selected_sleeve_id: sanitizedSleeveId }],
-      playerSpeedData: {},
-      playerMutedByAfk: new Set(),
-      quickMoveRewardGiven: new Set()
-    };
-    mapIdentity(socket, roomId, pId);
-    socket.join(roomId);
-    // Don't auto-fill CPUs - let users manually add them if needed
-    broadcastState(roomId);
-    broadcastPublicLobbies();
+    try {
+      const roomId = generateRoomCode();
+      const pId = playerId || uuidv4();
+      rooms[roomId] = {
+        id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
+        isPublic: isPublic === true,
+        roomName: sanitizedRoomName,
+        turnDuration: validTurnTimer * 1000,
+        players: [{ id: pId, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null, selected_sleeve_id: sanitizedSleeveId }],
+        playerSpeedData: {},
+        playerMutedByAfk: new Set(),
+        quickMoveRewardGiven: new Set()
+      };
+      mapIdentity(socket, roomId, pId);
+      socket.join(roomId);
+      // Don't auto-fill CPUs - let users manually add them if needed
+      broadcastState(roomId);
+      broadcastPublicLobbies();
+    } catch (error) {
+      console.error('Error creating room:', error);
+      socket.emit('error', 'Unable to create room. Please try again.');
+    }
   });
 
   socket.on('join_room', ({ roomId, name, avatar, playerId, selected_sleeve_id }) => {
