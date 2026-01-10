@@ -1,5 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
+// SESSION PURGE: Version check for auto-clearing stale localStorage
+// When app version changes, clear all localStorage and sign out to prevent stale data issues
+// This fixes stale localStorage issues in regular browsers (works in incognito, fails in regular)
+export const APP_VERSION = '1.0.1';
+const APP_VERSION_KEY = 'app_version';
+
 // Safely access environment variables
 const getEnv = (key: string): string | undefined => {
   try {
@@ -18,6 +24,63 @@ const getEnv = (key: string): string | undefined => {
 export const supabaseUrl = getEnv('VITE_SUPABASE_URL') || "https://spaxxexmyiczdrbikdjp.supabase.co";
 export const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 
+// SESSION PURGE: Auto-clear localStorage if version doesn't match
+// This runs BEFORE Supabase client is created to ensure clean state
+const performVersionCheck = () => {
+  if (typeof window === 'undefined') return; // Skip on server-side
+  
+  try {
+    const storedVersion = localStorage.getItem(APP_VERSION_KEY);
+    
+    // VERSION CHECK: If version doesn't match, clear localStorage and sign out
+    if (storedVersion && storedVersion !== APP_VERSION) {
+      console.warn('═══════════════════════════════════════════════════════');
+      console.warn(`🔄 SESSION PURGE: App version changed from ${storedVersion} to ${APP_VERSION}`);
+      console.warn('🔄 Clearing stale localStorage and signing out...');
+      console.warn('═══════════════════════════════════════════════════════');
+      
+      // AUTO-CLEAR: Clear all localStorage first (includes auth tokens)
+      localStorage.clear();
+      console.log('✅ localStorage cleared');
+      
+      // Set new version after clearing (this will be the only item in localStorage after reload)
+      localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
+      console.log(`✅ App version set to ${APP_VERSION}`);
+      
+      // Reload page to ensure clean state (Supabase client will be created fresh)
+      console.log('🔄 Reloading page to apply clean state...');
+      window.location.reload();
+      return true; // Indicates reload will happen
+    }
+    
+    // Version matches - no action needed
+    if (storedVersion === APP_VERSION) {
+      console.log(`✅ SESSION PURGE: App version check passed: ${APP_VERSION}`);
+    } else {
+      // First run - set version (no storedVersion means first time)
+      localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
+      console.log(`✅ SESSION PURGE: App version initialized: ${APP_VERSION}`);
+    }
+    return false; // No reload needed
+  } catch (err) {
+    console.error('SESSION PURGE: Error performing version check:', err);
+    // Don't block app if version check fails - continue with normal initialization
+    return false;
+  }
+};
+
+// SESSION PURGE: Perform version check IMMEDIATELY when module loads (synchronously)
+// This runs BEFORE Supabase client is created to ensure clean state
+// If version mismatch, page will reload before client is created
+let shouldSkipClientCreation = false;
+if (typeof window !== 'undefined') {
+  const willReload = performVersionCheck();
+  // If version check triggers reload, don't create client (reload will happen)
+  // Note: window.location.reload() in performVersionCheck will stop execution
+  // But we set this flag as a safeguard
+  shouldSkipClientCreation = willReload;
+}
+
 // SINGLETON SUPABASE CLIENT: Created once, outside React component tree
 // This ensures the client is never re-initialized when the app re-renders
 // Prevents AbortErrors from component re-renders breaking the auth state
@@ -30,12 +93,18 @@ const isDevelopment = typeof window !== 'undefined' && (
 
 let supabaseClient: ReturnType<typeof createClient> | any;
 
-if (isDevelopment && typeof window !== 'undefined' && (window as any).__SUPABASE_CLIENT__) {
+// SESSION PURGE: Only create client if version check passed (no reload needed)
+if (shouldSkipClientCreation) {
+  // Version check triggered reload - create minimal mock client
+  // Page will reload and this module will run again with correct version
+  console.log('⏸️ SESSION PURGE: Skipping client creation - page will reload');
+  supabaseClient = {} as any;
+} else if (isDevelopment && typeof window !== 'undefined' && (window as any).__SUPABASE_CLIENT__) {
   // Use existing client from window (Strict Mode remount)
   console.log('✅ Reusing existing Supabase client from window (Strict Mode guard)');
   supabaseClient = (window as any).__SUPABASE_CLIENT__;
 } else {
-  // Create new client
+  // Create new client (version check passed)
   supabaseClient = (supabaseUrl && supabaseAnonKey)
     ? createClient(supabaseUrl, supabaseAnonKey, {
         auth: {

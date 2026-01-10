@@ -239,6 +239,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Redirecting state: Track when OAuth redirect is in progress
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  // ROBUST AUTH: Ensure onAuthStateChange listener is the ABSOLUTE FIRST thing that runs
+  // This must run before any components try to fetch data to ensure session is initialized
   useEffect(() => {
     // Guard: Only set up listener once
     if (listenerSetupRef.current) {
@@ -246,7 +248,118 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     
     listenerSetupRef.current = true;
-    console.log('SessionProvider: Setting up auth state change listener...');
+    console.log('SessionProvider: 🔐 Setting up auth state change listener (ABSOLUTE FIRST)...');
+    
+    // ROBUST AUTH: Set up onAuthStateChange listener IMMEDIATELY - this must run FIRST
+    // This ensures session is initialized before any components try to fetch profile or other data
+    // Set up listener BEFORE any other initialization logic
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: string, currentSession: any) => {
+        console.log('SessionProvider: Auth event received:', event, currentSession ? `User: ${currentSession.user?.id}` : 'No session');
+        
+        // CRUCIAL: If SIGNED_IN or TOKEN_REFRESHED, set has_active_session flag
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (currentSession?.user) {
+            console.log('SessionProvider: ✅ Setting has_active_session flag in localStorage');
+            localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+          }
+          // Clear redirecting state when sign-in completes
+          setIsRedirecting(false);
+        }
+        
+        // CRUCIAL: If SIGNED_OUT, clear the flag
+        if (event === 'SIGNED_OUT') {
+          console.log('SessionProvider: 🧹 Clearing has_active_session flag');
+          localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
+        }
+            
+        // FIX GHOST SESSION: Detect Ghost Sessions - if session exists but user.id is missing
+        // If detected, force localStorage.removeItem('sb-spaxxexmyiczdrbikdjp-auth-token') and reload
+        const userId = currentSession?.user?.id || '';
+        const accessToken = currentSession?.access_token || '';
+        
+        if (currentSession && (!userId || userId === '')) {
+          console.error('═══════════════════════════════════════════════════════');
+          console.error('🔴🔴🔴 GHOST SESSION in onAuthStateChange: user.id is empty! 🔴🔴🔴');
+          console.error('Event:', event);
+          console.error('Session:', currentSession);
+          console.error('User object:', currentSession?.user);
+          console.error('Access token exists:', !!accessToken);
+          console.error('═══════════════════════════════════════════════════════');
+          
+          // FIX GHOST SESSION: Stop the Abort on Repair - move repair outside mount cycle
+          // Use setTimeout to move repair to next event loop, outside React lifecycle
+          setTimeout(async () => {
+            let repaired = false;
+            
+            // JWT Fallback Extraction: Try to decode JWT to get user ID
+            if (accessToken) {
+              const jwtData = decodeJWT(accessToken);
+              if (jwtData?.sub) {
+                console.log('SessionProvider: ✅ Extracted user ID from JWT in listener:', jwtData.sub);
+                currentSession.user = { ...currentSession.user, id: jwtData.sub };
+                repaired = true;
+                // Update state with repaired session
+                setSession(prev => currentSession);
+                setUser(prev => currentSession.user);
+              }
+            }
+            
+            // Direct User Fetch: Try direct API fetch as last resort
+            if (!repaired && accessToken) {
+              console.log('SessionProvider: Attempting direct API fetch in listener...');
+              const directUser = await fetchUserDirectly(accessToken);
+              if (directUser?.id) {
+                console.log('SessionProvider: ✅ Direct API fetch successful in listener');
+                currentSession.user = { ...currentSession.user, id: directUser.id };
+                repaired = true;
+                // Update state with repaired session
+                setSession(prev => currentSession);
+                setUser(prev => currentSession.user);
+              }
+            }
+            
+            // FIX GHOST SESSION: If repair failed, force-clear the ghost session and reload
+            if (!repaired) {
+              console.error('SessionProvider: ❌ All repair attempts failed in listener, force-clearing ghost session and reloading');
+              
+              // FIX GHOST SESSION: Remove specific auth token from localStorage
+              const authTokenKey = 'sb-spaxxexmyiczdrbikdjp-auth-token';
+              localStorage.removeItem(authTokenKey);
+              console.log(`SessionProvider: ✅ Removed ${authTokenKey} from localStorage`);
+              
+              // Also clear all Supabase keys as fallback
+              await forceClearGhostSession();
+              
+              // Clear state
+              setSession(null);
+              setUser(null);
+              
+              // Reload page to ensure clean state
+              console.log('SessionProvider: 🔄 Reloading page to fix Ghost Session...');
+              window.location.reload();
+              return; // Exit early - page will reload
+            }
+          }, 0); // Move to next event loop
+          
+          return; // Don't set invalid session
+        }
+        
+        // Update session and user state
+        // Synchronous State Update: Use functional update pattern
+        setSession(prev => currentSession);
+        setUser(prev => currentSession?.user ?? null);
+        
+        // Set loading to false once we have a definitive answer
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+          setLoading(false);
+          isProcessingRef.current = false; // Release lock
+        }
+      }
+    );
+    
+    subscriptionRef.current = subscription;
+    console.log('SessionProvider: ✅ Auth listener set up successfully (ABSOLUTE FIRST)');
     
     // Ready Protocol: Wrap entire initialization in try/finally to ensure isInitialized is set
     const initializeAuth = async () => {
@@ -531,15 +644,29 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   }
                 }
                 
-                // If repair failed, force-clear the ghost session
+                // FIX GHOST SESSION: If repair failed, force-clear the ghost session and reload
                 if (!repaired) {
-                  console.error('SessionProvider: ❌ All repair attempts failed, force-clearing ghost session');
+                  console.error('SessionProvider: ❌ All repair attempts failed in getSession(), force-clearing ghost session and reloading');
+                  
+                  // FIX GHOST SESSION: Remove specific auth token from localStorage
+                  const authTokenKey = 'sb-spaxxexmyiczdrbikdjp-auth-token';
+                  localStorage.removeItem(authTokenKey);
+                  console.log(`SessionProvider: ✅ Removed ${authTokenKey} from localStorage`);
+                  
+                  // Also clear all Supabase keys as fallback
                   await forceClearGhostSession();
-                  // Don't set session - let user sign in fresh
+                  
+                  // Clear state
+                  setSession(null);
+                  setUser(null);
+                  setLoading(false);
                   isProcessingRef.current = false;
                   setIsProcessing(false);
-                  window.history.replaceState(null, '', window.location.pathname);
-                  return; // Exit early, don't set invalid session
+                  
+                  // Reload page to ensure clean state
+                  console.log('SessionProvider: 🔄 Reloading page to fix Ghost Session...');
+                  window.location.reload();
+                  return; // Exit early - page will reload
                 }
               }
               
@@ -621,101 +748,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (!isProcessingRef.current) {
           await checkHashForTokens();
         }
-
-    // Set up onAuthStateChange listener with retry logic
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, currentSession: any) => {
-        console.log('SessionProvider: Auth event received:', event, currentSession ? `User: ${currentSession.user?.id}` : 'No session');
-        
-        // CRUCIAL: If SIGNED_IN or TOKEN_REFRESHED, set has_active_session flag
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          if (currentSession?.user) {
-            console.log('SessionProvider: ✅ Setting has_active_session flag in localStorage');
-            localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
-          }
-          // Clear redirecting state when sign-in completes
-          setIsRedirecting(false);
-        }
-        
-        // CRUCIAL: If SIGNED_OUT, clear the flag
-        if (event === 'SIGNED_OUT') {
-          console.log('SessionProvider: 🧹 Clearing has_active_session flag');
-          localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
-        }
-            
-            // Detect Ghost Sessions: Check if user.id is empty before setting state
-            const userId = currentSession?.user?.id || '';
-            const accessToken = currentSession?.access_token || '';
-            
-            if (currentSession && (!userId || userId === '')) {
-              console.error('═══════════════════════════════════════════════════════');
-              console.error('🔴🔴🔴 GHOST SESSION in onAuthStateChange: user.id is empty! 🔴🔴🔴');
-              console.error('Event:', event);
-              console.error('Session:', currentSession);
-              console.error('User object:', currentSession?.user);
-              console.error('Access token exists:', !!accessToken);
-              console.error('═══════════════════════════════════════════════════════');
-              
-              // Stop the Abort on Repair: Move repair outside mount cycle
-              // Use setTimeout to move repair to next event loop, outside React lifecycle
-              setTimeout(async () => {
-                let repaired = false;
-                
-                // JWT Fallback Extraction: Try to decode JWT to get user ID
-                if (accessToken) {
-                  const jwtData = decodeJWT(accessToken);
-                  if (jwtData?.sub) {
-                    console.log('SessionProvider: ✅ Extracted user ID from JWT in listener:', jwtData.sub);
-                    currentSession.user = { ...currentSession.user, id: jwtData.sub };
-                    repaired = true;
-                    // Update state with repaired session
-                    setSession(prev => currentSession);
-                    setUser(prev => currentSession.user);
-                  }
-                }
-                
-                // Direct User Fetch: Try direct API fetch as last resort
-                if (!repaired && accessToken) {
-                  console.log('SessionProvider: Attempting direct API fetch in listener...');
-                  const directUser = await fetchUserDirectly(accessToken);
-                  if (directUser?.id) {
-                    console.log('SessionProvider: ✅ Direct API fetch successful in listener');
-                    currentSession.user = { ...currentSession.user, id: directUser.id };
-                    repaired = true;
-                    // Update state with repaired session
-                    setSession(prev => currentSession);
-                    setUser(prev => currentSession.user);
-                  }
-                }
-                
-                // If repair failed, force-clear the ghost session
-                if (!repaired) {
-                  console.error('SessionProvider: ❌ All repair attempts failed in listener, force-clearing ghost session');
-                  await forceClearGhostSession();
-                  // Clear state
-                  setSession(null);
-                  setUser(null);
-                }
-              }, 0); // Move to next event loop
-              
-              return; // Don't set invalid session
-        }
-        
-        // Update session and user state
-            // Synchronous State Update: Use functional update pattern
-            setSession(prev => currentSession);
-            setUser(prev => currentSession?.user ?? null);
-        
-        // Set loading to false once we have a definitive answer
-        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-          setLoading(false);
-              isProcessingRef.current = false; // Release lock
-        }
-      }
-    );
-    
-    subscriptionRef.current = subscription;
-    console.log('SessionProvider: ✅ Auth listener set up successfully');
 
     // Initial session check with AbortError bypass
     const checkInitialSession = async () => {
