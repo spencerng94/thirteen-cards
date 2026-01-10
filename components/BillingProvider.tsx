@@ -88,6 +88,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
   const isNative = Capacitor.isNativePlatform();
 
   // Hard Lock: Prevent multiple simultaneous gem balance fetches
+  const isFetchingRef = useRef(false); // Single ref to prevent ANY concurrent fetch
   const isFetchingGemBalanceRef = useRef(false);
   const gemBalanceFetchedRef = useRef(false);
   const lastUserIdRef = useRef<string | null>(null);
@@ -99,6 +100,12 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     const userId = session?.user?.id;
     if (!userId || userId === 'pending') {
       setGemBalance(null);
+      return;
+    }
+
+    // CRITICAL: Check if ANY fetch is in progress - prevent concurrent requests
+    if (isFetchingRef.current) {
+      console.log('BillingProvider: Fetch already in progress, skipping to prevent concurrent requests');
       return;
     }
 
@@ -115,6 +122,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     }
 
     // HARD LOCK: Set lock immediately to prevent other renders from triggering this
+    isFetchingRef.current = true;
     isFetchingGemBalanceRef.current = true;
     lastUserIdRef.current = userId;
 
@@ -149,6 +157,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     } finally {
       // UNLOCK: Always release the lock in finally block
       isFetchingGemBalanceRef.current = false;
+      isFetchingRef.current = false;
     }
   }, [session?.user?.id, onGemsUpdate]); // Don't include gemBalance - check via ref instead
 

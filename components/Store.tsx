@@ -509,10 +509,14 @@ const ComboHintIcon = () => (
 
 export const CurrencyIcon: React.FC<{ type: 'GOLD' | 'GEMS'; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'; className?: string }> = ({ type, size = 'sm', className = "" }) => {
   const dim = size === 'xs' ? 'w-4 h-4' : size === 'sm' ? 'w-5 h-5' : size === 'lg' ? 'w-12 h-12' : size === 'xl' ? 'w-16 h-16' : 'w-8 h-8';
+  
+  // Safeguard: Ensure type is valid
+  const iconType = (type === 'GOLD' || type === 'GEMS') ? type : 'GOLD';
+  
   return (
     <div className={`relative ${dim} flex items-center justify-center shrink-0 ${className}`}>
       <div className="w-full h-full relative z-10 transition-transform duration-300 hover:scale-125">
-        {type === 'GOLD' ? <CoinIconSVG /> : <GemIconSVG />}
+        {iconType === 'GOLD' ? <CoinIconSVG /> : <GemIconSVG />}
       </div>
     </div>
   );

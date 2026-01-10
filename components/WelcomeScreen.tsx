@@ -373,6 +373,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   // Hard Lock: Prevent multiple simultaneous fetches during re-renders
   // Session-based lock: Track if we've fetched in this session (persists across remounts)
   const SESSION_FETCH_KEY = 'thirteen_assets_fetched';
+  const isFetchingRef = useRef(false); // Single ref to prevent ANY concurrent fetch
   const isFetchingEmotesRef = useRef(false);
   const isFetchingFinishersRef = useRef(false);
   const emotesFetchedRef = useRef(false);
@@ -409,9 +410,24 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       return;
     }
     
+    // CRITICAL: Check if ANY fetch is in progress - prevent concurrent requests
+    if (isFetchingRef.current) {
+      console.log('WelcomeScreen: Fetch already in progress, skipping to prevent concurrent requests');
+      return;
+    }
+    
     // Add delay to let React fully stabilize before fetching
     // This prevents AbortErrors from rapid re-renders during initialization
     const timeoutId = setTimeout(() => {
+      // Double-check after delay - if already fetching, skip
+      if (isFetchingRef.current) {
+        console.log('WelcomeScreen: Fetch already started during delay, skipping');
+        return;
+      }
+      
+      // Set the global isFetching flag to prevent concurrent requests
+      isFetchingRef.current = true;
+      
       console.log('WelcomeScreen: Profile ID confirmed, fetching global assets (emotes/finishers)...');
       
       // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
@@ -442,6 +458,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           })
           .finally(() => {
             isFetchingEmotesRef.current = false;
+            // Only clear global flag when BOTH fetches are done
+            if (!isFetchingFinishersRef.current) {
+              isFetchingRef.current = false;
+            }
           });
       }
       
@@ -476,6 +496,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           })
           .finally(() => {
             isFetchingFinishersRef.current = false;
+            // Only clear global flag when BOTH fetches are done
+            if (!isFetchingEmotesRef.current) {
+              isFetchingRef.current = false;
+            }
           });
       }
     }, 500); // 500ms delay to let React stabilize
