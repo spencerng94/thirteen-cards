@@ -3,17 +3,20 @@ import { parseUsername } from '../utils/username';
 
 interface CopyUsernameProps {
   username: string;
+  discriminator?: string; // Optional: 4-digit discriminator (if separate from username)
   className?: string;
   showCopyButton?: boolean;
 }
 
 export const CopyUsername: React.FC<CopyUsernameProps> = ({ 
   username, 
+  discriminator,
   className = '',
   showCopyButton = true 
 }) => {
   const [copied, setCopied] = useState(false);
-  const parsed = parseUsername(username);
+  // Parse username - supports both combined "Name#1234" and separate username+discriminator
+  const parsed = parseUsername(username, discriminator);
 
   const handleCopy = async () => {
     try {

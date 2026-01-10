@@ -3,6 +3,8 @@ import { ITEM_REGISTRY } from '../constants/ItemRegistry';
 import { getWeeklyChallenges } from '../constants/ChallengePool';
 // Import singleton client from src/lib/supabase.ts
 import { supabase } from '../src/lib/supabase';
+// Import discriminator generation utility
+import { generateDiscriminator } from '../utils/username';
 
 // Safely access environment variables
 const getEnv = (key: string): string | undefined => {
@@ -359,16 +361,16 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
   
   // Bulletproof Rule: No AbortController for startup requests
   // These requests must finish no matter what - component re-renders should not cancel them
-  try {
-    const { data, error } = await supabase
-      .from('emotes')
-      .select('*')
-      .order('name', { ascending: true });
-    
-    if (error) {
-      console.error('Error fetching emotes:', error);
-      return [];
-    }
+    try {
+      const { data, error } = await supabase
+        .from('emotes')
+        .select('*')
+        .order('name', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching emotes:', error);
+        return [];
+      }
     
     // Premium emote pricing - override database prices for specific emotes
     // Match by exact name (case-sensitive) or by trigger_code for flexibility
@@ -425,63 +427,73 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
       };
     });
     
-    console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
-      name: e.name, 
-      trigger: e.trigger_code, 
-      file_path: e.file_path,
-      price: e.price 
-    })));
-    
-    return emotes;
-  } catch (e: any) {
-    console.error('Exception fetching emotes:', e);
-    return [];
-  }
+      console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
+        name: e.name, 
+        trigger: e.trigger_code, 
+        file_path: e.file_path,
+        price: e.price 
+      })));
+      
+      return emotes;
+    } catch (e: any) {
+      console.error('Exception fetching emotes:', e);
+      return [];
+    }
 };
 
 const EVENT_TARGETS = { daily_play: 1, daily_win: 1, weekly_bombs: 3, weekly_play: 13, weekly_win: 13 };
 
 /**
- * Generate a unique username with discriminator (Username#0000 format)
- * 
- * Note: Currently stores as a single string "DisplayName#0000" in the username column.
- * The system is designed to support separate username and discriminator columns in the future.
- * Use parseUsername() utility to extract display name and discriminator from the stored format.
+ * Generate a unique username with discriminator
+ * Database now uses separate username and discriminator columns
+ * Returns object with username and discriminator for database insertion
  */
-const generateUniqueUsername = async (baseUsername: string = 'AGENT'): Promise<string> => {
+interface UsernameWithDiscriminator {
+  username: string; // Display name only (without discriminator)
+  discriminator: string; // 4-digit string (1000-9999)
+}
+
+const generateUniqueUsername = async (baseUsername: string = 'AGENT'): Promise<UsernameWithDiscriminator> => {
+  const cleanUsername = baseUsername.trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
+  
   if (!supabaseAnonKey) {
-    // Fallback for offline mode - generate random discriminator
-    const discriminator = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    return `${baseUsername.toUpperCase()}#${discriminator}`;
+    // Fallback for offline mode - generate random discriminator (1000-9999)
+    const discriminator = generateDiscriminator();
+    return { username: cleanUsername, discriminator };
   }
 
-  // Try up to 100 times to find a unique discriminator
+  // Try up to 100 times to find a unique discriminator for this username
   for (let attempt = 0; attempt < 100; attempt++) {
-    const discriminator = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const candidate = `${baseUsername.toUpperCase()}#${discriminator}`;
+    const discriminator = generateDiscriminator(); // 1000-9999 range
     
-    // Check if this username already exists
+    // Check if this username+discriminator combination already exists
     const { data, error } = await supabase
       .from('profiles')
       .select('id')
-      .eq('username', candidate)
+      .eq('username', cleanUsername)
+      .eq('discriminator', discriminator)
       .maybeSingle();
     
     if (error || !data) {
-      // Username is available
-      return candidate;
+      // Username+discriminator combination is available
+      return { username: cleanUsername, discriminator };
     }
   }
   
   // Fallback if all attempts fail (should be extremely rare)
-  const timestamp = Date.now().toString().slice(-4);
-  return `${baseUsername.toUpperCase()}#${timestamp}`;
+  // Use timestamp-based discriminator (last 4 digits, ensuring 1000-9999 range)
+  const timestampDiscriminator = (1000 + (Date.now() % 9000)).toString();
+  return { username: cleanUsername, discriminator: timestampDiscriminator };
 };
 
 const getDefaultProfile = async (id: string, avatar: string = ':cool:', baseUsername: string = 'AGENT'): Promise<UserProfile> => {
-  const username = await generateUniqueUsername(baseUsername);
+  // Generate unique username and discriminator (database uses separate columns)
+  const { username, discriminator } = await generateUniqueUsername(baseUsername);
   return {
-    id, username, wins: 0, games_played: 0, currency: 500, coins: 500, gems: 0, xp: 0, level: 1,
+    id, 
+    username, // Display name only
+    discriminator, // 4-digit discriminator (1000-9999)
+    wins: 0, games_played: 0, currency: 500, coins: 500, gems: 0, xp: 0, level: 1,
     unlocked_sleeves: ['RED', 'BLUE'], unlocked_avatars: [...DEFAULT_AVATARS.filter(a => a !== ':smile:')], unlocked_boards: ['EMERALD'],
     unlocked_phrases: getDefaultChatPresetIds(), // Initialize with default quick chats
     avatar_url: avatar, sfx_enabled: true, turbo_enabled: true, sleeve_effects_enabled: true,
@@ -501,11 +513,11 @@ export const fetchGuestProfile = (): UserProfile => {
   const local = localStorage.getItem(GUEST_STORAGE_KEY);
   const data = local ? JSON.parse(local) : null;
   if (!data) {
-    // For guest, use synchronous fallback
-    const discriminator = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const username = `GUEST#${discriminator}`;
+    // For guest, use synchronous fallback - generate random discriminator (1000-9999)
+    const discriminator = generateDiscriminator();
+    const username = 'GUEST'; // Display name only, discriminator is separate
     return {
-      id: 'guest', username, wins: 0, games_played: 0, currency: 500, coins: 500, gems: 0, xp: 0, level: 1,
+      id: 'guest', username, discriminator, wins: 0, games_played: 0, currency: 500, coins: 500, gems: 0, xp: 0, level: 1,
       unlocked_sleeves: ['RED', 'BLUE'], unlocked_avatars: [...DEFAULT_AVATARS.filter(a => a !== ':smile:')], unlocked_boards: ['EMERALD'],
       unlocked_phrases: getDefaultChatPresetIds(), // Initialize with default quick chats
       avatar_url: ':cool:', sfx_enabled: true, turbo_enabled: true, sleeve_effects_enabled: true,
@@ -522,6 +534,24 @@ export const fetchGuestProfile = (): UserProfile => {
   
   // Ensure inventory exists and has default items for guest users (only if inventory is empty)
   const profile = { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
+  
+  // Ensure discriminator exists for guest profiles (generate if missing)
+  if (!profile.discriminator || profile.discriminator === '' || !/^\d{4}$/.test(profile.discriminator)) {
+    profile.discriminator = generateDiscriminator();
+    // Save updated profile with discriminator
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(profile));
+  }
+  
+  // Handle legacy guest profiles with username in "GUEST#1234" format
+  if (profile.username && profile.username.includes('#') && profile.username.startsWith('GUEST#')) {
+    const parts = profile.username.split('#');
+    if (parts.length === 2 && /^\d{4}$/.test(parts[1])) {
+      profile.username = 'GUEST';
+      profile.discriminator = parts[1];
+      localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(profile));
+    }
+  }
+  
   if (!profile.inventory || !profile.inventory.items || Object.keys(profile.inventory.items).length === 0) {
     profile.inventory = { items: { XP_2X_10M: 1, GOLD_2X_10M: 1 }, active_boosters: profile.inventory?.active_boosters || {} };
   }
@@ -689,9 +719,9 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   try {
     // Select all columns - database uses 'username' (single source of truth) and 'gems' (not gem_count)
     // This ensures we use the correct columns and prevents "Render Storm" from column mismatches
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-    
-    if (error) {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      
+      if (error) {
       // Check if it's an AbortError - don't retry, just throw so caller can handle
       const isAbortError = error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted');
       
@@ -700,26 +730,26 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
         const abortError = new Error('PROFILE_FETCH_ABORTED');
         (abortError as any).isAbortError = true;
         throw abortError;
-      }
-      
-      console.error('❌ fetchProfile: Error fetching existing profile:', {
-        userId,
-        errorCode: error.code,
-        errorMessage: error.message,
-        errorDetails: error.details,
+    }
+    
+    console.error('❌ fetchProfile: Error fetching existing profile:', {
+      userId,
+      errorCode: error.code,
+      errorMessage: error.message,
+      errorDetails: error.details,
         errorHint: error.hint,
         isAbortError
-      });
-      
-      // If it's a permission error (RLS blocking), log it but don't try to create a new profile
-      if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
-        console.error('🔴 fetchProfile: RLS policy blocking SELECT for existing user!');
-        console.error('This means the RLS policy "Users can view their own profile" is not working correctly.');
-        console.error('The user should be able to SELECT their own profile. Check RLS policies in Supabase.');
-        // Return null so the caller can handle it, but don't try to create a new profile
-        return null;
-      }
-      
+    });
+    
+    // If it's a permission error (RLS blocking), log it but don't try to create a new profile
+    if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+      console.error('🔴 fetchProfile: RLS policy blocking SELECT for existing user!');
+      console.error('This means the RLS policy "Users can view their own profile" is not working correctly.');
+      console.error('The user should be able to SELECT their own profile. Check RLS policies in Supabase.');
+      // Return null so the caller can handle it, but don't try to create a new profile
+      return null;
+    }
+    
       // For AbortError after max retries, throw special error so caller can handle gracefully
       if (isAbortError) {
         const abortError = new Error('PROFILE_FETCH_ABORTED');
@@ -746,118 +776,163 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     
     if (data) {
       console.log(`✅ fetchProfile: Profile found for UUID: ${userId}`);
-      // Ensure we use 'gems' column (not 'gem_count') and 'username' (single source of truth)
-      // The database column is 'username' (primary name field) and 'gems' (not 'gem_count')
-      const profile = { 
-        ...data, 
-        gems: data.gems ?? 0, // Use 'gems' column, not 'gem_count'
-        username: data.username, // Use 'username' column (single source of truth)
-        turn_timer_setting: data.turn_timer_setting ?? 0 
-      } as UserProfile;
-      // Normalize level for legacy users: ensure level matches calculated level based on XP
-      const calculatedLevel = calculateLevel(profile.xp || 0);
-      if (profile.level !== calculatedLevel) {
-        // Update level in database if it's out of sync (for legacy users)
-        // Only update if the difference is significant to avoid unnecessary writes
-        profile.level = calculatedLevel;
-        // Silently update in background (don't await to avoid blocking)
-        updateProfileSettings(userId, { level: calculatedLevel }).catch(err => 
-          console.warn('Failed to sync legacy user level:', err)
+      // Ensure we use 'gems' column (not 'gem_count') and 'username' + 'discriminator' (separate columns)
+      // Database uses separate 'username' and 'discriminator' columns
+      // Handle legacy profiles that might have username in "Name#0000" format
+      let username = data.username || '';
+      let discriminator = data.discriminator || '';
+      
+      // Check if username contains discriminator (legacy format: "Name#1234")
+      if (username && username.includes('#') && (!discriminator || discriminator === '')) {
+        const parts = username.split('#');
+        if (parts.length === 2 && /^\d{4}$/.test(parts[1])) {
+          // Legacy format detected - extract username and discriminator
+          username = parts[0];
+          discriminator = parts[1];
+          console.log(`fetchProfile: Extracted discriminator from legacy format: ${username}#${discriminator}`);
+          // Update profile in database to separate columns (async, don't await)
+          updateProfileSettings(userId, { username, discriminator }).catch(err => 
+            console.warn('Failed to update legacy username format:', err)
+          );
+        }
+      }
+      
+      // If discriminator is still missing or invalid, generate one
+      if (!discriminator || discriminator === '' || !/^\d{4}$/.test(discriminator)) {
+        discriminator = generateDiscriminator();
+        console.log(`fetchProfile: Generated discriminator for profile missing discriminator: ${discriminator}`);
+        // Update profile in database with new discriminator (async, don't await)
+        updateProfileSettings(userId, { discriminator }).catch(err => 
+          console.warn('Failed to update discriminator:', err)
         );
       }
       
-      // Ensure unlocked_phrases exists and includes default quick chats for legacy accounts
-      const defaultIds = getDefaultChatPresetIds();
-      // Normalize unlocked_phrases - handle null, undefined, or non-array values
-      const currentPhrases = (profile.unlocked_phrases && Array.isArray(profile.unlocked_phrases)) 
-        ? profile.unlocked_phrases 
-        : [];
-      
-      // Check if any default IDs are missing
-      const existingIds = new Set(currentPhrases);
-      const missingDefaults = defaultIds.filter(id => !existingIds.has(id));
-      
-      if (missingDefaults.length > 0 || currentPhrases.length === 0) {
-        // Add missing defaults or initialize if empty
-        const updatedPhrases = currentPhrases.length === 0 
-          ? defaultIds 
-          : [...currentPhrases, ...missingDefaults];
-        
-        // Set in profile immediately so user sees it right away
-        profile.unlocked_phrases = updatedPhrases;
-        
-        // Update database synchronously to ensure it's saved
-        try {
-          await updateProfileSettings(userId, { unlocked_phrases: updatedPhrases });
-          console.log(`Updated legacy account ${userId} with default quick chats`);
-        } catch (err) {
-          console.warn('Failed to update legacy user unlocked_phrases:', err);
-          // Profile already has the phrases set, so user can still use them
-        }
-      } else {
-        // Ensure profile has the phrases array set (in case it was null/undefined)
-        profile.unlocked_phrases = currentPhrases;
-      }
-      
-      return profile;
+      const profile = { 
+        ...data, 
+        gems: data.gems ?? 0, // Use 'gems' column, not 'gem_count'
+        username: username, // Display name only (without discriminator)
+        discriminator: discriminator, // 4-digit discriminator (1000-9999)
+        turn_timer_setting: data.turn_timer_setting ?? 0 
+      } as UserProfile;
+    // Normalize level for legacy users: ensure level matches calculated level based on XP
+    const calculatedLevel = calculateLevel(profile.xp || 0);
+    if (profile.level !== calculatedLevel) {
+      // Update level in database if it's out of sync (for legacy users)
+      // Only update if the difference is significant to avoid unnecessary writes
+      profile.level = calculatedLevel;
+      // Silently update in background (don't await to avoid blocking)
+      updateProfileSettings(userId, { level: calculatedLevel }).catch(err => 
+        console.warn('Failed to sync legacy user level:', err)
+      );
     }
+    
+    // Ensure unlocked_phrases exists and includes default quick chats for legacy accounts
+    const defaultIds = getDefaultChatPresetIds();
+    // Normalize unlocked_phrases - handle null, undefined, or non-array values
+    const currentPhrases = (profile.unlocked_phrases && Array.isArray(profile.unlocked_phrases)) 
+      ? profile.unlocked_phrases 
+      : [];
+    
+    // Check if any default IDs are missing
+    const existingIds = new Set(currentPhrases);
+    const missingDefaults = defaultIds.filter(id => !existingIds.has(id));
+    
+    if (missingDefaults.length > 0 || currentPhrases.length === 0) {
+      // Add missing defaults or initialize if empty
+      const updatedPhrases = currentPhrases.length === 0 
+        ? defaultIds 
+        : [...currentPhrases, ...missingDefaults];
+      
+      // Set in profile immediately so user sees it right away
+      profile.unlocked_phrases = updatedPhrases;
+      
+      // Update database synchronously to ensure it's saved
+      try {
+        await updateProfileSettings(userId, { unlocked_phrases: updatedPhrases });
+        console.log(`Updated legacy account ${userId} with default quick chats`);
+      } catch (err) {
+        console.warn('Failed to update legacy user unlocked_phrases:', err);
+        // Profile already has the phrases set, so user can still use them
+      }
+    } else {
+      // Ensure profile has the phrases array set (in case it was null/undefined)
+      profile.unlocked_phrases = currentPhrases;
+    }
+    
+    return profile;
+  }
     
     // No profile found (404) - maybeSingle() returns null data when no rows found
     // This is a new user, create profile
     console.log('🔵 fetchProfile: No profile found (404), creating new profile...');
     
+    // Get user email from auth session to save in profile
+    let userEmail: string | undefined;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      userEmail = user?.email || undefined;
+      if (userEmail) {
+        console.log('🔵 fetchProfile: Retrieved email from auth session:', userEmail);
+      } else {
+        console.warn('🔵 fetchProfile: No email found in auth session for user:', userId);
+      }
+    } catch (emailError) {
+      console.warn('🔵 fetchProfile: Error getting email from auth session:', emailError);
+      // Continue without email - it will be backfilled by migration
+    }
+  
     // New user - generate username with discriminator from Google metadata
     // baseUsername should come from Google OAuth metadata (full_name, name, or display_name)
     const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
     const defaultProfile = await getDefaultProfile(userId, currentAvatar, cleanBaseUsername);
-    // Save the new profile immediately for Google OAuth users
-    console.log('🔵 fetchProfile: Attempting to upsert new user profile:', {
-      userId,
-      username: defaultProfile.username,
-      hasInventory: !!defaultProfile.inventory,
-      hasEventStats: !!defaultProfile.event_stats,
-      profileKeys: Object.keys(defaultProfile)
-    });
+  // Save the new profile immediately for Google OAuth users
+  console.log('🔵 fetchProfile: Attempting to upsert new user profile:', {
+    userId,
+    username: defaultProfile.username,
+    hasInventory: !!defaultProfile.inventory,
+    hasEventStats: !!defaultProfile.event_stats,
+    profileKeys: Object.keys(defaultProfile)
+  });
+  
+  const { data: upsertData, error: upsertError } = await supabase.from('profiles').upsert(defaultProfile, {
+    onConflict: 'id'
+  });
+  
+  if (upsertError) {
+    // Log detailed error information
+    console.error('❌❌❌ ERROR saving new user profile ❌❌❌');
+    console.error('==========================================');
+    console.error('Error Code:', upsertError.code || 'N/A');
+    console.error('Error Message:', upsertError.message || 'N/A');
+    console.error('Error Details:', upsertError.details || 'N/A');
+    console.error('Error Hint:', upsertError.hint || 'N/A');
+    console.error('Full Error Object:', upsertError);
+    console.error('User ID:', userId);
+    console.error('Profile Username:', defaultProfile.username);
+    console.error('Profile Keys:', Object.keys(defaultProfile));
+    console.error('Profile Data (first 500 chars):', JSON.stringify(defaultProfile, null, 2).substring(0, 500));
+    console.error('==========================================');
     
-    const { data: upsertData, error: upsertError } = await supabase.from('profiles').upsert(defaultProfile, {
-      onConflict: 'id'
-    });
-    
-    if (upsertError) {
-      // Log detailed error information
-      console.error('❌❌❌ ERROR saving new user profile ❌❌❌');
-      console.error('==========================================');
-      console.error('Error Code:', upsertError.code || 'N/A');
-      console.error('Error Message:', upsertError.message || 'N/A');
-      console.error('Error Details:', upsertError.details || 'N/A');
-      console.error('Error Hint:', upsertError.hint || 'N/A');
-      console.error('Full Error Object:', upsertError);
-      console.error('User ID:', userId);
-      console.error('Profile Username:', defaultProfile.username);
-      console.error('Profile Keys:', Object.keys(defaultProfile));
-      console.error('Profile Data (first 500 chars):', JSON.stringify(defaultProfile, null, 2).substring(0, 500));
-      console.error('==========================================');
-      
-      // Provide more helpful error message
-      let errorMsg = `Database error saving new user: ${upsertError.message || 'Unknown error'}`;
-      if (upsertError.code === '42501') {
-        errorMsg += ' (Permission denied - RLS policy blocking insert. Run the fix_profile_rls_policies.sql migration!)';
-      } else if (upsertError.code === '23502') {
-        errorMsg += ' (Missing required column - check database schema)';
-      } else if (upsertError.code === '23505') {
-        errorMsg += ' (Unique constraint violation)';
-      } else if (upsertError.code) {
-        errorMsg += ` (Error code: ${upsertError.code})`;
-      }
-      
-      // Throw error so caller can handle it
-      const error = new Error(errorMsg);
-      (error as any).supabaseError = upsertError;
-      throw error;
+    // Provide more helpful error message
+    let errorMsg = `Database error saving new user: ${upsertError.message || 'Unknown error'}`;
+    if (upsertError.code === '42501') {
+      errorMsg += ' (Permission denied - RLS policy blocking insert. Run the fix_profile_rls_policies.sql migration!)';
+    } else if (upsertError.code === '23502') {
+      errorMsg += ' (Missing required column - check database schema)';
+    } else if (upsertError.code === '23505') {
+      errorMsg += ' (Unique constraint violation)';
+    } else if (upsertError.code) {
+      errorMsg += ` (Error code: ${upsertError.code})`;
     }
     
-    console.log('✅ Successfully saved new user profile');
-    return defaultProfile;
+    // Throw error so caller can handle it
+    const error = new Error(errorMsg);
+    (error as any).supabaseError = upsertError;
+    throw error;
+  }
+  
+  console.log('✅ Successfully saved new user profile');
+  return defaultProfile;
   } catch (e: any) {
     // Re-throw network errors, abort errors, and 404 errors so caller can handle them
     if ((e as any).isNetworkError || (e as any).isAbortError || (e as any).isNotFound) {
@@ -2006,36 +2081,36 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
   
   // Network Hardening: No AbortController for startup requests
   // These requests must finish no matter what - component re-renders should not cancel them
-  try {
+    try {
     console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey });
-    const { data, error } = await supabase
-      .from('finishers')
-      .select('*')
-      .order('price', { ascending: true });
+      const { data, error } = await supabase
+        .from('finishers')
+        .select('*')
+        .order('price', { ascending: true });
+      
+      if (error) {
+        console.error('❌ Error fetching finishers:', error);
+        console.error('Error details:', { 
+          message: error.message, 
+          code: error.code, 
+          details: error.details,
+          hint: error.hint 
+        });
+        return [];
+      }
     
-    if (error) {
-      console.error('❌ Error fetching finishers:', error);
-      console.error('Error details:', { 
-        message: error.message, 
-        code: error.code, 
-        details: error.details,
-        hint: error.hint 
-      });
+      if (!data || data.length === 0) {
+        console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
+        return [];
+      }
+      
+      console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
+      return (data || []) as Finisher[];
+    } catch (e: any) {
+      console.error('❌ Exception fetching finishers:', e);
+      console.error('Exception details:', { message: e?.message, stack: e?.stack });
       return [];
     }
-  
-    if (!data || data.length === 0) {
-      console.warn('⚠️ No finishers found in database. Make sure the finishers table has data.');
-      return [];
-    }
-    
-    console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
-    return (data || []) as Finisher[];
-  } catch (e: any) {
-    console.error('❌ Exception fetching finishers:', e);
-    console.error('Exception details:', { message: e?.message, stack: e?.stack });
-    return [];
-  }
 };
 
 export const buyFinisher = async (userId: string, finisherId: string): Promise<boolean> => {

@@ -50,6 +50,7 @@ AS $$
 DECLARE
   profile_exists BOOLEAN;
   generated_username TEXT;
+  user_email TEXT;
 BEGIN
   -- Check if profile already exists
   SELECT EXISTS(SELECT 1 FROM profiles WHERE id = user_id) INTO profile_exists;
@@ -74,11 +75,15 @@ BEGIN
     generated_username := username;
   END IF;
   
+  -- Get email from auth.users if available
+  SELECT email INTO user_email FROM auth.users WHERE id = user_id;
+  
   -- Insert the profile (SECURITY DEFINER bypasses RLS)
   INSERT INTO profiles (
     id,
     username,
     avatar_url,
+    email,
     wins,
     games_played,
     currency,
@@ -106,6 +111,7 @@ BEGIN
     user_id,
     generated_username,
     avatar_url,
+    user_email, -- email from auth.users
     0, -- wins
     0, -- games_played
     500, -- currency

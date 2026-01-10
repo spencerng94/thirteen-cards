@@ -522,7 +522,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             {profile && !isGuest && profile.username ? (
               <div className="flex items-center gap-2">
                 <CopyUsername 
-                  username={profile.username} 
+                  username={profile.username}
+                  discriminator={profile.discriminator}
                   className="[&>span]:text-base [&>span]:sm:text-lg [&>span]:font-bold [&>span]:drop-shadow-md" 
                 />
               </div>

@@ -26,6 +26,7 @@ import { dealCards, validateMove, findBestMove, getComboType, sortCards } from '
 import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
 import { recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState, getGuestProgress, migrateGuestData, clearGuestProgress, persistSupabaseAuthTokenBruteforce } from './services/supabase';
+import { formatUsername } from './utils/username';
 import { supabase, supabaseUrl, supabaseAnonKey } from './src/lib/supabase';
 import { useSession } from './components/SessionProvider';
 import { v4 as uuidv4 } from 'uuid';
@@ -619,8 +620,12 @@ const AppContent: React.FC = () => {
       if (data.username && (!playerName || playerName.includes('AGENT'))) setPlayerName(data.username);
       
       // Show welcome toast for new users (use actualIsNewUser if it was set, otherwise use isNewUser param)
+      // Format username with discriminator for display: "Name#1234"
       if ((actualIsNewUser || isNewUser) && data.username) {
-        setWelcomeUsername(data.username);
+        const formattedUsername = data.discriminator 
+          ? formatUsername(data.username, data.discriminator)
+          : data.username; // Fallback to username if discriminator missing
+        setWelcomeUsername(formattedUsername);
         setShowWelcomeToast(true);
       }
       

@@ -159,7 +159,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
               {profile && !isGuest && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-white/40 uppercase tracking-wide">Your ID:</span>
-                  <CopyUsername username={profile.username} className="text-sm" />
+                  <CopyUsername username={profile.username} discriminator={profile.discriminator} className="text-sm" />
                   <button
                     onClick={() => {
                       const shareUrl = `${window.location.origin}${window.location.pathname}?friend=${encodeURIComponent(profile.username || '')}`;
