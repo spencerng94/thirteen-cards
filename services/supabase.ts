@@ -687,7 +687,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   // Supabase uses AbortController internally, but we don't retry immediately
   // The component will retry on the next render when state is stable
   try {
-    // Select all columns - database uses 'username' (displayed as callsign) and 'gems' (not gem_count)
+    // Select all columns - database uses 'username' (single source of truth) and 'gems' (not gem_count)
     // This ensures we use the correct columns and prevents "Render Storm" from column mismatches
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     
@@ -746,12 +746,12 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     
     if (data) {
       console.log(`✅ fetchProfile: Profile found for UUID: ${userId}`);
-      // Ensure we use 'gems' column (not 'gem_count') and 'username' (displayed as callsign in UI)
-      // The database column is 'username' (aliased to 'callsign' for display) and 'gems' (not 'gem_count')
+      // Ensure we use 'gems' column (not 'gem_count') and 'username' (single source of truth)
+      // The database column is 'username' (primary name field) and 'gems' (not 'gem_count')
       const profile = { 
         ...data, 
         gems: data.gems ?? 0, // Use 'gems' column, not 'gem_count'
-        username: data.username, // Use 'username' column (displayed as callsign in UI)
+        username: data.username, // Use 'username' column (single source of truth)
         turn_timer_setting: data.turn_timer_setting ?? 0 
       } as UserProfile;
       // Normalize level for legacy users: ensure level matches calculated level based on XP

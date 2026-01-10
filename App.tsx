@@ -653,6 +653,14 @@ const AppContent: React.FC = () => {
       });
       isInitialDataLoaded.current = true; // Mark as loaded
       
+      // STATE VERIFICATION: Toggle loading state OFF immediately when profile is set
+      // This ensures 'Verifying session' loading screen disappears immediately
+      initialSyncCompleteRef.current = true;
+      loadingProfileInProgressRef.current = false;
+      setIsSyncingData(false); // Clear syncing state immediately
+      isInitialLoading.current = false; // Release network lock immediately
+      fetchInProgress.current = false; // Release circuit breaker immediately
+      
       // EULA Check: Show EULA modal if user hasn't accepted it yet
       // Only check for authenticated users (not guests)
       if (!isGuest && session?.user?.id && (data.eula_accepted === false || data.eula_accepted === undefined)) {
@@ -660,13 +668,6 @@ const AppContent: React.FC = () => {
         setShowEULAModal(true);
       }
     }
-    setTimeout(() => { 
-      initialSyncCompleteRef.current = true;
-      loadingProfileInProgressRef.current = false;
-      setIsSyncingData(false); // Ensure syncing state is cleared
-      isInitialLoading.current = false; // Release network lock
-      fetchInProgress.current = false; // Release circuit breaker
-    }, 800);
   }, [sessionUserId, playerAvatar, playerName, isGuest]); // Use memoized sessionUserId instead of full session object
 
   useEffect(() => {
@@ -1242,10 +1243,11 @@ const AppContent: React.FC = () => {
   }, [session?.user?.id]); // Only watch user ID, not computed values
   
   // In App.tsx Guard: Update render logic to check for isRedirecting flag
-  // Priority 1: Loading/Checking session or Redirecting
-  if (!isInitialized || isRedirecting) {
+  // STATE VERIFICATION: If profile is loaded, bypass loading screen immediately
+  // Priority 1: Loading/Checking session or Redirecting (unless profile is already loaded)
+  if ((!isInitialized || isRedirecting) && !profile) {
     const message = isRedirecting ? "Connecting to provider..." : "Verifying session...";
-    console.log('App: Showing loading screen', { isInitialized, isRedirecting, message });
+    console.log('App: Showing loading screen', { isInitialized, isRedirecting, hasProfile: !!profile, message });
     return (
       <div className="relative">
         <LoadingScreen

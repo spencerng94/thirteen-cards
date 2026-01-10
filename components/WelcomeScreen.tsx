@@ -550,9 +550,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 )}
               </div>
             ) : (
-              // No profile and no error = 404 (new user) - show "CALLSIGN REQUIRED"
+              // No profile and no error = 404 (new user) - show "USERNAME REQUIRED"
               <span className="text-base sm:text-lg font-bold text-white truncate drop-shadow-md">
-                {playerName || 'CALLSIGN REQUIRED'}
+                {playerName || 'USERNAME REQUIRED'}
               </span>
             )}
             <div className="flex items-center gap-2">
