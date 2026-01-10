@@ -806,48 +806,43 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   // Note: This should only log ONCE per session due to hard lock in App.tsx
   console.log(`🔍 Fetching profile for UUID: ${userId}`);
   
-  // Network Hardening: No auto-retry on AbortError - wait for next state change
-  // Supabase uses AbortController internally, but we don't retry immediately
-  // The component will retry on the next render when state is stable
+  // REMOVE ABORTCONTROLLER: No AbortController, no signal, no cleanup
+  // In production, Ghost Session causes session fluctuations which trigger abort signals before database responds
+  // We want this request to complete even if the component re-renders
+  // Supabase internally may use AbortController, but we don't pass any signal - let it complete naturally
   try {
     // Select all columns - database uses 'username' (single source of truth) and 'gems' (not gem_count)
     // This ensures we use the correct columns and prevents "Render Storm" from column mismatches
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    // NO ABORT SIGNAL: Query without any abort controller or signal property
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
       
-      if (error) {
-      // Check if it's an AbortError - don't retry, just throw so caller can handle
+    if (error) {
+      // Check if it's an AbortError - handle gracefully without throwing (don't block profile load)
       const isAbortError = error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted');
       
       if (isAbortError) {
-        // Don't retry - wait for next state change
-        const abortError = new Error('PROFILE_FETCH_ABORTED');
-        (abortError as any).isAbortError = true;
-        throw abortError;
-    }
+        // REMOVE ABORTCONTROLLER: Silently handle AbortError - don't throw, just log
+        // In production, Ghost Session causes this - we want to retry on next stable render
+        console.warn(`⚠️ fetchProfile: Profile fetch was aborted for UUID: ${userId} (likely due to session fluctuation). Will retry on next render.`);
+        // Return null to allow caller to handle gracefully - don't block the app
+        return null;
+      }
     
-    console.error('❌ fetchProfile: Error fetching existing profile:', {
-      userId,
-      errorCode: error.code,
-      errorMessage: error.message,
-      errorDetails: error.details,
-        errorHint: error.hint,
-        isAbortError
-    });
+      console.error('❌ fetchProfile: Error fetching existing profile:', {
+        userId,
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorDetails: error.details,
+        errorHint: error.hint
+      });
     
-    // If it's a permission error (RLS blocking), log it but don't try to create a new profile
-    if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
-      console.error('🔴 fetchProfile: RLS policy blocking SELECT for existing user!');
-      console.error('This means the RLS policy "Users can view their own profile" is not working correctly.');
-      console.error('The user should be able to SELECT their own profile. Check RLS policies in Supabase.');
-      // Return null so the caller can handle it, but don't try to create a new profile
-      return null;
-    }
-    
-      // For AbortError after max retries, throw special error so caller can handle gracefully
-      if (isAbortError) {
-        const abortError = new Error('PROFILE_FETCH_ABORTED');
-        (abortError as any).isAbortError = true;
-        throw abortError;
+      // If it's a permission error (RLS blocking), log it but don't try to create a new profile
+      if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+        console.error('🔴 fetchProfile: RLS policy blocking SELECT for existing user!');
+        console.error('This means the RLS policy "Users can view their own profile" is not working correctly.');
+        console.error('The user should be able to SELECT their own profile. Check RLS policies in Supabase.');
+        // Return null so the caller can handle it, but don't try to create a new profile
+        return null;
       }
       
       // For network errors or other errors, throw so caller can show retry button

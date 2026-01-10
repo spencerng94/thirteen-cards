@@ -115,10 +115,15 @@ export const UserBar: React.FC<UserBarProps> = ({
           <div className="relative">
             <div className="absolute -inset-2 bg-yellow-500/20 blur-lg opacity-0 group-hover/coin:opacity-100 transition-opacity duration-300 rounded-full"></div>
             {(() => {
-              const coinsValue = Number(displayProfile.coins || 0);
-              const isValidCoins = typeof coinsValue === 'number' && !isNaN(coinsValue);
-              // SANITIZE SVG DATA: Only render CurrencyIcon if currency value is a valid number
-              return isValidCoins ? <CurrencyIcon type="GOLD" size="sm" coins={coinsValue} /> : null;
+              // SVG CRASH PREVENTION: Wrap Gem/Coin icons in check to prevent 'Expected number' error
+              // Check: if (!gems && gems !== 0) return null;
+              const coinsValue = displayProfile.coins;
+              // Only render if coins is a valid number (0 is valid, null/undefined are not)
+              if (coinsValue === null || coinsValue === undefined || (typeof coinsValue !== 'number')) {
+                return null; // Don't render SVG if coins is null/undefined/non-number
+              }
+              const safeCoins = typeof coinsValue === 'number' && !isNaN(coinsValue) ? coinsValue : 0;
+              return <CurrencyIcon type="GOLD" size="sm" coins={safeCoins} />;
             })()}
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">
@@ -140,10 +145,15 @@ export const UserBar: React.FC<UserBarProps> = ({
           <div className="relative">
             <div className="absolute -inset-2 bg-pink-500/20 blur-lg opacity-0 group-hover/gem:opacity-100 transition-opacity duration-300 rounded-full"></div>
             {(() => {
-              const gemsValue = Number(displayGems || 0);
-              const isValidGems = typeof gemsValue === 'number' && !isNaN(gemsValue);
-              // SANITIZE SVG DATA: Only render CurrencyIcon if currency value is a valid number
-              return isValidGems ? <CurrencyIcon type="GEMS" size="sm" gems={gemsValue} /> : null;
+              // SVG CRASH PREVENTION: Wrap Gem/Coin icons in check to prevent 'Expected number' error
+              // Check: if (!gems && gems !== 0) return null;
+              const gemsValue = displayGems;
+              // Only render if gems is a valid number (0 is valid, null/undefined are not)
+              if (gemsValue === null || gemsValue === undefined || (typeof gemsValue !== 'number')) {
+                return null; // Don't render SVG if gems is null/undefined/non-number
+              }
+              const safeGems = typeof gemsValue === 'number' && !isNaN(gemsValue) ? gemsValue : 0;
+              return <CurrencyIcon type="GEMS" size="sm" gems={safeGems} />;
             })()}
           </div>
           <span className="text-[9px] sm:text-[10px] font-black text-pink-400 leading-none tracking-tight text-center drop-shadow-[0_0_8px_rgba(236,72,153,0.4)]">

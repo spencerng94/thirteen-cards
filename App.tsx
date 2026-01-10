@@ -413,13 +413,44 @@ const AppContent: React.FC = () => {
     try {
       data = await fetchProfile(uid, playerAvatar, baseUsername);
       
-      // Success - clear any errors and mark as loaded
-      setProfileFetchError(null);
-      setIsSyncingData(false);
-      isInitialDataLoaded.current = true;
-      isInitialLoading.current = false; // Release network lock
-      fetchInProgress.current = false; // Release circuit breaker
-      isInitialFetchRef.current = true; // Set ref guard after successful fetch
+      // REMOVE ABORTCONTROLLER: Handle null return from fetchProfile (could be AbortError)
+      // If fetchProfile returns null due to AbortError, don't create a new profile - just retry later
+      if (data === null) {
+        // This could be an AbortError (handled gracefully in fetchProfile) or actual 404
+        // FORCE STATE PERSISTENCE: If profile already exists in state, preserve it (likely AbortError)
+        if (profile && profile.id === uid) {
+          // Profile already exists - this was likely an AbortError, preserve state
+          console.warn(`App: fetchProfile returned null for existing profile (likely AbortError), preserving state for UUID: ${uid}`);
+          isInitialLoading.current = false;
+          fetchInProgress.current = false;
+          loadingProfileInProgressRef.current = false;
+          setIsSyncingData(false);
+          return; // Don't create new profile, preserve existing one - will retry on next render
+        }
+        // If no profile exists, we can't distinguish between AbortError and 404
+        // To be safe, treat as AbortError and retry later rather than creating a new profile
+        // This prevents creating duplicate profiles when the abort happens on an existing user
+        console.warn(`App: fetchProfile returned null (likely AbortError), will retry on next render for UUID: ${uid}`);
+        isInitialLoading.current = false;
+        fetchInProgress.current = false;
+        loadingProfileInProgressRef.current = false;
+        setIsSyncingData(false);
+        return; // Don't create new profile - retry on next stable render
+      }
+      
+      // Success - profile loaded
+      if (data) {
+        setProfile(data);
+        setProfileFetchError(null);
+        setIsSyncingData(false);
+        isInitialDataLoaded.current = true;
+        isInitialLoading.current = false; // Release network lock
+        fetchInProgress.current = false; // Release circuit breaker
+        isInitialFetchRef.current = true; // Set ref guard after successful fetch
+        loadingProfileInProgressRef.current = false;
+        console.log('✅ Profile loaded successfully for UUID:', uid);
+        return; // Exit early on success
+      }
     } catch (error: any) {
       // Check if it's a 404 (profile not found) - explicitly set isNewUser to true
       if ((error as any).isNotFound || error?.message === 'PROFILE_NOT_FOUND_404') {
@@ -432,19 +463,21 @@ const AppContent: React.FC = () => {
         fetchInProgress.current = false;
       }
       
-      // Check if it's an AbortError - silence it, don't trigger state updates
+      // REMOVE ABORTCONTROLLER: Handle AbortError gracefully - don't block profile load
+      // In production, Ghost Session causes abort signals before database responds
+      // We want to retry on next stable render, not throw errors that block the app
       if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message === 'PROFILE_FETCH_ABORTED' || (error as any).isAbortError) {
-        // Silence AbortError - just log, don't trigger state updates that would cause another render
-        console.warn(`App: Profile fetch was aborted for UUID: ${uid} (silenced - no state update)`);
+        // FORCE STATE PERSISTENCE: Don't clear profile state on AbortError - preserve what we have
+        console.warn(`App: Profile fetch was aborted for UUID: ${uid} (will retry on next stable render, preserving state)`);
         // Set ref guard after fetch completes (even if aborted)
         isInitialFetchRef.current = true;
-        // Keep loading state active - don't set profile to undefined
+        // Keep loading state active - don't set profile to undefined, don't clear existing profile
         // Don't reset fetch lock - let it retry naturally when component stabilizes
-        // Don't schedule automatic retry - let the component handle it on next stable render
         loadingProfileInProgressRef.current = false;
         isInitialLoading.current = false;
         fetchInProgress.current = false;
         // Don't clear loadedUserIdRef - keep it so we know we tried for this user
+        // Return early to prevent error propagation - will retry on next render when session is stable
         return;
       }
       
@@ -522,9 +555,11 @@ const AppContent: React.FC = () => {
       }
     }
     
-    // Only create default profile if fetch returned null (404 - profile not found) OR if actualIsNewUser is true
-    if (!data || actualIsNewUser) {
-      console.log(`App: No profile found (404) for UUID: ${uid}, creating default profile... (actualIsNewUser: ${actualIsNewUser})`);
+    // Only create default profile if we got a 404 error (not AbortError) - actualIsNewUser is set by catch block
+    // REMOVE ABORTCONTROLLER: Don't create profile if fetchProfile returned null (could be AbortError)
+    // We only create profile if actualIsNewUser is true (set in catch block on 404)
+    if (actualIsNewUser) {
+      console.log(`App: No profile found (404) for UUID: ${uid}, creating default profile...`);
       try {
         const defaultProfile: UserProfile = {
           id: uid,
@@ -1165,16 +1200,33 @@ const AppContent: React.FC = () => {
   };
   
   // Load profile when we get a valid session but no profile yet
-  // Hard Lock: Prevent infinite re-render loops - only fetch ONCE per session
+  // PROFILE FETCH FIX: Wait for actual UUID from session, don't clear profile if already loading
   useEffect(() => {
-    // HARD LOCK: The very first check - if already initializing or profile exists, return immediately
-    if (isInitializing.current || profile) {
+    // THE USER ID CHECK: Wait for actual UUID from session - ensure userId is a valid UUID format
+    // Basic format check: UUID should be a string with length ~36 and contain hyphens
+    const isValidUUID = (id: string | undefined | null): boolean => {
+      if (!id || typeof id !== 'string' || id === '' || id === 'pending' || id === 'guest') return false;
+      // Basic UUID format check (e.g., "550e8400-e29b-41d4-a716-446655440000")
+      return id.length >= 36 && id.includes('-') && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) !== null;
+    };
+    
+    // THE USER ID CHECK: Ensure we wait for actual UUID from session (not empty, not pending)
+    if (!sessionUserId || !isValidUUID(sessionUserId) || isGuest || !session) {
+      console.log('App: Waiting for valid UUID from session', { sessionUserId, isGuest, hasSession: !!session });
       return;
     }
     
-    // GHOST SESSION: Guard against empty user.id during initial auth mount
-    // Basic guards: session and user ID must be valid (not empty, not pending, not guest)
-    if (!sessionUserId || sessionUserId === 'pending' || sessionUserId === '' || isGuest || !session) {
+    // FORCE STATE PERSISTENCE: Don't clear profile state if it's already loading
+    // If profile is already loaded for this user, don't fetch again
+    if (profile && profile.id === sessionUserId) {
+      console.log('App: Profile already loaded for this user, skipping fetch');
+      return;
+    }
+    
+    // FORCE STATE PERSISTENCE: If a fetch is already in progress, don't clear profile state
+    // Even if component re-renders, don't clear the profile state if it's already loading
+    if (isInitializing.current || isInitialLoading.current || fetchInProgress.current) {
+      console.log('App: Profile fetch already in progress, preserving state (not clearing profile)');
       return;
     }
     
@@ -1182,10 +1234,11 @@ const AppContent: React.FC = () => {
     isInitializing.current = true;
     console.log('🔍 Fetching profile for UUID:', sessionUserId);
     
-    const userId = sessionUserId;
+    const userId = sessionUserId; // Use the validated UUID
     
-    // Directly call loadProfile - no intermediate checks, no AbortSignal
-    // The loadProfile function will handle all the logic
+    // REMOVE ABORTCONTROLLER: No AbortController - fetchProfile must complete even if component re-renders
+    // In production, Ghost Session causes session fluctuations which trigger abort signals
+    // We want the database request to complete regardless of re-renders
     loadProfile(userId, false)
       .then(() => {
         // Success - profile loaded
@@ -1193,6 +1246,7 @@ const AppContent: React.FC = () => {
       })
       .catch((err) => {
         // Error handling - log but don't throw
+        // Don't clear profile state on error - preserve what we have
         console.error('❌ Failed to load profile for UUID:', userId, err);
       })
       .finally(() => {
@@ -1200,7 +1254,7 @@ const AppContent: React.FC = () => {
         isInitializing.current = false;
         isInitialFetchRef.current = true; // Mark as completed
       });
-  }, [sessionUserId, isGuest, loadProfile, session, profile]); // Include profile to prevent re-fetch if it exists
+  }, [sessionUserId, isGuest, loadProfile, session]); // REMOVED profile from deps to prevent re-fetch loops
   
   // Profile Fetch Fallback: If user ID is missing but session exists, attempt to repair
   // MUST be called before any conditional returns (Rules of Hooks)
