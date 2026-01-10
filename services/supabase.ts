@@ -1087,8 +1087,8 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     (safeUpdates as any).event_stats = (updates as any).event_stats;
   }
   
-  // FILTER PROTECTED/CALCULATED FIELDS: Remove id, level, created_at before update to prevent 400 error
-  // These fields are protected or calculated by the database and should never be sent in update
+  // PROFILE UPDATE SANITIZATION: Strip out protected/calculated fields (id, level, created_at) before calling .update()
+  // These fields are protected or calculated by the database and cause 400 'Bad Request' errors if sent
   const { id, level, created_at, ...cleanData } = safeUpdates as any;
   
   if (!supabaseAnonKey || userId === 'guest') {
@@ -1097,9 +1097,15 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     return;
   }
   
-  // Use cleanData instead of safeUpdates to ensure protected fields are never sent
-  // Use upsert to update if exists, insert if not (id is included separately)
-  await supabase.from('profiles').upsert({ id: userId, ...cleanData });
+  // PROFILE UPDATE SANITIZATION: Use .update() instead of .upsert() and use cleanData (without id, level, created_at)
+  // This prevents 400 errors from protected fields that are calculated by the database
+  // Use .update() with .eq('id', userId) to ensure we only update existing records
+  const { error } = await supabase.from('profiles').update(cleanData).eq('id', userId);
+  
+  if (error) {
+    console.error('Error updating profile settings:', error);
+    // Don't throw - let the caller handle the error if needed
+  }
 };
 
 export const buyItem = async (
@@ -1389,19 +1395,23 @@ export const claimAdRewardGems = async (): Promise<{
 
 /**
  * Fetch weekly reward status for the current user
- * Returns weekly_gem_total and whether the cap has been reached
+ * Returns weekly_gem_total and last_reset_date
+ * HANDLE MISSING TABLE: Wraps query in try/catch to handle missing reward_tracking table (PGRST205 error)
  */
 export const fetchWeeklyRewardStatus = async (userId: string): Promise<{
   weeklyGemTotal: number;
   isCapReached: boolean;
   lastResetDate: string | null;
-} | null> => {
+}> => {
+  // Always return an object (never null) to prevent UI crashes
+  const defaultReturn = {
+    weeklyGemTotal: 0,
+    isCapReached: false,
+    lastResetDate: new Date().toISOString()
+  };
+
   if (!supabaseAnonKey || userId === 'guest') {
-    return {
-      weeklyGemTotal: 0,
-      isCapReached: false,
-      lastResetDate: null
-    };
+    return defaultReturn;
   }
 
   try {
@@ -1412,47 +1422,35 @@ export const fetchWeeklyRewardStatus = async (userId: string): Promise<{
       .maybeSingle();
 
     if (error) {
-      // Handle missing table gracefully - return defaults instead of null
-      // This allows the app to work even if reward_tracking table hasn't been created yet
-      if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('relation') && error.message?.includes('reward_tracking')) {
-        console.warn('reward_tracking table does not exist. Returning defaults. To enable weekly reward tracking, run the migration: create_reward_tracking_table.sql');
-        return {
-          weeklyGemTotal: 0,
-          isCapReached: false,
-          lastResetDate: null
-        };
+      // HANDLE MISSING TABLE: Handle PGRST205 error (missing table) and other errors gracefully
+      // Production database may be missing reward_tracking table - return defaults instead of throwing
+      if (error.code === '42P01' || error.code === 'PGRST205' || 
+          error.message?.includes('does not exist') || 
+          error.message?.includes('relation') && error.message?.includes('reward_tracking') ||
+          error.message?.includes('relation "reward_tracking" does not exist')) {
+        console.warn('reward_tracking table does not exist (PGRST205). Returning defaults. To enable weekly reward tracking, run the migration: create_reward_tracking_table.sql');
+        return defaultReturn;
       }
       console.error('Error fetching weekly reward status:', error);
-      // For other errors, return defaults to prevent UI breaking
-      return {
-        weeklyGemTotal: 0,
-        isCapReached: false,
-        lastResetDate: null
-      };
+      // For any other errors, return defaults to prevent UI breaking
+      return defaultReturn;
     }
 
     if (!data) {
-      // No record exists yet, return default
-      return {
-        weeklyGemTotal: 0,
-        isCapReached: false,
-        lastResetDate: null
-      };
+      // No record exists yet, return default with current date
+      return defaultReturn;
     }
 
     return {
       weeklyGemTotal: data.weekly_gem_total || 0,
       isCapReached: (data.weekly_gem_total || 0) >= 500,
-      lastResetDate: data.last_reset_date
+      lastResetDate: data.last_reset_date || new Date().toISOString()
     };
   } catch (error: any) {
-    console.error('Exception fetching weekly reward status:', error);
-    // Return defaults on exception instead of null to prevent UI breaking
-    return {
-      weeklyGemTotal: 0,
-      isCapReached: false,
-      lastResetDate: null
-    };
+    // HANDLE MISSING TABLE: Catch all exceptions (including PGRST205) and return defaults
+    console.error('Exception fetching weekly reward status (likely missing table):', error);
+    // Always return an object - never null or undefined to prevent UI crashes
+    return defaultReturn;
   }
 };
 

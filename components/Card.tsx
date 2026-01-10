@@ -230,11 +230,12 @@ const CardComponent: React.FC<CardProps> = ({
                 <stop offset="100%" stopColor="#3d280a" />
               </linearGradient>
             </defs>
-            {/* SVG PATH SAFETY: Ensure path 'd' attribute has valid string, never NaN or undefined */}
-            {/* Fallback to empty string if pathData is null/undefined to prevent 'Expected number' error */}
+            {/* FIX SVG PATH MATH: Ensure path 'd' attribute always has valid SVG path data */}
+            {/* Fallback to "M0 0" (valid SVG move command) if pathData is null/undefined to prevent 'Expected number' error */}
             {(() => {
               const pathData = SUIT_PATH_DATA[type];
-              const safePathData = (pathData && typeof pathData === 'string') ? pathData : "";
+              // Fallback to "M0 0" instead of empty string to prevent NaN/undefined errors
+              const safePathData = (pathData && typeof pathData === 'string' && pathData.trim() !== '') ? pathData : "M0 0";
               return (
                 <>
                   <path d={safePathData} fill={`url(#goldMetallicPremium-${type})`} />
@@ -350,9 +351,12 @@ const CardComponent: React.FC<CardProps> = ({
                                const circleCx: number | null | undefined = 50;
                                const circleCy: number | null | undefined = 40;
                                const circleR: number | null | undefined = 5;
-                               // Ensure all values are valid - no NaN or undefined values ever reach SVG attributes
-                               const safePath1 = (pathData1 && typeof pathData1 === 'string') ? pathData1 : "";
-                               const safePath2 = (pathData2 && typeof pathData2 === 'string') ? pathData2 : "";
+                               // FIX SVG PATH MATH: Ensure path 'd' attribute always has valid SVG path data
+                               // Fallback to "M0 0" (valid SVG move command) instead of empty string to prevent 'Expected number' error
+                               // If pathData is null/undefined/NaN, use fallback: const pathData = generatePath(someValue || 0);
+                               const safePath1 = (pathData1 && typeof pathData1 === 'string' && pathData1.trim() !== '') ? pathData1 : "M0 0";
+                               const safePath2 = (pathData2 && typeof pathData2 === 'string' && pathData2.trim() !== '') ? pathData2 : "M0 0";
+                               // Ensure all numeric values are valid numbers with fallbacks - prevent NaN or undefined
                                const safeOpacity = (typeof opacityValue === 'number' && !isNaN(opacityValue)) ? opacityValue : 0.3;
                                const safeCx = (typeof circleCx === 'number' && !isNaN(circleCx)) ? circleCx : 50;
                                const safeCy = (typeof circleCy === 'number' && !isNaN(circleCy)) ? circleCy : 40;
