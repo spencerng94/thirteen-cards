@@ -1297,6 +1297,43 @@ export const claimAdRewardGems = async (): Promise<{
 
     if (error) {
       console.error('claimAdRewardGems: RPC error:', error);
+      
+      // Handle missing RPC function or missing reward_tracking table gracefully
+      if (error.code === '42883' || error.message?.includes('function') && error.message?.includes('does not exist')) {
+        console.warn('claim_ad_reward RPC function does not exist. Falling back to simple gem increment. To enable full ad reward system, run migrations: create_reward_tracking_table.sql and update_claim_ad_reward_dual_currency.sql');
+        
+        // Fallback: Simple gem increment without weekly tracking
+        const fallbackResult = await incrementGems(userId, 20);
+        if (fallbackResult.success) {
+          return {
+            success: true,
+            newGemBalance: fallbackResult.newGemBalance,
+            weeklyGems: 20,
+            rewardType: 'gems',
+            rewardAmount: 20,
+            hitCap: false
+          };
+        }
+      }
+      
+      // Handle missing reward_tracking table error from RPC
+      if (error.message?.includes('reward_tracking') || error.message?.includes('relation') && error.message?.includes('does not exist')) {
+        console.warn('reward_tracking table does not exist. RPC function needs this table. Falling back to simple gem increment. Run migration: create_reward_tracking_table.sql');
+        
+        // Fallback: Simple gem increment without weekly tracking
+        const fallbackResult = await incrementGems(userId, 20);
+        if (fallbackResult.success) {
+          return {
+            success: true,
+            newGemBalance: fallbackResult.newGemBalance,
+            weeklyGems: 20,
+            rewardType: 'gems',
+            rewardAmount: 20,
+            hitCap: false
+          };
+        }
+      }
+      
       return { 
         success: false, 
         error: error.message || 'Failed to claim ad reward' 
@@ -1368,8 +1405,23 @@ export const fetchWeeklyRewardStatus = async (userId: string): Promise<{
       .maybeSingle();
 
     if (error) {
+      // Handle missing table gracefully - return defaults instead of null
+      // This allows the app to work even if reward_tracking table hasn't been created yet
+      if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('relation') && error.message?.includes('reward_tracking')) {
+        console.warn('reward_tracking table does not exist. Returning defaults. To enable weekly reward tracking, run the migration: create_reward_tracking_table.sql');
+        return {
+          weeklyGemTotal: 0,
+          isCapReached: false,
+          lastResetDate: null
+        };
+      }
       console.error('Error fetching weekly reward status:', error);
-      return null;
+      // For other errors, return defaults to prevent UI breaking
+      return {
+        weeklyGemTotal: 0,
+        isCapReached: false,
+        lastResetDate: null
+      };
     }
 
     if (!data) {
@@ -1388,7 +1440,12 @@ export const fetchWeeklyRewardStatus = async (userId: string): Promise<{
     };
   } catch (error: any) {
     console.error('Exception fetching weekly reward status:', error);
-    return null;
+    // Return defaults on exception instead of null to prevent UI breaking
+    return {
+      weeklyGemTotal: 0,
+      isCapReached: false,
+      lastResetDate: null
+    };
   }
 };
 
