@@ -376,30 +376,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const isFetchingFinishersRef = useRef(false);
   const emotesFetchedRef = useRef(false);
   const finishersFetchedRef = useRef(false);
-  const lastProfileIdRef = useRef<string | null>(null);
   const hasAttemptedFetchRef = useRef(false); // Ref-Lock: Prevent double-fetch in React Strict Mode
 
   useEffect(() => {
-    // PART 1 FIX: Do not trigger fetchEmotes or fetchFinishers until profile.id is explicitly defined
-    // For authenticated users, wait for profile.id; for guests, allow fetching
-    const currentProfileId = profile?.id;
-    const hasValidProfileId = currentProfileId && currentProfileId !== 'guest' && currentProfileId !== 'pending' && currentProfileId !== '';
-    
-    // For authenticated users, require a valid profile.id before fetching
-    if (!isGuest && !hasValidProfileId) {
-      console.log(`WelcomeScreen: Waiting for profile.id before fetching emotes/finishers - currentProfileId: ${currentProfileId}`);
-      return;
-    }
-    
-    // Ref-Lock: Prevent double-fetch in React Strict Mode
-    // If we've already attempted a fetch for this profile ID, don't fetch again
-    if (hasAttemptedFetchRef.current && currentProfileId === lastProfileIdRef.current) {
-      console.log('WelcomeScreen: Already attempted fetch for this profile ID, skipping (React Strict Mode guard)');
-      return;
-    }
-    
-    // Update last profile ID and mark that we've attempted a fetch
-    lastProfileIdRef.current = currentProfileId || null;
+    // FIX: Emotes and finishers are GLOBAL assets - they don't depend on user profile
+    // Fetch them immediately on mount, regardless of profile state
+    // This fixes production issue where profile loads later, blocking these fetches
     
     // Only fetch if we haven't already fetched successfully
     if (emotesFetchedRef.current && finishersFetchedRef.current) {
@@ -407,10 +389,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       return;
     }
     
+    // Ref-Lock: Prevent double-fetch in React Strict Mode
+    // If we've already attempted a fetch, don't fetch again
+    if (hasAttemptedFetchRef.current) {
+      console.log('WelcomeScreen: Already attempted fetch, skipping (React Strict Mode guard)');
+      return;
+    }
+    
     // Mark that we've attempted a fetch (Ref-Lock for React Strict Mode)
     hasAttemptedFetchRef.current = true;
     
-    console.log(`WelcomeScreen: Profile ID confirmed (${currentProfileId}), fetching emotes/finishers...`);
+    console.log('WelcomeScreen: Fetching global assets (emotes/finishers)...');
     
     // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
     // Use global cache - if fetch is already in progress, it will return the same promise
@@ -468,7 +457,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           isFetchingFinishersRef.current = false;
         });
     }
-  }, [profile?.id, isGuest]); // Only depend on profile ID and guest status
+  }, []); // Fetch once on mount - emotes/finishers are global assets, not user-specific
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {
