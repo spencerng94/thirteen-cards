@@ -370,33 +370,31 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       equipped: boolean
   } | null>(null);
 
-  // Hard Lock: Prevent multiple simultaneous fetches during re-renders
-  // Session-based lock: Track if we've fetched in this session (persists across remounts)
-  const SESSION_FETCH_KEY = 'thirteen_assets_fetched';
-  const isFetchingRef = useRef(false); // Single ref to prevent ANY concurrent fetch
-  const isFetchingEmotesRef = useRef(false);
-  const isFetchingFinishersRef = useRef(false);
+  // LOCKED FETCHER PATTERN: Single persistent fetch lock
+  // CRITICAL: Do NOT reset isFetching.current on unmount - only reset after successful load or major error
+  // This ensures fetches complete even if component re-renders
+  const isFetching = useRef(false);
   const emotesFetchedRef = useRef(false);
   const finishersFetchedRef = useRef(false);
 
   useEffect(() => {
-    // CRITICAL: Wait for profile.id to be ready before fetching
-    // This ensures React has fully stabilized and profile state is initialized
+    // VERIFY CONTEXT: Ensure profile is from props (which comes from Global Context)
+    // Wait for profile.id to be ready before fetching
     if (!profile?.id || profile.id === 'guest' || profile.id === 'pending' || profile.id === '') {
-      console.log(`WelcomeScreen: Waiting for profile.id before fetching - currentProfileId: ${profile?.id || 'undefined'}`);
+      console.log(`WelcomeScreen: Waiting for profile.id from context - currentProfileId: ${profile?.id || 'undefined'}`);
       return;
     }
     
-    // Session-based lock: Check if we've already fetched in this browser session
-    // This prevents re-fetching across component remounts (React Strict Mode, navigation, etc.)
-    if (sessionStorage.getItem(SESSION_FETCH_KEY) === 'true') {
-      console.log('WelcomeScreen: Assets already fetched in this session, skipping');
-      // Still try to load from cache if available
-      if (globalFetchCache?.emotes?.data) {
+    // LOCKED FETCHER: Exit if a fetch is already in progress
+    // This prevents concurrent fetches during rapid re-renders
+    if (isFetching.current) {
+      console.log('WelcomeScreen: Fetch already in progress, skipping to prevent concurrent requests');
+      // Try to load from cache if available while fetch is in progress
+      if (!emotesFetchedRef.current && globalFetchCache?.emotes?.data) {
         setRemoteEmotes(globalFetchCache.emotes.data);
         emotesFetchedRef.current = true;
       }
-      if (globalFetchCache?.finishers?.data) {
+      if (!finishersFetchedRef.current && globalFetchCache?.finishers?.data) {
         setFinishers(globalFetchCache.finishers.data);
         finishersFetchedRef.current = true;
       }
@@ -405,109 +403,82 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     
     // Only fetch if we haven't already fetched successfully
     if (emotesFetchedRef.current && finishersFetchedRef.current) {
-      console.log('WelcomeScreen: Data already fetched successfully, skipping duplicate fetches');
-      sessionStorage.setItem(SESSION_FETCH_KEY, 'true');
+      console.log('WelcomeScreen: Assets already fetched successfully, skipping duplicate fetches');
       return;
     }
     
-    // CRITICAL: Check if ANY fetch is in progress - prevent concurrent requests
-    if (isFetchingRef.current) {
-      console.log('WelcomeScreen: Fetch already in progress, skipping to prevent concurrent requests');
-      return;
-    }
+    // LOCKED FETCHER: Set lock immediately - prevents any concurrent requests
+    isFetching.current = true;
     
-    // Add delay to let React fully stabilize before fetching
-    // This prevents AbortErrors from rapid re-renders during initialization
-    const timeoutId = setTimeout(() => {
-      // Double-check after delay - if already fetching, skip
-      if (isFetchingRef.current) {
-        console.log('WelcomeScreen: Fetch already started during delay, skipping');
-        return;
-      }
-      
-      // Set the global isFetching flag to prevent concurrent requests
-      isFetchingRef.current = true;
-      
-      console.log('WelcomeScreen: Profile ID confirmed, fetching global assets (emotes/finishers)...');
-      
-      // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
-      // Use global cache - if fetch is already in progress, it will return the same promise
-      if (!emotesFetchedRef.current && !isFetchingEmotesRef.current) {
-        isFetchingEmotesRef.current = true;
-        console.log('WelcomeScreen: Fetching emotes...');
-        fetchEmotes()
-          .then((emotes) => {
-            setRemoteEmotes(emotes || []);
+    console.log('WelcomeScreen: Profile ID confirmed, fetching global assets (emotes/finishers)...');
+    
+    // BANISH ABORT CONTROLLERS: No AbortController or signal passed to Supabase queries
+    // The fetch functions themselves handle locking - we just call them and let them complete
+    // Fetch emotes
+    if (!emotesFetchedRef.current) {
+      fetchEmotes()
+        .then((emotes) => {
+          setRemoteEmotes(emotes || []);
+          emotesFetchedRef.current = true;
+          console.log(`✅ WelcomeScreen: Loaded ${emotes?.length || 0} emotes`);
+          
+          // Unlock only after BOTH fetches complete successfully
+          if (finishersFetchedRef.current) {
+            isFetching.current = false;
+          }
+        })
+        .catch((err: any) => {
+          console.error('WelcomeScreen: Error fetching emotes:', err);
+          // Try to use cached data if available
+          if (globalFetchCache?.emotes?.data) {
+            setRemoteEmotes(globalFetchCache.emotes.data);
             emotesFetchedRef.current = true;
-            sessionStorage.setItem(SESSION_FETCH_KEY, 'true');
-            console.log(`✅ WelcomeScreen: Loaded ${emotes?.length || 0} emotes`);
-          })
-          .catch((err: any) => {
-            // Silently handle AbortError - don't retry, global cache will handle it
-            if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
-              console.warn('WelcomeScreen: Emotes fetch aborted, will use cache if available');
-              // Try to use cached data if available
-              if (globalFetchCache?.emotes?.data) {
-                setRemoteEmotes(globalFetchCache.emotes.data);
-                emotesFetchedRef.current = true;
-              }
-            } else {
-              console.error('WelcomeScreen: Error fetching emotes:', err);
-              setRemoteEmotes([]);
-            }
-          })
-          .finally(() => {
-            isFetchingEmotesRef.current = false;
-            // Only clear global flag when BOTH fetches are done
-            if (!isFetchingFinishersRef.current) {
-              isFetchingRef.current = false;
-            }
-          });
-      }
-      
-      // HARD LOCK: Fetch finishers only once, prevent multiple simultaneous fetches
-      // Use global cache - if fetch is already in progress, it will return the same promise
-      if (!finishersFetchedRef.current && !isFetchingFinishersRef.current) {
-        isFetchingFinishersRef.current = true;
-        console.log('WelcomeScreen: Fetching finishers...');
-        fetchFinishers()
-          .then((finishersData) => {
-            console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
-            if (finishersData && finishersData.length > 0) {
-              console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
-            }
-            setFinishers(finishersData || []);
-            finishersFetchedRef.current = true;
-            sessionStorage.setItem(SESSION_FETCH_KEY, 'true');
-          })
-          .catch((err: any) => {
-            // Silently handle AbortError - don't retry, global cache will handle it
-            if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
-              console.warn('WelcomeScreen: Finishers fetch aborted, will use cache if available');
-              // Try to use cached data if available
-              if (globalFetchCache?.finishers?.data) {
-                setFinishers(globalFetchCache.finishers.data);
-                finishersFetchedRef.current = true;
-              }
-            } else {
-              console.error('❌ WelcomeScreen: Error fetching finishers:', err);
-              setFinishers([]);
-            }
-          })
-          .finally(() => {
-            isFetchingFinishersRef.current = false;
-            // Only clear global flag when BOTH fetches are done
-            if (!isFetchingEmotesRef.current) {
-              isFetchingRef.current = false;
-            }
-          });
-      }
-    }, 500); // 500ms delay to let React stabilize
+          } else {
+            setRemoteEmotes([]);
+          }
+          // Unlock on error - allow retry on next render if needed
+          isFetching.current = false;
+        });
+    }
     
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [profile?.id]); // Only depend on profile.id - fetch when it's ready
+    // Fetch finishers
+    if (!finishersFetchedRef.current) {
+      fetchFinishers()
+        .then((finishersData) => {
+          console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
+          if (finishersData && finishersData.length > 0) {
+            console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
+          }
+          setFinishers(finishersData || []);
+          finishersFetchedRef.current = true;
+          
+          // Unlock only after BOTH fetches complete successfully
+          if (emotesFetchedRef.current) {
+            isFetching.current = false;
+          }
+        })
+        .catch((err: any) => {
+          console.error('❌ WelcomeScreen: Error fetching finishers:', err);
+          // Try to use cached data if available
+          if (globalFetchCache?.finishers?.data) {
+            setFinishers(globalFetchCache.finishers.data);
+            finishersFetchedRef.current = true;
+          } else {
+            setFinishers([]);
+          }
+          // Unlock on error - allow retry on next render if needed
+          isFetching.current = false;
+        });
+    }
+    
+    // If both are already fetched, unlock immediately
+    if (emotesFetchedRef.current && finishersFetchedRef.current) {
+      isFetching.current = false;
+    }
+    
+    // CRITICAL: Do NOT reset isFetching.current in cleanup
+    // The lock persists across unmounts to ensure fetches complete
+  }, [profile?.id]); // Only depend on profile.id - fetch when it's ready from context
 
   const handleStartGame = (mode: 'SINGLE_PLAYER' | 'MULTI_PLAYER' | 'TUTORIAL') => {
     if (mode === 'SINGLE_PLAYER' || mode === 'MULTI_PLAYER') {

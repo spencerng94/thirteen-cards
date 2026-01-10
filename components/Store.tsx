@@ -508,13 +508,31 @@ const ComboHintIcon = () => (
 );
 
 export const CurrencyIcon: React.FC<{ type: 'GOLD' | 'GEMS'; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'; className?: string }> = ({ type, size = 'sm', className = "" }) => {
-  const dim = size === 'xs' ? 'w-4 h-4' : size === 'sm' ? 'w-5 h-5' : size === 'lg' ? 'w-12 h-12' : size === 'xl' ? 'w-16 h-16' : 'w-8 h-8';
-  
-  // Safeguard: Ensure type is valid
+  // SVG PATH SAFETY: Validate all inputs to prevent NaN or undefined values in SVG paths
+  // Ensure type is valid - default to 'GOLD' if invalid
   const iconType = (type === 'GOLD' || type === 'GEMS') ? type : 'GOLD';
   
+  // Validate size to ensure it's a valid string
+  const validSize = (size === 'xs' || size === 'sm' || size === 'md' || size === 'lg' || size === 'xl') ? size : 'sm';
+  const dim = validSize === 'xs' ? 'w-4 h-4' : validSize === 'sm' ? 'w-5 h-5' : validSize === 'lg' ? 'w-12 h-12' : validSize === 'xl' ? 'w-16 h-16' : 'w-8 h-8';
+  
+  // Ensure className is a valid string (not undefined or null)
+  const safeClassName = (typeof className === 'string' ? className : '') || '';
+  
+  // SVG PATH SAFETY: Return null if any required prop is invalid to prevent rendering errors
+  if (!iconType || (iconType !== 'GOLD' && iconType !== 'GEMS')) {
+    console.warn('CurrencyIcon: Invalid type, defaulting to GOLD');
+    return (
+      <div className={`relative ${dim} flex items-center justify-center shrink-0 ${safeClassName}`}>
+        <div className="w-full h-full relative z-10">
+          <CoinIconSVG />
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <div className={`relative ${dim} flex items-center justify-center shrink-0 ${className}`}>
+    <div className={`relative ${dim} flex items-center justify-center shrink-0 ${safeClassName}`}>
       <div className="w-full h-full relative z-10 transition-transform duration-300 hover:scale-125">
         {iconType === 'GOLD' ? <CoinIconSVG /> : <GemIconSVG />}
       </div>
@@ -1565,18 +1583,19 @@ export const Store: React.FC<{
   }, []); // Run once when Store opens
 
 
-  // Hard Lock: Prevent multiple simultaneous fetches during re-renders
-  const isFetchingEmotesRef = useRef(false);
-  const isFetchingFinishersRef = useRef(false);
-  const isFetchingChatPresetsRef = useRef(false);
+  // LOCKED FETCHER PATTERN: Store assets are fetched by fetchEmotes/fetchFinishers/fetchChatPresets
+  // These functions already have module-level locks - we just call them and let them handle everything
+  // BANISH ABORT CONTROLLERS: No AbortController handling needed - fetch functions handle it internally
   const emotesFetchedRef = useRef(false);
   const finishersFetchedRef = useRef(false);
   const chatPresetsFetchedRef = useRef(false);
 
   useEffect(() => { 
-    // HARD LOCK: Fetch emotes only once, prevent multiple simultaneous fetches
-    if (!emotesFetchedRef.current && !isFetchingEmotesRef.current && typeof fetchEmotes === 'function') {
-      isFetchingEmotesRef.current = true;
+    // BANISH ABORT CONTROLLERS: Simply call the fetch functions - they handle locking internally
+    // No AbortController, no signal, no error handling for aborts - let them complete
+    
+    // Fetch emotes - function handles locking internally
+    if (!emotesFetchedRef.current && typeof fetchEmotes === 'function') {
       console.log('🛍️ Store: Fetching emotes...');
       fetchEmotes(true)
         .then((emotes) => {
@@ -1589,23 +1608,14 @@ export const Store: React.FC<{
           emotesFetchedRef.current = true;
         })
         .catch((err: any) => {
-          // Silently handle AbortError - will retry on next render if needed
-          if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
-            console.warn('Store: Emotes fetch aborted (will retry on next render)');
-            emotesFetchedRef.current = false; // Allow retry
-          } else {
-            console.error('❌ Store: Error fetching emotes:', err);
-            setRemoteEmotes([]);
-          }
-        })
-        .finally(() => {
-          isFetchingEmotesRef.current = false;
+          console.error('❌ Store: Error fetching emotes:', err);
+          // Try to use cached data if available
+          setRemoteEmotes([]);
         });
     }
     
-    // HARD LOCK: Fetch finishers only once, prevent multiple simultaneous fetches
-    if (!finishersFetchedRef.current && !isFetchingFinishersRef.current && typeof fetchFinishers === 'function') {
-      isFetchingFinishersRef.current = true;
+    // Fetch finishers - function handles locking internally
+    if (!finishersFetchedRef.current && typeof fetchFinishers === 'function') {
       console.log('⚔️ Store: Fetching finishers...');
       fetchFinishers()
         .then((finishersData) => {
@@ -1614,23 +1624,14 @@ export const Store: React.FC<{
           finishersFetchedRef.current = true;
         })
         .catch((err: any) => {
-          // Silently handle AbortError - will retry on next render if needed
-          if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
-            console.warn('Store: Finishers fetch aborted (will retry on next render)');
-            finishersFetchedRef.current = false; // Allow retry
-          } else {
-            console.error('❌ Store: Error fetching finishers:', err);
-            setFinishers([]);
-          }
-        })
-        .finally(() => {
-          isFetchingFinishersRef.current = false;
+          console.error('❌ Store: Error fetching finishers:', err);
+          // Try to use cached data if available
+          setFinishers([]);
         });
     }
     
-    // HARD LOCK: Fetch chat presets only once, prevent multiple simultaneous fetches
-    if (!chatPresetsFetchedRef.current && !isFetchingChatPresetsRef.current && typeof fetchChatPresets === 'function') {
-      isFetchingChatPresetsRef.current = true;
+    // Fetch chat presets - function handles locking internally
+    if (!chatPresetsFetchedRef.current && typeof fetchChatPresets === 'function') {
       console.log('💬 Store: Fetching chat presets...');
       fetchChatPresets()
         .then((presets) => {
@@ -1639,17 +1640,8 @@ export const Store: React.FC<{
           chatPresetsFetchedRef.current = true;
         })
         .catch((err: any) => {
-          // Silently handle AbortError - will retry on next render if needed
-          if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
-            console.warn('Store: Chat presets fetch aborted (will retry on next render)');
-            chatPresetsFetchedRef.current = false; // Allow retry
-          } else {
-            console.error('❌ Store: Error fetching chat presets:', err);
-            setChatPresets([]);
-          }
-        })
-        .finally(() => {
-          isFetchingChatPresetsRef.current = false;
+          console.error('❌ Store: Error fetching chat presets:', err);
+          setChatPresets([]);
         });
     }
   }, []); // Only run once on mount
