@@ -16,6 +16,15 @@
       "spinnerColor": "#FFFFFF",
       "splashFullScreen": true,
       "splashImmersive": true
+    },
+    "AdMob": {
+      "appId": {
+        "android": "ca-app-pub-2492802068591531~8080926061",
+        "ios": "ca-app-pub-2492802068591531~3275870689"
+      },
+      "requestTrackingAuthorization": true,
+      "testingDevices": [],
+      "initializeForTesting": false
     }
   }
 }

@@ -462,7 +462,7 @@ const getPublicRoomsList = () => {
   const roomMap = new Map<string, any>();
   
   Object.values(rooms)
-    .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length < 4)
+    .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length >= 2 && r.players.length < 4)
     .forEach(r => {
       // Use room ID as key to prevent duplicates
       if (!roomMap.has(r.id)) {

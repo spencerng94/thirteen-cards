@@ -2002,7 +2002,7 @@ export const getFriends = async (userId: string): Promise<Friendship[]> => {
 
 /**
  * Add a friend (creates bidirectional friendship)
- * The Postgres trigger will enforce the 10-friend limit
+ * The Postgres trigger will enforce the 20-friend limit
  */
 export const addFriend = async (userId: string, friendId: string): Promise<boolean> => {
   if (!supabaseAnonKey || userId === 'guest' || friendId === 'guest') return false;
@@ -2033,7 +2033,7 @@ export const addFriend = async (userId: string, friendId: string): Promise<boole
     console.error('Error adding friend:', e);
     // Check if error is due to friend limit
     if (e.message?.includes('friend limit') || e.code === 'P0001') {
-      throw new Error('Friend limit reached (maximum 10 friends)');
+      throw new Error('Friend limit reached (maximum 20 friends)');
     }
     throw e;
   }

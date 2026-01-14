@@ -16,6 +16,9 @@ import { StatusBar } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { Capacitor } from '@capacitor/core';
 import { useNativeHardware } from './hooks/useNativeHardware';
+import { AdMob } from '@capacitor-community/admob';
+import { ADMOB_APP_ID, ADMOB_IOS_APP_ID } from './constants/AdConfig';
+import { useAdMobInitialization } from './hooks/useAdMobInitialization';
 
 // Lazy load heavy components for better initial load performance
 const GameTable = lazy(() => import('./components/GameTable').then(m => ({ default: m.GameTable })));
@@ -277,6 +280,20 @@ const AppContent: React.FC = () => {
     return id;
   }, []);
 
+  // Use profile UUID for signed-in users, fall back to persistent ID for guests
+  const myPlayerId = useMemo(() => {
+    // Prefer profile ID if available (for signed-in users)
+    if (profile?.id) {
+      return profile.id;
+    }
+    // Fall back to session user ID if profile not loaded yet
+    if (sessionUserId) {
+      return sessionUserId;
+    }
+    // Use persistent ID for guest users
+    return myPersistentId;
+  }, [profile?.id, sessionUserId, myPersistentId]);
+
   const urlRoomCode = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('room');
@@ -366,14 +383,19 @@ const AppContent: React.FC = () => {
     };
   }, [spGameState?.currentPlayerId, spGameState?.status, spGameState?.currentPlayPile?.length, gameMode, spOpponentHands, aiDifficulty]);
 
-  // Initialize AdMob and pre-load ads on app start
+  // Initialize AdMob with iOS ATT support
+  // This hook handles platform detection and ATT permission request automatically
+  useAdMobInitialization();
+
+  // Initialize ad service and pre-load ads on app start
   // CRITICAL: This is completely non-blocking - app renders regardless of AdMob status
   useEffect(() => {
     // Use setTimeout to ensure this doesn't block initial render
     setTimeout(() => {
       const initializeAds = async () => {
         try {
-          // These calls are now guaranteed to never throw or block
+          // Initialize ad service (handles both web and native)
+          // Note: AdMob SDK initialization is handled by useAdMobInitialization hook above
           await adService.initialize();
           await adService.load();
         } catch (error) {
@@ -394,16 +416,16 @@ const AppContent: React.FC = () => {
            const saved = localStorage.getItem(SESSION_KEY);
            if (saved) {
               const { roomId, playerId: savedId } = JSON.parse(saved);
-              socket.emit(SocketEvents.RECONNECT, { roomId, playerId: savedId || myPersistentId });
+              socket.emit(SocketEvents.RECONNECT, { roomId, playerId: savedId || myPlayerId });
            }
         } else {
-           socket.emit(SocketEvents.REQUEST_SYNC, { playerId: myPersistentId });
+           socket.emit(SocketEvents.REQUEST_SYNC, { playerId: myPlayerId });
         }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [gameMode, myPersistentId, view]);
+  }, [gameMode, myPlayerId, view]);
 
   // SIMPLIFIED AUTH: SessionProvider handles all auth state
   // App.tsx just checks has_active_session flag and uses session from provider
@@ -923,7 +945,7 @@ const AppContent: React.FC = () => {
       const prevStatus = mpGameState?.status;
       setMpGameState(state);
       if (state.roomId !== 'LOCAL') {
-         localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: state.roomId, playerId: myPersistentId, timestamp: Date.now() }));
+         localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: state.roomId, playerId: myPlayerId, timestamp: Date.now() }));
       }
       if (state.status === GameStatus.PLAYING) {
         setView('GAME_TABLE');
@@ -934,9 +956,9 @@ const AppContent: React.FC = () => {
         const shouldShowVictory = (prevStatus === GameStatus.PLAYING || view === 'GAME_TABLE' || prevStatus === null || prevStatus === undefined) && !alreadyProcessed;
         
         if (shouldShowVictory) {
-          const myRank = state.players.find(p => p.id === myPersistentId)?.finishedRank || 4;
+          const myRank = state.players.find(p => p.id === myPlayerId)?.finishedRank || 4;
           // Extract speed bonuses
-          const mySpeedBonus = state.speedBonuses?.[myPersistentId] || { gold: 0, xp: 0 };
+          const mySpeedBonus = state.speedBonuses?.[myPlayerId] || { gold: 0, xp: 0 };
           // Note: In MP, we lack precise metadata currently, defaults used.
           const result = await recordGameResult(myRank, false, 'MEDIUM', isGuest, profile, { chopsInMatch: 0, bombsInMatch: 0, lastCardRank: 15 });
           // Add speed bonuses to rewards
@@ -983,7 +1005,7 @@ const AppContent: React.FC = () => {
     return () => {
       socket.off(SocketEvents.GAME_STATE); socket.off(SocketEvents.PLAYER_HAND); socket.off(SocketEvents.ERROR);
     };
-  }, [view, gameMode, triggerMatchEndTransition, myPersistentId, mpGameState?.status, mpMyHand.length, isGuest, session?.user?.id, profile]);
+  }, [view, gameMode, triggerMatchEndTransition, myPlayerId, mpGameState?.status, mpMyHand.length, isGuest, session?.user?.id, profile]);
 
   const handleLocalPass = (pid: string) => {
     setSpGameState(prev => {
@@ -1461,15 +1483,15 @@ const AppContent: React.FC = () => {
           onLinkAccount={handleLinkAccount}
         />
       )}
-      {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPersistentId} turnTimerSetting={turnTimerSetting} selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} />}
+      {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPlayerId} turnTimerSetting={turnTimerSetting} selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} />}
       {view === 'GAME_TABLE' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
-          <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPersistentId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPersistentId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} autoPassEnabled={autoPassEnabled} onOpenSettings={() => setGameSettingsOpen(true)} socialFilter={socialFilter} sessionMuted={sessionMuted} setSessionMuted={setSessionMuted} />
+          <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPlayerId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPlayerId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} autoPassEnabled={autoPassEnabled} onOpenSettings={() => setGameSettingsOpen(true)} socialFilter={socialFilter} sessionMuted={sessionMuted} setSessionMuted={setSessionMuted} />
         </Suspense>
       )}
       {view === 'VICTORY' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading results...</div></div>}>
-          <VictoryScreen players={gameMode === 'MULTI_PLAYER' ? mpGameState!.players : spGameState!.players} myId={gameMode === 'MULTI_PLAYER' ? myPersistentId : 'me'} onPlayAgain={() => { setView(gameMode === 'MULTI_PLAYER' ? 'LOBBY' : 'WELCOME'); if (gameMode === 'SINGLE_PLAYER') handleStart(playerName, 'SINGLE_PLAYER'); }} onGoHome={handleExit} profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} totalXpAfter={lastMatchRewards?.totalXpAfter} speedBonus={lastMatchRewards?.speedBonus} />
+          <VictoryScreen players={gameMode === 'MULTI_PLAYER' ? mpGameState!.players : spGameState!.players} myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} onPlayAgain={() => { setView(gameMode === 'MULTI_PLAYER' ? 'LOBBY' : 'WELCOME'); if (gameMode === 'SINGLE_PLAYER') handleStart(playerName, 'SINGLE_PLAYER'); }} onGoHome={handleExit} profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} totalXpAfter={lastMatchRewards?.totalXpAfter} speedBonus={lastMatchRewards?.speedBonus} />
         </Suspense>
       )}
       {view === 'TUTORIAL' && <TutorialMode onExit={() => setView('WELCOME')} />}

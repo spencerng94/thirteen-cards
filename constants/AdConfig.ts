@@ -23,7 +23,10 @@ export const TEST_REWARDED_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917'
 export const PRODUCTION_REWARDED_AD_UNIT_ID = 'ca-app-pub-2492802068591531/9717780674';
 
 // AdMob App ID (Your real AdMob App ID)
+// Android App ID
 export const ADMOB_APP_ID = 'ca-app-pub-2492802068591531~8080926061';
+// iOS App ID
+export const ADMOB_IOS_APP_ID = 'ca-app-pub-2492802068591531~3275870689';
 
 // Get the appropriate ad unit ID based on environment
 // This is automatically used throughout the codebase

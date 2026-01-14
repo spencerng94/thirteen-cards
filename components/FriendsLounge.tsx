@@ -135,7 +135,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
   };
 
   const friendCount = friends.length;
-  const maxFriends = 10;
+  const maxFriends = 20;
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-3xl p-4 animate-in fade-in duration-300" onClick={onClose}>

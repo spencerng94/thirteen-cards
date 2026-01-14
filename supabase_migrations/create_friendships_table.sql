@@ -31,13 +31,13 @@ CREATE POLICY "Users can delete their own friendships"
 CREATE OR REPLACE FUNCTION create_bidirectional_friendship()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Check friend limit for the user (10 friends max)
-  IF (SELECT COUNT(*) FROM friendships WHERE user_id = NEW.user_id) >= 10 THEN
-    RAISE EXCEPTION 'Friend limit reached. Maximum 10 friends allowed.';
+  -- Check friend limit for the user (20 friends max)
+  IF (SELECT COUNT(*) FROM friendships WHERE user_id = NEW.user_id) >= 20 THEN
+    RAISE EXCEPTION 'Friend limit reached. Maximum 20 friends allowed.';
   END IF;
   
-  -- Check friend limit for the friend (10 friends max)
-  IF (SELECT COUNT(*) FROM friendships WHERE user_id = NEW.friend_id) >= 10 THEN
+  -- Check friend limit for the friend (20 friends max)
+  IF (SELECT COUNT(*) FROM friendships WHERE user_id = NEW.friend_id) >= 20 THEN
     RAISE EXCEPTION 'Friend limit reached. The user you are trying to add has reached their friend limit.';
   END IF;
   
