@@ -2,7 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VisualEmote } from './VisualEmote';
-import { getEmoteUrl } from '../services/supabase';
+import { getEmoteUrl, supabase } from '../services/supabase';
+import { getWebpPath } from '../utils/imagePath';
 
 interface SanctumSnapFinisherProps {
   onComplete: () => void;
@@ -21,8 +22,40 @@ const FallingChineseEmote: React.FC<{
   rotation: number;
   remoteEmotes?: any[];
 }> = ({ startX, startY, delay, duration, rotation, remoteEmotes = [] }) => {
+  const [imageUrl, setImageUrl] = useState<string>('');
   const driftX = (Math.random() - 0.5) * 30;
   const floatAmount = (Math.random() - 0.5) * 15;
+
+  useEffect(() => {
+    // Get Chinese emote URL from Supabase
+    const getEmote = async () => {
+      try {
+        // Try to get from remote emotes first
+        const chineseEmote = remoteEmotes.find(e => e.trigger_code === ':money_mouth_face:' || e.trigger_code === ':chinese:');
+        if (chineseEmote?.file_path) {
+          const webpPath = getWebpPath(chineseEmote.file_path);
+          const { data } = supabase.storage.from('emotes').getPublicUrl(webpPath);
+          if (data?.publicUrl) {
+            setImageUrl(data.publicUrl);
+            return;
+          }
+        }
+        
+        // Fallback to direct path (WebP)
+        const { data } = supabase.storage.from('emotes').getPublicUrl('chinese_card.webp');
+        if (data?.publicUrl) {
+          setImageUrl(data.publicUrl);
+        } else {
+          // Final fallback
+          setImageUrl(getEmoteUrl(':money_mouth_face:') || getEmoteUrl(':chinese:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/chinese_card.webp');
+        }
+      } catch (e) {
+        console.error('Error loading Chinese emote:', e);
+        setImageUrl(getEmoteUrl(':money_mouth_face:') || getEmoteUrl(':chinese:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/chinese_card.webp');
+      }
+    };
+    getEmote();
+  }, [remoteEmotes]);
   
   return (
     <motion.div
@@ -105,7 +138,7 @@ const FallingChineseEmote: React.FC<{
         {/* Emote image - circular */}
         <div className="relative z-10 w-full h-full rounded-full overflow-hidden">
           <img 
-            src="https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/chinese_card.png?v=9" 
+            src={imageUrl || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/chinese_card.webp'} 
             alt="Chinese emote"
             className="w-full h-full object-cover"
             style={{ 

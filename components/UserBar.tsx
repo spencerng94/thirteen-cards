@@ -45,7 +45,6 @@ export const UserBar: React.FC<UserBarProps> = ({
   
   // Debug: Log profile data to verify gems/coins are present
   if (profile) {
-    console.log(`UserBar: Profile data - username: ${profile.username}, discriminator: ${profile.discriminator}, gems: ${profile.gems}, coins: ${profile.coins}, realtimeGemCount: ${realtimeGemCount}`);
   }
   
   // Use realtime gem count if available and user is not a guest, otherwise fall back to profile

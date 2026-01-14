@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../services/supabase';
+import { getWebpPath } from '../utils/imagePath';
 
 interface KissMyShibaFinisherProps {
   onComplete: () => void;
@@ -23,16 +24,16 @@ const ShibaButtEmote: React.FC<{
     // Get shiba butt emote URL from Supabase
     const getEmoteUrl = async () => {
       try {
-        const { data } = supabase.storage.from('emotes').getPublicUrl('round_3/shiba_butt_card.png');
+        const { data } = supabase.storage.from('emotes').getPublicUrl('round_3/shiba_butt_card.webp');
         if (data?.publicUrl) {
           setImageUrl(data.publicUrl);
         } else {
           // Fallback URL
-          setImageUrl('https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/shiba_butt_card.png');
+          setImageUrl('https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/shiba_butt_card.webp');
         }
       } catch (e) {
         console.error('Error loading shiba butt emote:', e);
-        setImageUrl('https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/shiba_butt_card.png');
+        setImageUrl('https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/shiba_butt_card.webp');
       }
     };
     getEmoteUrl();

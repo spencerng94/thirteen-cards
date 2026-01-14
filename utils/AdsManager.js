@@ -45,7 +45,6 @@ export const initializeUMPConsent = async () => {
   try {
     // Check if UMP is available (mobile platform only)
     if (typeof window === 'undefined' || !window.google?.mobileads?.ump) {
-      console.log('AdsManager: UMP not available (likely web platform or SDK not loaded)');
       return { status: 'UNAVAILABLE', consented: false };
     }
 
@@ -55,7 +54,6 @@ export const initializeUMPConsent = async () => {
     // If not in EEA/UK, consent may not be required (check your legal requirements)
     // However, Google recommends always calling UMP for consistency
     if (!isEEA) {
-      console.log('AdsManager: User not in EEA/UK, consent may not be required');
     }
 
     // TODO: Replace with your actual UMP consent form ID from AdMob console
@@ -71,7 +69,6 @@ export const initializeUMPConsent = async () => {
 
     const status = await getConsentStatus();
 
-    console.log('AdsManager: UMP Consent Status:', status);
 
     // Handle consent status
     if (status === 'REQUIRED') {
@@ -80,7 +77,6 @@ export const initializeUMPConsent = async () => {
       // const formResult = await loadAndShowConsentFormIfRequired();
       // return { status: formResult.consentStatus, consented: formResult.consentStatus === 'OBTAINED' };
       
-      console.log('AdsManager: Consent form required - implement form display');
       return { status: 'REQUIRED', consented: false };
     } else if (status === 'OBTAINED') {
       // Consent already obtained

@@ -11,7 +11,6 @@ interface DeleteAccountButtonProps {
  * Clears all app-related localStorage keys to prevent "ghost session" issues
  */
 const clearAllLocalStorage = () => {
-  console.log('DeleteAccountButton: Clearing all localStorage keys...');
   
   // List of all known localStorage keys used by the app
   const keysToRemove = [
@@ -43,7 +42,6 @@ const clearAllLocalStorage = () => {
   keysToRemove.forEach(key => {
     try {
       localStorage.removeItem(key);
-      console.log(`DeleteAccountButton: Removed localStorage key: ${key}`);
     } catch (e) {
       console.warn(`DeleteAccountButton: Failed to remove ${key}:`, e);
     }
@@ -59,7 +57,6 @@ const clearAllLocalStorage = () => {
   supabaseKeys.forEach(key => {
     try {
       localStorage.removeItem(key);
-      console.log(`DeleteAccountButton: Removed Supabase key: ${key}`);
     } catch (e) {
       console.warn(`DeleteAccountButton: Failed to remove ${key}:`, e);
     }
@@ -73,7 +70,6 @@ const clearAllLocalStorage = () => {
   sessionProviderKeys.forEach(key => {
     try {
       localStorage.removeItem(key);
-      console.log(`DeleteAccountButton: Removed session key: ${key}`);
     } catch (e) {
       console.warn(`DeleteAccountButton: Failed to remove ${key}:`, e);
     }
@@ -98,7 +94,6 @@ const clearAllLocalStorage = () => {
     });
   }
   
-  console.log('DeleteAccountButton: localStorage cleanup complete');
 };
 
 export const DeleteAccountButton: React.FC<DeleteAccountButtonProps> = ({ 
@@ -175,16 +170,13 @@ export const DeleteAccountButton: React.FC<DeleteAccountButtonProps> = ({
         return;
       }
       
-      console.log('DeleteAccountButton: Account deleted successfully');
       
       // Sign out from Supabase first (may clear some localStorage automatically)
       // This should be a no-op since user is deleted, but do it anyway for cleanup
       try {
         await supabase.auth.signOut();
-        console.log('DeleteAccountButton: Signed out from Supabase');
       } catch (signOutError) {
         // This is expected if the user is already deleted, so we don't treat it as an error
-        console.log('DeleteAccountButton: Sign out completed (user may already be deleted)');
       }
       
       // Clear all localStorage keys AFTER signing out

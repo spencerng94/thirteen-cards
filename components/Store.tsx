@@ -14,7 +14,6 @@ import { Toast } from './Toast';
 import { adService, AdPlacement } from '../services/adService';
 import { GemRain } from './GemRain';
 import { ShibaSlamFinisher } from './ShibaSlamFinisher';
-import { EtherealBladeFinisher } from './EtherealBladeFinisher';
 import { SaltShakeFinisher } from './SaltShakeFinisher';
 import { TooFunnyFinisher } from './TooFunnyFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
@@ -40,69 +39,6 @@ const ShibaSlamIcon: React.FC<{ className?: string; remoteEmotes?: Emote[] }> = 
   <VisualEmote trigger=":shiba:" remoteEmotes={remoteEmotes} size="xl" className={className} />
 );
 
-const EtherealBladeIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg viewBox="0 0 120 120" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="bladeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-        <stop offset="30%" stopColor="#E0E7FF" stopOpacity="1" />
-        <stop offset="60%" stopColor="#C7D2FE" stopOpacity="1" />
-        <stop offset="100%" stopColor="#A5B4FC" stopOpacity="1" />
-      </linearGradient>
-      <linearGradient id="bladeGold" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FFD700" stopOpacity="1" />
-        <stop offset="50%" stopColor="#FFA500" stopOpacity="1" />
-        <stop offset="100%" stopColor="#FF8C00" stopOpacity="1" />
-      </linearGradient>
-      <radialGradient id="bladeGlow" cx="50%" cy="50%">
-        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.9" />
-        <stop offset="50%" stopColor="#E0E7FF" stopOpacity="0.6" />
-        <stop offset="100%" stopColor="#A5B4FC" stopOpacity="0" />
-      </radialGradient>
-      <filter id="bladeGlowFilter">
-        <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-        <feMerge>
-          <feMergeNode in="coloredBlur"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
-    </defs>
-    {/* Ethereal Glow Background */}
-    <circle cx="60" cy="60" r="55" fill="url(#bladeGlow)" opacity="0.5" />
-    {/* Main Blade */}
-    <g filter="url(#bladeGlowFilter)" transform="translate(60, 60) rotate(-45)">
-      {/* Blade Edge */}
-      <path d="M -25 -3 L 25 -3 L 20 0 L 25 3 L -25 3 Z" fill="url(#bladeGradient)" opacity="0.95" />
-      {/* Blade Core - Glowing */}
-      <path d="M -20 -1.5 L 20 -1.5 L 18 0 L 20 1.5 L -20 1.5 Z" fill="#FFFFFF" opacity="0.8" />
-      {/* Hilt */}
-      <rect x="-30" y="-4" width="8" height="8" rx="1" fill="url(#bladeGold)" />
-      <rect x="-32" y="-2" width="4" height="4" rx="0.5" fill="#FFD700" />
-    </g>
-    {/* Slash Trails - Ethereal */}
-    <g opacity="0.7">
-      <path d="M 20 30 Q 40 50, 60 70" stroke="url(#bladeGradient)" strokeWidth="2" fill="none" opacity="0.6">
-        <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite" />
-      </path>
-      <path d="M 100 30 Q 80 50, 60 70" stroke="url(#bladeGradient)" strokeWidth="2" fill="none" opacity="0.5">
-        <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.2s" repeatCount="indefinite" />
-      </path>
-    </g>
-    {/* Floating Light Particles */}
-    <circle cx="30" cy="30" r="1.5" fill="#FFFFFF" opacity="0.8">
-      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.5s" repeatCount="indefinite" />
-    </circle>
-    <circle cx="90" cy="30" r="1.5" fill="#E0E7FF" opacity="0.8">
-      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.7s" repeatCount="indefinite" />
-    </circle>
-    <circle cx="30" cy="90" r="1.5" fill="#C7D2FE" opacity="0.8">
-      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.9s" repeatCount="indefinite" />
-    </circle>
-    <circle cx="90" cy="90" r="1.5" fill="#FFFFFF" opacity="0.8">
-      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.6s" repeatCount="indefinite" />
-    </circle>
-  </svg>
-);
 
 /* Added missing SLEEVES and category constants for external import */
 export const SUPER_PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = ['WITS_END', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'ROYAL_CROSS'];
@@ -962,11 +898,8 @@ const FreeGemsCard: React.FC<{
     }
 
     try {
-      console.log('Store: Starting to show ad, placement:', placement);
       const adShown = await adService.showRewardedAd(placement, async (amount) => {
         // Call secure RPC function that uses auth.uid() server-side
-        console.log('Store: Reward callback triggered, amount:', amount);
-        console.log('Store: About to call claimAdRewardGems...');
         try {
           // Add timeout to prevent hanging
           const result = await Promise.race([
@@ -975,8 +908,6 @@ const FreeGemsCard: React.FC<{
               setTimeout(() => resolve({ success: false, error: 'Request timeout after 10 seconds' }), 10000)
             )
           ]);
-          console.log('Store: claimAdRewardGems result:', result);
-          console.log('Store: Result success:', result.success, 'Error:', result.error);
           
           if (result.success) {
           // Play success sound
@@ -984,7 +915,6 @@ const FreeGemsCard: React.FC<{
           
           // Update weekly gem total
           if (result.weeklyGems !== undefined) {
-            console.log('Store: Updating weekly gems from', previousWeeklyGems, 'to', result.weeklyGems);
             const wasUnderCap = previousWeeklyGems < 500;
             const nowAtCap = result.weeklyGems >= 500;
             
@@ -1003,13 +933,11 @@ const FreeGemsCard: React.FC<{
           
           // Handle reward display based on type
           if (result.rewardType === 'gems' && result.newGemBalance !== undefined) {
-            console.log('Store: Showing gem reward modal, amount:', result.rewardAmount || 20);
             setRewardAmount(result.rewardAmount || 20);
             setRewardType('gems');
             setShowSuccessModal(true);
             onGemRain();
           } else if (result.rewardType === 'coins' && result.newCoinBalance !== undefined) {
-            console.log('Store: Showing coin reward toast, amount:', result.rewardAmount || 50);
             setRewardAmount(result.rewardAmount || 50);
             setRewardType('coins');
             setToastMessage(`Gold secured! +${result.rewardAmount || 50} Coins`);
@@ -1020,7 +948,6 @@ const FreeGemsCard: React.FC<{
           }
           
           // Refresh profile to get updated balances
-          console.log('Store: Calling onRefresh to update profile');
           onRefresh();
           
           // Set state to rewarded
@@ -1057,14 +984,12 @@ const FreeGemsCard: React.FC<{
         }
       }, () => {
         // Early close callback - user closed ad early
-        console.log('Store: Ad closed early');
         setToastMessage('Watch the full video to claim your reward!');
         setToastType('error');
         setShowWarningToast(true);
         setAdState('idle');
       });
       
-      console.log('Store: showRewardedAd returned:', adShown);
       if (!adShown) {
         console.warn('Store: Ad was not shown successfully');
         setToastMessage('No ads available right now. Take a boba break and try again later!');
@@ -1272,16 +1197,6 @@ const PackPurchaseSuccessModal: React.FC<PackPurchaseSuccessModalProps> = ({
           />
         </div>
       );
-    } else if (key === 'ethereal_blade') {
-      return (
-        <div key={`${key}-${replayKey}`} className="absolute" style={position}>
-          <EtherealBladeFinisher
-            onComplete={() => {}}
-            isPreview={true}
-            winnerName="GUEST"
-          />
-        </div>
-      );
     } else if (key === 'salt_shaker') {
       return (
         <div key={`${key}-${replayKey}`} className="absolute" style={position}>
@@ -1419,8 +1334,6 @@ const PackPurchaseSuccessModal: React.FC<PackPurchaseSuccessModalProps> = ({
                 >
                   {finisher?.animation_key === 'shiba_slam' ? (
                     <ShibaSlamIcon className="w-full h-full p-2" remoteEmotes={remoteEmotes} />
-                  ) : finisher?.animation_key === 'ethereal_blade' ? (
-                    <EtherealBladeIcon className="w-full h-full p-2" />
                   ) : finisher?.animation_key === 'seductive_finish' ? (
                     <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="lg" />
                   ) : finisher?.animation_key === 'sanctum_snap' ? (
@@ -1650,7 +1563,6 @@ export const Store: React.FC<{
     // THE FETCH SHIELD: Return early if already fetched - prevents duplicate concurrent requests
     // Even if component mounts 5 times in a row (as it does in Prod), this ensures fetch only runs once
     if (hasFetchedEmotes.current && hasFetchedFinishers.current && hasFetchedChatPresets.current) {
-      console.log('🛍️ Store: Fetch shield - all assets already fetched, skipping to prevent race condition');
       return;
     }
     
@@ -1661,14 +1573,8 @@ export const Store: React.FC<{
     if (!hasFetchedEmotes.current && typeof fetchEmotes === 'function') {
       // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
       hasFetchedEmotes.current = true;
-      console.log('🛍️ Store: Fetching emotes...');
       fetchEmotes(true)
         .then((emotes) => {
-          console.log(`🛍️ Store: Loaded ${emotes?.length || 0} emotes from Supabase`);
-          if (emotes && emotes.length > 0) {
-            console.log('📋 Emote triggers:', emotes.map(e => e.trigger_code));
-            console.log('📋 Emote file paths:', emotes.map(e => e.file_path));
-          }
           setRemoteEmotes(emotes || []);
           // Do NOT reset hasFetchedEmotes - shield remains active even on error
         })
@@ -1683,10 +1589,8 @@ export const Store: React.FC<{
     if (!hasFetchedFinishers.current && typeof fetchFinishers === 'function') {
       // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
       hasFetchedFinishers.current = true;
-      console.log('⚔️ Store: Fetching finishers...');
       fetchFinishers()
         .then((finishersData) => {
-          console.log(`⚔️ Store: Loaded ${finishersData?.length || 0} finishers from Supabase`);
           setFinishers(finishersData || []);
           // Do NOT reset hasFetchedFinishers - shield remains active even on error
         })
@@ -1701,10 +1605,8 @@ export const Store: React.FC<{
     if (!hasFetchedChatPresets.current && typeof fetchChatPresets === 'function') {
       // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
       hasFetchedChatPresets.current = true;
-      console.log('💬 Store: Fetching chat presets...');
       fetchChatPresets()
         .then((presets) => {
-          console.log(`💬 Store: Loaded ${presets?.length || 0} chat presets from Supabase`);
           setChatPresets(presets || []);
           // Do NOT reset hasFetchedChatPresets - shield remains active even on error
         })
@@ -2064,14 +1966,16 @@ export const Store: React.FC<{
             <div className="relative z-10 w-full h-full flex items-center justify-center">
               {finisher.animation_key === 'shiba_slam' ? (
                 <ShibaSlamIcon className="w-full h-full p-3 sm:p-4" remoteEmotes={remoteEmotes} />
-              ) : finisher.animation_key === 'ethereal_blade' ? (
-                <EtherealBladeIcon className="w-full h-full p-3 sm:p-4" />
               ) : finisher.animation_key === 'sanctum_snap' ? (
                 <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="xl" />
               ) : finisher.animation_key === 'seductive_finish' ? (
                 <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />
               ) : finisher.animation_key === 'kiss_my_shiba' ? (
                 <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
+              ) : finisher.animation_key === 'salt_shaker' ? (
+                <VisualEmote trigger=":annoyed:" remoteEmotes={remoteEmotes} size="xl" />
+              ) : finisher.animation_key === 'too_funny' ? (
+                <VisualEmote trigger=":joy:" remoteEmotes={remoteEmotes} size="xl" />
               ) : (
                 <div className="text-5xl sm:text-6xl">⚔️</div>
               )}
@@ -2171,8 +2075,6 @@ export const Store: React.FC<{
             bundle_id: preset.bundle_id
           });
         }}
-        onMouseEnter={() => setPreviewingChat(preset)}
-        onMouseLeave={() => setPreviewingChat(null)}
         className={`relative group bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] border-2 border-white/20 rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col items-center transition-all duration-500 hover:border-yellow-500/60 hover:bg-gradient-to-br hover:from-white/[0.15] hover:via-white/[0.08] hover:to-white/[0.15] hover:shadow-[0_0_60px_rgba(251,191,36,0.4)] cursor-pointer h-full overflow-hidden ${isWiggle ? 'animate-chat-wiggle' : ''}`}
       >
         {/* Premium Background Effects */}
@@ -2433,7 +2335,6 @@ export const Store: React.FC<{
             if (hasValidPath && !existingHasPath) {
               // Replace with the one that has a file_path
               emoteMap.set(emote.trigger_code, emote);
-              console.log(`🔄 Store: Replacing duplicate "${emote.name}" (${emote.trigger_code}) - keeping version with file_path`);
             } else if (!hasValidPath && existingHasPath) {
               // Keep the existing one with file_path
               return;
@@ -2597,14 +2498,16 @@ export const Store: React.FC<{
                   <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 flex items-center justify-center">
                     {pendingPurchase.animation_key === 'shiba_slam' ? (
                       <ShibaSlamIcon className="w-full h-full p-4" remoteEmotes={remoteEmotes} />
-                    ) : pendingPurchase.animation_key === 'ethereal_blade' ? (
-                      <EtherealBladeIcon className="w-full h-full p-4" />
                     ) : pendingPurchase.animation_key === 'sanctum_snap' ? (
                       <VisualEmote trigger=":chinese:" remoteEmotes={remoteEmotes} size="xl" />
                     ) : pendingPurchase.animation_key === 'seductive_finish' ? (
                       <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />
                     ) : pendingPurchase.animation_key === 'kiss_my_shiba' ? (
                       <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
+                    ) : pendingPurchase.animation_key === 'salt_shaker' ? (
+                      <VisualEmote trigger=":annoyed:" remoteEmotes={remoteEmotes} size="xl" />
+                    ) : pendingPurchase.animation_key === 'too_funny' ? (
+                      <VisualEmote trigger=":joy:" remoteEmotes={remoteEmotes} size="xl" />
                     ) : (
                       <div className="text-6xl">⚔️</div>
                     )}
@@ -3124,8 +3027,6 @@ export const Store: React.FC<{
                                     (() => {
                                       if (item.id === 'shiba_slam') {
                                         return <ShibaSlamIcon className="w-full h-full" remoteEmotes={remoteEmotes} />;
-                                      } else if (item.id === 'ethereal_blade') {
-                                        return <EtherealBladeIcon className="w-full h-full" />;
                                       } else if (item.id === 'seductive_finish') {
                                         return <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="xl" />;
                                       } else if (item.id === 'sanctum_snap') {
@@ -3448,8 +3349,6 @@ export const Store: React.FC<{
                             (() => {
                               if (item.id === 'shiba_slam') {
                                 return <ShibaSlamIcon className="w-full h-full p-2" remoteEmotes={remoteEmotes} />;
-                              } else if (item.id === 'ethereal_blade') {
-                                return <EtherealBladeIcon className="w-full h-full p-2" />;
                               } else if (item.id === 'seductive_finish') {
                                 return <VisualEmote trigger=":heart_eyes:" remoteEmotes={remoteEmotes} size="lg" />;
                               } else if (item.id === 'sanctum_snap') {

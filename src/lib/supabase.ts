@@ -74,25 +74,20 @@ const performVersionCheck = () => {
       
       // AUTO-CLEAR: Clear all localStorage first (includes auth tokens)
       localStorage.clear();
-      console.log('✅ localStorage cleared');
       
       // Set new version after clearing (this will be the only item in localStorage after reload)
       localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
-      console.log(`✅ App version set to ${APP_VERSION}`);
       
       // Reload page to ensure clean state (Supabase client will be created fresh)
-      console.log('🔄 Reloading page to apply clean state...');
       window.location.reload();
       return true; // Indicates reload will happen
     }
     
     // Version matches - no action needed
     if (storedVersion === APP_VERSION) {
-      console.log(`✅ SESSION PURGE: App version check passed: ${APP_VERSION}`);
     } else {
       // First run - set version (no storedVersion means first time)
       localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
-      console.log(`✅ SESSION PURGE: App version initialized: ${APP_VERSION}`);
     }
     return false; // No reload needed
   } catch (err) {
@@ -130,11 +125,9 @@ let supabaseClient: ReturnType<typeof createClient> | any;
 if (shouldSkipClientCreation) {
   // Version check triggered reload - create minimal mock client
   // Page will reload and this module will run again with correct version
-  console.log('⏸️ SESSION PURGE: Skipping client creation - page will reload');
   supabaseClient = {} as any;
 } else if (isDevelopment && typeof window !== 'undefined' && (window as any).__SUPABASE_CLIENT__) {
   // Use existing client from window (Strict Mode remount)
-  console.log('✅ Reusing existing Supabase client from window (Strict Mode guard)');
   supabaseClient = (window as any).__SUPABASE_CLIENT__;
 } else {
   // Create new client (version check passed)
@@ -187,7 +180,6 @@ if (typeof window !== 'undefined') {
   if (isDevelopment && supabaseUrl && supabaseAnonKey) {
     if (!(window as any).__SUPABASE_CLIENT__) {
       (window as any).__SUPABASE_CLIENT__ = supabase;
-      console.log('✅ Singleton Supabase client initialized and attached to window (Strict Mode guard)');
     }
   }
   
@@ -197,9 +189,6 @@ if (typeof window !== 'undefined') {
   }
   
   if (supabaseUrl && supabaseAnonKey) {
-    console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
   }
 } else if (supabaseUrl && supabaseAnonKey) {
-  console.log('✅ Singleton Supabase client initialized');
-  console.log('SUPABASE CONFIG: Flow Type:', (supabase as any).auth?.flowType || 'default');
 }

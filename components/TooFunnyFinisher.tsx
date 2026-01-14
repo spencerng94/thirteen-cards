@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../services/supabase';
+import { getWebpPath } from '../utils/imagePath';
 
 interface TooFunnyFinisherProps {
   onComplete: () => void;
@@ -17,14 +18,14 @@ const LaughCryEmote: React.FC<{
   duration: number;
   startSize: number;
 }> = ({ startX, delay, duration, startSize }) => {
-  // Use immediate fallback URL (laugh_cry_card.png is not in EMOTE_FILE_MAP, so use direct path)
-  const defaultUrl = 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/laugh_cry_card.png';
+  // Use immediate fallback URL (laugh_cry_card.webp is not in EMOTE_FILE_MAP, so use direct path)
+  const defaultUrl = 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/laugh_cry_card.webp';
   const [imageUrl, setImageUrl] = useState<string>(defaultUrl);
   
   useEffect(() => {
     // Try to get the URL from Supabase storage (synchronous operation)
     try {
-      const { data } = supabase.storage.from('emotes').getPublicUrl('round_3/laugh_cry_card.png');
+      const { data } = supabase.storage.from('emotes').getPublicUrl('round_3/laugh_cry_card.webp');
       if (data?.publicUrl) {
         setImageUrl(data.publicUrl);
       }
@@ -89,7 +90,7 @@ const LaughCryEmote: React.FC<{
           }}
           onError={(e) => {
             // Fallback to direct URL if image fails to load
-            const fallbackUrl = 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/laugh_cry_card.png';
+            const fallbackUrl = 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/round_3/laugh_cry_card.webp';
             if (fallbackUrl && e.currentTarget.src !== fallbackUrl) {
               e.currentTarget.src = fallbackUrl;
             }

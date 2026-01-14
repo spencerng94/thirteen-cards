@@ -58,7 +58,6 @@ export const useVersionCheck = (): boolean => {
         // Check if remote is actually newer
         const isNewer = compareVersions(remoteVersion, currentVersion);
         if (isNewer) {
-          console.log(`Version check: Update available! Current: ${currentVersion}, Remote: ${remoteVersion}`);
           setIsUpdateAvailable(true);
         } else {
           // Remote version is older or same, no update needed

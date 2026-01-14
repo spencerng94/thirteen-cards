@@ -176,7 +176,6 @@ export class AdService {
     // Mock mode: Skip SDK initialization for fast development testing
     // But still set up callbacks so mock rewards work
     if (ENABLE_MOCK_ADS) {
-      console.log('🎭 Mock Ad Mode Enabled - Ads will instantly reward for testing');
       this.setupRewardCallbacks();
       this.isAdMobReady = true;
       this.isInitialized = true;
@@ -231,7 +230,6 @@ export class AdService {
             this.setupAdEventListeners();
             this.isAdMobReady = true;
             this.isInitialized = true;
-            console.log('AdMob SDK initialized successfully');
             return;
           }
         }
@@ -303,7 +301,6 @@ export class AdService {
     // This callback is ONLY fired by AdMob when the user successfully completes the ad
     // We MUST wait for this callback before calling Supabase - never award gems locally
     this.onUserEarnedRewardCallback = (reward: { amount: number; type: string }) => {
-      console.log('User earned reward:', reward);
       
       // Prevent duplicate reward processing
       if (this.rewardCallbackInProgress) {
@@ -319,10 +316,8 @@ export class AdService {
       // This ensures server-side verification - the Supabase function is only called here
       if (this.currentRewardCallback) {
         const rewardAmount = this.getRewardAmount(this.currentPlacement!);
-        console.log('AdService: Calling reward callback with amount:', rewardAmount);
         this.currentRewardCallback(rewardAmount)
           .then(() => {
-            console.log('AdService: Reward callback completed successfully');
             this.setCooldown(this.currentPlacement!);
             this.rewardCallbackInProgress = false;
           })
@@ -338,7 +333,6 @@ export class AdService {
 
     // Ad closed (either after completion or early dismissal)
     this.onAdClosedCallback = () => {
-      console.log('Ad closed');
       
       // If ad was closed without reward, trigger early close callback
       if (!this.rewardEarned && this.currentPlacement && this.onEarlyCloseCallback) {
@@ -390,7 +384,6 @@ export class AdService {
 
     // Prevent duplicate event listener registrations
     if (this.eventListenersSetup) {
-      console.log('AdService: Event listeners already set up, skipping duplicate registration');
       return;
     }
 
@@ -419,7 +412,6 @@ export class AdService {
         this.rewardedAd.addEventListener('adFailedToShow', this.onAdFailedToShowCallback);
       }
       this.eventListenersSetup = true;
-      console.log('AdService: Event listeners set up successfully');
     }
   }
 
@@ -523,12 +515,10 @@ export class AdService {
     try {
       // Mock mode: Instantly reward (no 30-second wait)
       if (ENABLE_MOCK_ADS) {
-        console.log('AdService: MOCK MODE - Simulating ad completion');
         // Simulate instant ad completion
         await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UI feedback
         // Simulate reward callback (this is the secure path - only called after "ad" completes)
         if (this.onUserEarnedRewardCallback) {
-          console.log('AdService: MOCK MODE - Triggering reward callback');
           this.onUserEarnedRewardCallback({ amount: this.getRewardAmount(placement), type: 'gems' });
         }
         // Simulate ad closed
@@ -540,14 +530,12 @@ export class AdService {
 
       // Null Pointer Fix: Check rewardedAd exists and has show method
       if (this.rewardedAd && this.rewardedAd.show && typeof this.rewardedAd.show === 'function') {
-        console.log('AdService: Attempting to show real ad');
         await this.rewardedAd.show().catch((error: any) => {
           // If show fails, fall back to simulation
           console.warn('AdService: Ad show failed, using simulation:', error);
           // Simulate reward after delay
           setTimeout(() => {
             if (this.onUserEarnedRewardCallback) {
-              console.log('AdService: SIMULATION - Triggering reward callback after show failure');
               this.onUserEarnedRewardCallback({ amount: this.getRewardAmount(placement), type: 'gems' });
             }
             if (this.onAdClosedCallback) {
@@ -557,12 +545,10 @@ export class AdService {
         });
       } else {
         // Simulation mode - wait for "ad" to complete
-        console.log('AdService: SIMULATION MODE - No rewardedAd.show() available, simulating ad');
         // In simulation, we always complete successfully for testing
         await new Promise(resolve => setTimeout(resolve, 3000));
         // Simulate reward
         if (this.onUserEarnedRewardCallback) {
-          console.log('AdService: SIMULATION - Triggering reward callback');
           this.onUserEarnedRewardCallback({ amount: this.getRewardAmount(placement), type: 'gems' });
         }
         if (this.onAdClosedCallback) {

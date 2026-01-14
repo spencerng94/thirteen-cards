@@ -205,7 +205,6 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
  */
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    console.log('🔔 Stripe webhook endpoint hit');
     
     const sig = req.headers['stripe-signature'] as string;
     const rawBody = req.body as Buffer; // req.body is now a Buffer, not a parsed object
@@ -220,7 +219,6 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
       return res.status(400).json({ error: 'Empty request body' });
     }
     
-    console.log('✅ Stripe webhook request received, processing...');
     return await handleStripeWebhook(rawBody, sig, res);
   } catch (error: any) {
     console.error('❌ Stripe webhook endpoint error:', error);
@@ -1247,7 +1245,6 @@ const processGemPurchase = async (
       .maybeSingle();
 
     if (existing) {
-      console.log('⚠️ Duplicate transaction detected:', providerId);
       return { success: true }; // Already processed, return success
     }
 
@@ -1292,7 +1289,6 @@ const processGemPurchase = async (
       return { success: false, error: updateError.message };
     }
 
-    console.log(`✅ Credited ${gemAmount} gems to user ${userId}. New balance: ${newGemBalance}`);
     return { success: true };
   } catch (error: any) {
     console.error('Error processing gem purchase:', error);
@@ -1382,16 +1378,11 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    console.log('📥 Stripe webhook received:', event.type);
-    console.log('📋 Event ID:', event.id);
 
     // Handle checkout.session.completed
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as any;
       
-      console.log('✅ checkout.session.completed event received');
-      console.log('📦 Session ID:', session.id);
-      console.log('📦 Session metadata:', JSON.stringify(session.metadata, null, 2));
       
       // Extract metadata from session - support both snake_case and camelCase naming
       // Flexible extraction: Check both supabaseUserId/user_id and gemAmount/gem_amount
@@ -1400,8 +1391,6 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
       const platform = session.metadata?.platform || 'web'; // Track platform for analytics
       const paymentIntentId = session.payment_intent;
       
-      console.log(`📊 Purchase from platform: ${platform}`);
-      console.log(`📦 Extracted metadata: userId=${userId}, amount=${amount}, paymentIntentId=${paymentIntentId}`);
       
       if (!userId || !amount || isNaN(amount) || amount <= 0 || !paymentIntentId) {
         console.error('❌ Missing required fields in Stripe webhook:', {
@@ -1423,8 +1412,6 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
 
       try {
         // Diagnostic log as requested
-        console.log('✅ Webhook Verified: Crediting', amount, 'gems to', userId);
-        console.log(`📥 Calling add_gems_to_user RPC: amount=${amount}, session_id=${session.id}, user_id=${userId}`);
         
         // Call Supabase RPC function add_gems_to_user
         // Function signature: add_gems_to_user(amount, session_id, user_id)
@@ -1440,7 +1427,6 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
           return res.status(500).json({ error: rpcError.message || 'Failed to add gems' });
         }
 
-        console.log(`✅ Stripe purchase processed: ${amount} gems for user ${userId}`, data);
         return res.json({ received: true, credited: amount, provider: 'stripe' });
       } catch (rpcErr: any) {
         console.error('❌ Exception calling add_gems_to_user:', rpcErr);
@@ -1449,7 +1435,6 @@ async function handleStripeWebhook(rawBody: Buffer, signature: string, res: expr
     }
 
     // Ignore other event types (return success to acknowledge receipt)
-    console.log(`ℹ️ Ignoring Stripe event type: ${event.type}`);
     return res.json({ received: true, provider: 'stripe' });
   } catch (error: any) {
     console.error('❌ Stripe webhook handler error:', error);
@@ -1475,7 +1460,6 @@ async function handleRevenueCatWebhook(payload: string, authHeader: string, res:
     }
 
     const event = JSON.parse(payload);
-    console.log('📥 RevenueCat webhook received:', event.type);
 
     // Handle INITIAL_PURCHASE and RENEWAL events (for consumables)
     if (event.type === 'INITIAL_PURCHASE' || event.type === 'RENEWAL') {
@@ -1526,7 +1510,6 @@ async function handleRevenueCatWebhook(payload: string, authHeader: string, res:
         return res.status(500).json({ error: result.error || 'Failed to process purchase' });
       }
 
-      console.log(`✅ RevenueCat purchase processed: ${gemAmount} gems for user ${appUserId}`);
       return res.json({ received: true, credited: gemAmount, provider: 'revenuecat' });
     }
 
@@ -1536,13 +1519,11 @@ async function handleRevenueCatWebhook(payload: string, authHeader: string, res:
       const userId = alias; // RevenueCat alias should be the Supabase user ID
       
       if (userId) {
-        console.log('✅ Subscriber alias updated for user:', userId);
       }
       return res.json({ received: true, provider: 'revenuecat' });
     }
 
     // Ignore other event types
-    console.log(`ℹ️ Ignoring RevenueCat event type: ${event.type}`);
     return res.json({ received: true, provider: 'revenuecat' });
   } catch (error: any) {
     console.error('❌ RevenueCat webhook handler error:', error);
@@ -1641,8 +1622,6 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
       metadata: metadata,
     });
     
-    console.log(`✅ Stripe checkout session created: ${session.id}`);
-    console.log(`   User: ${userId}, Platform: ${platform}, Gems: ${gemAmount}`);
     
     return res.json({ 
       checkoutUrl: session.url,
@@ -1657,4 +1636,3 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
 
 const generateRoomCode = (): string => 'ABCD'.split('').map(() => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.floor(Math.random() * 36))).join('');
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));

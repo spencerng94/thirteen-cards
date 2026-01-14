@@ -82,42 +82,6 @@ const ShibaSlamIcon: React.FC<{ className?: string; remoteEmotes?: Emote[] }> = 
   <VisualEmote trigger=":shiba:" remoteEmotes={remoteEmotes} size="xl" className={className} />
 );
 
-const EtherealBladeIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg viewBox="0 0 120 120" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="bladeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-        <stop offset="30%" stopColor="#E0E7FF" stopOpacity="1" />
-        <stop offset="60%" stopColor="#C7D2FE" stopOpacity="1" />
-        <stop offset="100%" stopColor="#A5B4FC" stopOpacity="1" />
-      </linearGradient>
-      <linearGradient id="bladeGold" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FFD700" stopOpacity="1" />
-        <stop offset="50%" stopColor="#FFA500" stopOpacity="1" />
-        <stop offset="100%" stopColor="#FF8C00" stopOpacity="1" />
-      </linearGradient>
-      <radialGradient id="bladeGlow" cx="50%" cy="50%">
-        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.9" />
-        <stop offset="50%" stopColor="#E0E7FF" stopOpacity="0.6" />
-        <stop offset="100%" stopColor="#A5B4FC" stopOpacity="0" />
-      </radialGradient>
-      <filter id="bladeGlowFilter">
-        <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-        <feMerge>
-          <feMergeNode in="coloredBlur"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
-    </defs>
-    <circle cx="60" cy="60" r="55" fill="url(#bladeGlow)" opacity="0.5" />
-    <g filter="url(#bladeGlowFilter)" transform="translate(60, 60) rotate(-45)">
-      <path d="M -25 -3 L 25 -3 L 20 0 L 25 3 L -25 3 Z" fill="url(#bladeGradient)" opacity="0.95" />
-      <path d="M -20 -1.5 L 20 -1.5 L 18 0 L 20 1.5 L -20 1.5 Z" fill="#FFFFFF" opacity="0.8" />
-      <rect x="-30" y="-4" width="8" height="8" rx="1" fill="url(#bladeGold)" />
-      <rect x="-32" y="-2" width="4" height="4" rx="0.5" fill="#FFD700" />
-    </g>
-  </svg>
-);
 
 /* Card-Themed Icons for Navigation */
 const ShopCardIcon = () => (
@@ -389,19 +353,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       return;
     }
     
-    console.log('WelcomeScreen: Fetching public finishers (no profile required)...');
     finishersFetchedRef.current = true; // Set immediately to prevent concurrent fetches
     
     // Try cache first
     if (globalFetchCache?.finishers?.data) {
       setFinishers(globalFetchCache.finishers.data);
-      console.log(`⚔️ CUSTOMIZE: Loaded ${globalFetchCache.finishers.data.length} finishers from cache`);
     } else {
       fetchFinishers()
         .then((finishersData) => {
-          console.log(`⚔️ CUSTOMIZE: Loaded ${finishersData?.length || 0} finishers from Supabase`);
           if (finishersData && finishersData.length > 0) {
-            console.log('📋 Finishers:', finishersData.map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key, price: f.price })));
           } else {
             console.warn('⚠️ No finishers returned. Check: 1) VITE_SUPABASE_URL is set, 2) VITE_SUPABASE_ANON_KEY is set, 3) finishers table exists and has RLS policy "Finishers are viewable by everyone"');
           }
@@ -417,7 +377,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           });
           // Try to use cached data if available
           if (globalFetchCache?.finishers?.data) {
-            console.log('Using cached finishers data');
             setFinishers(globalFetchCache.finishers.data);
           } else {
             setFinishers([]);
@@ -435,18 +394,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       return;
     }
 
-    console.log('WelcomeScreen: Fetching public emotes (no profile required)...');
     emotesFetchedRef.current = true; // Set immediately to prevent concurrent fetches
     
     // Try cache first
     if (globalFetchCache?.emotes?.data) {
       setRemoteEmotes(globalFetchCache.emotes.data);
-      console.log(`✅ WelcomeScreen: Loaded ${globalFetchCache.emotes.data.length} emotes from cache`);
     } else {
       fetchEmotes()
         .then((emotes) => {
           setRemoteEmotes(emotes || []);
-          console.log(`✅ WelcomeScreen: Loaded ${emotes?.length || 0} emotes`);
         })
         .catch((err: any) => {
           console.error('WelcomeScreen: Error fetching emotes:', err);
@@ -639,15 +595,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       : (finishers || []);
     const gridClass = density === 4 ? 'grid-cols-3' : density === 1 ? 'grid-cols-1' : 'grid-cols-2';
     
-    // Debug logging
-    if (customizeSubTab === 'FINISHERS') {
-      console.log('🎯 CUSTOMIZE FINISHERS:', {
-        totalFinishers: (finishers || []).length,
-        filteredFinishers: filteredFinishers.length,
-        hideUnowned,
-        finishers: (finishers || []).map(f => ({ id: f.id, name: f.name, animation_key: f.animation_key }))
-      });
-    }
     
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
@@ -879,8 +826,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                       }`}>
                         {f.animation_key === 'shiba_slam' ? (
                           <ShibaSlamIcon className="w-full h-full p-3 sm:p-4" remoteEmotes={remoteEmotes} />
-                        ) : f.animation_key === 'ethereal_blade' ? (
-                          <EtherealBladeIcon className="w-full h-full p-3 sm:p-4" />
                         ) : f.animation_key === 'kiss_my_shiba' ? (
                           <VisualEmote trigger=":shiba_butt:" remoteEmotes={remoteEmotes} size="xl" />
                         ) : f.animation_key === 'seductive_finish' ? (
@@ -1164,8 +1109,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 flex items-center justify-center">
                       {pendingPurchase.animation_key === 'shiba_slam' ? (
                         <ShibaSlamIcon className="w-full h-full p-4" remoteEmotes={remoteEmotes} />
-                      ) : pendingPurchase.animation_key === 'ethereal_blade' ? (
-                        <EtherealBladeIcon className="w-full h-full p-4" />
                       ) : pendingPurchase.animation_key === 'sanctum_snap' ? (
                         <VisualEmote trigger=":money_mouth_face:" remoteEmotes={remoteEmotes} size="xl" />
                       ) : pendingPurchase.animation_key === 'seductive_finish' ? (

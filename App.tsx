@@ -121,7 +121,6 @@ const AppContent: React.FC = () => {
   const initializationLogged = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (sessionUserId !== initializationLogged.current) {
-      console.log('App: Step 6 - App component initializing...', { sessionUserId });
       initializationLogged.current = sessionUserId;
     }
   }, [sessionUserId]);
@@ -250,10 +249,6 @@ const AppContent: React.FC = () => {
       // Only reset fetch locks if sessionUserId actually changed (not just session object reference)
       // Do NOT clear profile here - profile should persist across minor session updates
       if (previousSessionUserIdRef.current !== undefined) {
-        console.log('App: Session user ID changed, resetting fetch locks (profile will be preserved)', { 
-          previous: previousSessionUserIdRef.current, 
-          current: sessionUserId 
-        });
         // Reset all locks including hard lock
         isInitializing.current = false;
         isInitialFetchRef.current = false;
@@ -301,7 +296,6 @@ const AppContent: React.FC = () => {
         await StatusBar.setOverlaysWebView({ overlay: false });
       } catch (error) {
         // StatusBar API not available or error occurred
-        console.log('StatusBar API error:', error);
       }
     };
     setupStatusBar();
@@ -420,23 +414,19 @@ const AppContent: React.FC = () => {
   const loadProfile = useCallback(async (uid: string, isNewUser: boolean = false, forceRetry: boolean = false) => {
     // Circuit Breaker: If a fetch is already in progress for this user, skip
     if (fetchInProgress.current && loadedUserIdRef.current === uid && !forceRetry) {
-      console.log('App: Profile fetch already in progress for this user, skipping duplicate call');
       return;
     }
     
     // Network Lock: If a fetch is already in progress, skip
     if (isInitialLoading.current && !forceRetry) {
-      console.log('App: Profile fetch already in progress, skipping duplicate call');
       return;
     }
     
     // Data Lock: If initial data is already loaded for this user and this isn't a forced retry, skip
     if (isInitialDataLoaded.current && loadedUserIdRef.current === uid && !forceRetry) {
-      console.log('App: Initial data already loaded for this user, skipping fetch (use Retry button to force refresh)');
       return;
     }
     
-    console.log('App: Loading profile for user:', uid, 'isNewUser:', isNewUser, 'forceRetry:', forceRetry);
     fetchInProgress.current = true; // Set circuit breaker
     isInitialLoading.current = true; // Set network lock
     loadedUserIdRef.current = uid; // Track which user we're loading
@@ -489,13 +479,11 @@ const AppContent: React.FC = () => {
         fetchInProgress.current = false; // Release circuit breaker
         isInitialFetchRef.current = true; // Set ref guard after successful fetch
         loadingProfileInProgressRef.current = false;
-        console.log('✅ Profile loaded successfully for UUID:', uid);
         return; // Exit early on success
       }
     } catch (error: any) {
       // Check if it's a 404 (profile not found) - explicitly set isNewUser to true
       if ((error as any).isNotFound || error?.message === 'PROFILE_NOT_FOUND_404') {
-        console.log(`🔵 App: Profile not found (404) for UUID: ${uid} - this is a new user, will create profile`);
         actualIsNewUser = true; // Explicitly mark as new user
         // Don't release locks yet - we'll create the profile below
       } else {
@@ -538,7 +526,6 @@ const AppContent: React.FC = () => {
       
       // If it's a 404, create new profile (actualIsNewUser was set to true above)
       if (actualIsNewUser) {
-        console.log(`App: Creating new profile for UUID: ${uid} (404 detected)`);
         // Continue to profile creation logic below - don't return yet
       } else {
         // For other errors (not 404, not AbortError, not network), release locks and show error
@@ -600,7 +587,6 @@ const AppContent: React.FC = () => {
     // REMOVE ABORTCONTROLLER: Don't create profile if fetchProfile returned null (could be AbortError)
     // We only create profile if actualIsNewUser is true (set in catch block on 404)
     if (actualIsNewUser) {
-      console.log(`App: No profile found (404) for UUID: ${uid}, creating default profile...`);
       try {
         const defaultProfile: UserProfile = {
           id: uid,
@@ -647,7 +633,6 @@ const AppContent: React.FC = () => {
         
         // Upsert the default profile
         await supabase.from('profiles').upsert(defaultProfile);
-        console.log('App: Default profile created successfully');
         data = defaultProfile;
       } catch (error) {
         console.error('App: Failed to create default profile:', error);
@@ -706,10 +691,8 @@ const AppContent: React.FC = () => {
       }
       
       if (data.avatar_url) {
-        console.log(`🖼️ Loading avatar from profile: ${data.avatar_url} (was: ${playerAvatar})`);
         setPlayerAvatar(data.avatar_url);
       } else {
-        console.log(`⚠️ No avatar_url in profile, keeping current: ${playerAvatar}`);
       }
       if (data.active_sleeve || data.equipped_sleeve) setCardCoverStyle((data.active_sleeve || data.equipped_sleeve) as CardCoverStyle);
       if (data.active_board || data.equipped_board) setBackgroundTheme((data.active_board || data.equipped_board) as BackgroundTheme);
@@ -725,13 +708,11 @@ const AppContent: React.FC = () => {
       
       // State Sync: Ensure profile is set so hasProfile becomes true
       // Use functional update to prevent triggering re-renders that cause re-initialization
-      console.log(`App: Setting profile state - username: ${data.username}, discriminator: ${data.discriminator}, gems: ${data.gems}, coins: ${data.coins}`);
       setProfile(prevProfile => {
         // Only update if data is different to prevent unnecessary re-renders
         if (prevProfile?.id === data.id && JSON.stringify(prevProfile) === JSON.stringify(data)) {
           return prevProfile;
         }
-        console.log(`App: Profile state updated - prev: ${prevProfile?.id || 'null'}, new: ${data.id}`);
         return data;
       });
       isInitialDataLoaded.current = true; // Mark as loaded
@@ -747,7 +728,6 @@ const AppContent: React.FC = () => {
       // EULA Check: Show EULA modal if user hasn't accepted it yet
       // Only check for authenticated users (not guests)
       if (!isGuest && session?.user?.id && (data.eula_accepted === false || data.eula_accepted === undefined)) {
-        console.log('App: User has not accepted EULA, showing modal');
         setShowEULAModal(true);
       }
     }
@@ -755,7 +735,6 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     if (isGuest && !session) {
-      console.log('App: Step 24 - Loading guest profile...');
       const data = fetchGuestProfile();
       setProfile(data);
       if (data.username && !playerName) setPlayerName(data.username);
@@ -772,7 +751,6 @@ const AppContent: React.FC = () => {
       }
       if (data.turn_timer_setting !== undefined) setTurnTimerSetting(data.turn_timer_setting);
       initialSyncCompleteRef.current = true;
-      console.log('App: Step 25 - Guest profile loaded');
     }
   }, [isGuest, session, playerName]);
 
@@ -808,17 +786,14 @@ const AppContent: React.FC = () => {
 
   // Explicit Guest Action: This is the ONLY place where setIsGuest(true) should be called
   const handlePlayAsGuest = useCallback(() => {
-    console.log('App: User explicitly chose to play as guest');
     setIsGuest(true);
     setLoadingStatus('Preparing guest profile...');
   }, []);
 
   const handleSignOut = async () => {
-    console.log('App: Nuclear sign-out initiated');
     
     // Prevent multiple sign-out attempts
     if (isLoggingOutRef.current) {
-      console.log('App: Sign-out already in progress, skipping');
       return;
     }
     
@@ -826,10 +801,8 @@ const AppContent: React.FC = () => {
     
     try {
       // Step 1: Sign out from Supabase
-      console.log('App: Signing out from Supabase...');
       try {
         await supabase.auth.signOut();
-        console.log('App: ✅ Supabase sign-out complete');
       } catch (error) {
         console.error('App: Error signing out from Supabase:', error);
         // Continue with cleanup even if signOut fails
@@ -838,11 +811,9 @@ const AppContent: React.FC = () => {
       // Step 2: Sign out from RevenueCat (native only)
       if (Capacitor.isNativePlatform()) {
         try {
-          console.log('App: Signing out from RevenueCat...');
           // Dynamic import to avoid web crashes
           const { Purchases } = await import('@revenuecat/purchases-capacitor');
           await Purchases.logOut();
-          console.log('App: ✅ RevenueCat sign-out complete');
         } catch (error) {
           console.error('App: Error signing out from RevenueCat:', error);
           // Continue with cleanup even if RevenueCat logout fails
@@ -850,27 +821,22 @@ const AppContent: React.FC = () => {
       }
       
       // Step 3: Clear all localStorage to remove ghost sessions
-      console.log('App: Clearing localStorage...');
       try {
         window.localStorage.clear();
-        console.log('App: ✅ localStorage cleared');
       } catch (error) {
         console.error('App: Error clearing localStorage:', error);
       }
       
       // Step 4: Clear has_active_session flag
-      console.log('App: Clearing has_active_session flag...');
       localStorage.removeItem('has_active_session');
       
       // Step 5: Reset all React states
-      console.log('App: Resetting React states...');
       setProfile(null);
       setIsGuest(false);
       setLoadingStatus('Ready to play');
       initialSyncCompleteRef.current = false;
       
       // Step 5: Redirect to landing page
-      console.log('App: Redirecting to landing page...');
       // Use window.location.replace to prevent back button navigation
       window.location.replace('/');
       
@@ -1181,13 +1147,11 @@ const AppContent: React.FC = () => {
   // Handle guest account linking with migration flag
   const handleLinkAccount = async () => {
     try {
-      console.log('App: OAuth Clean Slate - Clearing existing session before OAuth flow');
       
       // OAuth 'Clean Slate': Clear any existing session first
       try {
         const { data: currentSession } = await supabase.auth.getSession();
         if (currentSession?.session) {
-          console.log('App: Found existing session, signing out first...');
           await supabase.auth.signOut();
           // Wait a moment for sign-out to complete
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -1205,11 +1169,6 @@ const AppContent: React.FC = () => {
       const redirectTo = isNative 
         ? 'com.playthirteen.app://' // Custom scheme for native apps
         : window.location.origin; // Web origin
-      
-      console.log('App: Initiating Google OAuth flow for account linking...', { 
-        platform: isNative ? 'native' : 'web',
-        redirectTo 
-      });
       
       // Manual Implicit Flow: Construct OAuth URL directly for account linking
       const redirectUrl = `${window.location.origin}/auth/callback`;
@@ -1230,7 +1189,6 @@ const AppContent: React.FC = () => {
       oauthUrl.searchParams.set('client_id', supabaseAnonKey);
       oauthUrl.searchParams.set('prompt', 'consent'); // Optional: force consent screen
       
-      console.log('App: Redirecting to manual implicit OAuth URL for account linking');
       
       // Redirect immediately
       window.location.href = oauthUrl.toString();
@@ -1253,27 +1211,23 @@ const AppContent: React.FC = () => {
     
     // THE USER ID CHECK: Ensure we wait for actual UUID from session (not empty, not pending)
     if (!sessionUserId || !isValidUUID(sessionUserId) || isGuest || !session) {
-      console.log('App: Waiting for valid UUID from session', { sessionUserId, isGuest, hasSession: !!session });
       return;
     }
     
     // FORCE STATE PERSISTENCE: Don't clear profile state if it's already loading
     // If profile is already loaded for this user, don't fetch again
     if (profile && profile.id === sessionUserId) {
-      console.log('App: Profile already loaded for this user, skipping fetch');
       return;
     }
     
     // FORCE STATE PERSISTENCE: If a fetch is already in progress, don't clear profile state
     // Even if component re-renders, don't clear the profile state if it's already loading
     if (isInitializing.current || isInitialLoading.current || fetchInProgress.current) {
-      console.log('App: Profile fetch already in progress, preserving state (not clearing profile)');
       return;
     }
     
     // HARD LOCK: Set the lock immediately to prevent any other renders from triggering this
     isInitializing.current = true;
-    console.log('🔍 Fetching profile for UUID:', sessionUserId);
     
     const userId = sessionUserId; // Use the validated UUID
     
@@ -1283,7 +1237,6 @@ const AppContent: React.FC = () => {
     loadProfile(userId, false)
       .then(() => {
         // Success - profile loaded
-        console.log('✅ Profile loaded successfully for UUID:', userId);
       })
       .catch((err) => {
         // Error handling - log but don't throw
@@ -1307,7 +1260,6 @@ const AppContent: React.FC = () => {
     if (session && session.user) {
       // If session exists, we are NOT a guest
       if (isGuest) {
-        console.log('App: Session exists, setting isGuest to false');
         setIsGuest(false);
       }
     }
@@ -1327,7 +1279,6 @@ const AppContent: React.FC = () => {
       supabase.auth.getUser()
         .then(({ data: userData, error: userError }) => {
           if (!userError && userData?.user) {
-            console.log('App: ✅ Repaired user data with getUser()');
             // SessionProvider will pick up the repaired user via onAuthStateChange
           } else {
             console.warn('App: getUser() failed, but session exists so showing game anyway:', userError);
@@ -1401,7 +1352,6 @@ const AppContent: React.FC = () => {
 
       try {
         await SplashScreen.hide();
-        console.log('Splash screen hidden successfully');
       } catch (error) {
         // Non-blocking: Log error but don't prevent app from loading
         console.warn('Failed to hide splash screen:', error);
@@ -1431,7 +1381,6 @@ const AppContent: React.FC = () => {
   // Prevent Partial Renders: Don't mount any components until isAppReady is true
   if (!isAppReady) {
     const message = isRedirecting ? "Connecting to provider..." : "Verifying session...";
-    console.log('App: Showing loading screen', { isInitialized, isRedirecting, hasSession: !!session, hasProfile: !!profile, isAppReady, message });
     return (
       <div className="relative">
         <LoadingScreen
@@ -1453,7 +1402,6 @@ const AppContent: React.FC = () => {
   // Prevent Partial Renders: Only render AuthScreen if no session and not a guest
   if (!hasValidSession && !isGuest) {
     // Step C: Only if app is ready AND there is no user, show Landing
-    console.log('App: App ready, no user found - showing landing/sign-in screen');
     
     // Check if we just came back from auth/callback (browser might be blocking cookies)
     const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
@@ -1481,7 +1429,6 @@ const AppContent: React.FC = () => {
   }
   
   // 3. If session || isGuest, show Main Game App (only rendered when isAppReady is true)
-  console.log('App: Rendering main app content', { hasSession: !!session, isGuest, hasProfile: !!profile });
 
   return (
     <BillingProvider 

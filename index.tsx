@@ -6,7 +6,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { SessionProvider } from './components/SessionProvider';
 import './index.css';
 
-console.log('App: Step 1 - Starting initialization...');
 
 // Add error handler for unhandled errors
 window.addEventListener('error', (event) => {
@@ -42,7 +41,6 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-console.log('App: Step 2 - Setting up root element...');
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -51,7 +49,6 @@ if (!rootElement) {
   throw error;
 }
 
-console.log('App: Step 3 - Root element found, creating React root...');
 
 // AuthGuard Component: Delays rendering by 100ms to give browser time to settle cookies
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -60,7 +57,6 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   React.useEffect(() => {
     // Give browser 100ms 'breather' to settle cookies before checking session
     const timer = setTimeout(() => {
-      console.log('AuthGuard: 100ms delay complete, rendering app');
       setReady(true);
     }, 100);
     
@@ -80,7 +76,6 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 try {
   const root = ReactDOM.createRoot(rootElement);
-  console.log('App: Step 4 - React root created, rendering app with ErrorBoundary and AuthGuard...');
   
   // NOTE: React.StrictMode is explicitly disabled for Auth
   // StrictMode causes double-mounting which can interrupt OAuth redirects
@@ -99,7 +94,6 @@ try {
     // </React.StrictMode>
   );
   
-  console.log('App: Step 5 - App rendered successfully!');
 } catch (error) {
   console.error('App: ERROR - Failed to render app:', error);
   rootElement.innerHTML = `

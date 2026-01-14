@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, getEmoteUrl } from '../services/supabase';
+import { getWebpPath } from '../utils/imagePath';
 
 interface SaltShakeFinisherProps {
   onComplete: () => void;
@@ -19,13 +20,13 @@ const SaltShakerEmote: React.FC<{
   startSize: number;
 }> = ({ startX, delay, duration, startSize }) => {
   // Use getEmoteUrl for immediate fallback, then try to enhance with Supabase URL
-  const defaultUrl = getEmoteUrl(':annoyed:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/annoyed_card.png';
+  const defaultUrl = getEmoteUrl(':annoyed:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/annoyed_card.webp';
   const [imageUrl, setImageUrl] = useState<string>(defaultUrl);
   
   useEffect(() => {
     // Try to get the URL from Supabase storage (synchronous operation)
     try {
-      const { data } = supabase.storage.from('emotes').getPublicUrl('annoyed_card.png');
+      const { data } = supabase.storage.from('emotes').getPublicUrl('annoyed_card.webp');
       if (data?.publicUrl) {
         setImageUrl(data.publicUrl);
       }
@@ -90,7 +91,7 @@ const SaltShakerEmote: React.FC<{
           }}
           onError={(e) => {
             // Fallback to getEmoteUrl if image fails to load
-            const fallbackUrl = getEmoteUrl(':annoyed:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/annoyed_card.png';
+            const fallbackUrl = getEmoteUrl(':annoyed:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/annoyed_card.webp';
             if (fallbackUrl && e.currentTarget.src !== fallbackUrl) {
               e.currentTarget.src = fallbackUrl;
             }

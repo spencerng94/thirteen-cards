@@ -8,7 +8,8 @@ VALUES
   ('KISS MY SHIBA', 'kiss_my_shiba', 1500),
   ('Salt Shaker', 'salt_shaker', 1500),
   ('Sanctum Snap', 'sanctum_snap', 1500),
-  ('Seductive Finish', 'seductive_finish', 1500)
+  ('Seductive Finish', 'seductive_finish', 1500),
+  ('Bashful Finish', 'bashful_finish', 1500)
 ON CONFLICT (animation_key) DO UPDATE
 SET 
   name = EXCLUDED.name,

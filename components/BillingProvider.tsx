@@ -104,7 +104,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
 
     // FETCH LOCK: Return early if fetch is already in progress - prevents duplicate concurrent requests
     if (hasFetchedGemBalance.current) {
-      console.log('BillingProvider: Fetch guard - gem balance fetch already in progress, skipping to prevent race condition');
       return;
     }
 
@@ -112,7 +111,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     hasFetchedGemBalance.current = true;
 
     try {
-      console.log(`BillingProvider: 💎 Fetching gem balance from Supabase for UUID: ${userId}...`);
       // NO ABORT SIGNAL: No signal property - let Supabase handle request normally
       const userProfile = await fetchProfile(userId);
       
@@ -120,7 +118,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
         const gems = userProfile.gems ?? 0;
         setGemBalance(gems);
         gemBalanceFetchedRef.current = true;
-        console.log('BillingProvider: ✅ Gem balance fetched:', gems);
         
         // Notify parent component of gem update
         if (onGemsUpdate) {
@@ -145,7 +142,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     const initializeRevenueCat = async () => {
       // Environment Guard: Only run on native platforms
       if (!isNative) {
-        console.log('BillingProvider: Skipping RevenueCat initialization - not on native platform');
         setIsInitialized(false);
         setIsLoading(false);
         return;
@@ -175,7 +171,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
           return;
         }
 
-        console.log('BillingProvider: Initializing RevenueCat for platform:', platform);
 
         // Configure RevenueCat
         await Purchases.configure({
@@ -184,7 +179,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
         });
 
         setIsInitialized(true);
-        console.log('BillingProvider: ✅ RevenueCat initialized successfully');
       } catch (err: any) {
         console.error('BillingProvider: ❌ RevenueCat initialization failed:', err);
         setError(err.message || 'Failed to initialize RevenueCat');
@@ -212,16 +206,13 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
 
       try {
         const userId = session.user.id;
-        console.log('BillingProvider: 🔐 Logging into RevenueCat with user ID:', userId);
 
         const { customerInfo, created } = await Purchases.logIn(userId);
 
         setHasLoggedIn(true);
 
         if (created) {
-          console.log('BillingProvider: ✅ New RevenueCat customer created');
         } else {
-          console.log('BillingProvider: ✅ Existing RevenueCat customer logged in');
         }
       } catch (err: any) {
         console.error('BillingProvider: ❌ RevenueCat login failed:', err);
@@ -243,12 +234,10 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       // If session is null/undefined and we were logged in, logout from RevenueCat
       if (!session && hasLoggedIn && isInitialized) {
         try {
-          console.log('BillingProvider: 🚪 Logging out from RevenueCat');
           await Purchases.logOut();
           setHasLoggedIn(false);
           setGemBalance(null);
           setAvailablePackages(null);
-          console.log('BillingProvider: ✅ Logged out from RevenueCat');
         } catch (err: any) {
           console.error('BillingProvider: ❌ RevenueCat logout failed:', err);
         }
@@ -284,7 +273,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     
     // Debug: Log profile state to verify data
     if (initialProfile) {
-      console.log(`BillingProvider: Profile received - id: ${initialProfile.id}, username: ${initialProfile.username}, gems: ${initialProfile.gems}, coins: ${initialProfile.coins}`);
     }
     
     // If profile is provided with gems and ID matches stableUserId, use it directly
@@ -293,7 +281,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       const gemsFromProfile = initialProfile.gems ?? 0;
       setGemBalance(gemsFromProfile);
       gemBalanceFetchedRef.current = true;
-      console.log('BillingProvider: ✅ Gem balance set from initial profile:', gemsFromProfile);
       if (onGemsUpdate) {
         onGemsUpdate(gemsFromProfile);
       }
@@ -301,7 +288,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       // Profile is loaded but gems not set yet - fetch gem balance
       // Only fetch if we haven't already fetched (check guard in fetchGemBalance)
       if (!hasFetchedGemBalance.current && !gemBalanceFetchedRef.current) {
-        console.log('BillingProvider: Profile loaded but gems missing, fetching gem balance...');
         fetchGemBalance();
       }
     }
@@ -316,7 +302,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
                             window.location.pathname === '/purchase-cancel';
       
       if (isStripeReturn && session?.user?.id) {
-        console.log('BillingProvider: 🔄 Detected Stripe return, refreshing gem balance...');
         // Wait a moment for webhook to process, then refresh
         setTimeout(() => {
           fetchGemBalance();
@@ -340,13 +325,11 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     }
 
     try {
-      console.log('BillingProvider: 📦 Fetching offerings from RevenueCat');
       const offeringsData = await Purchases.getOfferings();
 
       if (offeringsData.current !== null) {
         const packages = offeringsData.current.availablePackages;
         setAvailablePackages(packages);
-        console.log('BillingProvider: ✅ Fetched', packages.length, 'packages');
         return packages;
       }
 
@@ -378,7 +361,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     }
 
     try {
-      console.log('BillingProvider: 💳 Creating Stripe checkout session for:', priceId);
       
       // Get backend URL (Render backend or localhost)
       const backendUrl = getEnv('VITE_BACKEND_URL') || getEnv('VITE_SERVER_URL') || 'http://localhost:3001';
@@ -411,7 +393,6 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
       }
 
       const data = await response.json();
-      console.log('BillingProvider: ✅ Stripe checkout session created');
 
       // Redirect to Stripe Checkout
       if (data.checkoutUrl) {
@@ -443,11 +424,9 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     }
 
     try {
-      console.log('BillingProvider: 💳 Purchasing package:', pack.identifier);
 
       const { customerInfo } = await Purchases.purchasePackage(pack);
 
-      console.log('BillingProvider: ✅ Purchase successful');
 
       // Auto-refresh gem balance after successful purchase
       // The webhook should have updated Supabase, but we refresh to be sure
@@ -483,9 +462,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({
     }
 
     try {
-      console.log('BillingProvider: 🔄 Restoring purchases');
       const customerInfo = await Purchases.restorePurchases();
-      console.log('BillingProvider: ✅ Purchases restored');
       
       // Refresh gem balance after restore
       fetchGemBalance();

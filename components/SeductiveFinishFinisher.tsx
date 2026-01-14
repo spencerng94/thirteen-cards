@@ -362,7 +362,6 @@ export const SeductiveFinishFinisher: React.FC<SeductiveFinishFinisherProps> = (
 
     // Phase 2: Rain/hose effect (2.5s)
     const rainTimer = setTimeout(() => {
-      console.log('🎬 SeductiveFinish: Phase -> text');
       setPhase('text');
     }, 2500);
 

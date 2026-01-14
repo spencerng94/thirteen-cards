@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ShibaSlamFinisher } from './ShibaSlamFinisher';
-import { EtherealBladeFinisher } from './EtherealBladeFinisher';
 import { SaltShakeFinisher } from './SaltShakeFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
 import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
 import { KissMyShibaFinisher } from './KissMyShibaFinisher';
 import { TooFunnyFinisher } from './TooFunnyFinisher';
+import { BashfulFinishFinisher } from './BashfulFinishFinisher';
 
 interface FinisherPreviewProps {
   finisherKey: string;
@@ -27,7 +27,7 @@ export const FinisherPreview: React.FC<FinisherPreviewProps> = ({
 
   const handleComplete = () => {
     // Auto-close after animation completes
-    // Ethereal Blade will auto-close after 4 seconds, Shiba Slam can be manually closed
+    // Shiba Slam can be manually closed
     setTimeout(() => {
       onClose();
     }, 500); // Small delay to ensure animation finishes
@@ -37,16 +37,6 @@ export const FinisherPreview: React.FC<FinisherPreviewProps> = ({
     if (finisherKey === 'shiba_slam') {
       return (
         <ShibaSlamFinisher
-          key={replayKey}
-          onComplete={handleComplete}
-          onReplay={handleReplay}
-          isPreview={true}
-          winnerName="GUEST"
-        />
-      );
-    } else if (finisherKey === 'ethereal_blade') {
-      return (
-        <EtherealBladeFinisher
           key={replayKey}
           onComplete={handleComplete}
           onReplay={handleReplay}
@@ -97,6 +87,16 @@ export const FinisherPreview: React.FC<FinisherPreviewProps> = ({
     } else if (finisherKey === 'too_funny') {
       return (
         <TooFunnyFinisher
+          key={replayKey}
+          onComplete={handleComplete}
+          onReplay={handleReplay}
+          isPreview={true}
+          winnerName="GUEST"
+        />
+      );
+    } else if (finisherKey === 'bashful_finish') {
+      return (
+        <BashfulFinishFinisher
           key={replayKey}
           onComplete={handleComplete}
           onReplay={handleReplay}

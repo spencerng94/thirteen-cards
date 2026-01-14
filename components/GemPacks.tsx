@@ -275,7 +275,6 @@ export const GemPacks: React.FC<{
         try {
           const packages = await billing.fetchOfferings();
           setRevenueCatPackages(packages);
-          console.log('GemPacks: Loaded', packages.length, 'RevenueCat packages');
         } catch (error) {
           console.error('GemPacks: Failed to load RevenueCat offerings:', error);
         }
@@ -342,7 +341,6 @@ export const GemPacks: React.FC<{
           throw new Error(`Gem pack "${pack.id}" not found in billing configuration`);
         }
 
-        console.log('GemPacks: Creating Stripe checkout for:', billingPack.priceId);
         
         // Use BillingProvider's buyGemsWeb function
         const result = await billing.buyGemsWeb(billingPack.priceId);
@@ -356,7 +354,6 @@ export const GemPacks: React.FC<{
         // BillingProvider will auto-refresh gem balance on return
         // No need to show celebration here - it will happen after redirect
         
-        console.log('GemPacks: Redirecting to Stripe Checkout...');
         // The redirect happens in buyGemsWeb, so we just return
         return;
       } else {
@@ -373,7 +370,6 @@ export const GemPacks: React.FC<{
           // Fallback: Try to find by store product ID or use first available package
           // If no match found, show error
           console.warn('GemPacks: No RevenueCat package found for:', pack.id);
-          console.log('GemPacks: Available packages:', revenueCatPackages.map(p => p.identifier));
           
           // If we have packages but no match, show error
           if (revenueCatPackages.length > 0) {
@@ -429,7 +425,6 @@ export const GemPacks: React.FC<{
         }
         
         // Purchase the RevenueCat package
-        console.log('GemPacks: Purchasing RevenueCat package:', revenueCatPack.identifier);
         const purchaseResult = await billing.buyGemsNative(revenueCatPack);
         
         if (!purchaseResult.success) {

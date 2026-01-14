@@ -42,7 +42,6 @@ export const useGems = () => {
         });
 
         setIsInitialized(true);
-        console.log('✅ RevenueCat initialized successfully');
       } catch (err: any) {
         console.error('❌ RevenueCat initialization failed:', err);
         setError(err.message || 'Failed to initialize RevenueCat');
@@ -63,16 +62,13 @@ export const useGems = () => {
     }
 
     try {
-      console.log('🔐 Logging into RevenueCat with user ID:', supabaseUserId);
       
       const { customerInfo: info, created } = await Purchases.logIn(supabaseUserId);
       
       setCustomerInfo(info);
       
       if (created) {
-        console.log('✅ New RevenueCat customer created');
       } else {
-        console.log('✅ Existing RevenueCat customer logged in');
       }
 
       return { success: true, customerInfo: info };
@@ -94,13 +90,11 @@ export const useGems = () => {
     }
 
     try {
-      console.log('💳 Purchasing package:', pack.identifier);
       
       const { customerInfo: info } = await Purchases.purchasePackage(pack);
       
       setCustomerInfo(info);
       
-      console.log('✅ Purchase successful:', info);
       
       return { success: true, customerInfo: info };
     } catch (err: any) {

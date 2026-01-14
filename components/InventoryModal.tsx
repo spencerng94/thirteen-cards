@@ -55,15 +55,12 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
     }
 
     try {
-      console.log('InventoryModal: Starting to show ad, placement:', placement);
       const adShown = await adService.showRewardedAd(placement, async (amount) => {
         // SECURITY: This callback is ONLY triggered AFTER AdMob's onUserEarnedReward event fires
         // This ensures server-side verification - we never award gems without AdMob confirming the reward
-        console.log('InventoryModal: Reward callback triggered, amount:', amount);
         try {
           // Call secure RPC function that uses auth.uid() server-side to prevent spoofing
           const result = await claimAdRewardGems();
-          console.log('InventoryModal: claimAdRewardGems result:', result);
           
           if (result.success) {
             audioService.playPurchase();
@@ -116,13 +113,11 @@ const WatchEarnButton: React.FC<{ profile: UserProfile, onRefresh: () => void }>
         }
       }, () => {
         // Early close callback - user closed ad early
-        console.log('InventoryModal: Ad closed early');
         setToastMessage('No ads available right now. Take a boba break and try again later!');
         setToastType('error');
         setShowToast(true);
       });
       
-      console.log('InventoryModal: showRewardedAd returned:', adShown);
       if (!adShown) {
         console.warn('InventoryModal: Ad was not shown successfully');
         setToastMessage('No ads available right now. Take a boba break and try again later!');

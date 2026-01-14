@@ -69,7 +69,6 @@ const forceClearGhostSession = async () => {
   );
   
   for (const key of supabaseKeys) {
-    console.log('SessionProvider: Removing localStorage key:', key);
     localStorage.removeItem(key);
   }
   
@@ -79,7 +78,6 @@ const forceClearGhostSession = async () => {
   // Sign out from Supabase
   try {
     await supabase.auth.signOut();
-    console.log('SessionProvider: ✅ Signed out from Supabase');
   } catch (signOutErr) {
     console.warn('SessionProvider: Error signing out:', signOutErr);
   }
@@ -107,7 +105,6 @@ const fetchUserDirectly = async (accessToken: string): Promise<{ id: string } | 
     if (response.ok) {
       const userData = await response.json();
       if (userData?.id) {
-        console.log('SessionProvider: ✅ Direct API fetch successful, user ID:', userData.id);
         return { id: userData.id };
       }
     }
@@ -135,7 +132,6 @@ const readSessionFromStorage = (): any => {
       return null;
     }
     
-    console.log('SessionProvider: Found Supabase keys in localStorage, attempting direct read...');
     
     // Try each key until we find valid session data
     for (const key of supabaseKeys) {
@@ -158,7 +154,6 @@ const readSessionFromStorage = (): any => {
         }
         
         if (sessionData?.access_token && sessionData?.user) {
-          console.log('SessionProvider: ✅ Found valid session in localStorage');
           return sessionData;
         }
       } catch (e) {
@@ -184,12 +179,10 @@ const checkStorageFallback = async (): Promise<boolean> => {
     const sessionData = readSessionFromStorage();
     
     if (sessionData) {
-      console.log('SessionProvider: ✅ Storage fallback successful, session recovered from localStorage');
       return true;
     }
     
     // If direct read fails, try refresh (but this will likely fail with AbortError)
-    console.log('SessionProvider: Direct read failed, attempting refresh (may fail with cookie blocking)...');
     const { data, error } = await supabase.auth.refreshSession();
     
     if (error) {
@@ -199,7 +192,6 @@ const checkStorageFallback = async (): Promise<boolean> => {
     }
     
     if (data?.session) {
-      console.log('SessionProvider: ✅ Storage fallback successful, session recovered via refresh');
       return true;
     }
     
@@ -253,19 +245,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     
     listenerSetupRef.current = true;
-    console.log('SessionProvider: 🔐 Setting up auth state change listener (ABSOLUTE FIRST)...');
     
     // ROBUST AUTH: Set up onAuthStateChange listener IMMEDIATELY - this must run FIRST
     // This ensures session is initialized before any components try to fetch profile or other data
     // Set up listener BEFORE any other initialization logic
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: string, currentSession: any) => {
-        console.log('SessionProvider: Auth event received:', event, currentSession ? `User: ${currentSession.user?.id}` : 'No session');
         
         // CRUCIAL: If SIGNED_IN or TOKEN_REFRESHED, set has_active_session flag
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           if (currentSession?.user) {
-            console.log('SessionProvider: ✅ Setting has_active_session flag in localStorage');
             localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
           }
           // Clear redirecting state when sign-in completes
@@ -274,7 +263,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         
         // CRUCIAL: If SIGNED_OUT, clear the flag
         if (event === 'SIGNED_OUT') {
-          console.log('SessionProvider: 🧹 Clearing has_active_session flag');
           localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
         }
             
@@ -301,7 +289,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (accessToken) {
               const jwtData = decodeJWT(accessToken);
               if (jwtData?.sub) {
-                console.log('SessionProvider: ✅ Extracted user ID from JWT in listener:', jwtData.sub);
                 currentSession.user = { ...currentSession.user, id: jwtData.sub };
                 repaired = true;
                 // Update state with repaired session
@@ -312,10 +299,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             
             // Direct User Fetch: Try direct API fetch as last resort
             if (!repaired && accessToken) {
-              console.log('SessionProvider: Attempting direct API fetch in listener...');
               const directUser = await fetchUserDirectly(accessToken);
               if (directUser?.id) {
-                console.log('SessionProvider: ✅ Direct API fetch successful in listener');
                 currentSession.user = { ...currentSession.user, id: directUser.id };
                 repaired = true;
                 // Update state with repaired session
@@ -331,7 +316,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               // FIX GHOST SESSION: Remove specific auth token from localStorage
               const authTokenKey = 'sb-spaxxexmyiczdrbikdjp-auth-token';
               localStorage.removeItem(authTokenKey);
-              console.log(`SessionProvider: ✅ Removed ${authTokenKey} from localStorage`);
               
               // Also clear all Supabase keys as fallback
               await forceClearGhostSession();
@@ -341,7 +325,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               setUser(null);
               
               // Reload page to ensure clean state
-              console.log('SessionProvider: 🔄 Reloading page to fix Ghost Session...');
               window.location.reload();
               return; // Exit early - page will reload
             }
@@ -364,7 +347,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
     
     subscriptionRef.current = subscription;
-    console.log('SessionProvider: ✅ Auth listener set up successfully (ABSOLUTE FIRST)');
     
     // Initialization Timeout: Add 5-second safety timeout to prevent infinite loading
     // Set up timeout immediately when effect runs
@@ -386,7 +368,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const hasAccessToken = hashParams.has('access_token') || hash.includes('access_token');
         
         if (hasAccessToken) {
-          console.log('SessionProvider: Detected #access_token hash, setting isRedirecting=true');
           setIsRedirecting(true);
         }
     
@@ -396,11 +377,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const hash = window.location.hash.substring(1); // Remove #
       const searchParams = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(hash);
-      
-      console.log('SessionProvider: Checking for tokens in hash/query:', {
-        hasHash: !!hash,
-        hasSearch: !!window.location.search
-      });
       
       // Check for errors first
       const errorParam = hashParams.get('error') || searchParams.get('error');
@@ -418,13 +394,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (code) {
         // Auth Lock: If already processing, skip
         if (isProcessingRef.current) {
-          console.log('SessionProvider: Already processing auth, skipping PKCE code exchange');
           return;
         }
         
         isProcessingRef.current = true; // Acquire lock
         setIsProcessing(true); // Update reactive state
-        console.log('SessionProvider: Found PKCE code in query, exchanging for session with Atomic Auth logic...');
         
         // Atomic Auth: Extract project ID for manual localStorage fallback
         const getProjectId = (): string | null => {
@@ -462,7 +436,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             
             localStorage.setItem(storageKey, JSON.stringify(sessionData));
             localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
-            console.log('SessionProvider: ✅ Tokens manually written to localStorage:', storageKey);
             return true;
           } catch (err) {
             console.error('SessionProvider: Error writing tokens to localStorage:', err);
@@ -476,7 +449,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
             
             if (!exchangeError && exchangeData?.session) {
-              console.log('SessionProvider: ✅ PKCE exchange successful, user:', exchangeData.session.user.id);
               
               // Force State Update: Manually set state immediately (don't wait for listener)
               // Synchronous State Update: Use functional update pattern
@@ -492,7 +464,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               window.history.replaceState(null, '', window.location.pathname);
               
               // Hard Navigation: Force entire React tree to re-initialize with authenticated user
-              console.log('SessionProvider: 🔄 Forcing hard navigation to recognize authenticated user');
               setTimeout(() => {
                 window.location.replace('/');
               }, 100); // Small delay to ensure state is set
@@ -502,7 +473,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 console.warn('SessionProvider: ⚠️ AbortError during exchangeCodeForSession, cannot use manual fallback (need tokens)');
                 // For PKCE, we can't manually write tokens since we only have a code
                 // The best we can do is retry or redirect
-                console.log('SessionProvider: 🔄 Retrying PKCE exchange after AbortError...');
                 isProcessingRef.current = false; // Release lock to allow retry
                 setIsProcessing(false); // Update reactive state
                 window.history.replaceState(null, '', window.location.pathname);
@@ -547,21 +517,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const accessToken = hashParams.get('access_token');
       const refreshToken = hashParams.get('refresh_token');
       
-      console.log('SessionProvider: Hash params:', {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken
-      });
-      
       if (accessToken) {
         // Auth Lock: If already processing, skip
         if (isProcessingRef.current) {
-          console.log('SessionProvider: Already processing auth, skipping hash token processing');
         return;
       }
       
         isProcessingRef.current = true; // Acquire lock
         setIsProcessing(true); // Update reactive state
-        console.log('SessionProvider: Found tokens in URL hash, setting session with Atomic Auth logic...');
         
         // Atomic Auth: Extract project ID for manual localStorage fallback
         const getProjectId = (): string | null => {
@@ -599,7 +562,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             
             localStorage.setItem(storageKey, JSON.stringify(sessionData));
             localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
-            console.log('SessionProvider: ✅ Tokens manually written to localStorage:', storageKey);
             return true;
           } catch (err) {
             console.error('SessionProvider: Error writing tokens to localStorage:', err);
@@ -620,7 +582,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           });
           
           if (!error && sessionData?.session) {
-            console.log('SessionProvider: ✅ Session set from hash, user:', sessionData.session.user.id);
               
               // Detect Ghost Sessions: Check if user.id is empty
               const userId = sessionData.session?.user?.id || '';
@@ -640,7 +601,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 if (accessToken) {
                   const jwtData = decodeJWT(accessToken);
                   if (jwtData?.sub) {
-                    console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
                     sessionData.session.user = { ...sessionData.session.user, id: jwtData.sub };
                     repaired = true;
                   }
@@ -648,10 +608,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 
                 // Direct User Fetch: Try direct API fetch as last resort
                 if (!repaired && accessToken) {
-                  console.log('SessionProvider: Attempting direct API fetch...');
                   const directUser = await fetchUserDirectly(accessToken);
                   if (directUser?.id) {
-                    console.log('SessionProvider: ✅ Direct API fetch successful');
                     sessionData.session.user = { ...sessionData.session.user, id: directUser.id };
                     repaired = true;
                   }
@@ -664,7 +622,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   // FIX GHOST SESSION: Remove specific auth token from localStorage
                   const authTokenKey = 'sb-spaxxexmyiczdrbikdjp-auth-token';
                   localStorage.removeItem(authTokenKey);
-                  console.log(`SessionProvider: ✅ Removed ${authTokenKey} from localStorage`);
                   
                   // Also clear all Supabase keys as fallback
                   await forceClearGhostSession();
@@ -677,7 +634,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   setIsProcessing(false);
                   
                   // Reload page to ensure clean state
-                  console.log('SessionProvider: 🔄 Reloading page to fix Ghost Session...');
                   window.location.reload();
                   return; // Exit early - page will reload
                 }
@@ -697,7 +653,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             window.history.replaceState(null, '', window.location.pathname);
               
               // Hard Navigation: Force entire React tree to re-initialize with authenticated user
-              console.log('SessionProvider: 🔄 Forcing hard navigation to recognize authenticated user');
               setTimeout(() => {
                 window.location.replace('/');
               }, 100); // Small delay to ensure state is set
@@ -709,7 +664,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // Atomic Auth: Manual Extraction Fail-safe
                 if (writeTokensToStorage(accessToken, refreshToken || '')) {
                   // Force hard refresh - Supabase will find token on next load
-                  console.log('SessionProvider: 🔄 Forcing hard refresh to load session from localStorage');
                   window.history.replaceState(null, '', window.location.pathname);
                   window.location.href = '/';
                   return; // Don't release lock - page will reload
@@ -735,7 +689,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               // Atomic Auth: Manual Extraction Fail-safe
               if (writeTokensToStorage(accessToken, refreshToken || '')) {
                 // Force hard refresh - Supabase will find token on next load
-                console.log('SessionProvider: 🔄 Forcing hard refresh to load session from localStorage');
                 window.history.replaceState(null, '', window.location.pathname);
                 window.location.href = '/';
                 return; // Don't release lock - page will reload
@@ -766,7 +719,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const checkInitialSession = async () => {
       // Auth Lock: If already processing, return immediately
       if (isProcessingRef.current) {
-        console.log('SessionProvider: Already processing auth, skipping getSession()');
         return;
       }
       
@@ -783,7 +735,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setTimeout(async () => {
             const sessionData = readSessionFromStorage();
             if (sessionData) {
-              console.log('SessionProvider: ✅ Recovered session from localStorage, setting state');
               
               // Detect Ghost Sessions: Check if user.id is empty
               const userId = sessionData?.user?.id || '';
@@ -803,7 +754,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 if (accessToken) {
                   const jwtData = decodeJWT(accessToken);
                   if (jwtData?.sub) {
-                    console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
                     sessionData.user = { ...sessionData.user, id: jwtData.sub };
                     repaired = true;
                   }
@@ -811,10 +761,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 
                 // Direct User Fetch: Try direct API fetch as last resort
                 if (!repaired && accessToken) {
-                  console.log('SessionProvider: Attempting direct API fetch...');
                   const directUser = await fetchUserDirectly(accessToken);
                   if (directUser?.id) {
-                    console.log('SessionProvider: ✅ Direct API fetch successful');
                     sessionData.user = { ...sessionData.user, id: directUser.id };
                     repaired = true;
                   }
@@ -833,7 +781,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               // Synchronous State Update: Use functional update pattern to ensure state is set immediately
               setSession(prev => sessionData);
               setUser(prev => sessionData.user);
-              console.log('SessionProvider: State updated - session:', !!sessionData, 'user:', !!sessionData.user, 'userId:', sessionData.user?.id);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
               setLoading(false);
             } else {
@@ -872,7 +819,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                       if (accessToken) {
                         const jwtData = decodeJWT(accessToken);
                         if (jwtData?.sub) {
-                          console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
                           directSession.user = { ...directSession.user, id: jwtData.sub };
                           repaired = true;
                         }
@@ -880,10 +826,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                       
                       // Direct User Fetch: Try direct API fetch as last resort
                       if (!repaired && accessToken) {
-                        console.log('SessionProvider: Attempting direct API fetch...');
                         const directUser = await fetchUserDirectly(accessToken);
                         if (directUser?.id) {
-                          console.log('SessionProvider: ✅ Direct API fetch successful');
                           directSession.user = { ...directSession.user, id: directUser.id };
                           repaired = true;
                         }
@@ -931,7 +875,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (accessToken) {
               const jwtData = decodeJWT(accessToken);
               if (jwtData?.sub) {
-                console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
                 data.session.user = { ...data.session.user, id: jwtData.sub };
                 repaired = true;
               }
@@ -939,10 +882,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             
             // Direct User Fetch: Try direct API fetch as last resort
             if (!repaired && accessToken) {
-              console.log('SessionProvider: Attempting direct API fetch...');
               const directUser = await fetchUserDirectly(accessToken);
               if (directUser?.id) {
-                console.log('SessionProvider: ✅ Direct API fetch successful');
                 data.session.user = { ...data.session.user, id: directUser.id };
                 repaired = true;
               }
@@ -959,7 +900,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
           }
           
-          console.log('SessionProvider: ✅ Initial session found:', data.session.user.id);
           // Synchronous State Update: Use functional update pattern to ensure state is set immediately
           setSession(prev => data.session);
           setUser(prev => data.session.user);
@@ -980,7 +920,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = not found, which is OK
                 console.warn('SessionProvider: Profile check error (non-fatal):', profileError);
               } else {
-                console.log('SessionProvider: Profile check complete:', profileData ? 'Profile exists' : 'Profile not found (will be created)');
               }
             }
           } catch (profileCheckErr) {
@@ -988,7 +927,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Don't block initialization if profile check fails
           }
         } else {
-          console.log('SessionProvider: No initial session found');
           localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
           isProcessingRef.current = false; // Release lock
         }
@@ -1000,7 +938,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setTimeout(async () => {
             const sessionData = readSessionFromStorage();
             if (sessionData) {
-              console.log('SessionProvider: ✅ Recovered session from localStorage, setting state');
               
               // Detect Ghost Sessions: Check if user.id is empty
               const userId = sessionData?.user?.id || '';
@@ -1020,7 +957,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 if (accessToken) {
                   const jwtData = decodeJWT(accessToken);
                   if (jwtData?.sub) {
-                    console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
                     sessionData.user = { ...sessionData.user, id: jwtData.sub };
                     repaired = true;
                   }
@@ -1028,10 +964,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 
                 // Direct User Fetch: Try direct API fetch as last resort
                 if (!repaired && accessToken) {
-                  console.log('SessionProvider: Attempting direct API fetch...');
                   const directUser = await fetchUserDirectly(accessToken);
                   if (directUser?.id) {
-                    console.log('SessionProvider: ✅ Direct API fetch successful');
                     sessionData.user = { ...sessionData.user, id: directUser.id };
                     repaired = true;
                   }
@@ -1050,7 +984,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
               // Synchronous State Update: Use functional update pattern to ensure state is set immediately
               setSession(prev => sessionData);
               setUser(prev => sessionData.user);
-              console.log('SessionProvider: State updated - session:', !!sessionData, 'user:', !!sessionData.user, 'userId:', sessionData.user?.id);
               localStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
               setLoading(false);
             } else {
@@ -1089,7 +1022,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                       if (accessToken) {
                         const jwtData = decodeJWT(accessToken);
                         if (jwtData?.sub) {
-                          console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
                           directSession.user = { ...directSession.user, id: jwtData.sub };
                           repaired = true;
                         }
@@ -1097,10 +1029,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                       
                       // Direct User Fetch: Try direct API fetch as last resort
                       if (!repaired && accessToken) {
-                        console.log('SessionProvider: Attempting direct API fetch...');
                         const directUser = await fetchUserDirectly(accessToken);
                         if (directUser?.id) {
-                          console.log('SessionProvider: ✅ Direct API fetch successful');
                           directSession.user = { ...directSession.user, id: directUser.id };
                           repaired = true;
                         }
@@ -1150,21 +1080,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // OR if timeout has been reached (prevents infinite loading)
         // This ensures App.tsx never sees a null user state while recovery is still in progress
         // But also allows the app to proceed if initialization is stuck
-        console.log('SessionProvider: ✅ Initialization complete, setting isInitialized=true', {
-          timeoutReached: initializationTimeout
-        });
         setIsInitialized(true);
         setLoading(false);
-        
-        // Force Re-render: Log context state at end of initialization
-        console.log('SessionProvider: Final Context State:', { 
-          hasSession: !!session, 
-          hasUser: !!user,
-          sessionUserId: session?.user?.id,
-          userStateId: user?.id,
-          isInitialized: true,
-          initializationTimeout
-        });
       }
     };
     
@@ -1173,7 +1090,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Cleanup
     return () => {
-      console.log('SessionProvider: Cleaning up auth listener');
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
       }
@@ -1189,17 +1105,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const forceSession = async () => {
     // Auth Lock: If already processing, return immediately
     if (isProcessingRef.current) {
-      console.log('SessionProvider: Already processing auth, skipping forceSession');
       return;
     }
     
     isProcessingRef.current = true; // Acquire lock
-    console.log('SessionProvider: 🔄 Manual session recovery triggered');
     
     // First, try to read directly from localStorage (no network calls)
     const sessionData = readSessionFromStorage();
     if (sessionData) {
-      console.log('SessionProvider: ✅ Manual recovery successful from localStorage, setting session and reloading');
       
       // Detect Ghost Sessions: Check if user.id is empty
       const userId = sessionData?.user?.id || '';
@@ -1219,7 +1132,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (accessToken) {
           const jwtData = decodeJWT(accessToken);
           if (jwtData?.sub) {
-            console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
             sessionData.user = { ...sessionData.user, id: jwtData.sub };
             repaired = true;
           }
@@ -1227,10 +1139,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         
         // Direct User Fetch: Try direct API fetch as last resort
         if (!repaired && accessToken) {
-          console.log('SessionProvider: Attempting direct API fetch...');
           const directUser = await fetchUserDirectly(accessToken);
           if (directUser?.id) {
-            console.log('SessionProvider: ✅ Direct API fetch successful');
             sessionData.user = { ...sessionData.user, id: directUser.id };
             repaired = true;
           }
@@ -1262,7 +1172,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data } = await supabase.auth.refreshSession();
       if (data?.session) {
-        console.log('SessionProvider: ✅ Manual recovery successful via refresh, reloading page');
         // Synchronous State Update: Use functional update pattern
         setSession(prev => data.session);
         setUser(prev => data.session.user);
@@ -1278,7 +1187,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Try one more time to read from storage
         const retrySession = readSessionFromStorage();
         if (retrySession) {
-          console.log('SessionProvider: ✅ Found session on retry, setting and reloading');
           
           // Detect Ghost Sessions: Check if user.id is empty
           const userId = retrySession?.user?.id || '';
@@ -1298,7 +1206,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (accessToken) {
               const jwtData = decodeJWT(accessToken);
               if (jwtData?.sub) {
-                console.log('SessionProvider: ✅ Extracted user ID from JWT:', jwtData.sub);
                 retrySession.user = { ...retrySession.user, id: jwtData.sub };
                 repaired = true;
               }
@@ -1306,10 +1213,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             
             // Direct User Fetch: Try direct API fetch as last resort
             if (!repaired && accessToken) {
-              console.log('SessionProvider: Attempting direct API fetch...');
               const directUser = await fetchUserDirectly(accessToken);
               if (directUser?.id) {
-                console.log('SessionProvider: ✅ Direct API fetch successful');
                 retrySession.user = { ...retrySession.user, id: directUser.id };
                 repaired = true;
               }
@@ -1339,7 +1244,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     
     isProcessingRef.current = false; // Release lock
-    console.log('SessionProvider: ❌ Manual recovery failed, no session found in storage');
     // Don't redirect - let user try again or see the error message
   };
 
@@ -1364,15 +1268,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }
 
   // Force Re-render: Log context state at end of initialization for debugging
-  if (isInitialized) {
-    console.log('SessionProvider: Context State:', { 
-      hasSession: !!session, 
-      hasUser: !!user,
-      sessionUserId: session?.user?.id,
-      userStateId: user?.id,
-      isInitialized 
-    });
-  }
 
   return (
     <SessionContext.Provider value={contextValue}>

@@ -80,9 +80,9 @@ const GUEST_STORAGE_KEY = 'thirteen_stats';
 const GUEST_MIGRATION_KEY = 'thirteen_guest_migration';
 
 export const EMOTE_FILE_MAP: Record<string, string> = {
-  ':smile:': 'shiba_card.png', ':blush:': 'blushing_card.png', ':cool:': 'sunglasses_card.png',
-  ':annoyed:': 'annoyed_card.png', ':heart_eyes:': 'seductive_card.png', ':money_mouth_face:': 'chinese_card.png',
-  ':robot:': 'final_boss_card.png', ':devil:': 'devil_card.png', ':girly:': 'girly_card.png',
+  ':smile:': 'shiba_card.webp', ':blush:': 'blushing_card.webp', ':cool:': 'sunglasses_card.webp',
+  ':annoyed:': 'annoyed_card.webp', ':heart_eyes:': 'seductive_card.webp', ':money_mouth_face:': 'chinese_card.webp',
+  ':robot:': 'final_boss_card.webp', ':devil:': 'devil_card.webp', ':girly:': 'girly_card.webp',
 };
 
 export const getEmoteUrl = (trigger: string): string => {
@@ -193,7 +193,6 @@ export const persistSupabaseAuthTokenBruteforce = (
       expires_at: expiresAt
     };
     localStorage.setItem(storageKey, JSON.stringify(payload));
-    console.log('GLOBAL: Brute force token persisted to localStorage with key', storageKey);
   } catch (storageError) {
     console.warn('GLOBAL: Failed to brute force store Supabase token:', storageError);
   }
@@ -205,7 +204,6 @@ if (typeof window !== 'undefined') {
   if (storedSession) {
     globalAuthState.session = storedSession;
     globalAuthState.hasSession = true;
-    console.log('GLOBAL: Session restored from localStorage before mount');
   }
   globalAuthState.authChecked = localStorage.getItem(GLOBAL_AUTH_CHECKED_KEY) === 'true';
   globalAuthState.hasSession = localStorage.getItem(GLOBAL_HAS_SESSION_KEY) === 'true';
@@ -249,8 +247,6 @@ const sanitizeUrl = (url: string): string => {
 // SIMPLIFIED OAuth handling: Let Supabase automatically detect and process the hash
 // With detectSessionInUrl: true, Supabase will handle the OAuth redirect automatically
 const waitForSupabaseSession = async (maxWaitMs: number = 5000): Promise<boolean> => {
-  console.log('GLOBAL: Waiting for Supabase to process OAuth hash...');
-  
   const startTime = Date.now();
   const checkInterval = 200; // Check every 200ms
   
@@ -260,12 +256,10 @@ const waitForSupabaseSession = async (maxWaitMs: number = 5000): Promise<boolean
     if (error) {
       console.warn('GLOBAL: Error getting session:', error);
     } else if (data?.session) {
-      console.log('GLOBAL: Session found! Supabase processed OAuth successfully');
       globalAuthState.setSession(data.session);
       globalAuthState.setAuthChecked(true);
       globalAuthState.setHasSession(true);
       localStorage.setItem('thirteen_session_verified', 'true');
-      console.log('SESSION VERIFIED');
       return true;
     }
     
@@ -280,15 +274,6 @@ const waitForSupabaseSession = async (maxWaitMs: number = 5000): Promise<boolean
 if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAuthListenerSetup) {
   globalAuthListenerSetup = true;
   
-  console.log('GLOBAL: Setting up auth listener BEFORE React mount...');
-  
-  // DIAGNOSTIC: Log full URL (sanitized) to see what Google is sending back
-  const fullUrl = window.location.href;
-  const sanitizedUrl = sanitizeUrl(fullUrl);
-  console.log('GLOBAL: DIAGNOSTIC - Full URL (sanitized):', sanitizedUrl);
-  console.log('GLOBAL: DIAGNOSTIC - Hash:', window.location.hash ? 'Present' : 'Missing');
-  console.log('GLOBAL: DIAGNOSTIC - Search:', window.location.search ? 'Present' : 'Missing');
-  
   // Check for OAuth hash/code immediately
   const hash = window.location.hash;
   const search = window.location.search;
@@ -296,11 +281,6 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
   const hasOAuthCode = search.includes('code=');
   
   if (hasOAuthHash || hasOAuthCode) {
-    console.log('GLOBAL: OAuth redirect detected BEFORE React mount');
-    console.log('GLOBAL: Hash contains access_token:', hash.includes('access_token'));
-    console.log('GLOBAL: Hash contains code:', hash.includes('code='));
-    console.log('GLOBAL: Search contains code:', search.includes('code='));
-    console.log('GLOBAL: Waiting for Supabase to automatically process OAuth hash...');
     isProcessingAuth = true;
     
     // Let Supabase automatically process the hash (detectSessionInUrl: true handles this)
@@ -308,7 +288,6 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
     (async () => {
       const success = await waitForSupabaseSession(5000);
       if (success) {
-        console.log('GLOBAL: OAuth processing complete - Session verified');
         isProcessingAuth = false;
       } else {
         console.warn('GLOBAL: OAuth processing timeout - Will rely on onAuthStateChange event');
@@ -319,21 +298,16 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
   
   // Set up listener that runs outside React lifecycle
   const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
-    console.log('GLOBAL: SUPABASE AUTH EVENT (outside React):', event, session ? 'Session exists' : 'No session');
-    
     // CRITICAL: Save session immediately to global state and localStorage
     if (event === 'SIGNED_IN' && session) {
-      console.log('GLOBAL: Session caught before mount - SIGNED_IN event');
       globalAuthState.setSession(session);
       globalAuthState.setAuthChecked(true);
       globalAuthState.setHasSession(true);
       isProcessingAuth = false;
-      console.log('GLOBAL: Session saved to global state and localStorage');
     } else if (session) {
       // Other events with session
       globalAuthState.setSession(session);
       globalAuthState.setHasSession(true);
-      console.log('GLOBAL: Session updated (event:', event, ')');
     } else if (event === 'SIGNED_OUT') {
       globalAuthState.clear();
       // Clear all Supabase auth tokens from localStorage
@@ -344,15 +318,11 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
       // Clear any other auth-related flags
       localStorage.removeItem('thirteen_session_verified');
       localStorage.removeItem('thirteen_manual_recovery');
-      console.log('GLOBAL: Session cleared (SIGNED_OUT)');
     } else if (event === 'INITIAL_SESSION' && !session) {
       // If we're processing OAuth, don't set authChecked yet
       if (!isProcessingAuth) {
         globalAuthState.setAuthChecked(true);
         globalAuthState.setHasSession(false);
-        console.log('GLOBAL: INITIAL_SESSION with no session - auth checked');
-      } else {
-        console.log('GLOBAL: INITIAL_SESSION while processing OAuth - waiting for session...');
       }
     }
   });
@@ -361,7 +331,6 @@ if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey && !globalAu
   if (!isProcessingAuth) {
     supabase.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
       if (!error && data?.session) {
-        console.log('GLOBAL: Existing session found before mount');
         globalAuthState.setSession(data.session);
         globalAuthState.setAuthChecked(true);
         globalAuthState.setHasSession(true);
@@ -393,8 +362,6 @@ if (typeof window !== 'undefined') {
         viteKey: getEnv('VITE_SUPABASE_ANON_KEY') ? 'SET' : 'MISSING'
       }
     });
-  } else {
-    console.log('✅ Supabase client initialized successfully');
   }
 }
 
@@ -407,14 +374,12 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
   // Global Cache: Return cached data if available and fresh (unless force refresh)
   const now = Date.now();
   if (!forceRefresh && globalFetchCache.emotes.data && (now - globalFetchCache.emotes.timestamp) < globalFetchCache.emotes.ttl) {
-    console.log('fetchEmotes: Returning cached data');
     return globalFetchCache.emotes.data;
   }
   
   // LOCKED FETCHER PATTERN: Prevent concurrent fetches
   // Exit if a fetch is already in progress - prevents AbortError loops
   if (isFetchingEmotes) {
-    console.log('fetchEmotes: Fetch already in progress, returning existing promise or cached data');
     // Return existing promise if available, otherwise return cached data
     if (globalFetchCache.emotes.promise) {
       return globalFetchCache.emotes.promise;
@@ -425,7 +390,6 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
   
   // Global Cache: If a fetch is already in progress, return that promise instead of starting a new one
   if (globalFetchCache.emotes.promise) {
-    console.log('fetchEmotes: Fetch already in progress, returning existing promise');
     return globalFetchCache.emotes.promise;
   }
   
@@ -488,7 +452,6 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
         
         // Log premium pricing for debugging
         if (premiumPrice !== undefined) {
-          console.log(`💰 Premium pricing for "${emoteName}" (${triggerCode}): ${finalPrice} gems`);
         }
         
         // Normalize fallback emoji - ensure it's a valid string
@@ -505,13 +468,6 @@ export const fetchEmotes = async (forceRefresh = false): Promise<Emote[]> => {
           price: finalPrice
         };
       });
-      
-      console.log(`✅ Fetched ${emotes.length} emotes from Supabase:`, emotes.map(e => ({ 
-        name: e.name, 
-        trigger: e.trigger_code, 
-        file_path: e.file_path,
-        price: e.price 
-      })));
       
       // Store in global cache
       globalFetchCache.emotes.data = emotes;
@@ -686,7 +642,6 @@ export const saveGuestProgress = (data: { gems?: number; xp?: number; coins?: nu
     };
     
     localStorage.setItem(GUEST_MIGRATION_KEY, JSON.stringify(merged));
-    console.log('Guest progress saved for migration:', merged);
   } catch (error) {
     console.error('Failed to save guest progress:', error);
   }
@@ -721,7 +676,6 @@ export const getGuestProgress = (): { gems: number; xp: number; coins: number } 
 export const clearGuestProgress = (): void => {
   try {
     localStorage.removeItem(GUEST_MIGRATION_KEY);
-    console.log('Guest migration data cleared');
   } catch (error) {
     console.error('Failed to clear guest progress:', error);
   }
@@ -805,7 +759,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   
   // Validation: Log UUID for debugging
   // Note: This should only log ONCE per session due to hard lock in App.tsx
-  console.log(`🔍 Fetching profile for UUID: ${userId}`);
   
   // REMOVE ABORTCONTROLLER: No AbortController, no signal, no cleanup
   // In production, Ghost Session causes session fluctuations which trigger abort signals before database responds
@@ -856,7 +809,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     // maybeSingle() returns null data (not an error) when no rows are found (404 case)
     // Check for 404 explicitly: if data is null and no error, it's a 404
     if (!data && !error) {
-      console.log(`🔵 fetchProfile: Profile not found (404) for UUID: ${userId} - this is a new user`);
       // Return a special marker to indicate 404 - caller will handle creating new profile
       const notFoundError = new Error('PROFILE_NOT_FOUND_404');
       (notFoundError as any).isNotFound = true;
@@ -864,7 +816,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     }
     
   if (data) {
-      console.log(`✅ fetchProfile: Profile found for UUID: ${userId}`);
       // Ensure we use 'gems' column (not 'gem_count') and 'username' + 'discriminator' (separate columns)
       // Database uses separate 'username' and 'discriminator' columns
       // Handle legacy profiles that might have username in "Name#0000" format
@@ -878,7 +829,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
           // Legacy format detected - extract username and discriminator
           username = parts[0];
           discriminator = parts[1];
-          console.log(`fetchProfile: Extracted discriminator from legacy format: ${username}#${discriminator}`);
           // Update profile in database to separate columns (async, don't await)
           updateProfileSettings(userId, { username, discriminator }).catch(err => 
             console.warn('Failed to update legacy username format:', err)
@@ -889,7 +839,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
       // If discriminator is still missing or invalid, generate one
       if (!discriminator || discriminator === '' || !/^\d{4}$/.test(discriminator)) {
         discriminator = generateDiscriminator();
-        console.log(`fetchProfile: Generated discriminator for profile missing discriminator: ${discriminator}`);
         // Update profile in database with new discriminator (async, don't await)
         updateProfileSettings(userId, { discriminator }).catch(err => 
           console.warn('Failed to update discriminator:', err)
@@ -907,7 +856,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
       } as UserProfile;
       
       // Debug: Log the profile data to verify gems/coins are correctly mapped
-      console.log(`✅ fetchProfile: Profile data mapped - username: ${profile.username}, discriminator: ${profile.discriminator}, gems: ${profile.gems}, coins: ${profile.coins}, currency: ${profile.currency}`);
     // Normalize level for legacy users: ensure level matches calculated level based on XP
     const calculatedLevel = calculateLevel(profile.xp || 0);
     if (profile.level !== calculatedLevel) {
@@ -943,7 +891,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
       // Update database synchronously to ensure it's saved
       try {
         await updateProfileSettings(userId, { unlocked_phrases: updatedPhrases });
-        console.log(`Updated legacy account ${userId} with default quick chats`);
       } catch (err) {
         console.warn('Failed to update legacy user unlocked_phrases:', err);
         // Profile already has the phrases set, so user can still use them
@@ -958,7 +905,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     
     // No profile found (404) - maybeSingle() returns null data when no rows found
     // This is a new user, create profile
-    console.log('🔵 fetchProfile: No profile found (404), creating new profile...');
     
     // Get user email from auth session to save in profile
     let userEmail: string | undefined;
@@ -966,7 +912,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
       const { data: { user } } = await supabase.auth.getUser();
       userEmail = user?.email || undefined;
       if (userEmail) {
-        console.log('🔵 fetchProfile: Retrieved email from auth session:', userEmail);
       } else {
         console.warn('🔵 fetchProfile: No email found in auth session for user:', userId);
       }
@@ -980,14 +925,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
   const defaultProfile = await getDefaultProfile(userId, currentAvatar, cleanBaseUsername);
   // Save the new profile immediately for Google OAuth users
-  console.log('🔵 fetchProfile: Attempting to upsert new user profile:', {
-    userId,
-    username: defaultProfile.username,
-    hasInventory: !!defaultProfile.inventory,
-    hasEventStats: !!defaultProfile.event_stats,
-    profileKeys: Object.keys(defaultProfile)
-  });
-  
+  // Attempt to upsert new user profile
   const { data: upsertData, error: upsertError } = await supabase.from('profiles').upsert(defaultProfile, {
     onConflict: 'id'
   });
@@ -1025,7 +963,6 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
     throw error;
   }
   
-  console.log('✅ Successfully saved new user profile');
   return defaultProfile;
   } catch (e: any) {
     // Re-throw network errors, abort errors, and 404 errors so caller can handle them
@@ -1283,7 +1220,6 @@ export const claimAdRewardGems = async (): Promise<{
     
     // If no session or user is guest, handle as guest (ads are allowed for guests)
     if (!userId || userId === 'guest') {
-      console.log('claimAdRewardGems: Handling as guest user');
       const guestProfile = fetchGuestProfile();
       const newGems = (guestProfile.gems || 0) + 20;
       guestProfile.gems = newGems;
@@ -1300,7 +1236,6 @@ export const claimAdRewardGems = async (): Promise<{
       };
     }
     
-    console.log('claimAdRewardGems: Calling RPC with user ID:', sessionData.session.user.id);
     // Call the secure RPC function (no parameters needed - uses auth.uid() server-side)
     const { data, error } = await supabase.rpc('claim_ad_reward');
 
@@ -1357,7 +1292,6 @@ export const claimAdRewardGems = async (): Promise<{
       };
     }
     
-    console.log('claimAdRewardGems: RPC returned data:', data);
 
     // Handle cooldown error
     if (!data.success && data.error === 'Cooldown active') {
@@ -2239,14 +2173,12 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
   // Global Cache: Return cached data if available and fresh
   const now = Date.now();
   if (globalFetchCache.finishers.data && (now - globalFetchCache.finishers.timestamp) < globalFetchCache.finishers.ttl) {
-    console.log('fetchFinishers: Returning cached data');
     return globalFetchCache.finishers.data as Finisher[];
   }
   
   // LOCKED FETCHER PATTERN: Prevent concurrent fetches
   // Exit if a fetch is already in progress - prevents AbortError loops
   if (isFetchingFinishers) {
-    console.log('fetchFinishers: Fetch already in progress, returning existing promise or cached data');
     // Return existing promise if available, otherwise return cached data
     if (globalFetchCache.finishers.promise) {
       return globalFetchCache.finishers.promise as Promise<Finisher[]>;
@@ -2257,7 +2189,6 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
   
   // Global Cache: If a fetch is already in progress, return that promise instead of starting a new one
   if (globalFetchCache.finishers.promise) {
-    console.log('fetchFinishers: Fetch already in progress, returning existing promise');
     return globalFetchCache.finishers.promise as Promise<Finisher[]>;
   }
   
@@ -2267,7 +2198,6 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
   // Create the fetch promise and store it in cache immediately
   const fetchPromise = (async () => {
     try {
-      console.log('🔍 Fetching finishers from Supabase...', { supabaseUrl, hasKey: !!supabaseAnonKey });
       
       // NO ABORT SIGNAL: Query without any abort controller
       // Let Supabase handle the request normally, no cancellation on re-renders
@@ -2293,7 +2223,6 @@ export const fetchFinishers = async (): Promise<Finisher[]> => {
         return globalFetchCache.finishers.data as Finisher[] || [];
       }
       
-      console.log(`✅ Successfully fetched ${data.length} finishers:`, data.map(f => ({ name: f.name, animation_key: f.animation_key, price: f.price })));
       
       // Store in global cache
       globalFetchCache.finishers.data = data;
@@ -2610,14 +2539,12 @@ export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
   // Global Cache: Return cached data if available and fresh
   const now = Date.now();
   if (globalFetchCache.chatPresets.data && (now - globalFetchCache.chatPresets.timestamp) < globalFetchCache.chatPresets.ttl) {
-    console.log('fetchChatPresets: Returning cached data');
     return globalFetchCache.chatPresets.data as ChatPreset[];
   }
   
   // LOCKED FETCHER PATTERN: Prevent concurrent fetches
   // Exit if a fetch is already in progress - prevents AbortError loops
   if (isFetchingChatPresets) {
-    console.log('fetchChatPresets: Fetch already in progress, returning existing promise or cached data');
     // Return existing promise if available, otherwise return cached data or defaults
     if (globalFetchCache.chatPresets.promise) {
       return globalFetchCache.chatPresets.promise as Promise<ChatPreset[]>;
@@ -2628,7 +2555,6 @@ export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
   
   // Global Cache: If a fetch is already in progress, return that promise instead of starting a new one
   if (globalFetchCache.chatPresets.promise) {
-    console.log('fetchChatPresets: Fetch already in progress, returning existing promise');
     return globalFetchCache.chatPresets.promise as Promise<ChatPreset[]>;
   }
   
@@ -2686,7 +2612,6 @@ export const fetchChatPresets = async (): Promise<ChatPreset[]> => {
         }
       });
       
-      console.log(`✅ Successfully fetched ${uniquePresets.length} chat presets (${dbPresets.length} from DB + ${defaultPresets.length} defaults)`);
       
       // Store in global cache
       globalFetchCache.chatPresets.data = uniquePresets;
@@ -3024,7 +2949,6 @@ export const logErrorToSupabase = async (
           // Log to console but don't throw - this is fire-and-forget
           console.warn('Failed to log error to Supabase (non-blocking):', insertError);
         } else {
-          console.log('✅ Error logged to Supabase successfully');
         }
       })
       .catch((e) => {

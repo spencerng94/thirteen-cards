@@ -54,13 +54,11 @@ export const AuthCallback: React.FC = () => {
       if (code) {
         hasProcessedRef.current = true;
         setStatus('Exchanging authorization code...');
-        console.log('AuthCallback: Found PKCE code, attempting exchange...');
         
         try {
           const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           
           if (!exchangeError && exchangeData?.session) {
-            console.log('AuthCallback: ✅ PKCE exchange successful, user:', exchangeData.session.user.id);
             setIsRedirecting(false);
             setStatus('Sign-in successful! Redirecting...');
             
@@ -81,7 +79,6 @@ export const AuthCallback: React.FC = () => {
               exchangeError.name === 'AbortError'
             )) {
               retryCountRef.current++;
-              console.log(`AuthCallback: Retrying code exchange (attempt ${retryCountRef.current}/${maxRetries})...`);
               hasProcessedRef.current = false;
               setTimeout(() => {
                 processCallback();
@@ -109,7 +106,6 @@ export const AuthCallback: React.FC = () => {
             err?.name === 'AbortError'
           )) {
             retryCountRef.current++;
-            console.log(`AuthCallback: Retrying code exchange (attempt ${retryCountRef.current}/${maxRetries})...`);
             hasProcessedRef.current = false;
             setTimeout(() => {
               processCallback();
@@ -137,7 +133,6 @@ export const AuthCallback: React.FC = () => {
       if (accessToken) {
         hasProcessedRef.current = true;
         setStatus('Setting session...');
-        console.log('AuthCallback: Found tokens in hash, setting session...');
         
         try {
           const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
@@ -146,7 +141,6 @@ export const AuthCallback: React.FC = () => {
           });
           
           if (!sessionError && sessionData?.session) {
-            console.log('AuthCallback: ✅ Session set successfully, user:', sessionData.session.user.id);
             setIsRedirecting(false);
             setStatus('Sign-in successful! Redirecting...');
             
@@ -185,7 +179,6 @@ export const AuthCallback: React.FC = () => {
       }
       
       // No code or tokens found - wait for SessionProvider, but timeout after 10 seconds
-      console.log('AuthCallback: No tokens/code found, waiting for SessionProvider...');
       setStatus('Waiting for session...');
       
       const timeout = setTimeout(() => {

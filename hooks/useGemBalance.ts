@@ -104,14 +104,12 @@ export const useGemBalance = () => {
         // Wait for userId to be stable (not 'pending')
         const stableUserId = user.id;
         if (!stableUserId || stableUserId === 'pending') {
-          console.log('useGemBalance: UserId not stable yet, waiting...');
           isInitializing.current = false; // Unlock to allow retry
           return;
         }
 
         // If we've already subscribed to this user, skip re-subscription
         if (subscribedUserIdRef.current === stableUserId && subscriptionActive.current) {
-          console.log('useGemBalance: Already subscribed to this user, skipping...');
           setUserId(stableUserId);
           isInitializing.current = false; // Unlock
           return;
@@ -136,14 +134,12 @@ export const useGemBalance = () => {
               filter: `id=eq.${stableUserId}`, // Only listen to changes for this user
             },
             (payload) => {
-              console.log('Gem balance change detected:', payload);
 
               // Handle UPDATE events
               if (payload.eventType === 'UPDATE' && payload.new) {
                 const newGems = (payload.new as any).gems;
                 if (typeof newGems === 'number') {
                   setGemCount(newGems);
-                  console.log('Gem balance updated to:', newGems);
                 }
               }
               // Handle INSERT events (new profile created)
@@ -151,19 +147,16 @@ export const useGemBalance = () => {
                 const newGems = (payload.new as any).gems;
                 if (typeof newGems === 'number') {
                   setGemCount(newGems);
-                  console.log('New profile created with gems:', newGems);
                 }
               }
               // Handle DELETE events (profile deleted)
               else if (payload.eventType === 'DELETE') {
                 setGemCount(0);
-                console.log('Profile deleted, resetting gem count to 0');
               }
             }
           )
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              console.log('✅ Successfully subscribed to gem balance changes');
               subscriptionActive.current = true; // Mark as active
               isInitializing.current = false; // Unlock after successful subscription
             } else if (status === 'CHANNEL_ERROR') {
@@ -204,7 +197,6 @@ export const useGemBalance = () => {
       // Don't abort during initial handshake - wait for subscription to be active
       // Only cleanup if we're actually unmounting or userId changed, not on every re-render
       if (channelRef.current && subscriptionActive.current) {
-        console.log('Unsubscribing from gem balance changes');
         channelRef.current.unsubscribe();
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -213,7 +205,6 @@ export const useGemBalance = () => {
       } else if (channelRef.current && !subscriptionActive.current) {
         // If we have a channel but it's not active yet, just clear the ref
         // Don't unsubscribe during handshake to avoid AbortError
-        console.log('useGemBalance: Skipping cleanup - subscription still in handshake');
         channelRef.current = null;
       }
       // Note: We don't unlock isInitializing here if subscription is active

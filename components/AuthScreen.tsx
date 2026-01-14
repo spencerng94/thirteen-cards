@@ -94,11 +94,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
     
     try {
       // OAuth 'Clean Slate': Clear any existing session first
-      console.log('AuthScreen: OAuth Clean Slate - Clearing existing session before OAuth flow');
       try {
         const { data: currentSession } = await supabase.auth.getSession();
         if (currentSession?.session) {
-          console.log('AuthScreen: Found existing session, signing out first...');
           await supabase.auth.signOut();
           // Wait a moment for sign-out to complete
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -115,11 +113,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         ? 'com.playthirteen.app://' // Custom scheme for native apps
         : `${window.location.origin}/auth/callback`; // Dedicated callback route for web
       
-      console.log('AuthScreen: Initiating Google OAuth flow...', { 
-        platform: isNative ? 'native' : 'web',
-        redirectTo 
-      });
-      
       // Use Supabase's signInWithOAuth method - this handles the OAuth flow properly
       // and uses the correct Google OAuth client ID configured in Supabase dashboard
       const redirectUrl = `${window.location.origin}/auth/callback`;
@@ -131,14 +124,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
         setIsRedirecting(false); // Clear redirecting state on error
         return;
       }
-      
-      console.log('AuthScreen: OAuth config:', {
-        provider: 'google',
-        redirectTo: redirectUrl,
-        flowType: 'PKCE (Supabase standard)',
-        supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'missing',
-        hasAnonKey: !!supabaseAnonKey
-      });
       
       // Use Supabase's OAuth method which properly handles the flow
       const { data, error } = await supabase.auth.signInWithOAuth({ 
@@ -178,8 +163,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
       }
       
       // If we get here, the redirect should happen soon (though it usually happens immediately)
-      console.log('AuthScreen: OAuth flow initiated successfully', { data });
-      console.log('AuthScreen: Redirect should happen now...');
       // Don't reset loading as redirect is expected - timeout will handle it if redirect fails
       
     } catch (err: any) {

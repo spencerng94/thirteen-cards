@@ -2,6 +2,7 @@
 import React from 'react';
 import { Emote } from '../types';
 import { getEmoteUrl, supabase } from '../services/supabase';
+import { getWebpPath } from '../utils/imagePath';
 
 interface VisualEmoteProps {
   trigger: string;
@@ -50,14 +51,16 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
 
   // Determine the URL using Supabase's getPublicUrl to properly handle nested folders
   // file_path should include folder structure if in subfolder (e.g., "round_3/filename.png")
+  // Convert .png to .webp for better performance
   const url = React.useMemo(() => {
     if (overrideUrl) return overrideUrl;
     if (emoteData?.file_path && emoteData.file_path.trim() !== '') {
       // Use Supabase's getPublicUrl method which properly handles nested folders
       try {
-        // Ensure file_path doesn't have leading slashes
+        // Ensure file_path doesn't have leading slashes and convert to WebP
         const cleanPath = emoteData.file_path.replace(/^\//, '').trim();
-        const { data, error: urlError } = supabase.storage.from('emotes').getPublicUrl(cleanPath);
+        const webpPath = getWebpPath(cleanPath);
+        const { data, error: urlError } = supabase.storage.from('emotes').getPublicUrl(webpPath);
         
         if (urlError) {
           console.error(`❌ VisualEmote: getPublicUrl error for "${trigger}":`, urlError);
@@ -69,22 +72,12 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
           const finalUrl = `${data.publicUrl}${separator}v=9`;
           
           // Log for problematic emotes
-          const problematicTriggers = [':game_over:', ':doge_focus:', ':lunar_new_year:', ':the_mooner:'];
-          if (problematicTriggers.includes(trigger.toLowerCase())) {
-            console.log(`🔗 VisualEmote: Generated URL for "${trigger}":`, {
-              file_path: cleanPath,
-              publicUrl: data.publicUrl,
-              finalUrl,
-              method: 'getPublicUrl'
-            });
-          }
-          
           return finalUrl;
         }
         // Fallback to manual construction if getPublicUrl fails
         console.warn(`⚠️ VisualEmote: getPublicUrl returned no data for "${trigger}", using manual URL`);
         // URL-encode the path segments to handle special characters and spaces
-        const encodedPath = cleanPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+        const encodedPath = webpPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
         const manualUrl = `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${encodedPath}?v=9`;
         
         const problematicTriggers = [':game_over:', ':doge_focus:', ':lunar_new_year:', ':the_mooner:'];
@@ -100,9 +93,10 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
         return manualUrl;
       } catch (error) {
         console.error(`❌ VisualEmote: Error getting public URL for "${trigger}":`, error);
-        // Fallback to manual construction
+        // Fallback to manual construction (convert to WebP)
         const cleanPath = emoteData.file_path.replace(/^\//, '');
-        return `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${cleanPath}?v=8`;
+        const webpPath = getWebpPath(cleanPath);
+        return `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${webpPath}?v=8`;
       }
     }
     return getEmoteUrl(trigger);
@@ -125,21 +119,6 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
           availableTriggers: remoteEmotes.slice(0, 5).map(e => `${e.name} (${e.trigger_code})`),
           remoteEmotesCount: remoteEmotes.length,
           searchingFor: trigger
-        });
-      }
-    } else if (emoteData) {
-      // Log successful match for debugging
-      if (isProblematic) {
-        const fullUrl = emoteData.file_path 
-          ? `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${emoteData.file_path}?v=6`
-          : 'N/A';
-        console.log(`✅ VisualEmote: Found emote for "${trigger}"`, {
-          name: emoteData.name,
-          trigger_code: emoteData.trigger_code,
-          file_path: emoteData.file_path,
-          url,
-          fullUrl,
-          hasValidPath: emoteData.file_path && typeof emoteData.file_path === 'string' && emoteData.file_path.trim() !== ''
         });
       }
     }
@@ -238,7 +217,8 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
           // One-time manual retry with encoded path and cache-bust to avoid showing Apple emoji fallback
           if (!overrideUrl && emoteData?.file_path) {
             const cleanPath = emoteData.file_path.replace(/^\//, '').trim();
-            const encodedPath = cleanPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+            const webpPath = getWebpPath(cleanPath);
+            const encodedPath = webpPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
             const retryUrl = `https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${encodedPath}?v=10&retry=${Date.now()}`;
             console.warn(`⚠️ VisualEmote: Retrying with manual URL for "${trigger}" after load error`, { retryUrl, originalUrl: url });
             setOverrideUrl(retryUrl);
@@ -261,7 +241,7 @@ export const VisualEmote: React.FC<VisualEmoteProps> = ({
               naturalHeight: errorTarget.naturalHeight,
               error: 'Image failed to load - check file_path in database',
               fullUrl: errorTarget.src,
-              suggestedFix: `Check if file exists at: https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${emoteData?.file_path}`
+              suggestedFix: `Check if file exists at: https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/${emoteData?.file_path ? getWebpPath(emoteData.file_path) : ''}`
             });
             
             // Try to fetch the URL to see what the actual error is

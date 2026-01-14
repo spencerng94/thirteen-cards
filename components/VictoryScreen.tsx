@@ -5,12 +5,12 @@ import { audioService } from '../services/audio';
 import { VisualEmote } from './VisualEmote';
 import { useFinisher } from '../hooks/useFinisher';
 import { ShibaSlamFinisher } from './ShibaSlamFinisher';
-import { EtherealBladeFinisher } from './EtherealBladeFinisher';
 import { SaltShakeFinisher } from './SaltShakeFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
 import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
 import { KissMyShibaFinisher } from './KissMyShibaFinisher';
 import { TooFunnyFinisher } from './TooFunnyFinisher';
+import { BashfulFinishFinisher } from './BashfulFinishFinisher';
 import { adService, AdPlacement } from '../services/adService';
 import { GemRain } from './GemRain';
 import { CurrencyIcon } from './Store';
@@ -241,12 +241,6 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
               winnerName={me?.name || 'GUEST'}
             />
           )}
-          {finisherData.animation_key === 'ethereal_blade' && (
-            <EtherealBladeFinisher 
-              onComplete={() => setFinisherComplete(true)}
-              winnerName={me?.name || 'GUEST'}
-            />
-          )}
           {finisherData.animation_key === 'salt_shaker' && (
             <SaltShakeFinisher 
               onComplete={() => setFinisherComplete(true)}
@@ -294,6 +288,12 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
           )}
           {finisherData.animation_key === 'too_funny' && (
             <TooFunnyFinisher 
+              onComplete={() => setFinisherComplete(true)}
+              winnerName={me?.name || 'GUEST'}
+            />
+          )}
+          {finisherData.animation_key === 'bashful_finish' && (
+            <BashfulFinishFinisher 
               onComplete={() => setFinisherComplete(true)}
               winnerName={me?.name || 'GUEST'}
             />

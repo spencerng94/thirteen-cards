@@ -5,15 +5,15 @@ import { supabase } from '../services/supabase';
 import { getEmoteUrl } from '../services/supabase';
 import { getWebpPath } from '../utils/imagePath';
 
-interface ShibaSlamFinisherProps {
+interface BashfulFinishFinisherProps {
   onComplete: () => void;
   onReplay?: () => void;
   isPreview?: boolean;
   winnerName?: string;
 }
 
-// Shiba emote falling component - in circles with bubble effect
-const FallingShibaEmote: React.FC<{
+// Bashful emote falling component - in circles with bubble effect
+const FallingBashfulEmote: React.FC<{
   startX: number;
   startY: number;
   delay: number;
@@ -26,31 +26,31 @@ const FallingShibaEmote: React.FC<{
   const floatAmount = (Math.random() - 0.5) * 15;
 
   useEffect(() => {
-    // Get shiba emote URL from Supabase
+    // Get bashful emote URL from Supabase
     const getEmote = async () => {
       try {
         // Try to get from remote emotes first
-        const shibaEmote = remoteEmotes.find(e => e.trigger_code === ':shiba:');
-        if (shibaEmote?.file_path) {
-          const webpPath = getWebpPath(shibaEmote.file_path);
+        const bashfulEmote = remoteEmotes.find(e => e.trigger_code === ':blush:');
+        if (bashfulEmote?.file_path) {
+          const webpPath = getWebpPath(bashfulEmote.file_path);
           const { data } = supabase.storage.from('emotes').getPublicUrl(webpPath);
           if (data?.publicUrl) {
             setImageUrl(data.publicUrl);
-        return;
-      }
+            return;
+          }
         }
         
         // Fallback to direct path (WebP)
-        const { data } = supabase.storage.from('emotes').getPublicUrl('shiba_card.webp');
+        const { data } = supabase.storage.from('emotes').getPublicUrl('blushing_card.webp');
         if (data?.publicUrl) {
           setImageUrl(data.publicUrl);
-      } else {
+        } else {
           // Final fallback
-          setImageUrl(getEmoteUrl(':shiba:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/shiba_card.webp');
+          setImageUrl(getEmoteUrl(':blush:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/blushing_card.webp');
         }
       } catch (e) {
-        console.error('Error loading shiba emote:', e);
-        setImageUrl(getEmoteUrl(':shiba:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/shiba_card.webp');
+        console.error('Error loading bashful emote:', e);
+        setImageUrl(getEmoteUrl(':blush:') || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/blushing_card.webp');
       }
     };
     getEmote();
@@ -94,15 +94,15 @@ const FallingShibaEmote: React.FC<{
         times: [0, 0.2, 0.5, 0.8, 1],
       }}
     >
-      {/* Bubble effect - circular background with golden glow */}
+      {/* Bubble effect - circular background with pink/rose glow */}
       <div className="w-full h-full flex items-center justify-center relative">
         {/* Outer glow bubble */}
         <motion.div
           className="absolute inset-0 rounded-full"
-        style={{
-            background: 'radial-gradient(circle, rgba(251,191,36,0.4) 0%, rgba(251,191,36,0.2) 50%, transparent 100%)',
+          style={{
+            background: 'radial-gradient(circle, rgba(255,182,193,0.4) 0%, rgba(255,192,203,0.2) 50%, transparent 100%)',
             filter: 'blur(8px)',
-            boxShadow: '0 0 25px rgba(251,191,36,0.5), inset 0 0 30px rgba(251,191,36,0.3)',
+            boxShadow: '0 0 25px rgba(255,182,193,0.5), inset 0 0 30px rgba(255,192,203,0.3)',
           }}
           animate={{
             scale: [1, 1.1, 1, 1.05, 1],
@@ -119,9 +119,9 @@ const FallingShibaEmote: React.FC<{
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            border: '3px solid rgba(251,191,36,0.5)',
+            border: '3px solid rgba(255,182,193,0.5)',
             borderRadius: '50%',
-            boxShadow: 'inset 0 0 20px rgba(251,191,36,0.4), 0 0 15px rgba(251,191,36,0.3)',
+            boxShadow: 'inset 0 0 20px rgba(255,192,203,0.4), 0 0 15px rgba(255,182,193,0.3)',
           }}
         />
         
@@ -129,7 +129,7 @@ const FallingShibaEmote: React.FC<{
         <div
           className="absolute inset-2 rounded-full"
           style={{
-            background: 'radial-gradient(circle at 30% 30%, rgba(251,191,36,0.6) 0%, transparent 70%)',
+            background: 'radial-gradient(circle at 30% 30%, rgba(255,192,203,0.6) 0%, transparent 70%)',
             borderRadius: '50%',
           }}
         />
@@ -137,8 +137,8 @@ const FallingShibaEmote: React.FC<{
         {/* Emote image - circular */}
         <div className="relative z-10 w-full h-full rounded-full overflow-hidden">
           <img 
-            src={imageUrl || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/shiba_card.webp'} 
-            alt="Shiba emote"
+            src={imageUrl || 'https://spaxxexmyiczdrbikdjp.supabase.co/storage/v1/object/public/emotes/blushing_card.webp'} 
+            alt="Bashful emote"
             className="w-full h-full object-cover"
             style={{ 
               imageRendering: 'auto',
@@ -146,7 +146,7 @@ const FallingShibaEmote: React.FC<{
             }}
             onError={(e) => {
               // Fallback to getEmoteUrl if direct URL fails
-              const fallbackUrl = getEmoteUrl(':shiba:');
+              const fallbackUrl = getEmoteUrl(':blush:');
               if (fallbackUrl && e.currentTarget.src !== fallbackUrl) {
                 e.currentTarget.src = fallbackUrl;
               }
@@ -158,7 +158,7 @@ const FallingShibaEmote: React.FC<{
   );
 };
 
-export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({ 
+export const BashfulFinishFinisher: React.FC<BashfulFinishFinisherProps> = ({ 
   onComplete, 
   onReplay,
   isPreview = false,
@@ -181,7 +181,7 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
     const fetchEmotes = async () => {
       try {
         const { fetchEmotes: fetchAllEmotes } = await import('../services/supabase');
-        // Fetch all emotes to ensure we have the shiba emote
+        // Fetch all emotes to ensure we have the bashful emote
         const allEmotes = await fetchAllEmotes();
         setRemoteEmotes(allEmotes);
       } catch (e) {
@@ -191,11 +191,11 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
     fetchEmotes();
   }, []);
 
-  // Generate falling shiba emotes
+  // Generate falling bashful emotes
   const generateFallingEmotes = () => {
     const newEmotes: typeof fallingEmotes = [];
     
-    // Generate continuous stream of shiba emotes from top - more floaty
+    // Generate continuous stream of bashful emotes from top - more floaty
     for (let i = 0; i < 120; i++) {
       newEmotes.push({
         id: `emote-${i}`,
@@ -268,11 +268,11 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
         transition={{ duration: 0.3 }}
       />
 
-      {/* Shiba Emotes Falling */}
+      {/* Bashful Emotes Falling */}
       {(phase === 'emotes' || phase === 'text' || phase === 'complete') && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {fallingEmotes.map((emote) => (
-            <FallingShibaEmote
+            <FallingBashfulEmote
               key={emote.id}
               startX={emote.startX}
               startY={emote.startY}
@@ -304,41 +304,19 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
             {/* Winner Name */}
               <motion.p
                 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-center mb-2"
-              style={{
+                style={{
                   fontFamily: "'Impact', 'Arial Black', 'Franklin Gothic Bold', sans-serif",
                   fontWeight: 700,
                   color: '#FFFFFF',
-                  textShadow: '0 0 40px rgba(251,191,36,0.8), 0 4px 8px rgba(0,0,0,0.8)',
+                  textShadow: '0 0 40px rgba(255,182,193,0.8), 0 4px 8px rgba(0,0,0,0.8)',
                   letterSpacing: '0.15em',
-              }}
-            >
-              {winnerName}
-              </motion.p>
-              
-              {/* SHIBA VICTORY */}
-              <motion.p
-                className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl text-center"
-              style={{
-                  fontFamily: "'Impact', 'Arial Black', 'Franklin Gothic Bold', sans-serif",
-                fontWeight: 900,
-                  color: '#FBBF24',
-                  textShadow: '0 0 60px rgba(251,191,36,1), 0 0 80px rgba(251,191,36,0.8), 0 4px 12px rgba(0,0,0,0.8)',
-                  letterSpacing: '0.1em',
-              }}
-              animate={{ 
-                scale: [1, 1.05, 1],
-              }}
-              transition={{
-                duration: 1.5,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-            >
-                SHIBA VICTORY
+                }}
+              >
+                {winnerName} WINS 🤭
               </motion.p>
             </motion.div>
           </motion.div>
-      )}
+        )}
       </AnimatePresence>
 
       {/* Replay Button (Preview Mode Only) */}
@@ -351,7 +329,7 @@ export const ShibaSlamFinisher: React.FC<ShibaSlamFinisherProps> = ({
         >
           <button
             onClick={handleReplay}
-            className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold rounded-xl shadow-lg hover:scale-105 transition-transform duration-200"
+            className="px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform duration-200"
           >
             Replay
           </button>
