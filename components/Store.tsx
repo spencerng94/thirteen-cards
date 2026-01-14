@@ -1601,6 +1601,9 @@ export const Store: React.FC<{
   const [showUpsellModal, setShowUpsellModal] = useState<{ packName: string; packPrice: number; itemPrice: number; difference: number; finisherId: string } | null>(null);
   const [showPackSuccessModal, setShowPackSuccessModal] = useState<{ packName: string; finisherKeys: string[] } | null>(null);
   const [showPackPreview, setShowPackPreview] = useState<{ packId: string } | null>(null);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('error');
 
   useEffect(() => {
     const unsubscribe = adService.onStateChange('shop', setAdState);
@@ -1730,9 +1733,15 @@ export const Store: React.FC<{
         : (profile.coins || 0) >= finalPrice;
       
       if (!hasEnough) {
+        const currentBalance = currency === 'GEMS' ? (profile.gems || 0) : (profile.coins || 0);
+        const currencyName = currency === 'GEMS' ? 'Gems' : 'Coins';
+        setToastMessage(`Not enough ${currencyName}! You need ${finalPrice.toLocaleString()} ${currencyName} but only have ${currentBalance.toLocaleString()}.`);
+        setToastType('error');
+        setShowToast(true);
+        
+        // For gems, also show ad prompt as an alternative
         if (currency === 'GEMS') {
-        // Show ad prompt popup
-        setShowAdPrompt(true);
+          setShowAdPrompt(true);
         }
         return;
       }
@@ -3552,6 +3561,15 @@ export const Store: React.FC<{
           finishers={finishers}
           remoteEmotes={remoteEmotes}
           onClose={() => setShowPackSuccessModal(null)}
+        />
+      )}
+
+      {/* Toast Notification for Purchase Errors */}
+      {showToast && (
+        <Toast
+          message={toastMessage}
+          onClose={() => setShowToast(false)}
+          type={toastType}
         />
       )}
     </div>

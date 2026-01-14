@@ -119,6 +119,7 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [syncTimer, setSyncTimer] = useState(0);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
 
   useEffect(() => {
     if (initialRoomCode) {
@@ -236,17 +237,15 @@ export const Lobby: React.FC<LobbyProps> = ({
   }, [activeTab]);
 
   const createRoom = () => {
-    // Ensure socket is connected before emitting
-    if (!socket.connected) {
-      // Try to connect if not already connected
-      connectSocket();
-      // Wait for connection before emitting (with timeout)
-      const timeout = setTimeout(() => {
-        setErrorToast({ show: true, message: 'Connection timeout. Please check your connection and try again.' });
-      }, 5000);
-      
-      socket.once('connect', () => {
-        clearTimeout(timeout);
+    // Prevent multiple simultaneous create room attempts
+    if (isCreatingRoom) {
+      return;
+    }
+
+    setIsCreatingRoom(true);
+
+    const emitCreateRoom = () => {
+      try {
         socket.emit(SocketEvents.CREATE_ROOM, { 
           name: playerName, 
           avatar: playerAvatar,
@@ -256,23 +255,51 @@ export const Lobby: React.FC<LobbyProps> = ({
           turnTimer: localTurnTimer,
           selected_sleeve_id: selected_sleeve_id
         });
-      });
-      
-      socket.once('connect_error', () => {
-        clearTimeout(timeout);
-        setErrorToast({ show: true, message: 'Unable to connect to server. Please check your connection and try again.' });
-      });
-    } else {
-      // Socket is already connected, emit immediately
-      socket.emit(SocketEvents.CREATE_ROOM, { 
-        name: playerName, 
-        avatar: playerAvatar,
-        playerId: myId,
-        isPublic,
-        roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
-        turnTimer: localTurnTimer,
-        selected_sleeve_id: selected_sleeve_id
-      });
+        // Reset creating state after a short delay to allow for server response
+        setTimeout(() => setIsCreatingRoom(false), 1000);
+      } catch (error) {
+        console.error('Error emitting create_room:', error);
+        setIsCreatingRoom(false);
+        setErrorToast({ show: true, message: 'Failed to create room. Please try again.' });
+      }
+    };
+
+    // Check if socket is already connected
+    if (socket.connected) {
+      emitCreateRoom();
+      return;
+    }
+
+    // Socket is not connected, set up connection handlers
+    const timeout = setTimeout(() => {
+      setIsCreatingRoom(false);
+      setErrorToast({ show: true, message: 'Connection timeout. Please check your connection and try again.' });
+      socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
+    }, 5000);
+
+    const handleConnect = () => {
+      clearTimeout(timeout);
+      socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
+      emitCreateRoom();
+    };
+
+    const handleConnectError = () => {
+      clearTimeout(timeout);
+      setIsCreatingRoom(false);
+      setErrorToast({ show: true, message: 'Unable to connect to server. Please check your connection and try again.' });
+      socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
+    };
+
+    // Use once to automatically remove listeners after first event
+    socket.once('connect', handleConnect);
+    socket.once('connect_error', handleConnectError);
+    
+    // Try to connect if not already connected
+    if (!socket.connected) {
+      connectSocket();
     }
   };
 
@@ -548,12 +575,22 @@ export const Lobby: React.FC<LobbyProps> = ({
 
                             <button
                                 onClick={createRoom}
-                                className="w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-300 active:scale-95 relative overflow-hidden group"
+                                disabled={isCreatingRoom}
+                                className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-300 active:scale-95 relative overflow-hidden group ${isCreatingRoom ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                                 <span className="relative z-10 flex items-center justify-center gap-3">
-                                    <span className="text-xl sm:text-2xl">🎮</span>
-                                    Create Room
+                                    {isCreatingRoom ? (
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                            <span>Creating...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-xl sm:text-2xl">🎮</span>
+                                            Create Room
+                                        </>
+                                    )}
                                 </span>
                             </button>
                         </div>
