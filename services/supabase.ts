@@ -2123,6 +2123,53 @@ export const searchUsers = async (query: string, limit: number = 20): Promise<Us
     return [];
   }
 };
+
+/**
+ * Get a user by exact handle (username with discriminator)
+ * Returns null if user not found
+ */
+export const getUserByHandle = async (handle: string): Promise<UserProfile | null> => {
+  if (!supabaseAnonKey || !handle.trim()) return null;
+  
+  try {
+    // Check if handle contains a discriminator (Name#0000 format)
+    const hasDiscriminator = handle.includes('#');
+    
+    if (!hasDiscriminator) {
+      // Without discriminator, we can't do an exact match
+      return null;
+    }
+    
+    const parts = handle.split('#');
+    if (parts.length !== 2) {
+      return null;
+    }
+    
+    const namePart = parts[0].trim();
+    const discriminatorPart = parts[1].trim();
+    
+    // Validate discriminator format (4 digits)
+    if (!/^\d{4}$/.test(discriminatorPart)) {
+      return null;
+    }
+    
+    // Use case-insensitive search with ilike for exact match
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .ilike('username', `${namePart}#${discriminatorPart}`)
+      .maybeSingle();
+    
+    if (error) throw error;
+    
+    if (!data) return null;
+    
+    return { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
+  } catch (e) {
+    console.error('Error getting user by handle:', e);
+    return null;
+  }
+};
 export const calculateLevel = (xp: number) => {
   const safeXp = Math.max(0, xp);
   // Handle XP within the table (levels 1-15)

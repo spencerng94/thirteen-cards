@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile } from '../types';
-import { getFriends, addFriend, removeFriend, searchUsers, Friendship } from '../services/supabase';
+import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship } from '../services/supabase';
 import { calculateLevel } from '../services/supabase';
 import { CopyUsername } from './CopyUsername';
 
@@ -152,6 +152,71 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
     }
   };
 
+  const handleAddByHandle = async () => {
+    if (!profile || isGuest || !searchQuery.trim()) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Check if the query looks like a valid handle (contains #)
+      if (!searchQuery.includes('#')) {
+        setError('Please enter a handle in the format: Name#1234');
+        setLoading(false);
+        return;
+      }
+      
+      const parts = searchQuery.split('#');
+      if (parts.length !== 2 || !/^\d{4}$/.test(parts[1].trim())) {
+        setError('Invalid handle format. Use: Name#1234');
+        setLoading(false);
+        return;
+      }
+      
+      // Look up user by exact handle
+      const user = await getUserByHandle(searchQuery.trim());
+      
+      if (!user) {
+        setError('User not found. Please check the handle and try again.');
+        setLoading(false);
+        return;
+      }
+      
+      // Check if already friends
+      const friendIds = new Set(friends.map(f => f.friend_id));
+      if (friendIds.has(user.id)) {
+        setError('You are already friends with this user.');
+        setLoading(false);
+        return;
+      }
+      
+      // Check if trying to add self
+      if (user.id === profile.id) {
+        setError('You cannot add yourself as a friend.');
+        setLoading(false);
+        return;
+      }
+      
+      // Add the friend
+      await handleAddFriend(user.id);
+      
+      // Add to search results so it shows up
+      setSearchResults([user]);
+      
+    } catch (e: any) {
+      setError(e.message || 'Failed to add friend by handle');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Check if the search query looks like a valid handle
+  const isValidHandle = useMemo(() => {
+    if (!searchQuery.trim() || !searchQuery.includes('#')) return false;
+    const parts = searchQuery.split('#');
+    return parts.length === 2 && /^\d{4}$/.test(parts[1].trim());
+  }, [searchQuery]);
+
   const friendCount = friends.length;
   const maxFriends = 20;
 
@@ -219,7 +284,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
               type="text"
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={isGuest || !profile ? "Sign in to search for users..." : "Search by username (e.g., Name#0000 or Name)..."}
+              placeholder={isGuest || !profile ? "Sign in to search for users..." : "Search or add by handle (e.g., Name#1234)..."}
               disabled={isGuest || !profile}
               className="w-full px-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             />
@@ -254,7 +319,18 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
               {loading && searchResults.length === 0 ? (
                 <div className="text-center py-12 text-white/50">Searching...</div>
               ) : searchResults.length === 0 ? (
-                <div className="text-center py-12 text-white/50">No users found</div>
+                <div className="text-center py-12 space-y-4">
+                  <p className="text-white/50">No users found</p>
+                  {isValidHandle && (
+                    <button
+                      onClick={handleAddByHandle}
+                      disabled={loading}
+                      className="px-6 py-3 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-xl text-blue-300 text-sm font-bold uppercase tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Add by Handle
+                    </button>
+                  )}
+                </div>
               ) : (
                 searchResults.map((user) => {
                   const userLevel = calculateLevel(user.xp || 0);
