@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
-import { socket } from '../services/socket';
+import { socket, connectSocket } from '../services/socket';
 import { BoardSurface } from './UserHub';
 import { VisualEmote } from './VisualEmote';
 import { fetchEmotes } from '../services/supabase';
@@ -125,6 +125,11 @@ export const Lobby: React.FC<LobbyProps> = ({
       setRoomIdInput(initialRoomCode);
     }
     fetchEmotes().then(setRemoteEmotes);
+    
+    // Ensure socket is connected when component mounts
+    if (!socket.connected) {
+      connectSocket();
+    }
   }, [initialRoomCode]);
 
   // Deduplicate function to prevent duplicate rooms
@@ -231,27 +236,83 @@ export const Lobby: React.FC<LobbyProps> = ({
   }, [activeTab]);
 
   const createRoom = () => {
-    socket.emit(SocketEvents.CREATE_ROOM, { 
-      name: playerName, 
-      avatar: playerAvatar,
-      playerId: myId,
-      isPublic,
-      roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
-      turnTimer: localTurnTimer,
-      selected_sleeve_id: selected_sleeve_id
-    });
+    // Ensure socket is connected before emitting
+    if (!socket.connected) {
+      // Try to connect if not already connected
+      connectSocket();
+      // Wait for connection before emitting (with timeout)
+      const timeout = setTimeout(() => {
+        setErrorToast({ show: true, message: 'Connection timeout. Please check your connection and try again.' });
+      }, 5000);
+      
+      socket.once('connect', () => {
+        clearTimeout(timeout);
+        socket.emit(SocketEvents.CREATE_ROOM, { 
+          name: playerName, 
+          avatar: playerAvatar,
+          playerId: myId,
+          isPublic,
+          roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
+          turnTimer: localTurnTimer,
+          selected_sleeve_id: selected_sleeve_id
+        });
+      });
+      
+      socket.once('connect_error', () => {
+        clearTimeout(timeout);
+        setErrorToast({ show: true, message: 'Unable to connect to server. Please check your connection and try again.' });
+      });
+    } else {
+      // Socket is already connected, emit immediately
+      socket.emit(SocketEvents.CREATE_ROOM, { 
+        name: playerName, 
+        avatar: playerAvatar,
+        playerId: myId,
+        isPublic,
+        roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
+        turnTimer: localTurnTimer,
+        selected_sleeve_id: selected_sleeve_id
+      });
+    }
   };
 
   const joinRoom = (code?: string) => {
     const targetCode = code || roomIdInput.trim().toUpperCase();
     if (!targetCode) return;
-    socket.emit(SocketEvents.JOIN_ROOM, { 
-      roomId: targetCode, 
-      name: playerName, 
-      avatar: playerAvatar, 
-      playerId: myId,
-      selected_sleeve_id: selected_sleeve_id
-    });
+    
+    // Ensure socket is connected before emitting
+    if (!socket.connected) {
+      connectSocket();
+      // Wait for connection before emitting (with timeout)
+      const timeout = setTimeout(() => {
+        setErrorToast({ show: true, message: 'Connection timeout. Please check your connection and try again.' });
+      }, 5000);
+      
+      socket.once('connect', () => {
+        clearTimeout(timeout);
+        socket.emit(SocketEvents.JOIN_ROOM, { 
+          roomId: targetCode, 
+          name: playerName, 
+          avatar: playerAvatar, 
+          playerId: myId,
+          selected_sleeve_id: selected_sleeve_id
+        });
+      });
+      
+      socket.once('connect_error', () => {
+        clearTimeout(timeout);
+        setErrorToast({ show: true, message: 'Unable to connect to server. Please check your connection and try again.' });
+      });
+    } else {
+      // Socket is already connected, emit immediately
+      socket.emit(SocketEvents.JOIN_ROOM, { 
+        roomId: targetCode, 
+        name: playerName, 
+        avatar: playerAvatar, 
+        playerId: myId,
+        selected_sleeve_id: selected_sleeve_id
+      });
+    }
   };
 
   const addBot = () => {

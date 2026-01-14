@@ -36,8 +36,8 @@ interface QuickMoveRewardData {
 
 const EMOTE_COOLDOWN = 2000;
 
-const SettingsIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+const SettingsIcon = ({ className = "w-[22px] h-[22px]" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
     <circle cx="12" cy="12" r="3.5" fill="currentColor" fillOpacity="0.2" />
   </svg>
@@ -127,13 +127,13 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
 
   return (
     <div className={`relative flex transition-all duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isFinished ? 'scale-100' : 'opacity-100'} 
-      ${position === 'top' ? 'flex-row items-center gap-3 sm:gap-8' : 
-        (position === 'left' ? 'flex-col items-center gap-6 sm:gap-8' :
-         position === 'right' ? 'flex-col landscape:flex-row-reverse items-center gap-6 sm:gap-8 landscape:gap-4' :
-         'flex-col items-center gap-6 sm:gap-8')} ${className} ${!isCurrentPlayer && !player.isBot && onPlayerClick ? 'pointer-events-auto' : ''}`}>
+      ${position === 'top' ? 'flex-row items-center justify-center gap-3 sm:gap-8' : 
+        (position === 'left' ? 'flex-col landscape:flex-row md:portrait:flex-row items-center justify-center gap-6 sm:gap-8 landscape:gap-4 md:portrait:gap-4' :
+         position === 'right' ? 'flex-col landscape:flex-row-reverse md:portrait:flex-row-reverse items-center justify-center gap-6 sm:gap-8 landscape:gap-4 md:portrait:gap-4' :
+         'flex-col items-center justify-center gap-6 sm:gap-8')} ${className} ${!isCurrentPlayer && !player.isBot && onPlayerClick ? 'pointer-events-auto' : ''}`}>
         
         <div className="relative flex flex-col items-center shrink-0">
-            <div className="relative w-16 h-16 sm:w-24 sm:h-24 landscape:w-24 landscape:h-24">
+            <div className="relative w-16 h-16 sm:w-24 sm:h-24 md:portrait:w-28 md:portrait:h-28 lg:portrait:w-36 lg:portrait:h-36 landscape:w-24 landscape:h-24 lg:landscape:w-40 lg:landscape:h-40 player-avatar-container">
                 {isTurn && !isFinished && (
                   <div className="absolute inset-0 pointer-events-none">
                     <div className={`absolute inset-[-12px] landscape:inset-[-10px] rounded-full border-2 ${isWarningPhase ? 'border-rose-500' : 'border-yellow-500/60 shadow-[0_0_15px_rgba(234,179,8,0.4)]'} animate-turn-ping-slow`}></div>
@@ -184,7 +184,7 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
                 >
                     <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="lg" />
                     {player.isBot && (
-                      <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-cyan-500/90 text-white text-[6px] sm:text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border border-cyan-400/50 shadow-lg whitespace-nowrap z-20">
+                      <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-cyan-500/90 text-white text-[6px] sm:text-[7px] font-black uppercase tracking-wider px-1.5 py-0 leading-none rounded-full border border-cyan-400/50 shadow-lg whitespace-nowrap z-20 flex items-center justify-center pb-[1px] h-fit self-center flex-none md:portrait:hidden">
                         CPU
                       </div>
                     )}
@@ -209,27 +209,27 @@ const PlayerSlotComponent: React.FC<{ player: Player; position: 'bottom' | 'top'
                 )}
             </div>
 
-            <div className={`bg-black/60 backdrop-blur-md px-3 py-0.5 sm:px-4 sm:py-1 rounded-full border min-w-[75px] sm:min-w-[95px] landscape:w-24 landscape:min-w-0 landscape:px-0 text-center shadow-lg mt-1.5 transition-all duration-300 
+            <div className={`bg-black/60 backdrop-blur-md px-3 py-0.5 sm:px-4 sm:py-1 md:portrait:px-5 md:portrait:py-1.5 lg:portrait:px-6 lg:portrait:py-2 rounded-full border min-w-[75px] min-[428px]:w-[90px] sm:w-auto sm:min-w-[95px] md:portrait:min-w-[120px] lg:portrait:min-w-[140px] landscape:w-24 lg:landscape:w-40 landscape:min-w-0 landscape:px-0 text-center shadow-lg mt-1.5 transition-all duration-300 player-info-container
               ${isFinished ? 'opacity-40 border-white/20' : 
                 player.isOffline ? 'border-amber-500/50' : 
                 player.isBot ? 'border-cyan-500/40 bg-cyan-950/30' :
                 (isTurn ? 'border-yellow-500/50 bg-yellow-950/40 shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'border-white/5')}`}>
-                <div className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest transition-colors duration-300 flex items-center justify-center gap-1
+                <div className={`text-[8px] sm:text-[10px] md:portrait:text-xs lg:portrait:text-sm font-black uppercase tracking-widest transition-colors duration-300 flex items-center justify-center gap-1 leading-none
                   ${player.isOffline ? 'text-amber-500' : 
                     player.isBot ? 'text-cyan-400' :
                     (isTurn && !isFinished ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'text-white/90')}`}>
-                  <span className="truncate max-w-[65px] sm:max-w-[85px] landscape:max-w-[88px]">{player.name}</span>
+                  <span className="truncate max-w-[65px] min-[428px]:max-w-[90px] sm:max-w-[85px] md:portrait:max-w-[110px] lg:portrait:max-w-[130px] landscape:max-w-[88px] lg:landscape:max-w-[150px]">{player.name}</span>
                   {isMuted && !isCurrentPlayer && (
-                    <span className="text-[10px] sm:text-xs flex-shrink-0" title="Muted">🔇</span>
+                    <span className="text-[10px] sm:text-xs lg:landscape:text-sm flex-shrink-0" title="Muted">🔇</span>
                   )}
                 </div>
             </div>
         </div>
 
         {!isFinished && position !== 'bottom' && (
-            <div className={`relative animate-in slide-in-from-bottom-2 duration-400 shrink-0 transition-transform landscape:scale-[0.7]`}>
+            <div className={`relative animate-in slide-in-from-bottom-2 duration-400 shrink-0 transition-transform landscape:scale-[0.7] mx-auto md:portrait:rotate-180`}>
                 <Card faceDown coverStyle={getValidatedSleeve ? getValidatedSleeve(player) : coverStyle} activeTurn={isTurn} small className="!w-10 !h-14 sm:!w-14 sm:!h-20 shadow-xl opacity-90 border-white/20" disableEffects={!sleeveEffectsEnabled} />
-                <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ring-1 ring-yellow-400/50">
+                <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black text-[10px] font-black w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ring-1 ring-yellow-400/50 md:portrait:rotate-180">
                     {player.cardCount}
                 </div>
             </div>
@@ -619,6 +619,19 @@ export const GameTable: React.FC<GameTableProps> = ({
   const sortedHand = useMemo(() => sortCards(myHand), [myHand]);
   const myIndex = gameState.players.findIndex((p) => p.id === myId);
 
+  // Calculate card distribution for 2-row layout (max difference of 1)
+  const cardDistribution = useMemo(() => {
+    if (handRows < 2) {
+      return { topRow: sortedHand, bottomRow: [] };
+    }
+    const totalCards = sortedHand.length;
+    const topRowCount = Math.ceil(totalCards / 2);
+    return {
+      topRow: sortedHand.slice(0, topRowCount),
+      bottomRow: sortedHand.slice(topRowCount)
+    };
+  }, [sortedHand, handRows]);
+
   useEffect(() => {
     if (!isMyTurn || !gameState.turnEndTime || !gameState.turnDuration) { setTimeLeft(0); return; }
     const update = () => { const remaining = Math.max(0, Math.ceil((gameState.turnEndTime! - Date.now()) / 1000)); setTimeLeft(remaining); };
@@ -801,17 +814,21 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [combosByGroup, selectedCardIds]);
 
+  // Calculate spacing to allow overlapping when cards don't fit, with symmetrical padding
+  // Portrait: uses centered layout with negative spacing for overlap
+  // Landscape: uses justify-evenly to spread cards evenly across the width
+
   const spacing = { 
     landscape: handRows >= 2 
-        ? '-space-x-2 sm:-space-x-4 lg:-space-x-6 xl:-space-x-2' 
+        ? '' 
         : (selectedCardIds.size > 0 
-            ? 'landscape:-space-x-4 sm:landscape:-space-x-6 xl:landscape:-space-x-2' 
-            : 'landscape:-space-x-6 sm:landscape:-space-x-8 xl:landscape:-space-x-4'), 
+            ? 'lg:landscape:-space-x-[3vw] xl:landscape:-space-x-[4vw]' 
+            : 'lg:landscape:-space-x-[4vw] xl:landscape:-space-x-[5vw]'), 
     portrait: handRows >= 2 
-        ? '-space-x-2 sm:-space-x-4' 
+        ? '' 
         : (selectedCardIds.size > 0 
-            ? 'portrait:-space-x-[10vw] sm:portrait:-space-x-12' 
-            : 'portrait:-space-x-[11vw] sm:portrait:-space-x-14')
+            ? 'portrait:-space-x-[14vw] sm:portrait:-space-x-16 md:portrait:-space-x-[8vw] lg:portrait:-space-x-[6vw]' 
+            : 'portrait:-space-x-[15vw] sm:portrait:-space-x-[100px] md:portrait:-space-x-[9vw] lg:portrait:-space-x-[7vw]')
   };
 
   const topOpponent = opponents.find((o) => o.position === 'top');
@@ -841,16 +858,16 @@ export const GameTable: React.FC<GameTableProps> = ({
   const isMyWarningPhase = showMyTimer && timeLeft <= 5;
 
   const turnIndicatorUI = (
-    <div className={`flex flex-col items-center gap-2 transition-all duration-300 pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className={`px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center gap-3 transition-colors duration-200 ${isMyWarningPhase ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-satisfying-turn-glow'}`}>
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">
+    <div className={`flex flex-col items-center gap-2 transition-all duration-300 pointer-events-none w-full max-w-sm sm:max-w-none iphone-14-pro-max-turn-indicator ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className={`portrait:w-[calc((100%-0.75rem)*0.5)] portrait:max-w-[180px] min-[428px]:w-[180px] sm:portrait:w-[240px] px-6 py-2 rounded-full border-2 backdrop-blur-md flex items-center justify-center gap-3 transition-colors duration-200 ${isMyWarningPhase ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-satisfying-turn-glow'}`}>
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white whitespace-nowrap">
             {isLeader && gameState.isFirstTurnOfGame && iHave3Spades ? '3♠ YOUR TURN' : (isLeader ? 'YOUR LEAD' : 'Your Turn')}
             </span>
             {showMyTimer && (<><div className="w-[1px] h-4 bg-white/20"></div><span className={`text-sm font-black italic text-white ${isMyWarningPhase ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
         </div>
-        {noMovesPossible && selectedCardIds.size === 0 && !showNoMovesPopup && (<div className="bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md">No Moves Possible</div>)}
+        {noMovesPossible && selectedCardIds.size === 0 && !showNoMovesPopup && (<div className="portrait:w-[calc((100%-0.75rem)*0.5)] portrait:max-w-[180px] sm:portrait:w-[240px] bg-rose-600/90 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md text-center">No Moves Possible</div>)}
         {showNoMovesPopup && (
-          <div className="bg-rose-600/95 text-white px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(225,29,72,0.5)] animate-pulse border-2 border-rose-400/40 backdrop-blur-md">
+          <div className="portrait:w-[calc((100%-0.75rem)*0.5)] portrait:max-w-[180px] sm:portrait:w-[240px] bg-rose-600/95 text-white px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(225,29,72,0.5)] animate-pulse border-2 border-rose-400/40 backdrop-blur-md text-center">
             No Moves!
           </div>
         )}
@@ -861,10 +878,10 @@ export const GameTable: React.FC<GameTableProps> = ({
     <button 
       onClick={handleDynamicAction} 
       disabled={selectedCardIds.size === 0 && isLeader}
-      className={`w-full h-full flex flex-col items-center justify-center border-2 rounded-2xl shadow-xl transition-all duration-200 active:scale-95 bg-black/40 ${selectedCardIds.size === 0 ? (isLeader ? 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed' : 'border-rose-600/60 text-rose-500 hover:bg-rose-950/20') : 'border-zinc-700 text-zinc-300 bg-zinc-900/60'}`}
+      className={`w-full h-full flex flex-col items-center justify-center border-2 rounded-2xl md:portrait:rounded-3xl shadow-xl transition-all duration-200 active:scale-95 bg-black/40 ${selectedCardIds.size === 0 ? (isLeader ? 'opacity-20 border-white/5 text-white/20 grayscale cursor-not-allowed' : `border-rose-600/60 text-rose-500 hover:bg-rose-950/20 ${noMovesPossible ? 'shadow-[0_0_20px_rgba(225,29,72,0.45)]' : ''}`) : 'border-zinc-700 text-zinc-300 bg-zinc-900/60'}`}
     >
-      <span className="text-[10px] font-black uppercase tracking-widest">{selectedCardIds.size === 0 ? 'Pass' : 'Clear'}</span>
-      <span className="text-[6px] font-bold opacity-40 uppercase tracking-[0.2em] mt-1">{selectedCardIds.size === 0 ? 'Skip Turn' : `${selectedCardIds.size} Selected`}</span>
+      <span className="text-[10px] md:portrait:text-sm lg:portrait:text-lg lg:landscape:text-xl font-black uppercase tracking-widest">{selectedCardIds.size === 0 ? 'Pass' : 'Clear'}</span>
+      <span className="text-[6px] md:portrait:text-[9px] lg:portrait:text-xs lg:landscape:text-xs font-bold opacity-40 uppercase tracking-[0.2em] mt-1">{selectedCardIds.size === 0 ? 'Skip Turn' : `${selectedCardIds.size} Selected`}</span>
     </button>
   );
 
@@ -872,32 +889,32 @@ export const GameTable: React.FC<GameTableProps> = ({
     <button 
       onClick={handlePlay} 
       disabled={!validationResult.isValid} 
-      className={`w-full h-full flex flex-col items-center justify-center rounded-2xl font-black uppercase tracking-[0.25em] text-[11px] shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all duration-200 active:scale-95 ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-white' : 'bg-white/5 text-white/20 border border-white/5 grayscale'}`}
+      className={`w-full h-full flex flex-col items-center justify-center rounded-2xl md:portrait:rounded-3xl font-black uppercase tracking-[0.25em] text-[11px] md:portrait:text-base lg:portrait:text-xl lg:landscape:text-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all duration-200 active:scale-95 ${validationResult.isValid ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-white' : 'bg-white/5 text-white/20 border border-white/5 grayscale'}`}
     >
       <span>Play Cards</span>
-      {validationResult.isValid && <span className="text-[6.5px] opacity-70 tracking-widest mt-0.5">{validationResult.reason}</span>}
+      {validationResult.isValid && <span className="text-[6.5px] md:portrait:text-[10px] lg:portrait:text-xs lg:landscape:text-xs opacity-70 tracking-widest mt-0.5">{validationResult.reason}</span>}
     </button>
   );
 
   const expandButtonUI = (
     <button 
       onClick={() => { setHandRows(r => (r === 1 ? 2 : 1)); audioService.playExpandHand(); }} 
-      className="w-full h-full flex flex-col items-center justify-center border-2 border-white/10 bg-black/40 rounded-2xl text-white/40 hover:text-white transition-all duration-200 active:scale-95"
+      className="w-full h-full flex flex-col items-center justify-center border-2 border-white/10 bg-black/40 rounded-2xl md:portrait:rounded-3xl text-white/40 hover:text-white transition-all duration-200 active:scale-95"
     >
-      <div className="mb-1 text-current">
+      <div className="mb-1 md:portrait:mb-1.5 text-current">
         {handRows === 1 ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-5 h-5 md:portrait:w-6 md:portrait:h-6 lg:portrait:w-10 lg:portrait:h-10 lg:landscape:w-10 lg:landscape:h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 9V2m0 0l-3 3m3-3l3 3" />
             <path d="M12 15v7m0 0l-3-3m3 3l3-3" />
           </svg>
         ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-5 h-5 md:portrait:w-6 md:portrait:h-6 lg:portrait:w-10 lg:portrait:h-10 lg:landscape:w-10 lg:landscape:h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2v7m0 0l-3-3m3 3l3-3" />
             <path d="M12 22v-7m0 0l-3 3m3-3l3 3" />
           </svg>
         )}
       </div>
-      <span className="text-[7px] font-black uppercase tracking-widest">{handRows === 1 ? '1 ROW' : 'MULTI ROW'}</span>
+      <span className="text-[7px] md:portrait:text-xs lg:portrait:text-base lg:landscape:text-base font-black uppercase tracking-widest">{handRows === 1 ? 'EXPAND' : 'COLLAPSE'}</span>
     </button>
   );
 
@@ -989,13 +1006,13 @@ export const GameTable: React.FC<GameTableProps> = ({
           )}
           
           {isMyTurn && selectedCardIds.size > 0 && hasValidCombos && (
-              <div className="flex flex-col gap-2 animate-in slide-in-from-left-4 duration-300 max-w-[160px] pointer-events-auto">
-                  <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-[1.5rem] shadow-2xl">
-                      <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5">
-                          <span className="w-1 h-1 rounded-full bg-yellow-500 animate-pulse"></span>
-                          <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
+              <div className="flex flex-col gap-2 animate-in slide-in-from-left-4 duration-300 max-w-[160px] lg:landscape:max-w-[220px] pointer-events-auto">
+                  <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 lg:landscape:p-3 rounded-[1.5rem] shadow-2xl">
+                      <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5 lg:landscape:mb-3">
+                          <span className="w-1 h-1 lg:landscape:w-1.5 lg:landscape:h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
+                          <span className="text-[8px] lg:landscape:text-[10px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
                       </div>
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-2 lg:landscape:gap-3">
                           {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { 
                             if (lists.length === 0) return null; 
                             const currentIndex = lists.findIndex((combo) => {
@@ -1009,7 +1026,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                               <button 
                                 key={type} 
                                 onClick={() => cycleComboType(type)} 
-                                className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-200 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                                className={`w-full py-2.5 px-3 lg:landscape:py-3.5 lg:landscape:px-4 rounded-xl border text-[9px] lg:landscape:text-xs font-black uppercase tracking-wider transition-all duration-200 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}
                               > 
                                 <div className="flex justify-between items-center w-full z-10 gap-2"> 
                                   <span className="truncate">{typeLabel}</span> 
@@ -1027,13 +1044,13 @@ export const GameTable: React.FC<GameTableProps> = ({
       </div>
 
       {isMyTurn && selectedCardIds.size > 0 && hasValidCombos && (
-          <div className="fixed top-4 left-4 z-[200] flex flex-col gap-2 animate-in slide-in-from-left-4 duration-300 max-w-[160px] landscape:hidden">
-              <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-[1.5rem] shadow-2xl">
-                  <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5">
-                      <span className="w-1 h-1 rounded-full bg-yellow-500 animate-pulse"></span>
-                      <span className="text-[8px] font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
+          <div className="fixed top-4 left-4 sm:top-8 sm:left-8 z-[200] flex flex-col gap-2 md:portrait:gap-3 animate-in slide-in-from-left-4 duration-300 max-w-[160px] md:portrait:max-w-[260px] landscape:hidden">
+              <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 md:portrait:p-4 rounded-[1.5rem] md:portrait:rounded-[2rem] shadow-2xl">
+                  <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5 md:portrait:pb-2 md:portrait:mb-3">
+                      <span className="w-1 h-1 md:portrait:w-1.5 md:portrait:h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
+                      <span className="text-[8px] md:portrait:text-xs font-black text-yellow-500/80 uppercase tracking-widest">VALID COMBOS</span>
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 md:portrait:gap-3">
                       {(Object.entries(combosByGroup) as [string, CardType[][]][]).map(([type, lists]) => { 
                         if (lists.length === 0) return null; 
                         const currentIndex = lists.findIndex((combo) => {
@@ -1047,11 +1064,11 @@ export const GameTable: React.FC<GameTableProps> = ({
                           <button 
                             key={type} 
                             onClick={() => cycleComboType(type)} 
-                            className={`w-full py-2.5 px-3 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all duration-200 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                            className={`w-full py-2.5 px-3 md:portrait:py-3.5 md:portrait:px-5 rounded-xl md:portrait:rounded-2xl border text-[9px] md:portrait:text-sm font-black uppercase tracking-wider transition-all duration-200 text-left flex flex-col group/btn relative overflow-hidden ${isTypeSelected ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/10 hover:text-white'}`}
                           > 
                             <div className="flex justify-between items-center w-full z-10 gap-2"> 
                               <span className="truncate">{typeLabel}</span> 
-                              <span className={`text-[8px] opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> 
+                              <span className={`text-[8px] md:portrait:text-xs opacity-70 whitespace-nowrap ${isTypeSelected ? 'text-black/70' : 'text-yellow-500/70'}`}> 
                                 {displayIndex}/{lists.length}
                               </span> 
                             </div> 
@@ -1063,11 +1080,11 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
       )}
 
-      <div className="fixed bottom-4 left-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
+      <div className="fixed bottom-4 left-4 z-[200] hidden landscape:block w-24 h-16 lg:landscape:w-40 lg:landscape:h-24 pointer-events-auto">
           {isMyTurn && passButtonUI}
       </div>
 
-      <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 flex flex-col items-center">
+      <div className="fixed bottom-[80px] left-4 z-[200] hidden landscape:block pointer-events-none transition-all duration-300 w-24 landscape:w-auto flex flex-col items-center ipad-pro-user-slot">
           <div className={`${isMyTurn ? 'opacity-100 translate-y-0' : (isFinished ? 'opacity-60 scale-90 translate-y-4' : 'opacity-0 translate-y-20')} flex flex-col items-center`}>
             {me && (
                 <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} getValidatedSleeve={getValidatedSleeveForPlayer} />
@@ -1075,36 +1092,36 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
       </div>
 
-      <div className={`fixed bottom-[155px] left-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex flex-col items-center ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+      <div className={`fixed left-4 top-[40%] lg:landscape:top-1/2 -translate-y-1/2 z-[200] hidden landscape:block transition-all duration-300 w-24 landscape:w-auto flex flex-col items-center ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {leftOpponent && (
               <PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />
           )}
       </div>
 
-      <div className="fixed bottom-4 right-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
+      <div className="fixed bottom-4 right-4 z-[200] hidden landscape:block w-24 h-16 lg:landscape:w-40 lg:landscape:h-24 pointer-events-auto">
           {isMyTurn && playButtonUI}
       </div>
 
-      <div className="fixed bottom-24 right-4 z-[200] hidden landscape:block w-24 h-16 pointer-events-auto">
+      <div className="fixed bottom-24 right-4 z-[200] hidden landscape:block w-24 h-16 lg:landscape:w-40 lg:landscape:h-24 lg:landscape:bottom-32 pointer-events-auto">
           {isMyTurn && expandButtonUI}
       </div>
 
-      <div className={`fixed bottom-[180px] right-4 z-[200] hidden landscape:block transition-all duration-300 w-24 flex justify-center ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+      <div className={`fixed right-4 top-[40%] lg:landscape:top-1/2 -translate-y-1/2 z-[200] hidden landscape:block transition-all duration-300 w-24 landscape:w-auto flex justify-center items-center ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {rightOpponent && (
               <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />
           )}
       </div>
 
-      <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
+      <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4 ipad-pro-top-right-buttons">
         <div className="flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
             {/* Quick Chat Button */}
             <div className="relative">
               <button 
                 onClick={() => setShowChatWheel(true)} 
-                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showChatWheel ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
+                className={`w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showChatWheel ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
                 title="Quick Chat"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
               </button>
@@ -1114,10 +1131,10 @@ export const GameTable: React.FC<GameTableProps> = ({
             <div className="relative">
               <button 
                 onClick={() => setShowEmotePicker(!showEmotePicker)} 
-                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
+                className={`w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
                 title="Emotes"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </button>
@@ -1139,38 +1156,34 @@ export const GameTable: React.FC<GameTableProps> = ({
             {/* Settings Button */}
             <button 
               onClick={onOpenSettings} 
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-200 shadow-xl hover:scale-105"
+              className="w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-200 shadow-xl hover:scale-105"
               title="Settings"
             >
-              <SettingsIcon />
+              <SettingsIcon className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" />
             </button>
         </div>
 
-        <div className="hidden landscape:block absolute top-14 right-0 min-w-max transition-all duration-300">
+        <div className="hidden landscape:block absolute top-14 right-0 min-w-max transition-all duration-300 ipad-pro-turn-indicator">
             {turnIndicatorUI}
         </div>
       </div>
 
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
-        <div className={`col-start-2 row-start-1 flex justify-center items-start pt-2 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''} ${topOpponent && !topOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+        <div className={`col-start-2 row-start-1 flex justify-center items-start portrait:pt-0 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''} ${topOpponent && !topOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
           {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(topOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
         
-        <div className={`col-start-1 row-start-2 flex justify-start items-center ml-0 sm:ml-0 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isMyTurn ? '-translate-y-[144px] z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-[80px] z-[60]' : '-translate-y-[32px]')} landscape:hidden ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+        <div className={`col-start-1 row-start-2 flex justify-start items-center ml-0 sm:ml-0 sm:fixed sm:left-12 min-[428px]:fixed min-[428px]:left-6 min-[428px]:top-[40%] min-[428px]:-translate-y-1/2 sm:bottom-[44px] sm:top-auto sm:-translate-y-1/2 md:portrait:fixed md:portrait:left-12 md:portrait:top-[calc(50%-220px)] md:portrait:-translate-y-1/2 md:portrait:translate-x-0 md:portrait:translate-y-0 md:portrait:bottom-auto transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${isMyTurn ? '-translate-y-[136px] sm:translate-y-0 md:portrait:translate-y-0 z-[60]' : (gameState.currentPlayerId === leftOpponent?.player.id ? '-translate-y-[72px] sm:translate-y-0 md:portrait:translate-y-0 z-[60]' : '-translate-y-[24px] sm:translate-y-0 md:portrait:translate-y-0')} landscape:hidden ${leftOpponent && !leftOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
           {leftOpponent && (<PlayerSlot player={leftOpponent.player} position="left" isTurn={gameState.currentPlayerId === leftOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(leftOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
-        </div>
-        
-        <div className={`col-start-3 row-start-2 flex justify-end items-center transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === rightOpponent?.player.id ? '-translate-y-12' : ''} portrait:hidden ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
-          {rightOpponent && (<PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
       </div>
 
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-400 ease-in-out ${isMyTurn ? 'portrait:-translate-y-24 landscape:-translate-y-7' : 'portrait:-translate-y-8 landscape:-translate-y-5'}`}>
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-400 ease-in-out ipad-cards-in-play-container ${isMyTurn ? 'portrait:-translate-y-24 min-[428px]:portrait:-translate-y-32 md:portrait:-translate-y-56 landscape:-translate-y-7' : 'portrait:-translate-y-8 landscape:-translate-y-5'}`}>
         <div className="relative flex flex-col items-center">
           {lastMove ? (
             <div 
               key={lastMove.playerId + lastMove.cards.map((c) => c.id).join('')}
-              className={`flex flex-col items-center gap-4 scale-90 sm:scale-125 landscape:scale-[0.4] ${arrivalAnimationClass}`}
+              className={`flex flex-col items-center gap-4 scale-90 sm:scale-125 md:portrait:scale-[1.25] lg:portrait:scale-[1.6] landscape:scale-[0.8] lg:landscape:scale-[1.2] ipad-cards-in-play ${arrivalAnimationClass}`}
             >
                <div className="flex -space-x-8">
                 {lastMove.cards.map((c, i: number) => {
@@ -1196,7 +1209,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                   );
                 })}
                </div>
-               <div className="mt-3 flex flex-col items-center opacity-0 animate-[fadeInLabel_0.3s_0.2s_forwards] pointer-events-none z-[100] portrait:scale-x-90 landscape:hidden">
+               <div className="mt-3 flex flex-col items-center animate-in fade-in slide-in-from-top-2 duration-300 delay-200 pointer-events-none z-[100] portrait:scale-x-90 landscape:hidden">
                   <span className="text-[12px] font-black text-yellow-500 uppercase tracking-[0.6em] drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] whitespace-nowrap">{gameState.players.find((p) => p.id === lastMove.playerId)?.name || 'PLAYER'}'S MOVE</span>
                   <div className="h-[2px] w-20 bg-yellow-500/40 mt-1 rounded-full shadow-[0_0_12px_rgba(234,179,8,0.5)]"></div>
                </div>
@@ -1205,147 +1218,610 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40 pt-2 pb-2 sm:pt-4 sm:pb-4">
-        <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden px-2 sm:px-4">
+      <div className="absolute bottom-0 left-0 w-full flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40 pt-2 pb-2 sm:pt-4 sm:pb-4 md:portrait:pb-2 md:portrait:pt-16">
+        <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden px-4 sm:px-12 w-full md:portrait:mb-0">
+            {/* Mobile: full width centered, iPad: hidden here, shown above PLAY CARDS button */}
+            <div className="md:portrait:hidden w-full">
             {turnIndicatorUI}
+            </div>
         </div>
 
-        <div className={`fixed right-4 sm:right-12 bottom-[280px] sm:bottom-[108px] pointer-events-none z-30 transition-all duration-300 landscape:hidden flex flex-col items-end ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+        <div className={`fixed right-4 top-[40%] -translate-y-1/2 bottom-auto min-[428px]:right-6 sm:right-12 sm:bottom-[108px] sm:top-auto sm:translate-y-0 md:portrait:fixed md:portrait:right-12 md:portrait:top-[calc(50%-230px)] md:portrait:-translate-y-1/2 md:portrait:translate-y-0 md:portrait:bottom-auto pointer-events-none z-30 transition-all duration-300 landscape:hidden flex flex-col items-end ${rightOpponent && !rightOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
           {rightOpponent && (
               <PlayerSlot player={rightOpponent.player} position="right" isTurn={gameState.currentPlayerId === rightOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(rightOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />
           )}
         </div>
 
-        <div className="relative w-full flex flex-col items-center px-4 sm:px-12">
-            <div className={`absolute left-4 sm:left-12 bottom-[44px] pointer-events-none z-50 transition-all duration-300 landscape:hidden flex flex-col items-start -translate-y-1/2
+        <div className="relative w-full flex flex-col items-center px-4 sm:px-12 landscape:px-0">
+            <div className={`absolute left-4 sm:left-12 min-[428px]:left-6 md:portrait:left-[60px] lg:portrait:left-24 bottom-[44px] md:portrait:bottom-[136px] md:portrait:top-auto md:portrait:translate-y-0 pointer-events-none z-50 transition-all duration-300 landscape:hidden flex flex-col items-start -translate-y-1/2
                 ${isMyTurn ? 'opacity-100' : (isFinished ? 'opacity-100' : 'opacity-0')}`}>
               {me && (
                   <PlayerSlot player={me} position="bottom" isTurn={isMyTurn} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} isCurrentPlayer={true} onCurrentPlayerClick={handleAvatarClick} isMuted={false} getValidatedSleeve={getValidatedSleeveForPlayer} />
               )}
             </div>
 
-            <div className={`flex flex-row items-stretch justify-start gap-3 w-full max-w-sm mb-3 transition-all duration-300 h-16 ml-0 sm:ml-0 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
-              <div className="relative flex-1 landscape:hidden">
+            {/* iPad Portrait: Button layout with YOUR TURN above PLAY CARDS */}
+            <div className={`hidden md:portrait:flex md:portrait:flex-col md:portrait:items-center md:portrait:mb-3 md:portrait:w-full md:portrait:px-6 ipad-button-container md:portrait:gap-3 transition-all duration-300 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
+              {/* YOUR TURN indicator centered above buttons */}
+              <div className="mb-2 w-full flex flex-col items-center">
+                <div className={`flex flex-col items-center gap-2 w-full ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                  <div className={`px-8 py-3 md:portrait:px-10 md:portrait:py-3.5 rounded-full border-2 backdrop-blur-md flex items-center justify-center gap-3 transition-colors duration-200 ${isMyWarningPhase ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-satisfying-turn-glow'}`}>
+                    <span className="text-xs md:portrait:text-base font-black uppercase tracking-[0.4em] text-white whitespace-nowrap">
+                      {isLeader && gameState.isFirstTurnOfGame && iHave3Spades ? '3♠ YOUR TURN' : (isLeader ? 'YOUR LEAD' : 'Your Turn')}
+                    </span>
+                    {showMyTimer && (<><div className="w-[1px] h-4 md:portrait:h-5 bg-white/20"></div><span className={`text-sm md:portrait:text-lg font-black italic text-white ${isMyWarningPhase ? 'animate-pulse' : ''}`}>{timeLeft}s</span></>)}
+                  </div>
+                  {noMovesPossible && selectedCardIds.size === 0 && !showNoMovesPopup && (<div className="bg-rose-600/90 text-white px-5 py-2 md:portrait:px-6 md:portrait:py-2.5 rounded-full text-[9px] md:portrait:text-xs font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-bounce border border-rose-400/20 backdrop-blur-md text-center">No Moves Possible</div>)}
+                  {showNoMovesPopup && (
+                    <div className="bg-rose-600/95 text-white px-6 py-2.5 md:portrait:px-7 md:portrait:py-3 rounded-full text-[10px] md:portrait:text-sm font-black uppercase tracking-[0.4em] shadow-[0_0_30px_rgba(225,29,72,0.5)] animate-pulse border-2 border-rose-400/40 backdrop-blur-md text-center">
+                      No Moves!
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Button row: PASS | PLAY CARDS | ROW */}
+              <div className="flex flex-row items-stretch justify-center gap-4 md:portrait:gap-5 w-full h-16 md:portrait:h-20 ipad-button-row">
+                <div className="relative flex-1">
+                {passButtonUI}
+                </div>
+                <div className="relative flex-[2]">
+                  {playButtonUI}
+                </div>
+                <div className="relative flex-1">
+                  {expandButtonUI}
+                </div>
+              </div>
+              </div>
+
+            {/* Mobile/Non-iPad: Original button layout */}
+            <div className={`flex flex-row items-stretch justify-center gap-3 w-full max-w-sm mb-3 sm:mb-0 sm:absolute sm:bottom-[44px] sm:-translate-y-1/2 transition-all duration-300 h-16 sm:max-w-none sm:w-full sm:left-0 sm:right-0 sm:px-0 md:portrait:hidden ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
+              <div className="relative flex-1 landscape:hidden sm:absolute sm:left-12 sm:w-auto">
                 {passButtonUI}
               </div>
-
-              <div className="flex-[2] landscape:hidden">
+              <div className="flex-[2] landscape:hidden sm:absolute sm:left-1/2 sm:-translate-x-1/2 sm:w-[240px]">
                 {playButtonUI}
               </div>
-
-              <div className="relative flex-1 landscape:hidden">
+              <div className="relative flex-1 landscape:hidden sm:absolute sm:right-12 sm:w-auto">
                 {expandButtonUI}
               </div>
             </div>
         </div>
 
-        <div className="relative flex items-center justify-center w-full landscape:px-32 sm:landscape:px-12 xl:landscape:px-0 px-2 sm:px-4">
-           <div className={`flex transition-all duration-500 landscape:scale-[0.46] landscape:sm:scale-[0.75] xl:landscape:scale-[0.85] ${spacing.landscape} portrait:pt-2 portrait:scale-[0.9] sm:portrait:scale-[1] portrait:max-w-sm sm:portrait:max-w-sm ${handRows >= 2 ? `flex-wrap justify-center max-w-[340px] sm:max-w-[600px] xl:max-w-[800px] pb-4` : `flex-nowrap justify-center ${spacing.portrait} portrait:pb-16`}`}>
-            {sortedHand.map((c, index) => {
-              const is3Spades = c.rank === Rank.Three && c.suit === Suit.Spades;
-              const showHint = isMyTurn && isLeader && gameState.isFirstTurnOfGame && is3Spades && !selectedCardIds.has(c.id);
-              const isSelected = selectedCardIds.has(c.id);
-              const handleCardClick = () => toggleCard(c.id);
-              const isRightmost = index === sortedHand.length - 1;
-              const hideCenterSymbol = !isRightmost;
-              return (
-                <Card 
-                  key={c.id} 
-                  card={c} 
-                  coverStyle={cardCoverStyle}
-                  selected={isSelected} 
-                  onClick={handleCardClick} 
-                  disableEffects={!sleeveEffectsEnabled}
-                  activeTurn={isMyTurn}
-                  className={`hand-card transform-gpu will-change-transform transition-all duration-200 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${handRows >= 2 ? 'm-0.5 sm:m-1' : ''} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
-                />
-              );
-            })}
-           </div>
+        {/* Player Hand Container - Stretches from left edge of PASS button (left-4) to right edge of EXPAND button (right-4) in landscape */}
+        <div className="relative flex items-center portrait:justify-center landscape:justify-start w-full max-w-[100vw] portrait:overflow-visible landscape:overflow-visible landscape:absolute landscape:left-4 landscape:right-4 landscape:bottom-0 lg:landscape:bottom-6 landscape:px-0 px-6 sm:portrait:px-12 md:portrait:pb-4 md:portrait:pt-32 md:portrait:overflow-visible">
+           {/* Inner flex container: stretches cards to button edges in landscape, centered with overlap in portrait */}
+           {handRows >= 2 ? (
+             <div className={`flex flex-col items-center justify-center gap-y-4 transition-all duration-500 landscape:scale-[0.46] landscape:sm:scale-[0.75] lg:landscape:scale-[1.1] xl:landscape:scale-[1.25] portrait:pt-2 portrait:scale-[0.9] sm:portrait:scale-[1] md:portrait:scale-[1.1] lg:portrait:scale-[1.3] landscape-hand-container w-full portrait:max-w-full landscape:w-full landscape:min-w-full landscape:max-w-none portrait:overflow-visible landscape:overflow-visible portrait:px-2 sm:portrait:px-3 md:portrait:pb-8 ipad-hand-container multi-row-hand pb-4 max-h-[340px] sm:max-h-[380px] landscape:max-h-[200px] sm:landscape:max-h-[220px] xl:landscape:max-h-[240px] md:portrait:max-h-[400px] lg:portrait:max-h-[450px]`}>
+               {/* Top Row */}
+               <div className="flex flex-nowrap items-center justify-center gap-2 multi-row-top-row">
+                 {cardDistribution.topRow.map((c, index) => {
+                   const is3Spades = c.rank === Rank.Three && c.suit === Suit.Spades;
+                   const showHint = isMyTurn && isLeader && gameState.isFirstTurnOfGame && is3Spades && !selectedCardIds.has(c.id);
+                   const isSelected = selectedCardIds.has(c.id);
+                   const handleCardClick = () => toggleCard(c.id);
+                   const isRightmost = index === cardDistribution.topRow.length - 1 && cardDistribution.bottomRow.length === 0;
+                   const hideCenterSymbol = !isRightmost;
+                   return (
+                     <Card 
+                       key={c.id} 
+                       card={c} 
+                       coverStyle={cardCoverStyle}
+                       selected={isSelected} 
+                       onClick={handleCardClick} 
+                       disableEffects={!sleeveEffectsEnabled}
+                       activeTurn={isMyTurn}
+                       className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
+                     />
+                   );
+                 })}
+               </div>
+               {/* Bottom Row */}
+               {cardDistribution.bottomRow.length > 0 && (
+                 <div className="flex flex-nowrap items-center justify-center gap-2 multi-row-bottom-row">
+                   {cardDistribution.bottomRow.map((c, index) => {
+                     const is3Spades = c.rank === Rank.Three && c.suit === Suit.Spades;
+                     const showHint = isMyTurn && isLeader && gameState.isFirstTurnOfGame && is3Spades && !selectedCardIds.has(c.id);
+                     const isSelected = selectedCardIds.has(c.id);
+                     const handleCardClick = () => toggleCard(c.id);
+                     const isRightmost = index === cardDistribution.bottomRow.length - 1;
+                     const hideCenterSymbol = !isRightmost;
+                     return (
+                       <Card 
+                         key={c.id} 
+                         card={c} 
+                         coverStyle={cardCoverStyle}
+                         selected={isSelected} 
+                         onClick={handleCardClick} 
+                         disableEffects={!sleeveEffectsEnabled}
+                         activeTurn={isMyTurn}
+                         className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
+                       />
+                     );
+                   })}
+                 </div>
+               )}
+             </div>
+           ) : (
+             <div className={`flex transition-all duration-500 landscape:scale-[0.46] landscape:sm:scale-[0.75] lg:landscape:scale-[1.1] xl:landscape:scale-[1.25] portrait:pt-2 portrait:scale-[0.9] sm:portrait:scale-[1] md:portrait:scale-[1.1] lg:portrait:scale-[1.3] items-center portrait:justify-center landscape:justify-between lg:landscape:justify-center landscape-hand-container w-full portrait:max-w-full landscape:w-full landscape:min-w-full landscape:max-w-none portrait:overflow-visible landscape:overflow-visible portrait:px-2 sm:portrait:px-3 md:portrait:pb-8 ipad-hand-container flex-nowrap ${spacing.portrait} ${spacing.landscape} portrait:pb-16 md:portrait:pb-24`}>
+               {sortedHand.map((c, index) => {
+                 const is3Spades = c.rank === Rank.Three && c.suit === Suit.Spades;
+                 const showHint = isMyTurn && isLeader && gameState.isFirstTurnOfGame && is3Spades && !selectedCardIds.has(c.id);
+                 const isSelected = selectedCardIds.has(c.id);
+                 const handleCardClick = () => toggleCard(c.id);
+                 const isRightmost = index === sortedHand.length - 1;
+                 const hideCenterSymbol = !isRightmost;
+                 return (
+                   <Card 
+                     key={c.id} 
+                     card={c} 
+                     coverStyle={cardCoverStyle}
+                     selected={isSelected} 
+                     onClick={handleCardClick} 
+                     disableEffects={!sleeveEffectsEnabled}
+                     activeTurn={isMyTurn}
+                     className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
+                   />
+                 );
+               })}
+             </div>
+           )}
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes satisfyingTurnGlow {
-          0% { box-shadow: 0 0 10px rgba(16,185,129,0.4), inset 0 0 5px rgba(255,255,255,0.1); border-color: rgba(52,211,153,0.4); }
-          50% { box-shadow: 0 0 25px rgba(16,185,129,0.8), inset 0 0 10px rgba(255,255,255,0.2); border-color: rgba(52,211,153,1); }
-          100% { box-shadow: 0 0 10px rgba(16,185,129,0.4), inset 0 0 5px rgba(255,255,255,0.1); border-color: rgba(52,211,153,0.4); }
-        }
-        .animate-satisfying-turn-glow { animation: satisfyingTurnGlow 2s ease-in-out infinite; }
-        
-        @keyframes turn-ping-slow {
-          0% { transform: scale(1); opacity: 0.8; }
-          100% { transform: scale(1.6); opacity: 0; }
-        }
-        .animate-turn-ping-slow { animation: turn-ping-slow 3s cubic-bezier(0, 0, 0.2, 1) infinite; }
-        
-        @keyframes timerPulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.05); opacity: 0.9; }
-        }
-        .animate-timer-pulse { animation: timerPulse 0.5s ease-in-out infinite; }
+      {sortedHand.length > 0 && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          /* Multi-row hand - spread cards out naturally for easier selection */
+          .multi-row-top-row > .hand-card:not(:first-child),
+          .multi-row-bottom-row > .hand-card:not(:first-child) {
+            margin-left: 0 !important;
+          }
+          
+          /* Portrait - spread cards out with minimal overlap */
+          @media (orientation: portrait) {
+            .multi-row-top-row > .hand-card:not(:first-child) {
+              margin-left: -2vw !important; /* Minimal overlap for natural spread */
+            }
+            .multi-row-bottom-row > .hand-card:not(:first-child) {
+              margin-left: -2vw !important; /* Minimal overlap for natural spread */
+            }
+            /* Smaller screens - slightly more overlap to fit */
+            @media (max-width: 375px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: -3vw !important;
+              }
+            }
+            /* Larger screens - spread out more */
+            @media (min-width: 428px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: -1vw !important;
+              }
+            }
+            @media (min-width: 768px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: 0.5rem !important; /* Positive spacing for larger screens */
+              }
+            }
+          }
+          
+          /* Landscape - spread cards out with minimal overlap */
+          @media (orientation: landscape) {
+            .multi-row-top-row > .hand-card:not(:first-child),
+            .multi-row-bottom-row > .hand-card:not(:first-child) {
+              margin-left: 0.5rem !important; /* Positive spacing for natural spread */
+            }
+            /* Smaller landscape screens - minimal overlap */
+            @media (max-width: 667px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: 0.25rem !important;
+              }
+            }
+            /* Larger landscape screens - more spacing */
+            @media (min-width: 1024px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: 1rem !important; /* More spacing for easier selection */
+              }
+            }
+          }
+          
+          /* Single row hand styles */
+          /* iPhone SE Landscape - Fix overlaps and alignment */
+          @media (orientation: landscape) and (max-height: 375px) {
+            /* Align YOUR TURN indicator right edge with settings button right edge */
+            div[class*="hidden"][class*="landscape:block"][class*="absolute"][class*="top-14"][class*="right-0"] {
+              right: 0.25rem !important; /* Move slightly right to align with settings button right edge */
+              left: auto !important;
+            }
+            .iphone-14-pro-max-turn-indicator {
+              width: 144px !important; /* Match button group width (3 buttons + 2 gaps) */
+              max-width: 144px !important;
+              min-width: 144px !important;
+              margin-left: 0 !important;
+            }
+            .iphone-14-pro-max-turn-indicator > div {
+              width: 100% !important;
+            }
+            .iphone-14-pro-max-turn-indicator > div > div[class*="rounded-full"] {
+              width: 100% !important;
+              max-width: 100% !important;
+            }
+            .landscape-hand-container {
+              scale: 0.9 !important;
+              bottom: 40px !important;
+              padding-left: 110px !important;
+              padding-right: 110px !important;
+              justify-content: center !important;
+            }
+            .landscape-hand-container > .hand-card:not(:first-child) {
+              margin-left: -16vw !important;
+            }
+            /* Restore original play pile size and move them down slightly */
+            .ipad-cards-in-play {
+              transform: translateY(24px) scale(0.8) !important;
+            }
+            /* Left player vertically aligned with user and just above */
+            div[class*="fixed"][class*="left-4"][class*="top-[40%]"] {
+              left: 2.7rem !important;
+              top: auto !important;
+              bottom: 210px !important;
+              transform: none !important;
+            }
+            /* Right player vertically aligned with ROW button and just above */
+            div[class*="fixed"][class*="right-4"][class*="top-[40%]"] {
+              right: 2.2rem !important;
+              top: auto !important;
+              bottom: 160px !important;
+              transform: none !important;
+            }
+          }
 
-        @keyframes startCardHint {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-25px); }
-        }
-        .animate-start-card-hint { animation: startCardHint 1.5s ease-in-out infinite; }
+          /* iPhone 12 Pro Landscape - Move left player up more vertically */
+          @media (orientation: landscape) and (min-height: 385px) and (max-height: 395px) {
+            /* Move left player up more vertically */
+            div[class*="fixed"][class*="left-4"][class*="top-[40%]"] {
+              left: 0.5rem !important; /* Move slightly left */
+              top: auto !important;
+              bottom: 220px !important; /* Position higher above user icon */
+              transform: none !important;
+            }
+          }
 
-        @keyframes rewardingEmote { 
-          0% { transform: translate(0, 0) scale(0.5); opacity: 0; filter: blur(10px); } 
-          20% { transform: translate(var(--tx), var(--ty)) scale(2.2); opacity: 1; filter: blur(0px); } 
-          35% { transform: translate(var(--tx), var(--ty)) scale(2.3); opacity: 1; } 
-          75% { transform: translate(var(--tx), calc(var(--ty) - 30px)) scale(2.2); opacity: 1; filter: blur(0px); } 
-          100% { transform: translate(var(--tx), calc(var(--ty) - 150px)) scale(2); opacity: 0; filter: blur(20px); } 
-        } 
-        .animate-rewarding-emote { animation: rewardingEmote 3.8s cubic-bezier(0.19, 1, 0.22, 1) forwards; } 
-        @keyframes fadeInLabel { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
-        @keyframes shake { 0%, 100% { transform: translate(0,0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-10px, -10px); } 20%, 40%, 60%, 80% { transform: translate(10px, 10px); } } 
-        .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
-        
-        @keyframes playFromBottom {
-          0% { transform: translate3d(0, 50vh, 0) rotate(15deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
-        }
-        @keyframes playFromTop {
-          0% { transform: translate3d(0, -50vh, 0) rotate(-15deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
-        }
-        @keyframes playFromLeft {
-          0% { transform: translate3d(-50vw, 0, 0) rotate(-90deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
-        }
-        @keyframes playFromRight {
-          0% { transform: translate3d(50vw, 0, 0) rotate(90deg) scale(0.5); opacity: 0; filter: blur(15px); }
-          100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; filter: blur(0); }
-        }
-        @keyframes playBounce {
-          0% { transform: scale3d(0.8, 0.8, 1); }
-          50% { transform: scale3d(1.05, 1.05, 1); }
-          100% { transform: scale3d(1, 1, 1); }
-        }
+          /* iPhone XR, iPhone 12 Pro Max, iPhone 14 Pro Max Landscape - Move left player up vertically */
+          @media (orientation: landscape) and (min-height: 410px) and (max-height: 435px) {
+            /* Move left player up vertically */
+            div[class*="fixed"][class*="left-4"][class*="top-[40%]"] {
+              left: 0.5rem !important; /* Move slightly left */
+              top: auto !important;
+              bottom: 200px !important; /* Position well above user icon */
+              transform: none !important;
+            }
+          }
 
-        .animate-play-from-bottom { animation: playFromBottom 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
-        .animate-play-from-top { animation: playFromTop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
-        .animate-play-from-left { animation: playFromLeft 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
-        .animate-play-from-right { animation: playFromRight 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; will-change: transform, opacity, filter; }
-        .animate-play-bounce { animation: playBounce 0.4s ease-out forwards; will-change: transform; }
-        
-        @keyframes shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        
-        @keyframes heartbeat {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
-        
-        @keyframes wiggle {
-          0%, 100% { transform: rotate(0deg); }
-          25% { transform: rotate(-3deg); }
-          75% { transform: rotate(3deg); }
-        }
-      `}} />
+          @media (orientation: landscape) and (max-width: 1024px) {
+            /* Only apply the wide "justify-between" spread on narrow landscape devices (phones/tablets)
+               so desktop/laptop browsers keep the cards centered and overlapped. */
+            .landscape-hand-container {
+              width: 100% !important;
+              max-width: none !important;
+              display: flex !important;
+              flex-direction: row !important;
+              justify-content: center !important;
+              align-items: center !important;
+              padding-left: 0 !important;
+              padding-right: 0 !important;
+            }
+            .landscape-hand-container > .hand-card {
+              flex-shrink: 0 !important;
+              flex-grow: 0 !important;
+              margin-left: 0 !important;
+              margin-right: 0 !important;
+            }
+            /* Add larger spacing between cards for iPhone 14 Pro Max and similar large screens */
+            .landscape-hand-container > .hand-card:not(:first-child) {
+              margin-left: -5vw !important;
+            }
+            /* Ensure first card aligns to container start */
+            .landscape-hand-container > .hand-card:first-child {
+              margin-left: 0 !important;
+            }
+            /* Ensure last card aligns to container end */
+            .landscape-hand-container > .hand-card:last-child {
+              margin-right: 0 !important;
+            }
+          }
+          @media (orientation: landscape) and (min-width: 640px) and (max-width: 1024px) {
+            .landscape-hand-container > .hand-card:not(:first-child) {
+              margin-left: -4vw !important;
+            }
+          }
+          @media (orientation: landscape) and (min-width: 1024px) and (max-width: 1024px) {
+            .landscape-hand-container > .hand-card:not(:first-child) {
+              margin-left: -3vw !important;
+            }
+          }
+          /* Specific spacing override for iPhone 14 Pro Max (430px) - keep as is */
+          @media (orientation: portrait) and (min-width: 430px) and (max-width: 431px) {
+            .relative.flex.items-center[class*="px-6"] {
+              padding-left: 1rem !important;
+              padding-right: 1rem !important;
+            }
+            .flex.flex-nowrap[class*="portrait:px"] {
+              padding-left: 0.5rem !important;
+              padding-right: 0.5rem !important;
+            }
+            .flex.flex-nowrap > .hand-card:not(:first-child) {
+              margin-left: -12vw !important;
+            }
+          }
+
+
+          /* iPhone 12 Pro Max / 14 Pro Max - Vertically align YOUR TURN with PLAY CARDS */
+          @media (orientation: portrait) and (min-width: 426px) and (max-width: 431px) {
+            .iphone-14-pro-max-turn-indicator {
+              margin-left: 1.5vw !important;
+            }
+          }
+
+          /* Galaxy S8+ (360px) - Specific override to prevent overflow */
+          @media (orientation: portrait) and (min-width: 358px) and (max-width: 362px) {
+            /* Keep padding adjustments to maximize width */
+            .relative.flex.items-center[class*="px-6"] {
+              padding-left: 1rem !important;
+              padding-right: 1rem !important;
+            }
+            .flex.flex-nowrap[class*="portrait:px"] {
+              padding-left: 0.5rem !important;
+              padding-right: 0.5rem !important;
+            }
+            /* Tighten overlap significantly to fit screen */
+            .flex.flex-nowrap > .hand-card:not(:first-child) {
+              margin-left: -16vw !important;
+            }
+          }
+
+          /* iPhone XR (414px), iPhone 12 Pro Max (428px) - Align cards with PASS/ROW buttons */
+          @media (orientation: portrait) and (min-width: 412px) and (max-width: 416px),
+                 (orientation: portrait) and (min-width: 426px) and (max-width: 429px) {
+            /* Add padding to align with PASS button (left) and ROW button (right) edges */
+            .relative.flex.items-center[class*="px-6"] {
+              padding-left: 1rem !important;
+              padding-right: 1rem !important;
+            }
+            /* Add inner container padding to align cards with button edges */
+            .flex.flex-nowrap[class*="portrait:px"] {
+              padding-left: 0.5rem !important;
+              padding-right: 0.5rem !important;
+            }
+            /* Spread cards out - reduce overlap from -15vw to -12vw to align with button edges */
+            .flex.flex-nowrap > .hand-card:not(:first-child) {
+              margin-left: -12vw !important;
+            }
+          }
+          /* Make player's hand cards same size as cards in play and stretch them out on iPad portrait */
+          @media (orientation: portrait) and (min-width: 768px) {
+            /* Ensure buttons are above cards with proper spacing - push hand down */
+            div[class*="relative"][class*="flex"][class*="items-center"][class*="portrait:justify-center"] {
+              margin-top: 6rem !important;
+              padding-top: 0 !important;
+            }
+            /* Make both hand cards and cards in play the SAME size - use same scale */
+            .ipad-hand-container.flex-nowrap {
+              transform: scale(1.5) !important;
+              z-index: 10 !important;
+            }
+            /* Make cards in play match - same scale as hand container */
+            .ipad-cards-in-play {
+              transform: scale(1.5) !important;
+            }
+            /* Stretch cards out more to align with PASS and ROW buttons - reduce overlap */
+            .ipad-hand-container.flex-nowrap > .hand-card:not(:first-child) {
+              margin-left: -6vw !important;
+            }
+            /* Adjust container padding to align with button edges */
+            .ipad-hand-container {
+              padding-left: 1rem !important;
+              padding-right: 1rem !important;
+              padding-bottom: 2rem !important;
+              margin-bottom: 0.5rem !important;
+            }
+            /* Ensure parent container has enough bottom padding */
+            div[class*="absolute"][class*="bottom-0"] {
+              padding-bottom: 3rem !important;
+            }
+            /* Ensure buttons stay above cards */
+            div[class*="hidden"][class*="md:portrait:flex"] {
+              position: relative !important;
+              z-index: 50 !important;
+            }
+            /* Make button container match the width of the full hand cards - match hand container padding */
+            .ipad-button-container {
+              width: 100% !important;
+              max-width: none !important;
+              padding-left: 0 !important;
+              padding-right: 0 !important;
+            }
+            .ipad-button-row {
+              width: 100% !important;
+              max-width: none !important;
+              padding-left: 1.5rem !important;
+              padding-right: 1.5rem !important;
+            }
+            @media (min-width: 1024px) {
+              /* Restore larger margin for Pro screens */
+              div[class*="relative"][class*="flex"][class*="items-center"][class*="portrait:justify-center"] {
+                margin-top: 6rem !important;
+              }
+              .ipad-button-container {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+              }
+              .ipad-button-row {
+                padding-left: 1.5rem !important;
+                padding-right: 1.5rem !important;
+              }
+              .ipad-hand-container.flex-nowrap {
+                transform: scale(1.7) !important;
+              }
+              .ipad-cards-in-play {
+                transform: scale(1.7) !important;
+              }
+              /* Stretch out even more on larger iPads to reach button edges */
+              .ipad-hand-container.flex-nowrap > .hand-card:not(:first-child) {
+                margin-left: -3.8vw !important;
+              }
+              .ipad-hand-container {
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+              }
+            }
+          /* Lower the cards in play pile so <PLAYER'S> MOVE sits just above YOUR TURN */
+          .ipad-cards-in-play-container {
+            transform: translateY(-80px) !important;
+          }
+
+          /* Move left and right players up while keeping them horizontally aligned */
+          div[class*="col-start-1"][class*="row-start-2"][class*="md:portrait:fixed"] {
+            top: calc(50% - 230px) !important;
+            transform: translateY(-50%) !important;
+            bottom: auto !important;
+          }
+            /* Right player container - target by md:portrait:right- or any right positioning */
+            div[class*="fixed"][class*="md:portrait:right-"] {
+              top: calc(50% - 230px) !important;
+              transform: translateY(-50%) !important;
+              bottom: auto !important;
+            }
+            /* Ensure bottom (user) and left player icons are vertically aligned on larger iPads */
+            div[class*="absolute"][class*="left-"][class*="bottom-[44px]"] {
+              bottom: 136px !important;
+              top: auto !important;
+              transform: none !important;
+            }
+          }
+          
+          /* iPad Pro Landscape specifically (and other high-res large landscape screens) */
+          @media (orientation: landscape) and (min-width: 1366px) {
+            .ipad-cards-in-play {
+              transform: scale(2.0) !important; /* Larger for better visibility (relative to 0.8 base) */
+            }
+            /* Override parent container bottom position for iPad Pro */
+            div[class*="landscape:absolute"][class*="landscape:left-4"][class*="landscape:right-4"] {
+              bottom: 40px !important; /* Move cards up more from button bottom */
+            }
+            .ipad-hand-container {
+              transform: scale(1.5) !important; /* Further reduced to ensure they stay on screen */
+              bottom: 0 !important; /* Position at parent's bottom */
+            }
+            .ipad-hand-container > .hand-card:not(:first-child) {
+              margin-left: -3vw !important; /* Slightly tighter than -2vw to prevent side overflow */
+            }
+            /* Move user icon to align vertically (same left position) with PASS button - same size as other players */
+            .ipad-pro-user-slot {
+              left: 1rem !important; /* Align with PASS button (left-4 = 1rem) */
+              bottom: 120px !important; /* Position above PASS button (button is 96px tall at bottom-4, so icon at 120px sits above it) */
+              transform: none !important; /* Remove scale to match other players (they all use landscape:scale-75) */
+            }
+            /* Enlarge top right buttons */
+            .ipad-pro-top-right-buttons button[class*="rounded-2xl"] {
+              width: 3.5rem !important;
+              height: 3.5rem !important;
+            }
+            .ipad-pro-top-right-buttons button[class*="rounded-2xl"] svg,
+            .ipad-pro-top-right-buttons button[class*="rounded-2xl"] > svg,
+            .ipad-pro-top-right-buttons button[class*="rounded-2xl"] > * {
+              width: 1.75rem !important;
+              height: 1.75rem !important;
+            }
+            /* Move YOUR TURN indicator down to add space between it and buttons */
+            .ipad-pro-turn-indicator {
+              top: 5.5rem !important; /* Move down from top-14 (56px) to 88px to add vertical space */
+            }
+          }
+
+          /* iPad Air and iPad Mini Landscape - Move user icon up so name is above PASS button */
+          @media (orientation: landscape) and (min-width: 768px) and (max-width: 1365px) {
+            .ipad-pro-user-slot {
+              bottom: 100px !important; /* Move up so name sits above PASS button */
+            }
+          }
+
+          /* Landscape view - Constrain YOUR TURN indicator width */
+          @media (orientation: landscape) {
+            .ipad-pro-turn-indicator {
+              width: 120px !important; /* Reduced width for a more compact indicator */
+              max-width: 120px !important;
+            }
+            .ipad-pro-turn-indicator > div {
+              width: 100% !important;
+            }
+            .ipad-pro-turn-indicator > div > div[class*="rounded-full"] {
+              width: 100% !important;
+              max-width: 100% !important;
+            }
+          }
+          
+          /* Multi-row hand - overlapping cards that fit viewport */
+          .multi-row-top-row > .hand-card:not(:first-child),
+          .multi-row-bottom-row > .hand-card:not(:first-child) {
+            margin-left: 0 !important;
+          }
+          
+          /* Portrait - overlapping cards for multi-row */
+          @media (orientation: portrait) {
+            .multi-row-top-row > .hand-card:not(:first-child) {
+              margin-left: -12vw !important;
+            }
+            .multi-row-bottom-row > .hand-card:not(:first-child) {
+              margin-left: -12vw !important;
+            }
+            /* Smaller screens need more overlap */
+            @media (max-width: 375px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: -14vw !important;
+              }
+            }
+            /* Larger screens can have less overlap */
+            @media (min-width: 428px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: -10vw !important;
+              }
+            }
+            @media (min-width: 768px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: -6vw !important;
+              }
+            }
+          }
+          
+          /* Landscape - overlapping cards for multi-row */
+          @media (orientation: landscape) {
+            .multi-row-top-row > .hand-card:not(:first-child),
+            .multi-row-bottom-row > .hand-card:not(:first-child) {
+              margin-left: -4vw !important;
+            }
+            /* Smaller landscape screens need more overlap */
+            @media (max-width: 667px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: -5vw !important;
+              }
+            }
+            /* Larger landscape screens can have less overlap */
+            @media (min-width: 1024px) {
+              .multi-row-top-row > .hand-card:not(:first-child),
+              .multi-row-bottom-row > .hand-card:not(:first-child) {
+                margin-left: -3vw !important;
+              }
+            }
+          }
+        `}} />
+      )}
     </div>
   );
 };

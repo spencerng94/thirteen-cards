@@ -658,9 +658,9 @@ const CardComponent: React.FC<CardProps> = ({
       onClick={onClick}
       className={`
         relative ${bg} border ${border} rounded-xl select-none cursor-pointer transform-gpu will-change-transform
-        ${small ? 'w-10 h-14 text-xs' : (isHandCard ? 'w-28 h-28 sm:w-22 sm:h-31 text-base' : 'w-20 h-28 sm:w-22 sm:h-31 text-base')}
+        ${small ? 'w-10 h-14 text-xs' : (isHandCard ? 'h-28 aspect-[5/7] sm:w-22 sm:h-31 text-base' : 'w-20 h-28 sm:w-22 sm:h-31 text-base')}
         ${selected 
-          ? '-translate-y-16 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-40 scale-[1.05]' 
+          ? '-translate-y-12 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-4 ring-yellow-400 z-40 scale-[1.05]' 
           : 'shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:-translate-y-6 hover:rotate-2 hover:shadow-[0_25px_50px_rgba(0,0,0,0.45)] hover:z-30'}
         ${innerGlow}
         ${((coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END' || coverStyle === 'ROYAL_CROSS')) && !disableEffects ? (coverStyle === 'WITS_END' ? 'animate-ethereal-pulse' : coverStyle === 'ROYAL_CROSS' ? 'animate-royal-glow' : 'animate-divine-aura') : ''}

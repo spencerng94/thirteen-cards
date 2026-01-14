@@ -1923,15 +1923,16 @@ export const Store: React.FC<{
     } catch (err) { console.error(err); } finally { setBuying(null); }
   };
 
-  const getItemIcon = (id: string, type: string) => {
-    if (id.includes('XP')) return <XpBoosterIcon />;
-    if (id.includes('GOLD')) return <GoldBoosterIcon />;
-    if (type === 'VOUCHER' || id.includes('OFF')) return <VoucherIcon />;
-    if (id.includes('UNDO')) return <UndoIcon />;
-    if (id.includes('PACK') || id.includes('BOOSTER_PACK')) return <CardPackIcon />;
-    if (id.includes('STREAK')) return <StreakProtectionIcon />;
-    if (id.includes('DAILY') || id.includes('BONUS')) return <DailyBonusIcon />;
-    if (id.includes('COMBO') || id.includes('HINT')) return <ComboHintIcon />;
+  const getItemIcon = (id: string | number, type: string) => {
+    const idStr = String(id);
+    if (idStr.includes('XP')) return <XpBoosterIcon />;
+    if (idStr.includes('GOLD')) return <GoldBoosterIcon />;
+    if (type === 'VOUCHER' || idStr.includes('OFF')) return <VoucherIcon />;
+    if (idStr.includes('UNDO')) return <UndoIcon />;
+    if (idStr.includes('PACK') || idStr.includes('BOOSTER_PACK')) return <CardPackIcon />;
+    if (idStr.includes('STREAK')) return <StreakProtectionIcon />;
+    if (idStr.includes('DAILY') || idStr.includes('BONUS')) return <DailyBonusIcon />;
+    if (idStr.includes('COMBO') || idStr.includes('HINT')) return <ComboHintIcon />;
     return <span className="text-4xl">📦</span>;
   };
 
