@@ -527,33 +527,6 @@ export const VictoryScreen: React.FC<VictoryScreenProps> = ({
           </div>
         )}
 
-        {/* Vibe Check - Happy/Salty Faces */}
-        {phase === 'ready' && !vibeSubmitted && (
-          <div className={`w-full flex items-center justify-center gap-6 transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-            <button
-              onClick={async () => {
-                setVibeSubmitted(true);
-                if (profile) {
-                  await submitVibeCheck(profile.id, true, undefined, '1.0.0');
-                }
-              }}
-              className="group relative flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 transition-all active:scale-95"
-            >
-              <div className="text-4xl group-hover:scale-110 transition-transform">😊</div>
-              <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Happy</span>
-            </button>
-            <button
-              onClick={() => {
-                setShowFinisherQuestion(true);
-              }}
-              className="group relative flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 transition-all active:scale-95"
-            >
-              <div className="text-4xl group-hover:scale-110 transition-transform">😤</div>
-              <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Salty</span>
-            </button>
-          </div>
-        )}
-
         {/* Action Bar */}
         <div className={`w-full space-y-4 transition-all duration-700 ${phase === 'ready' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <button 

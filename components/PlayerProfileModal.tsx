@@ -77,13 +77,15 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
         } else {
           // Profile doesn't exist or timed out - this is normal for bots, new players, or UUIDs that aren't in DB
           // Set a more helpful error message
-          setError('Profile not found. This player may not have a profile yet.');
+          setError('Profile not found. This player may be using a guest account or their profile hasn\'t been created yet.');
           setPlayerProfile(null);
         }
       } catch (e: any) {
         console.error('Error loading player profile:', e);
         // Provide more specific error messages
-        if (e?.message === 'Request timeout') {
+        if (e?.message === 'PROFILE_NOT_FOUND_404' || (e as any)?.isNotFound) {
+          setError('Profile not found. This player may be using a guest account or their profile hasn\'t been created yet.');
+        } else if (e?.message === 'Request timeout') {
           setError('Request timed out. The player may not have a profile, or there was a connection issue.');
         } else if (e?.message) {
           setError(`Failed to load profile: ${e.message}`);

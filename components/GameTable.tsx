@@ -1367,6 +1367,81 @@ export const GameTable: React.FC<GameTableProps> = ({
            )}
         </div>
       </div>
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* Smooth card animations from player positions */
+        @keyframes playFromBottom {
+          0% {
+            transform: translateY(40vh) scale(0.3) rotate(5deg);
+            opacity: 0;
+          }
+          60% {
+            transform: translateY(-5vh) scale(1.05) rotate(-2deg);
+            opacity: 0.9;
+          }
+          100% {
+            transform: translateY(0) scale(1) rotate(0deg);
+            opacity: 1;
+          }
+        }
+        @keyframes playFromTop {
+          0% {
+            transform: translateY(-40vh) scale(0.3) rotate(-5deg);
+            opacity: 0;
+          }
+          60% {
+            transform: translateY(5vh) scale(1.05) rotate(2deg);
+            opacity: 0.9;
+          }
+          100% {
+            transform: translateY(0) scale(1) rotate(0deg);
+            opacity: 1;
+          }
+        }
+        @keyframes playFromLeft {
+          0% {
+            transform: translateX(-40vw) scale(0.3) rotate(-10deg);
+            opacity: 0;
+          }
+          60% {
+            transform: translateX(5vw) scale(1.05) rotate(2deg);
+            opacity: 0.9;
+          }
+          100% {
+            transform: translateX(0) scale(1) rotate(0deg);
+            opacity: 1;
+          }
+        }
+        @keyframes playFromRight {
+          0% {
+            transform: translateX(40vw) scale(0.3) rotate(10deg);
+            opacity: 0;
+          }
+          60% {
+            transform: translateX(-5vw) scale(1.05) rotate(-2deg);
+            opacity: 0.9;
+          }
+          100% {
+            transform: translateX(0) scale(1) rotate(0deg);
+            opacity: 1;
+          }
+        }
+        .animate-play-from-bottom {
+          animation: playFromBottom 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          will-change: transform, opacity;
+        }
+        .animate-play-from-top {
+          animation: playFromTop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          will-change: transform, opacity;
+        }
+        .animate-play-from-left {
+          animation: playFromLeft 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          will-change: transform, opacity;
+        }
+        .animate-play-from-right {
+          animation: playFromRight 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          will-change: transform, opacity;
+        }
+      `}} />
       {sortedHand.length > 0 && (
         <style dangerouslySetInnerHTML={{ __html: `
           /* Multi-row hand - spread cards out naturally for easier selection */
