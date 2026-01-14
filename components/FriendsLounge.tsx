@@ -4,6 +4,24 @@ import { getFriends, addFriend, removeFriend, searchUsers, Friendship } from '..
 import { calculateLevel } from '../services/supabase';
 import { CopyUsername } from './CopyUsername';
 
+// Default avatar icon component for when avatar_url is null
+const DefaultAvatarIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+    />
+  </svg>
+);
+
 interface FriendsLoungeProps {
   onClose: () => void;
   profile: UserProfile | null;
@@ -248,7 +266,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
-                            <span className="text-xl sm:text-2xl">{user.avatar_url || ':cool:'}</span>
+                            {user.avatar_url ? (
+                              <span className="text-xl sm:text-2xl">{user.avatar_url}</span>
+                            ) : (
+                              <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -313,7 +335,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
-                            <span className="text-xl sm:text-2xl">{friend.avatar_url || ':cool:'}</span>
+                            {friend.avatar_url ? (
+                              <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
+                            ) : (
+                              <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">

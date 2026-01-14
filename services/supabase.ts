@@ -765,7 +765,7 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   // We want this request to complete even if the component re-renders
   // Supabase internally may use AbortController, but we don't pass any signal - let it complete naturally
   try {
-    // Select all columns - database uses 'username' (single source of truth) and 'gems' (not gem_count)
+    // Select all columns - database uses 'username' (single source of truth, not full_name) and 'avatar_url' (may be null)
     // This ensures we use the correct columns and prevents "Render Storm" from column mismatches
     // NO ABORT SIGNAL: Query without any abort controller or signal property
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
@@ -1977,6 +1977,7 @@ export const getFriends = async (userId: string): Promise<Friendship[]> => {
     if (!friendships || friendships.length === 0) return [];
     
     // Then fetch the friend profiles
+    // Note: Uses 'username' column (not full_name), and includes 'avatar_url' which may be null
     const friendIds = friendships.map(f => f.friend_id);
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
@@ -2089,6 +2090,7 @@ export const searchUsers = async (query: string, limit: number = 20): Promise<Us
         
         // Use case-insensitive search with ilike for both parts
         // Search for usernames that match the pattern (case-insensitive)
+        // Note: Uses 'username' column (not full_name), and includes 'avatar_url' which may be null
         const { data: exactMatch, error: exactError } = await supabase
           .from('profiles')
           .select('*')
@@ -2104,6 +2106,7 @@ export const searchUsers = async (query: string, limit: number = 20): Promise<Us
     } else {
       // Search by display name (username starts with query, case-insensitive)
       // Since username is stored as "Name#0000", we search for usernames that start with the query
+      // Note: Uses 'username' column (not full_name), and includes 'avatar_url' which may be null
       const { data: partialMatch, error: partialError } = await supabase
         .from('profiles')
         .select('*')
