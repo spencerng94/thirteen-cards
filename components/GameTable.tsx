@@ -289,20 +289,26 @@ const BombOverlay: React.FC<{ active: boolean }> = ({ active }) => {
         .animate-bomb-flash { animation: bombFlash 3s ease-out forwards; }
         .animate-bomb-text { animation: bombText 3s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards; }
         .animate-bomb-explosion { animation: bombExplosion 3s ease-out forwards; }
+        @keyframes rewarding-emote {
+          0% {
+            transform: translateY(-20px) translateX(0);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-120px) translateX(0);
+            opacity: 0;
+          }
+        }
+        .animate-rewarding-emote {
+          animation: rewarding-emote 2s ease-out forwards;
+          will-change: transform, opacity;
+        }
       `}} />
     </div>
   );
 };
 
 const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'bottom' | 'top' | 'left' | 'right' }> = ({ emote, remoteEmotes, position }) => {
-  const translations = {
-    bottom: { tx: '0', ty: '-28vh' },
-    top: { tx: '0', ty: '28vh' },
-    left: { tx: '28vw', ty: '0' },
-    right: { tx: '-28vw', ty: '0' },
-  };
-
-  const trans = translations[position];
   const screenPos = {
     bottom: 'bottom-32 left-1/2 -translate-x-1/2',
     top: 'top-32 left-1/2 -translate-x-1/2',
@@ -313,10 +319,6 @@ const EmoteBubble: React.FC<{ emote: string; remoteEmotes: Emote[]; position: 'b
   return (
     <div 
       className={`fixed z-[400] ${screenPos[position]} animate-rewarding-emote pointer-events-none`}
-      style={{ 
-        '--tx': trans.tx,
-        '--ty': trans.ty
-      } as any}
     >
       <div className="bg-black/50 backdrop-blur-3xl border-2 border-white/20 p-2 rounded-full shadow-[0_0_60px_rgba(255,255,255,0.1)] flex items-center justify-center scale-[1.3] ring-1 ring-white/10">
         <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
@@ -919,7 +921,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   );
 
   return (
-    <div className={`fixed inset-0 w-full h-full bg-[#030303] overflow-hidden select-none ${isShaking ? 'animate-shake' : ''}`}>
+    <div className={`fixed inset-0 w-full h-full bg-[#030303] overflow-hidden select-none ${isShaking ? 'animate-shake' : ''}`} style={{ height: '100dvh' }}>
       <BoardSurface themeId={backgroundTheme} />
       <BombOverlay active={showBombEffect} />
 
@@ -995,7 +997,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         />
       )}
 
-      <div className="fixed top-4 left-4 z-[250] hidden landscape:flex flex-col gap-4 pointer-events-none items-start">
+      <div className="fixed left-4 z-[250] hidden landscape:flex flex-col gap-4 pointer-events-none items-start" style={{ top: 'calc(env(safe-area-inset-top, 20px) + 1rem)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }}>
           {lastMove && (
              <div className="flex flex-col items-center animate-in slide-in-from-left-4 duration-300">
                 <span className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.4em] whitespace-nowrap">
@@ -1006,7 +1008,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           )}
           
           {isMyTurn && selectedCardIds.size > 0 && hasValidCombos && (
-              <div className="flex flex-col gap-2 animate-in slide-in-from-left-4 duration-300 max-w-[160px] lg:landscape:max-w-[220px] pointer-events-auto">
+              <div className="flex flex-col gap-2 animate-in slide-in-from-left-4 duration-300 max-w-[160px] lg:landscape:max-w-[220px] pointer-events-auto mt-3" style={{ marginTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
                   <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 lg:landscape:p-3 rounded-[1.5rem] shadow-2xl">
                       <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5 lg:landscape:mb-3">
                           <span className="w-1 h-1 lg:landscape:w-1.5 lg:landscape:h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
@@ -1044,7 +1046,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       </div>
 
       {isMyTurn && selectedCardIds.size > 0 && hasValidCombos && (
-          <div className="fixed top-4 left-4 sm:top-8 sm:left-8 z-[200] flex flex-col gap-2 md:portrait:gap-3 animate-in slide-in-from-left-4 duration-300 max-w-[160px] md:portrait:max-w-[260px] landscape:hidden">
+          <div className="fixed left-4 sm:left-8 z-[200] flex flex-col gap-2 md:portrait:gap-3 animate-in slide-in-from-left-4 duration-300 max-w-[160px] md:portrait:max-w-[260px] landscape:hidden" style={{ top: 'calc(env(safe-area-inset-top, 20px) + 1rem)' }}>
               <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 md:portrait:p-4 rounded-[1.5rem] md:portrait:rounded-[2rem] shadow-2xl">
                   <div className="flex items-center gap-2 mb-2 px-2 border-b border-white/5 pb-1.5 md:portrait:pb-2 md:portrait:mb-3">
                       <span className="w-1 h-1 md:portrait:w-1.5 md:portrait:h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
@@ -1112,64 +1114,69 @@ export const GameTable: React.FC<GameTableProps> = ({
           )}
       </div>
 
-      <div className="absolute top-4 right-4 sm:top-8 sm:right-8 landscape:top-2 landscape:right-4 z-[150] flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4 ipad-pro-top-right-buttons">
-        <div className="flex portrait:flex-col landscape:flex-row items-center gap-3 sm:gap-4">
-            {/* Quick Chat Button */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowChatWheel(true)} 
-                className={`w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showChatWheel ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
-                title="Quick Chat"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </button>
-            </div>
-            
-            {/* Emote Button */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowEmotePicker(!showEmotePicker)} 
-                className={`w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-200 shadow-xl hover:scale-105 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
-                title="Emotes"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              {showEmotePicker && ( 
-                <div className="absolute top-full right-0 mt-3 p-4 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl z-[300] grid grid-cols-3 gap-3 min-w-[200px] sm:min-w-[240px] animate-in fade-in zoom-in-95 duration-150"> 
-                  {unlockedAvatars.map(emoji => ( 
-                    <button 
-                      key={emoji} 
-                      onClick={() => sendEmote(emoji)} 
-                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 hover:bg-white/15 transition-all duration-150 flex items-center justify-center p-2 group/emote-btn overflow-hidden"
-                    >
-                      <VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="md" className="group-hover/emote-btn:scale-105 transition-transform duration-200" />
-                    </button> 
-                  ))} 
-                </div> 
-              )}
-            </div>
-            
-            {/* Settings Button */}
-            <button 
-              onClick={onOpenSettings} 
-              className="w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-200 shadow-xl hover:scale-105"
-              title="Settings"
-            >
-              <SettingsIcon className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" />
-            </button>
+      <div 
+        className="fixed z-[200] flex flex-col landscape:flex-row items-end landscape:items-center gap-2 landscape:gap-2 ipad-pro-top-right-buttons" 
+        style={{ 
+          top: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)',
+          right: 'max(env(safe-area-inset-right, 0px), 1rem)'
+        }}
+      >
+        {/* Quick Chat Button */}
+        <div className="relative">
+          <button 
+            onClick={() => setShowChatWheel(true)} 
+            className={`w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-300 shadow-xl hover:scale-105 ${showChatWheel ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
+            title="Quick Chat"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </button>
         </div>
+        
+        {/* Emote Button */}
+        <div className="relative">
+          <button 
+            onClick={() => setShowEmotePicker(!showEmotePicker)} 
+            className={`w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all duration-300 shadow-xl hover:scale-105 ${showEmotePicker ? 'text-yellow-400 border-yellow-500/40 bg-black/60' : 'text-white/50 hover:text-white'}`}
+            title="Emotes"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          {showEmotePicker && ( 
+            <div className="absolute top-full right-0 mt-3 p-4 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl z-[300] grid grid-cols-3 gap-3 min-w-[200px] sm:min-w-[240px] animate-in fade-in zoom-in-95 duration-150"> 
+              {unlockedAvatars.map(emoji => ( 
+                <button 
+                  key={emoji} 
+                  onClick={() => sendEmote(emoji)} 
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 hover:bg-white/15 transition-all duration-150 flex items-center justify-center p-2 group/emote-btn overflow-hidden"
+                >
+                  <VisualEmote trigger={emoji} remoteEmotes={remoteEmotes} size="md" className="group-hover/emote-btn:scale-105 transition-transform duration-200" />
+                </button> 
+              ))} 
+            </div> 
+          )}
+        </div>
+        
+        {/* Settings Button */}
+        <button 
+          onClick={onOpenSettings} 
+          className="w-10 h-10 sm:w-11 sm:h-11 md:portrait:w-16 md:portrait:h-16 rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-300 shadow-xl hover:scale-105"
+          title="Settings"
+        >
+          <SettingsIcon className="h-5 w-5 sm:h-6 sm:w-6 md:portrait:h-8 md:portrait:w-8" />
+        </button>
 
-        <div className="hidden landscape:block absolute top-14 right-0 min-w-max transition-all duration-300 ipad-pro-turn-indicator">
+        {/* Landscape Turn Indicator */}
+        <div className="hidden landscape:block absolute top-[calc(100%+0.5rem)] right-0 min-w-max transition-all duration-300 ipad-pro-turn-indicator">
             {turnIndicatorUI}
         </div>
       </div>
 
       <div className="absolute inset-0 p-4 sm:p-12 landscape:p-4 grid grid-cols-3 grid-rows-3 pointer-events-none z-10">
-        <div className={`col-start-2 row-start-1 flex justify-center items-start portrait:pt-0 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''} ${topOpponent && !topOpponent.player.isBot ? 'pointer-events-auto' : ''}`}>
+        <div className={`col-start-2 row-start-1 flex justify-center items-start portrait:pt-0 landscape:pt-0 landscape:fixed landscape:-top-1 landscape:left-1/2 landscape:-translate-x-1/2 transition-transform duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] ${gameState.currentPlayerId === topOpponent?.player.id ? 'translate-y-8 landscape:translate-y-0' : ''} ${topOpponent && !topOpponent.player.isBot ? 'pointer-events-auto' : ''}`} style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
           {topOpponent && (<PlayerSlot player={topOpponent.player} position="top" isTurn={gameState.currentPlayerId === topOpponent.player.id} remoteEmotes={remoteEmotes} coverStyle={cardCoverStyle} turnEndTime={gameState.turnEndTime} turnDuration={gameState.turnDuration} sleeveEffectsEnabled={sleeveEffectsEnabled} className="landscape:scale-75" onPlayerClick={setSelectedPlayerProfile} isCurrentPlayer={false} isMuted={allMutedPlayers.includes(topOpponent.player.id)} getValidatedSleeve={getValidatedSleeveForPlayer} />)}
         </div>
         
@@ -1178,7 +1185,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-400 ease-in-out ipad-cards-in-play-container ${isMyTurn ? 'portrait:-translate-y-24 min-[428px]:portrait:-translate-y-32 md:portrait:-translate-y-56 landscape:-translate-y-7' : 'portrait:-translate-y-8 landscape:-translate-y-5'}`}>
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-400 ease-in-out ipad-cards-in-play-container ${isMyTurn ? 'portrait:-translate-y-24 min-[428px]:portrait:-translate-y-32 md:portrait:-translate-y-56 landscape:translate-y-4' : 'portrait:-translate-y-8 landscape:translate-y-6'}`}>
         <div className="relative flex flex-col items-center">
           {lastMove ? (
             <div 
@@ -1219,9 +1226,16 @@ export const GameTable: React.FC<GameTableProps> = ({
       </div>
 
       <div className="absolute bottom-0 left-0 w-full flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40 pt-2 pb-2 sm:pt-4 sm:pb-4 md:portrait:pb-2 md:portrait:pt-16">
-        <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden px-4 sm:px-12 w-full md:portrait:mb-0">
+        {/* Reserve fixed height for indicator area to prevent play pile shifting - increased for iPhone 14 Pro Max */}
+        {/* Use fixed height instead of min-height to ensure consistent spacing - always reserve space even when indicator is hidden */}
+        <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden px-4 sm:px-12 w-full md:portrait:mb-0 h-[50px] min-[428px]:h-[60px] relative pointer-events-none">
             {/* Mobile: full width centered, iPad: hidden here, shown above PLAY CARDS button */}
-            <div className="md:portrait:hidden w-full">
+            {/* Use absolute positioning to overlay indicators without affecting document flow */}
+            {/* Portrait-only: Align indicator bottom with user's name container (GUEST pill) bottom */}
+            {/* Landscape: Maintain default centered positioning to avoid overlapping card Arena */}
+            {/* User's PlayerSlot is at bottom-[44px] with -translate-y-1/2 (centered) */}
+            {/* Name container bottom aligns approximately at 12-14px from bottom in portrait */}
+            <div className="md:portrait:hidden w-full absolute left-0 right-0 flex flex-col items-center portrait:items-end px-4 sm:px-12 pointer-events-none portrait-turn-indicator-container">
             {turnIndicatorUI}
             </div>
         </div>
@@ -1242,9 +1256,9 @@ export const GameTable: React.FC<GameTableProps> = ({
 
             {/* iPad Portrait: Button layout with YOUR TURN above PLAY CARDS */}
             <div className={`hidden md:portrait:flex md:portrait:flex-col md:portrait:items-center md:portrait:mb-3 md:portrait:w-full md:portrait:px-6 ipad-button-container md:portrait:gap-3 transition-all duration-300 ${isMyTurn ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}>
-              {/* YOUR TURN indicator centered above buttons */}
-              <div className="mb-2 w-full flex flex-col items-center">
-                <div className={`flex flex-col items-center gap-2 w-full ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+              {/* YOUR TURN indicator centered above buttons - Reserve fixed height to prevent play pile shifting */}
+              <div className="mb-2 w-full flex flex-col items-center min-h-[60px] relative">
+                <div className={`absolute top-0 left-0 right-0 flex flex-col items-center gap-2 w-full pointer-events-none ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                   <div className={`px-8 py-3 md:portrait:px-10 md:portrait:py-3.5 rounded-full border-2 backdrop-blur-md flex items-center justify-center gap-3 transition-colors duration-200 ${isMyWarningPhase ? 'bg-rose-600/90 border-rose-400' : 'bg-emerald-600/90 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-satisfying-turn-glow'}`}>
                     <span className="text-xs md:portrait:text-base font-black uppercase tracking-[0.4em] text-white whitespace-nowrap">
                       {isLeader && gameState.isFirstTurnOfGame && iHave3Spades ? '3♠ YOUR TURN' : (isLeader ? 'YOUR LEAD' : 'Your Turn')}
@@ -1310,7 +1324,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                        onClick={handleCardClick} 
                        disableEffects={!sleeveEffectsEnabled}
                        activeTurn={isMyTurn}
-                       className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
+                       className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
                      />
                    );
                  })}
@@ -1334,7 +1348,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                          onClick={handleCardClick} 
                          disableEffects={!sleeveEffectsEnabled}
                          activeTurn={isMyTurn}
-                         className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
+                         className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
                        />
                      );
                    })}
@@ -1359,7 +1373,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                      onClick={handleCardClick} 
                      disableEffects={!sleeveEffectsEnabled}
                      activeTurn={isMyTurn}
-                     className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${showHint ? 'animate-start-card-hint shadow-[0_0_30px_rgba(34,197,94,0.8)] border-green-400 z-50' : ''} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
+                     className={`hand-card transform-gpu will-change-transform transition-all duration-200 flex-shrink-0 ${isMyTurn ? 'cursor-pointer active:scale-105 sm:hover:-translate-y-12' : 'cursor-default opacity-80'} ${hideCenterSymbol ? 'hide-center-symbol' : ''}`} 
                    />
                  );
                })}
@@ -1633,10 +1647,43 @@ export const GameTable: React.FC<GameTableProps> = ({
           }
 
 
+          /* Portrait: Align YOUR TURN indicator bottom with user's name container (GUEST pill) bottom */
+          /* Landscape: No changes - maintain default positioning to avoid overlapping card Arena */
+          @media (orientation: portrait) {
+            /* Target the turn indicator container - align its bottom with name container bottom */
+            /* User's PlayerSlot is centered at bottom-[44px] with -translate-y-1/2 */
+            /* Name container bottom aligns slightly below viewport bottom edge */
+            .portrait-turn-indicator-container {
+              bottom: -2px !important;
+              align-items: flex-end !important; /* Ensure items-end is applied to align indicator to container bottom */
+            }
+            /* Responsive adjustment for larger portrait screens */
+            @media (min-width: 428px) {
+              .portrait-turn-indicator-container {
+                bottom: 0px !important;
+              }
+            }
+            /* Ensure PLAY CARDS button (at bottom-[44px] centered) doesn't overlap - button bottom is ~12px, so indicator at 10-12px is safe */
+            /* Turn indicator height is ~32-40px, so its top will be at ~42-52px, well above button center at 44px */
+          }
+
           /* iPhone 12 Pro Max / 14 Pro Max - Vertically align YOUR TURN with PLAY CARDS */
           @media (orientation: portrait) and (min-width: 426px) and (max-width: 431px) {
             .iphone-14-pro-max-turn-indicator {
               margin-left: 1.5vw !important;
+            }
+          }
+
+          /* iPhone 14 Pro Max only (430px) - Shift YOUR TURN indicator left to align with PLAY CARDS button */
+          /* iPhone 12 Pro Max (428px) and XR/SE remain unchanged - they are perfect */
+          @media (orientation: portrait) and (min-width: 430px) and (max-width: 431px) {
+            .iphone-14-pro-max-turn-indicator {
+              margin-left: -3.5vw !important; /* Move left moderately to center with PLAY CARDS button (overrides the 1.5vw from broader query) */
+            }
+            /* Adjust container padding to fine-tune positioning */
+            .portrait-turn-indicator-container {
+              padding-right: 1.5rem !important;
+              padding-left: 1.5rem !important;
             }
           }
 
