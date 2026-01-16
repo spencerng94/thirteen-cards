@@ -1225,7 +1225,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40 pt-2 pb-2 sm:pt-4 sm:pb-4 md:portrait:pb-2 md:portrait:pt-16">
+      <div className="absolute bottom-0 left-0 w-full flex flex-col items-center bg-gradient-to-t from-black via-black/40 to-transparent z-40 pt-2 pb-2 sm:pt-4 sm:pb-4 md:portrait:pb-2 md:portrait:pt-16" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}>
         {/* Reserve fixed height for indicator area to prevent play pile shifting - increased for iPhone 14 Pro Max */}
         {/* Use fixed height instead of min-height to ensure consistent spacing - always reserve space even when indicator is hidden */}
         <div className="mb-3 flex flex-col items-center gap-2 landscape:hidden px-4 sm:px-12 w-full md:portrait:mb-0 h-[50px] min-[428px]:h-[60px] relative pointer-events-none">

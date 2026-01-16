@@ -1458,7 +1458,7 @@ const AppContent: React.FC = () => {
       profile={profile}
       onGemsUpdate={handleGemsUpdate}
     >
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-yellow-500 selection:text-black">
+    <div className="min-h-screen h-[100dvh] bg-black text-white font-sans selection:bg-yellow-500 selection:text-black" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {isTransitioning && <GameEndTransition />}
       {view === 'WELCOME' && (
         <WelcomeScreen 
