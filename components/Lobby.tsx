@@ -816,7 +816,7 @@ const LobbyComponent: React.FC<LobbyProps> = ({
 
   return (
     <React.Fragment key={activeTab}>
-      <BackgroundWrapper theme={backgroundTheme}>
+    <BackgroundWrapper theme={backgroundTheme}>
       <div className="lobby-viewport">
         
         {errorToast.show && (
@@ -859,82 +859,91 @@ const LobbyComponent: React.FC<LobbyProps> = ({
         )}
 
         {!gameState ? (
-          <div className="w-full space-y-6 sm:space-y-8 animate-in fade-in zoom-in-95 duration-400 flex flex-col items-center">
-            <div className="flex flex-col items-center text-center space-y-3 sm:space-y-4 mb-2 sm:mb-4">
+          <div className="w-full space-y-6 sm:space-y-8 flex flex-col items-center">
+            {/* Static Header - Always Visible, Outside Animated Container */}
+            <div className="flex flex-col items-center text-center space-y-3 sm:space-y-4 mb-2 sm:mb-4" style={{ opacity: 1, visibility: 'visible' }}>
               <div className="relative inline-block max-w-full overflow-visible">
                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 via-pink-500/20 to-yellow-500/20 blur-[100px] rounded-full animate-pulse"></div>
                 <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white uppercase italic tracking-tighter drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)] font-serif relative z-10 leading-none px-4">
                     PLAY <span className="text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 via-pink-400 to-yellow-600">WITH FRIENDS</span>
                 </h1>
               </div>
-              <p className="text-xs sm:text-sm font-semibold text-yellow-400/80 uppercase tracking-wider">
+              <p className="text-[10px] sm:text-xs font-medium text-yellow-400/70 uppercase tracking-wider" style={{ 
+                opacity: 1, 
+                visibility: 'visible', 
+                display: 'block',
+                position: 'relative',
+                zIndex: 10
+              }}>
                 Challenge friends • Join public matches • Create your own room
               </p>
             </div>
 
+            {/* Animated Content Area - Only Tab Content is Animated */}
+            <div className="w-full animate-in fade-in zoom-in-95 duration-400">
             <GlassPanel className="w-full flex flex-col min-h-[500px] sm:min-h-[600px]">
               <nav className="tab-switcher p-4 sm:p-6 border-b border-white/10 bg-gradient-to-r from-white/[0.03] via-transparent to-white/[0.03] flex justify-center">
-                <div className="bg-black/60 backdrop-blur-sm p-1.5 rounded-[2.5rem] flex relative w-full max-w-2xl shadow-inner border border-white/10 overflow-hidden">
-                  <div 
-                    className={`
-                      absolute top-1.5 bottom-1.5 left-1.5 w-[calc(33.333%-6px)] 
-                      bg-gradient-to-br from-yellow-500/20 to-pink-500/20 border border-yellow-500/30 rounded-[2.2rem] shadow-xl 
+                    <div className="bg-black/60 backdrop-blur-sm p-1.5 rounded-[2.5rem] flex relative w-full max-w-2xl shadow-inner border border-white/10 overflow-hidden">
+                        <div 
+                          className={`
+                            absolute top-1.5 bottom-1.5 left-1.5 w-[calc(33.333%-6px)] 
+                            bg-gradient-to-br from-yellow-500/20 to-pink-500/20 border border-yellow-500/30 rounded-[2.2rem] shadow-xl 
                       transition-all duration-300 ease-[cubic-bezier(0.19,1,0.22,1)] pointer-events-none z-10
-                      ${activeTab === 'PUBLIC' ? 'translate-x-0' : activeTab === 'CREATE' ? 'translate-x-[calc(100%+6px)]' : 'translate-x-[calc(200%+12px)]'}
-                    `}
-                  >
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-[2px] bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded-full blur-[2px]"></div>
-                  </div>
+                            ${activeTab === 'PUBLIC' ? 'translate-x-0' : activeTab === 'CREATE' ? 'translate-x-[calc(100%+6px)]' : 'translate-x-[calc(200%+12px)]'}
+                          `}
+                        >
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-[2px] bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded-full blur-[2px]"></div>
+                        </div>
 
-                  {(['PUBLIC', 'CREATE', 'LOCAL'] as const).map(tab => {
-                    const tabConfig = {
-                      PUBLIC: { 
-                        label: 'Find Match', 
-                        icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
-                      },
-                      CREATE: { 
-                        label: 'Create Room', 
-                        icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                      },
-                      LOCAL: { 
-                        label: 'Local', 
-                        icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                      }
-                    };
-                    const config = tabConfig[tab];
-                    
-                    return (
-                      <button 
-                        key={tab}
+                        {(['PUBLIC', 'CREATE', 'LOCAL'] as const).map(tab => {
+                            const tabConfig = {
+                                PUBLIC: { 
+                                    label: 'Find Match', 
+                                    icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+                                },
+                                CREATE: { 
+                                    label: 'Create Room', 
+                                    icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                },
+                                LOCAL: { 
+                                    label: 'Local', 
+                                    icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                                }
+                            };
+                            const config = tabConfig[tab];
+                            
+                            return (
+                                <button 
+                                    key={tab}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setActiveTab(tab);
                         }}
-                        className={`
+                                    className={`
                           flex-1 relative z-30 flex items-center justify-center gap-1.5 sm:gap-2 py-3 sm:py-4 rounded-[2rem] transition-all duration-200 touch-manipulation cursor-pointer
-                          ${activeTab === tab ? 'text-yellow-400' : 'text-white/40 hover:text-white/60'}
-                          ${tab === 'CREATE' ? 'gap-1 sm:gap-1.5' : ''}
-                        `}
+                                        ${activeTab === tab ? 'text-yellow-400' : 'text-white/40 hover:text-white/60'}
+                                        ${tab === 'CREATE' ? 'gap-1 sm:gap-1.5' : ''}
+                                    `}
                         style={{ pointerEvents: 'auto', WebkitTapHighlightColor: 'transparent', position: 'relative' }}
                         type="button"
-                      >
-                        {config.icon}
+                                >
+                                    {config.icon}
                         <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.15em] pointer-events-none">
-                          {config.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                                        {config.label}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
               </nav>
 
               {/* Subpage Description Subheader */}
               <div className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-white/5">
                 <p className="text-[10px] sm:text-xs text-zinc-400 text-center font-medium leading-relaxed">
-                  {activeTab === 'PUBLIC' && 'Global Arena'}
-                  {activeTab === 'CREATE' && 'Private Table'}
-                  {activeTab === 'LOCAL' && 'Offline Mode'}
+                  {activeTab === 'PUBLIC' && 'Connect to global arenas or use a lobby code.'}
+                  {activeTab === 'CREATE' && 'Host your own table for public or private play.'}
+                  {activeTab === 'LOCAL' && 'Play offline via Personal Hotspot—perfect for travel.'}
                 </p>
               </div>
 
@@ -947,12 +956,12 @@ const LobbyComponent: React.FC<LobbyProps> = ({
                         <div className="w-4 h-4 border-2 border-amber-400/50 border-t-amber-400 rounded-full animate-spin"></div>
                       ) : (
                         <div className="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40"></div>
-                      )}
-                    </div>
+                                    )}
+                                </div>
                     <p className="text-[10px] sm:text-xs font-medium text-amber-400/80 uppercase tracking-wider">
                       {socketConnecting ? 'Connecting to Arena...' : 'Arena Connection Offline'}
                     </p>
-                  </div>
+                            </div>
                 )}
 
                 {/* Tab Content - ONLY activeTab controls visibility */}
@@ -1006,9 +1015,9 @@ const LobbyComponent: React.FC<LobbyProps> = ({
                           <p className="flex items-start gap-3">
                             <span className="text-amber-500 font-black text-lg">3.</span>
                             <span>Play anywhere—even mid-flight.</span>
-                          </p>
-                        </div>
-                      </div>
+                                        </p>
+                                    </div>
+                                            </div>
                       <LocalTabContent
                         localNetworkInfo={localNetworkInfo}
                         localRoomCode={localRoomCode}
@@ -1023,20 +1032,21 @@ const LobbyComponent: React.FC<LobbyProps> = ({
                         selected_sleeve_id={selected_sleeve_id}
                         setErrorToast={setErrorToast}
                       />
-                    </div>
-                  )}
-                </div>
+                                        </div>
+                            )}
+                        </div>
               </main>
             </GlassPanel>
+            </div>
 
             <div className="w-full max-w-xl mt-4 sm:mt-6">
-              <button
-                onClick={onBack!}
-                className="w-full py-4 sm:py-5 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 hover:border-white/20 hover:bg-white/10 text-white font-black uppercase tracking-wider text-xs sm:text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 shadow-lg"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                Back to Menu
-              </button>
+                <button
+                    onClick={onBack!}
+                    className="w-full py-4 sm:py-5 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 hover:border-white/20 hover:bg-white/10 text-white font-black uppercase tracking-wider text-xs sm:text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 shadow-lg"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    Back to Menu
+                </button>
             </div>
           </div>
         ) : (

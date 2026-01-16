@@ -53,7 +53,7 @@ export const connectSocket = () => {
   // Only connect if not already connected and not manually disconnected
   if (!socket.connected && !socket.disconnected) {
     try {
-      socket.connect();
+    socket.connect();
     } catch (error) {
       // Silently fail - UI should continue to work
       if (import.meta.env.DEV) {
