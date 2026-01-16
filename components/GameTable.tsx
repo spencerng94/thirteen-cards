@@ -346,7 +346,7 @@ interface GameTableProps {
   setSessionMuted?: (muted: string[]) => void;
 }
 
-export const GameTable: React.FC<GameTableProps> = ({ 
+const GameTableComponent: React.FC<GameTableProps> = ({ 
   gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true, autoPassEnabled = false, socialFilter = 'UNMUTED', sessionMuted = [], setSessionMuted
 }) => {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
@@ -2052,3 +2052,20 @@ export const GameTable: React.FC<GameTableProps> = ({
     </div>
   );
 };
+
+// Memoize GameTable to prevent re-renders when Store/Settings modals open
+export const GameTable = memo(GameTableComponent, (prevProps, nextProps) => {
+  // Only re-render if game state or relevant props change
+  return (
+    prevProps.gameState === nextProps.gameState &&
+    prevProps.myId === nextProps.myId &&
+    prevProps.myHand === nextProps.myHand &&
+    prevProps.cardCoverStyle === nextProps.cardCoverStyle &&
+    prevProps.backgroundTheme === nextProps.backgroundTheme &&
+    prevProps.profile === nextProps.profile &&
+    prevProps.playAnimationsEnabled === nextProps.playAnimationsEnabled &&
+    prevProps.autoPassEnabled === nextProps.autoPassEnabled &&
+    prevProps.socialFilter === nextProps.socialFilter &&
+    prevProps.sessionMuted === nextProps.sessionMuted
+  );
+});

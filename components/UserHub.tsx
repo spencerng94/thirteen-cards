@@ -3942,7 +3942,7 @@ const GoldFluxEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 export const BoardSurface: React.FC<{ themeId: BackgroundTheme; isMini?: boolean }> = ({ themeId, isMini }) => {
     const config = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
     return (
-        <div className={`absolute inset-0 ${config.base} overflow-hidden`}>
+        <div className={`absolute inset-0 ${config.base} overflow-hidden bg-fixed bg-cover`} style={{ top: '-env(safe-area-inset-top, 0px)', height: 'calc(100% + env(safe-area-inset-top, 0px))' }}>
             {config.texture && <FeltTextureLayer />}
             {config.justAGirl && <JustAGirlEngine isMini={isMini} />}
             {config.shiba && <ShibaEngine isMini={isMini} />}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardCoverStyle } from './Card';
 import { BrandLogo } from './BrandLogo';
 import { AiDifficulty, UserProfile, BackgroundTheme, Emote, Rank, Suit, HubTab } from '../types';
@@ -31,6 +31,7 @@ interface WelcomeScreenProps {
   onOpenStore: (tab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => void;
   onOpenGemPacks: () => void;
   onOpenFriends: () => void;
+  onOpenLocal?: () => void;
   playerName: string;
   setPlayerName: (name: string) => void;
   playerAvatar: string;
@@ -53,6 +54,7 @@ interface WelcomeScreenProps {
   autoPassEnabled?: boolean;
   setAutoPassEnabled?: (v: boolean) => void;
   onLinkAccount?: () => void;
+  isModalOpen?: boolean;
 }
 
 const PRESTIGE_SLEEVE_IDS: CardCoverStyle[] = [
@@ -214,6 +216,110 @@ const FriendsCardIcon = () => (
   </svg>
 );
 
+const SocialCardIcon = () => (
+  <svg viewBox="0 0 100 100" className="w-8 h-8 sm:w-10 sm:h-10">
+    <defs>
+      <linearGradient id="socialCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#92400e" />
+        <stop offset="50%" stopColor="#78350f" />
+        <stop offset="100%" stopColor="#451a03" />
+      </linearGradient>
+      <filter id="socialGlow">
+        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    {/* Coffee Cup / Table Medallion - Imperial Noir style */}
+    {/* Cup base */}
+    <ellipse cx="50" cy="75" rx="20" ry="8" fill="url(#socialCardGrad)" filter="url(#socialGlow)" stroke="#92400e" strokeWidth="1.5" />
+    {/* Cup body */}
+    <path 
+      d="M35 45 Q35 30 50 30 Q65 30 65 45 L65 70 Q65 75 60 75 L40 75 Q35 75 35 70 Z" 
+      fill="url(#socialCardGrad)" 
+      filter="url(#socialGlow)"
+      stroke="#92400e" 
+      strokeWidth="1.5"
+    />
+    {/* Cup handle */}
+    <path 
+      d="M65 50 Q75 50 75 60 Q75 70 65 70" 
+      fill="none" 
+      stroke="#92400e" 
+      strokeWidth="2.5"
+      strokeLinecap="round"
+    />
+    {/* Steam lines (Imperial elegance) */}
+    <path d="M45 25 Q47 20 50 15" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+    <path d="M50 25 Q52 20 55 15" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+    <path d="M55 25 Q57 20 60 15" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+    {/* Medallion ring */}
+    <circle cx="50" cy="50" r="38" fill="none" stroke="url(#socialCardGrad)" strokeWidth="2" opacity="0.4" />
+  </svg>
+);
+
+const LocalCardIcon = () => (
+  <svg viewBox="0 0 100 100" className="w-8 h-8 sm:w-10 sm:h-10">
+    <defs>
+      <linearGradient id="localCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#d97706" />
+        <stop offset="50%" stopColor="#b45309" />
+        <stop offset="100%" stopColor="#92400e" />
+      </linearGradient>
+      <filter id="localGlow">
+        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    {/* WiFi icon */}
+    {/* Outer arc (weakest signal) */}
+    <path 
+      d="M 20 50 A 30 30 0 0 1 80 50" 
+      fill="none" 
+      stroke="url(#localCardGrad)" 
+      strokeWidth="4" 
+      strokeLinecap="round"
+      filter="url(#localGlow)"
+      opacity="0.4"
+    />
+    {/* Middle arc */}
+    <path 
+      d="M 30 50 A 20 20 0 0 1 70 50" 
+      fill="none" 
+      stroke="url(#localCardGrad)" 
+      strokeWidth="4" 
+      strokeLinecap="round"
+      filter="url(#localGlow)"
+      opacity="0.6"
+    />
+    {/* Inner arc (strongest signal) */}
+    <path 
+      d="M 40 50 A 10 10 0 0 1 60 50" 
+      fill="none" 
+      stroke="url(#localCardGrad)" 
+      strokeWidth="4" 
+      strokeLinecap="round"
+      filter="url(#localGlow)"
+      opacity="0.8"
+    />
+    {/* Center dot */}
+    <circle 
+      cx="50" 
+      cy="50" 
+      r="4" 
+      fill="url(#localCardGrad)" 
+      filter="url(#localGlow)"
+      stroke="#d97706" 
+      strokeWidth="1.5"
+    />
+  </svg>
+);
+
 const SectionLabel: React.FC<{ children: React.ReactNode; rightElement?: React.ReactNode }> = ({ children, rightElement }) => (
   <div className="flex flex-col items-center mb-5 mt-2 px-2 w-full text-center">
     <div className="flex items-center justify-center gap-4 w-full">
@@ -296,7 +402,7 @@ const LuxuryButton: React.FC<{
 };
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
-  onStart, onSignOut, profile, onRefreshProfile, onRetryProfileFetch, profileFetchError, isSyncingData = false, onOpenHub, onOpenStore, onOpenGemPacks, onOpenFriends,
+  onStart, onSignOut, profile, onRefreshProfile, onRetryProfileFetch, profileFetchError, isSyncingData = false, onOpenHub, onOpenStore, onOpenGemPacks, onOpenFriends, onOpenLocal,
   playerName, setPlayerName, playerAvatar, setPlayerAvatar,
   cardCoverStyle, setCardCoverStyle, aiDifficulty, setAiDifficulty,
   quickFinish, setQuickFinish, soundEnabled, setSoundEnabled,
@@ -304,9 +410,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   sleeveEffectsEnabled, setSleeveEffectsEnabled,
   playAnimationsEnabled, setPlayAnimationsEnabled,
   autoPassEnabled = false, setAutoPassEnabled,
-  onLinkAccount
+  onLinkAccount,
+  isModalOpen = false
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isHomeRoute = location.pathname === '/' && !isModalOpen;
   const [activeTab, setActiveTab] = useState<WelcomeTab>('PROFILE');
   const [customizeSubTab, setCustomizeSubTab] = useState<'SLEEVES' | 'BOARDS' | 'FINISHERS'>('SLEEVES');
   const [hideUnowned, setHideUnowned] = useState(false);
@@ -1052,7 +1161,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [applyVoucher, setApplyVoucher] = useState(false);
 
   return (
-    <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center p-4 sm:p-6">
+    <div className="w-full relative overflow-hidden flex flex-col items-center p-4 sm:p-6" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <BoardSurface themeId={backgroundTheme} />
       
       {/* Premium Ambient Overlay */}
@@ -1199,7 +1308,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </div>
       )}
 
-      <div className="fixed top-6 sm:top-8 left-4 sm:left-8 z-[100] animate-in slide-in-from-left-2 fade-in duration-500 flex flex-col items-center gap-3 sm:gap-4">
+      {isHomeRoute && (
+      <div className="fixed top-[calc(env(safe-area-inset-top)+1.5rem)] sm:top-[calc(env(safe-area-inset-top)+2rem)] left-4 sm:left-8 z-[90] animate-in slide-in-from-left-2 fade-in duration-500 flex flex-col items-center gap-y-4">
         {/* SHOP Button */}
         <div className="flex flex-col items-center gap-1.5 sm:gap-2">
           <button 
@@ -1266,15 +1376,33 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <span className="text-[10px] sm:text-[11px] font-black uppercase text-blue-400 tracking-wider drop-shadow-[0_2px_8px_rgba(59,130,246,0.4)]">FRIENDS</span>
         </div>
       </div>
-      <div className="fixed top-6 sm:top-8 right-4 sm:right-8 z-[100] animate-in slide-in-from-right-2 fade-in duration-500 pointer-events-none">
+      )}
+      {isHomeRoute && (
+      <div className="fixed top-[calc(env(safe-area-inset-top)+1.5rem)] sm:top-[calc(env(safe-area-inset-top)+2rem)] right-4 sm:right-8 z-[90] animate-in slide-in-from-right-2 fade-in duration-500 flex flex-col items-center gap-y-4 pointer-events-none">
         <UserBar profile={profile} isGuest={isGuest} avatar={playerAvatar} remoteEmotes={remoteEmotes} onClick={(tab) => onOpenHub(tab)} onOpenStore={onOpenStore} onOpenGemPacks={onOpenGemPacks} className="pointer-events-auto" />
-      </div>
-      <div className="max-w-3xl w-full z-10 flex flex-col items-center gap-6 mt-10 md:mt-0">
-        {/* Guest Banner - Only show if guest */}
-        {isGuest && profile && onLinkAccount && (
-          <div className="w-full animate-in fade-in slide-in-from-top-4 duration-500">
-            <GuestBanner profile={profile} onLinkAccount={onLinkAccount} />
+        
+        {/* LOCAL Button with Airplane Icon */}
+        {onOpenLocal && (
+          <div className="flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto">
+            <button 
+              onClick={() => onOpenLocal()} 
+              className="group relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-amber-900/20 via-amber-800/15 to-amber-900/20 backdrop-blur-xl border-2 border-amber-700/30 flex items-center justify-center shadow-[0_8px_30px_rgba(146,64,14,0.3)] transition-all duration-300 hover:scale-110 hover:border-amber-700/50 hover:shadow-[0_12px_40px_rgba(146,64,14,0.5)] active:scale-95"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-900/20 to-amber-800/20 blur-xl rounded-2xl sm:rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(146,64,14,0.2)_0%,transparent_70%)] rounded-2xl sm:rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10 group-hover:rotate-6 group-hover:scale-110 transition-transform duration-300">
+                <LocalCardIcon />
+              </div>
+            </button>
+            <span className="text-[10px] sm:text-[11px] font-black uppercase text-amber-600 tracking-wider drop-shadow-[0_2px_8px_rgba(146,64,14,0.4)]">LOCAL</span>
           </div>
+        )}
+      </div>
+      )}
+      <div className="max-w-3xl w-full z-10 flex flex-col items-center gap-6 mt-4">
+        {/* Guest Banner - Only show if guest (now fixed positioned in GuestBanner component) */}
+        {isGuest && profile && onLinkAccount && (
+          <GuestBanner profile={profile} onLinkAccount={onLinkAccount} />
         )}
         
         {/* Premium Logo Section */}
@@ -1346,7 +1474,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
 
             {/* Premium Action Buttons Section */}
-            <div className="relative p-8 border-t border-white/10 bg-gradient-to-b from-white/[0.02] to-transparent backdrop-blur-sm">
+            <div className="relative p-8 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-white/10 bg-gradient-to-b from-white/[0.02] to-transparent backdrop-blur-sm">
               <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(234,179,8,0.03)_50%,transparent_100%)]"></div>
               <div className="relative z-10 space-y-4">
                 <LuxuryButton onClick={() => handleStartGame('MULTI_PLAYER')} variant="emerald" label="PLAY ONLINE" icon="⚔️" sublabel="MULTIPLAYER ARENA" />

@@ -84,6 +84,19 @@ export const useGemBalance = () => {
     const setupSubscription = async () => {
       
       try {
+        // Check for session first - if no session exists, return early with balance 0
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !session) {
+          // No session exists - return early with balance 0 instead of throwing error
+          setUserId(null);
+          setGemCount(0);
+          setIsLoading(false);
+          subscribedUserIdRef.current = null;
+          isInitializing.current = false; // Unlock
+          return;
+        }
+
         // Get current user - wait for stable userId
         const { data: { user }, error: userError } = await supabase.auth.getUser();
 
@@ -94,7 +107,7 @@ export const useGemBalance = () => {
         if (!user || !user.id || user.id === 'pending') {
           // No user logged in or userId not stable yet
           setUserId(null);
-          setGemCount(null);
+          setGemCount(0);
           setIsLoading(false);
           subscribedUserIdRef.current = null;
           isInitializing.current = false; // Unlock

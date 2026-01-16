@@ -28,7 +28,7 @@ const LuxuryButton: React.FC<{
 }> = ({ onClick, variant, label, icon, sublabel, slim, type = "button", disabled }) => {
   const themes = {
     gold: { bg: "from-[#3d280a] via-[#b8860b] to-[#3d280a]", highlight: "from-[#b8860b] via-[#fbf5b7] to-[#8b6508]", text: "text-black", border: "border-yellow-300/40", accent: "text-yellow-900/60", shadow: "shadow-yellow-900/40" },
-    emerald: { bg: "from-[#064e3b] via-[#059669] to-[#064e3b]", highlight: "from-[#059669] via-[#34d399] to-[#047857]", text: "text-white", border: "border-yellow-500/50", accent: "text-yellow-400/80", shadow: "shadow-emerald-950/60" },
+    emerald: { bg: "from-[#064e3b] via-[#10b981] to-[#064e3b]", highlight: "from-[#10b981] via-[#34d399] to-[#059669]", text: "text-white", border: "border-emerald-400/50", accent: "text-emerald-300/90", shadow: "shadow-emerald-500/50" },
     ghost: { bg: "from-black via-zinc-900 to-black", highlight: "from-zinc-900 via-zinc-800 to-black", text: "text-yellow-500/90", border: "border-yellow-500/20", accent: "text-yellow-600/40", shadow: "shadow-black/60" }
   };
   const theme = themes[variant];
@@ -52,12 +52,61 @@ const LuxuryButton: React.FC<{
   );
 };
 
+// Top 10 most used emotes for pre-loading
+const TOP_EMOTES = [
+  ':smile:', ':blush:', ':cool:', ':annoyed:', ':heart_eyes:',
+  ':money_mouth_face:', ':robot:', ':devil:', ':girly:', ':shiba:'
+];
+
+// Pre-load emote images to warm the cache
+const preloadEmotes = () => {
+  if ('serviceWorker' in navigator && 'caches' in window && supabaseUrl) {
+    // Get emote URLs from Supabase
+    const emoteUrls = TOP_EMOTES.map(trigger => {
+      const fileName = trigger === ':smile:' ? 'shiba_card.webp' :
+                       trigger === ':blush:' ? 'blushing_card.webp' :
+                       trigger === ':cool:' ? 'sunglasses_card.webp' :
+                       trigger === ':annoyed:' ? 'annoyed_card.webp' :
+                       trigger === ':heart_eyes:' ? 'seductive_card.webp' :
+                       trigger === ':money_mouth_face:' ? 'chinese_card.webp' :
+                       trigger === ':robot:' ? 'final_boss_card.webp' :
+                       trigger === ':devil:' ? 'devil_card.webp' :
+                       trigger === ':girly:' ? 'girly_card.webp' :
+                       trigger === ':shiba:' ? 'shiba_card.webp' : '';
+      if (!fileName) return null;
+      return `${supabaseUrl}/storage/v1/object/public/emotes/${fileName}?v=3`;
+    }).filter(Boolean) as string[];
+
+    // Pre-fetch all emote images (use normal fetch, not no-cors, so service worker can intercept)
+    emoteUrls.forEach(url => {
+      fetch(url).catch(() => {
+        // Silently fail - service worker will handle caching
+      });
+    });
+
+    // Also try to cache via service worker if available
+    if (navigator.serviceWorker.controller) {
+      emoteUrls.forEach(url => {
+        navigator.serviceWorker.controller?.postMessage({
+          type: 'CACHE_URL',
+          url: url
+        });
+      });
+    }
+  }
+};
+
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
   const navigate = useNavigate();
   const { setIsRedirecting } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const redirectTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pre-load emotes when component mounts (Sign In screen)
+  React.useEffect(() => {
+    preloadEmotes();
+  }, []);
 
   // Clear redirecting state after timeout to prevent app from being stuck
   React.useEffect(() => {
@@ -182,8 +231,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#031109] relative overflow-hidden flex flex-col items-center justify-center p-6">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#092b15_0%,_#000000_100%)]"></div>
+    <div className="min-h-[100dvh] w-full bg-[#09090b] relative overflow-hidden flex flex-col items-center justify-center p-6" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#092b15_0%,_#000000_100%)]" style={{ top: '-env(safe-area-inset-top, 0px)', height: 'calc(100% + env(safe-area-inset-top, 0px))' }}></div>
       
       <div className="max-w-md w-full z-10 flex flex-col items-center gap-8">
         

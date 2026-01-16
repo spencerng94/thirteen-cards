@@ -65,8 +65,13 @@ export const UserBar: React.FC<UserBarProps> = ({
 
   return (
     <div 
-      className={`flex flex-col items-center py-4 sm:py-5 px-3 sm:px-4 bg-gradient-to-b from-black/60 via-black/50 to-black/60 backdrop-blur-2xl border-2 border-white/10 rounded-2xl sm:rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] transition-all duration-500 hover:bg-gradient-to-b hover:from-black/70 hover:via-black/60 hover:to-black/70 hover:border-white/20 hover:shadow-[0_12px_50px_rgba(0,0,0,0.8)] group w-16 sm:w-20 ${className}`}
+      className={`relative flex flex-col items-center py-4 sm:py-5 px-3 sm:px-4 bg-gradient-to-b from-black/60 via-black/50 to-black/60 backdrop-blur-2xl border-2 border-white/10 rounded-2xl sm:rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] transition-all duration-500 hover:bg-gradient-to-b hover:from-black/70 hover:via-black/60 hover:to-black/70 hover:border-white/20 hover:shadow-[0_12px_50px_rgba(0,0,0,0.8)] group w-16 sm:w-20 ${className}`}
     >
+      {/* Extended gradient into safe area */}
+      <div 
+        className="absolute -top-[env(safe-area-inset-top,0px)] left-0 right-0 bg-gradient-to-b from-black/60 to-black/60 rounded-t-2xl sm:rounded-t-3xl pointer-events-none"
+        style={{ height: 'env(safe-area-inset-top, 0px)' }}
+      />
       {/* Avatar */}
       <div className="relative mb-4 sm:mb-5 cursor-pointer" onClick={() => onClick?.('PROFILE')}>
         <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-yellow-500/20 via-yellow-600/10 to-yellow-500/20 border-2 border-yellow-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.3)] group-hover:scale-110 group-hover:border-yellow-500/50 group-hover:shadow-[0_0_30px_rgba(234,179,8,0.5)] transition-all duration-300 overflow-hidden">

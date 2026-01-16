@@ -890,6 +890,11 @@ const AppContent: React.FC = () => {
 
   const handleOpenGemPacks = () => setGemPacksOpen(true);
   const handleOpenFriends = () => setFriendsOpen(true);
+  const handleOpenLocal = () => {
+    // Navigate to Lobby with local mode indicator
+    setView('LOBBY');
+    // The Lobby component will handle local discovery
+  };
 
   const handleRefreshProfile = useCallback(() => {
     // GHOST SESSION: Guard against empty user.id - ensure user.id exists before using it
@@ -995,7 +1000,10 @@ const AppContent: React.FC = () => {
           setView('VICTORY');
         }
       } else if (state.status === GameStatus.LOBBY) {
-        setView('LOBBY');
+        // Don't reset view if already in LOBBY to prevent remounts
+        if (view !== 'LOBBY') {
+          setView('LOBBY');
+        }
       }
     };
     const onPlayerHand = (cards: Card[]) => setMpMyHand(cards);
@@ -1458,7 +1466,7 @@ const AppContent: React.FC = () => {
       profile={profile}
       onGemsUpdate={handleGemsUpdate}
     >
-    <div className="min-h-screen h-[100dvh] bg-black text-white font-sans selection:bg-yellow-500 selection:text-black" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div className="min-h-[100dvh] bg-black bg-fixed bg-cover text-white font-sans selection:bg-yellow-500 selection:text-black pt-[env(safe-area-inset-top)]">
       {isTransitioning && <GameEndTransition />}
       {view === 'WELCOME' && (
         <WelcomeScreen 
@@ -1480,10 +1488,12 @@ const AppContent: React.FC = () => {
           autoPassEnabled={autoPassEnabled} setAutoPassEnabled={setAutoPassEnabled}
           onOpenGemPacks={handleOpenGemPacks}
           onOpenFriends={handleOpenFriends}
+          onOpenLocal={handleOpenLocal}
           onLinkAccount={handleLinkAccount}
+          isModalOpen={isModalOpen}
         />
       )}
-      {view === 'LOBBY' && <Lobby playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPlayerId} turnTimerSetting={turnTimerSetting} selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} />}
+      {view === 'LOBBY' && <Lobby key="lobby-persistent" playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPlayerId} turnTimerSetting={turnTimerSetting} selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} />}
       {view === 'GAME_TABLE' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
           <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPlayerId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPlayerId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} autoPassEnabled={autoPassEnabled} onOpenSettings={() => setGameSettingsOpen(true)} socialFilter={socialFilter} sessionMuted={sessionMuted} setSessionMuted={setSessionMuted} />

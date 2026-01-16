@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useTransition, memo } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket, connectSocket } from '../services/socket';
 import { BoardSurface } from './UserHub';
 import { VisualEmote } from './VisualEmote';
 import { fetchEmotes } from '../services/supabase';
 import { Toast } from './Toast';
+import { localDiscoveryService } from '../services/localDiscovery';
+import { containsProfanity } from '../utils/wordFilter';
 
 interface PublicRoom {
   id: string;
@@ -30,9 +32,9 @@ interface LobbyProps {
 
 const MAX_PLAYERS = 4;
 
-const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: BackgroundTheme }> = ({ children, theme }) => {
+const BackgroundWrapperComponent: React.FC<{ children: React.ReactNode; theme: BackgroundTheme }> = ({ children, theme }) => {
   return (
-    <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center p-4 sm:p-8">
+    <div className="min-h-[100dvh] w-full relative overflow-hidden flex flex-col items-center justify-center p-4 sm:p-8" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <BoardSurface themeId={theme} />
         <div className="absolute inset-0 opacity-[0.04] pointer-events-none z-10" style={{ 
             backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.1) 1.5px, transparent 1.5px)`, 
@@ -43,6 +45,8 @@ const BackgroundWrapper: React.FC<{ children: React.ReactNode; theme: Background
     </div>
   );
 };
+
+const BackgroundWrapper = memo(BackgroundWrapperComponent, (prevProps, nextProps) => prevProps.theme === nextProps.theme);
 
 const GlassPanel: React.FC<{ children: React.ReactNode; className?: string; isLight?: boolean }> = ({ children, className = '', isLight = false }) => (
   <div className={`relative ${isLight ? 'bg-white/60' : 'bg-black/60'} backdrop-blur-3xl border ${isLight ? 'border-white/40' : 'border-white/10'} shadow-[0_40px_100px_rgba(0,0,0,0.8)] rounded-[3rem] overflow-hidden ${className}`}>
@@ -59,6 +63,359 @@ const RecycleIcon = () => (
     <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
   </svg>
 );
+
+// Memoized Tab Content Components
+interface PublicTabProps {
+  roomIdInput: string;
+  setRoomIdInput: (value: string) => void;
+  joinRoom: (roomId?: string) => void;
+  publicRooms: PublicRoom[];
+  remoteEmotes: Emote[];
+  isRefreshing: boolean;
+  refreshRooms: () => void;
+  socketConnected: boolean;
+}
+
+const PublicTabContent: React.FC<PublicTabProps> = ({ 
+  roomIdInput, 
+  setRoomIdInput, 
+  joinRoom, 
+  publicRooms, 
+  remoteEmotes,
+  isRefreshing,
+  refreshRooms,
+  socketConnected
+}) => {
+  return (
+    <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <div className="space-y-3">
+        <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Join with Room Code</label>
+        <div className="flex items-stretch gap-2 sm:gap-3 bg-gradient-to-br from-black/60 to-black/40 p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] border-2 border-white/10 shadow-inner focus-within:border-yellow-500/50 focus-within:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300">
+          <input 
+            type="text" 
+            placeholder="ABCD" 
+            value={roomIdInput}
+            maxLength={4}
+            onChange={e => setRoomIdInput(e.target.value.toUpperCase())}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                joinRoom();
+              }
+            }}
+            className="flex-1 bg-transparent border-none outline-none text-2xl sm:text-4xl font-serif font-black tracking-[0.4em] text-yellow-400 placeholder:text-white/10 px-4 sm:px-6 py-2 min-w-0"
+          />
+          <button 
+            onClick={() => joinRoom()} 
+            disabled={!roomIdInput.trim()}
+            className="h-auto min-h-[56px] sm:min-h-[64px] px-5 sm:px-8 bg-gradient-to-br from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed disabled:opacity-40 text-black rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all active:scale-95 shadow-[0_8px_20px_rgba(234,179,8,0.3)] hover:shadow-[0_12px_30px_rgba(234,179,8,0.4)] whitespace-nowrap flex items-center justify-center"
+          >
+            JOIN
+          </button>
+        </div>
+      </div>
+
+      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex justify-between items-center px-2 mb-4 sm:mb-6">
+          <div className="flex flex-col">
+            <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">Public Matches</span>
+            <span className="text-[9px] sm:text-[10px] font-semibold text-white/40 uppercase tracking-wider mt-0.5">{publicRooms.length} {publicRooms.length === 1 ? 'room' : 'rooms'} available</span>
+          </div>
+          <button 
+            onClick={refreshRooms} 
+            disabled={isRefreshing || !socketConnected} 
+            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all duration-200 active:scale-90 ${isRefreshing || !socketConnected ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:border-yellow-500/30 hover:text-yellow-400'}`}
+          >
+            <div className={isRefreshing ? 'animate-spin' : ''}><RecycleIcon /></div>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          {publicRooms.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
+                <span className="text-3xl sm:text-4xl">🃏</span>
+              </div>
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
+              <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {publicRooms.map(room => (
+                <div 
+                  key={room.id} 
+                  onClick={() => joinRoom(room.id)}
+                  className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="relative">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
+                    </div>
+                    <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
+                      <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
+                  </div>
+                  <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface CreateTabProps {
+  roomNameInput: string;
+  setRoomNameInput: (value: string) => void;
+  isPublic: boolean;
+  setIsPublic: (value: boolean) => void;
+  localTurnTimer: number;
+  setLocalTurnTimer: (value: number) => void;
+  createRoom: () => void;
+  isCreatingRoom: boolean;
+  socketConnected: boolean;
+}
+
+const CreateTabContent: React.FC<CreateTabProps> = ({
+  roomNameInput,
+  setRoomNameInput,
+  isPublic,
+  setIsPublic,
+  localTurnTimer,
+  setLocalTurnTimer,
+  createRoom,
+  isCreatingRoom,
+  socketConnected
+}) => {
+  return (
+    <div className="h-full flex flex-col justify-center space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-xl mx-auto w-full">
+      <div className="space-y-3">
+        <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
+        <input 
+          type="text" 
+          value={roomNameInput}
+          onChange={e => setRoomNameInput(e.target.value.toUpperCase())}
+          maxLength={24}
+          placeholder="Enter room name..."
+          className="w-full bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 px-6 sm:px-8 py-4 sm:py-6 rounded-2xl sm:rounded-[2rem] text-white font-black uppercase tracking-wider text-lg sm:text-xl focus:border-yellow-500/50 focus:shadow-[0_0_30px_rgba(234,179,8,0.2)] outline-none transition-all duration-300 shadow-inner placeholder:text-white/10"
+        />
+      </div>
+
+      <div className="bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 space-y-6 sm:space-y-8">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-black text-white uppercase tracking-wider">Public Room</span>
+            <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Anyone can discover and join</span>
+          </div>
+          <button 
+            onClick={() => setIsPublic(!isPublic)}
+            className={`w-14 h-7 rounded-full relative transition-all duration-300 p-1 flex items-center ${isPublic ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-white/10'}`}
+          >
+            <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-lg transition-transform duration-300 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
+          </button>
+        </div>
+
+        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-black text-white uppercase tracking-wider">Turn Timer</span>
+            <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Time per move before auto-pass</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner">
+            {[0, 15, 30, 60].map(val => (
+              <button 
+                key={val} 
+                onClick={() => setLocalTurnTimer(val)}
+                className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'}`}
+              >
+                {val === 0 ? 'OFF' : `${val}S`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={createRoom}
+        disabled={isCreatingRoom || !socketConnected}
+        className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-300 active:scale-95 relative overflow-hidden group ${isCreatingRoom || !socketConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
+        <span className="relative z-10 flex items-center justify-center gap-3">
+          {isCreatingRoom ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              <span>Creating...</span>
+            </>
+          ) : (
+            <>
+              <span className="text-xl sm:text-2xl">🎮</span>
+              Create Room
+            </>
+          )}
+        </span>
+      </button>
+    </div>
+  );
+};
+
+interface LocalTabProps {
+  localNetworkInfo: { isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean } | null;
+  localRoomCode: string;
+  setLocalRoomCode: (value: string) => void;
+  isHostingLocal: boolean;
+  setIsHostingLocal: (value: boolean) => void;
+  joinRoom: (roomId: string) => void;
+  playerName: string;
+  playerAvatar?: string;
+  localTurnTimer: number;
+  myId?: string;
+  selected_sleeve_id?: string;
+  setErrorToast: (toast: { show: boolean; message: string }) => void;
+}
+
+const LocalTabContent: React.FC<LocalTabProps> = ({
+  localNetworkInfo,
+  localRoomCode,
+  setLocalRoomCode,
+  isHostingLocal,
+  setIsHostingLocal,
+  joinRoom,
+  playerName,
+  playerAvatar,
+  localTurnTimer,
+  myId,
+  selected_sleeve_id,
+  setErrorToast
+}) => {
+  return (
+    <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
+      {!localNetworkInfo ? (
+        <div className="flex items-center justify-center h-full">
+          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+        </div>
+      ) : !localNetworkInfo.canHost ? (
+        <div className="flex flex-col items-center justify-center text-center space-y-4 py-12">
+          <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-white/20 flex items-center justify-center bg-white/[0.02]">
+            <span className="text-3xl">📡</span>
+          </div>
+          <p className="text-sm font-black uppercase tracking-wider text-white/60">Local Network Required</p>
+          <p className="text-xs font-medium text-white/40 max-w-sm">Connect to Wi-Fi or a hotspot to host local games with nearby friends.</p>
+        </div>
+      ) : (
+        <>
+          {/* Traveler's Guide Section */}
+          <div className="bg-gradient-to-br from-amber-950/40 via-amber-900/30 to-amber-950/40 backdrop-blur-xl border-2 border-amber-700/40 rounded-2xl sm:rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-700/30 to-amber-800/30 border border-amber-600/40 flex items-center justify-center">
+                <span className="text-xl">✈️</span>
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-amber-400 border-b border-amber-600/50 pb-1">Traveler's Guide</h3>
+              </div>
+            </div>
+            <ol className="text-xs font-medium text-zinc-400 leading-relaxed space-y-2 list-decimal list-inside">
+              <li>Host starts Hotspot.</li>
+              <li>Friends join Wi-Fi.</li>
+              <li>Play anywhere—even mid-flight.</li>
+            </ol>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+            {!isHostingLocal ? (
+              <div className="space-y-3 sm:space-y-4">
+                <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Host a Local Table</label>
+                <button
+                  onClick={async () => {
+                    try {
+                      const code = await localDiscoveryService.hostRoom(playerName, playerAvatar || ':smile:');
+                      setLocalRoomCode(code);
+                      setIsHostingLocal(true);
+                      // Create room via socket with the local code (only if socket is connected)
+                      // LOCAL tab works independently - socket is optional
+                      if (socket.connected) {
+                        socket.emit(SocketEvents.CREATE_ROOM, {
+                          name: playerName,
+                          avatar: playerAvatar,
+                          playerId: myId,
+                          isPublic: false,
+                          roomName: `${playerName.toUpperCase()}'S LOCAL TABLE`,
+                          turnTimer: localTurnTimer,
+                          selected_sleeve_id: selected_sleeve_id
+                        });
+                      }
+                    } catch (error: any) {
+                      setErrorToast({ show: true, message: error.message || 'Failed to host local room' });
+                    }
+                  }}
+                  className="w-full py-4 sm:py-5 bg-gradient-to-br from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black uppercase tracking-wider text-xs sm:text-sm rounded-2xl sm:rounded-3xl transition-all duration-300 active:scale-95 shadow-lg"
+                >
+                  Start Hosting
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 sm:space-y-4">
+                <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Your Local Code</label>
+                <div className="bg-gradient-to-br from-amber-950/60 to-amber-900/40 border-2 border-amber-700/40 rounded-2xl sm:rounded-3xl p-6 sm:p-8 text-center space-y-4">
+                  <p className="text-2xl font-serif font-black text-amber-600 tracking-[0.2em]">{localRoomCode}</p>
+                  <button
+                    onClick={() => {
+                      localDiscoveryService.stopHosting();
+                      setIsHostingLocal(false);
+                      setLocalRoomCode('');
+                    }}
+                    className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white/70 hover:text-white text-xs font-black uppercase tracking-wider transition-all duration-200"
+                  >
+                    Stop Hosting
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 sm:space-y-4">
+              <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Join Local Room</label>
+              <div className="flex items-stretch gap-2 bg-gradient-to-br from-black/60 to-black/40 p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] border-2 border-white/10 shadow-inner focus-within:border-yellow-500/50 focus-within:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300">
+                <input
+                  type="text"
+                  placeholder="CODE"
+                  value={localRoomCode}
+                  maxLength={4}
+                  onChange={e => setLocalRoomCode(e.target.value.toUpperCase())}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && localRoomCode.trim()) {
+                      joinRoom(localRoomCode);
+                    }
+                  }}
+                  className="flex-1 bg-transparent border-none outline-none text-xl sm:text-2xl font-serif font-black tracking-[0.4em] text-yellow-400 placeholder:text-white/10 px-4 py-2 min-w-0"
+                />
+                <button
+                  onClick={() => joinRoom(localRoomCode)}
+                  disabled={!localRoomCode.trim()}
+                  className="h-auto min-h-[48px] px-4 sm:px-6 bg-gradient-to-br from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed disabled:opacity-40 text-black rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg whitespace-nowrap flex items-center justify-center"
+                >
+                  JOIN
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 const LuxuryActionTile: React.FC<{ 
     onClick: () => void; 
@@ -94,7 +451,7 @@ const LuxuryActionTile: React.FC<{
     );
 };
 
-export const Lobby: React.FC<LobbyProps> = ({ 
+const LobbyComponent: React.FC<LobbyProps> = ({ 
   playerName, 
   gameState, 
   error, 
@@ -115,23 +472,104 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
-  const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE'>(initialRoomCode ? 'PUBLIC' : 'PUBLIC');
+  // Single source of truth for tab navigation
+  const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>('PUBLIC');
+  
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [socketConnecting, setSocketConnecting] = useState(false);
+  
+  // Removed handleTabChange - using direct setState to avoid stale closures
+  const [localNetworkInfo, setLocalNetworkInfo] = useState<{ isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean } | null>(null);
+  const [localRoomCode, setLocalRoomCode] = useState<string>('');
+  const [isHostingLocal, setIsHostingLocal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [syncTimer, setSyncTimer] = useState(0);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [profanityToast, setProfanityToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
+  // Memoized profanity check for performance
+  const hasProfanity = useMemo(() => {
+    return containsProfanity(roomNameInput);
+  }, [roomNameInput]);
+
+  // Initialize component data - decoupled from socket
   useEffect(() => {
     if (initialRoomCode) {
       setRoomIdInput(initialRoomCode);
     }
     fetchEmotes().then(setRemoteEmotes);
-    
-    // Ensure socket is connected when component mounts
-    if (!socket.connected) {
-      connectSocket();
-    }
   }, [initialRoomCode]);
+
+  // Socket initialization - completely decoupled from UI rendering
+  useEffect(() => {
+    let isMounted = true;
+    let connectionTimeout: NodeJS.Timeout | null = null;
+
+    const handleConnect = () => {
+      if (isMounted) {
+        setSocketConnected(true);
+        setSocketConnecting(false);
+      }
+    };
+
+    const handleDisconnect = () => {
+      if (isMounted) {
+        setSocketConnected(false);
+        setSocketConnecting(false);
+      }
+    };
+
+    const handleConnectError = () => {
+      if (isMounted) {
+        setSocketConnected(false);
+        setSocketConnecting(false);
+      }
+    };
+
+    const initializeSocket = () => {
+      if (!socket.connected && isMounted) {
+        try {
+          setSocketConnecting(true);
+          
+          // Register event listeners
+          socket.on('connect', handleConnect);
+          socket.on('disconnect', handleDisconnect);
+          socket.on('connect_error', handleConnectError);
+          
+          // Attempt connection with timeout
+      connectSocket();
+          
+          connectionTimeout = setTimeout(() => {
+            if (isMounted && !socket.connected) {
+              setSocketConnecting(false);
+              setSocketConnected(false);
+            }
+          }, 5000);
+        } catch (error) {
+          if (isMounted) {
+            setSocketConnecting(false);
+            setSocketConnected(false);
+          }
+        }
+      } else if (socket.connected && isMounted) {
+        setSocketConnected(true);
+        setSocketConnecting(false);
+      }
+    };
+
+    initializeSocket();
+
+    return () => {
+      isMounted = false;
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+      }
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+    };
+  }, []); // Only run once on mount - completely independent of UI state
 
   // Deduplicate function to prevent duplicate rooms
   const deduplicateRooms = useCallback((list: PublicRoom[]): PublicRoom[] => {
@@ -242,6 +680,13 @@ export const Lobby: React.FC<LobbyProps> = ({
       return;
     }
 
+    // Check for profanity in room name
+    if (hasProfanity) {
+      setProfanityToast({ show: true, message: "Please choose a more courtly name for your arena." });
+      setTimeout(() => setProfanityToast({ show: false, message: '' }), 4000);
+      return;
+    }
+
     setIsCreatingRoom(true);
 
     const emitCreateRoom = () => {
@@ -258,7 +703,10 @@ export const Lobby: React.FC<LobbyProps> = ({
         // Reset creating state after a short delay to allow for server response
         setTimeout(() => setIsCreatingRoom(false), 1000);
       } catch (error) {
-        console.error('Error emitting create_room:', error);
+        // Non-blocking socket error - only warn in development
+        if (import.meta.env.DEV) {
+          console.warn('Socket create_room error (non-blocking):', error);
+        }
         setIsCreatingRoom(false);
         setErrorToast({ show: true, message: 'Failed to create room. Please try again.' });
       }
@@ -367,8 +815,9 @@ export const Lobby: React.FC<LobbyProps> = ({
   }, [gameState?.players, myId]);
 
   return (
-    <BackgroundWrapper theme={backgroundTheme}>
-      <div className="relative z-20 w-full max-w-5xl flex flex-col items-center">
+    <React.Fragment key={activeTab}>
+      <BackgroundWrapper theme={backgroundTheme}>
+      <div className="lobby-viewport">
         
         {errorToast.show && (
           <Toast
@@ -376,6 +825,31 @@ export const Lobby: React.FC<LobbyProps> = ({
             type="error"
             onClose={() => setErrorToast({ show: false, message: '' })}
           />
+        )}
+        
+        {profanityToast.show && (
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[500] pointer-events-none">
+            <div className="bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] backdrop-blur-xl border-2 border-amber-700/50 rounded-2xl px-6 py-4 shadow-[0_20px_60px_rgba(146,64,14,0.4)] transition-all duration-500 opacity-100 translate-y-0 scale-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-900/30 border border-amber-700/50 flex items-center justify-center">
+                  <svg 
+                    className="w-6 h-6 text-amber-600" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2.5} 
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm font-black text-amber-200 uppercase tracking-wider font-serif">Please choose a more courtly name for your arena.</span>
+              </div>
+            </div>
+          </div>
         )}
         
         {error && (
@@ -399,213 +873,170 @@ export const Lobby: React.FC<LobbyProps> = ({
             </div>
 
             <GlassPanel className="w-full flex flex-col min-h-[500px] sm:min-h-[600px]">
-                <div className="p-4 sm:p-6 border-b border-white/10 bg-gradient-to-r from-white/[0.03] via-transparent to-white/[0.03] flex justify-center">
-                    <div className="bg-black/60 backdrop-blur-sm p-1.5 rounded-[2.5rem] flex relative w-full max-w-xl shadow-inner border border-white/10 overflow-hidden">
-                        <div 
-                          className={`
-                            absolute top-1.5 bottom-1.5 left-1.5 w-[calc(50%-6px)] 
-                            bg-gradient-to-br from-yellow-500/20 to-pink-500/20 border border-yellow-500/30 rounded-[2.2rem] shadow-xl 
-                            transition-all duration-300 ease-[cubic-bezier(0.19,1,0.22,1)]
-                            ${activeTab === 'PUBLIC' ? 'translate-x-0' : 'translate-x-[calc(100%+6px)]'}
-                          `}
-                        >
-                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-[2px] bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded-full blur-[2px]"></div>
-                        </div>
+              <nav className="tab-switcher p-4 sm:p-6 border-b border-white/10 bg-gradient-to-r from-white/[0.03] via-transparent to-white/[0.03] flex justify-center">
+                <div className="bg-black/60 backdrop-blur-sm p-1.5 rounded-[2.5rem] flex relative w-full max-w-2xl shadow-inner border border-white/10 overflow-hidden">
+                  <div 
+                    className={`
+                      absolute top-1.5 bottom-1.5 left-1.5 w-[calc(33.333%-6px)] 
+                      bg-gradient-to-br from-yellow-500/20 to-pink-500/20 border border-yellow-500/30 rounded-[2.2rem] shadow-xl 
+                      transition-all duration-300 ease-[cubic-bezier(0.19,1,0.22,1)] pointer-events-none z-10
+                      ${activeTab === 'PUBLIC' ? 'translate-x-0' : activeTab === 'CREATE' ? 'translate-x-[calc(100%+6px)]' : 'translate-x-[calc(200%+12px)]'}
+                    `}
+                  >
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-[2px] bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded-full blur-[2px]"></div>
+                  </div>
 
-                        {(['PUBLIC', 'CREATE'] as const).map(tab => (
-                            <button 
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`
-                                    flex-1 relative z-10 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-4 rounded-[2rem] transition-all duration-200
-                                    ${activeTab === tab ? 'text-yellow-400' : 'text-white/40 hover:text-white/60'}
-                                `}
-                            >
-                                <div className="flex items-center justify-center transition-all duration-200">
-                                    {tab === 'PUBLIC' ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                    )}
-                                </div>
-                                <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.15em]">
-                                    {tab === 'PUBLIC' ? 'Find Match' : 'Create Room'}
-                                </span>
-                            </button>
-                        ))}
+                  {(['PUBLIC', 'CREATE', 'LOCAL'] as const).map(tab => {
+                    const tabConfig = {
+                      PUBLIC: { 
+                        label: 'Find Match', 
+                        icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+                      },
+                      CREATE: { 
+                        label: 'Create Room', 
+                        icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      },
+                      LOCAL: { 
+                        label: 'Local', 
+                        icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                      }
+                    };
+                    const config = tabConfig[tab];
+                    
+                    return (
+                      <button 
+                        key={tab}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setActiveTab(tab);
+                        }}
+                        className={`
+                          flex-1 relative z-30 flex items-center justify-center gap-1.5 sm:gap-2 py-3 sm:py-4 rounded-[2rem] transition-all duration-200 touch-manipulation cursor-pointer
+                          ${activeTab === tab ? 'text-yellow-400' : 'text-white/40 hover:text-white/60'}
+                          ${tab === 'CREATE' ? 'gap-1 sm:gap-1.5' : ''}
+                        `}
+                        style={{ pointerEvents: 'auto', WebkitTapHighlightColor: 'transparent', position: 'relative' }}
+                        type="button"
+                      >
+                        {config.icon}
+                        <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.15em] pointer-events-none">
+                          {config.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+
+              {/* Subpage Description Subheader */}
+              <div className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-white/5">
+                <p className="text-[10px] sm:text-xs text-zinc-400 text-center font-medium leading-relaxed">
+                  {activeTab === 'PUBLIC' && 'Global Arena'}
+                  {activeTab === 'CREATE' && 'Private Table'}
+                  {activeTab === 'LOCAL' && 'Offline Mode'}
+                </p>
+              </div>
+
+              <main className="tab-area flex-1 p-4 sm:p-6 sm:p-8 overflow-hidden flex flex-col">
+                {/* Connection Status Banner - Only show for PUBLIC and CREATE tabs */}
+                {(activeTab === 'PUBLIC' || activeTab === 'CREATE') && !socketConnected && (
+                  <div className="mb-4 sm:mb-6 bg-gradient-to-r from-amber-950/40 via-amber-900/30 to-amber-950/40 backdrop-blur-xl border-2 border-amber-700/40 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-3">
+                    <div className="flex-shrink-0">
+                      {socketConnecting ? (
+                        <div className="w-4 h-4 border-2 border-amber-400/50 border-t-amber-400 rounded-full animate-spin"></div>
+                      ) : (
+                        <div className="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40"></div>
+                      )}
                     </div>
-                </div>
+                    <p className="text-[10px] sm:text-xs font-medium text-amber-400/80 uppercase tracking-wider">
+                      {socketConnecting ? 'Connecting to Arena...' : 'Arena Connection Offline'}
+                    </p>
+                  </div>
+                )}
 
-                <div className="flex-1 p-4 sm:p-6 sm:p-8 overflow-hidden flex flex-col">
-                    {activeTab === 'PUBLIC' ? (
-                        <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <div className="space-y-3">
-                                <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Join with Room Code</label>
-                                <div className="flex items-stretch gap-2 sm:gap-3 bg-gradient-to-br from-black/60 to-black/40 p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] border-2 border-white/10 shadow-inner focus-within:border-yellow-500/50 focus-within:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300">
-                                    <input 
-                                        type="text" 
-                                        placeholder="ABCD" 
-                                        value={roomIdInput}
-                                        maxLength={4}
-                                        onChange={e => setRoomIdInput(e.target.value.toUpperCase())}
-                                        onKeyPress={(e) => {
-                                            if (e.key === 'Enter') {
-                                                joinRoom();
-                                            }
-                                        }}
-                                        className="flex-1 bg-transparent border-none outline-none text-2xl sm:text-4xl font-serif font-black tracking-[0.4em] text-yellow-400 placeholder:text-white/10 px-4 sm:px-6 py-2 min-w-0"
-                                    />
-                                    <button 
-                                        onClick={() => joinRoom()} 
-                                        disabled={!roomIdInput.trim()}
-                                        className="h-auto min-h-[56px] sm:min-h-[64px] px-5 sm:px-8 bg-gradient-to-br from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed disabled:opacity-40 text-black rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all active:scale-95 shadow-[0_8px_20px_rgba(234,179,8,0.3)] hover:shadow-[0_12px_30px_rgba(234,179,8,0.4)] whitespace-nowrap flex items-center justify-center"
-                                    >
-                                        JOIN
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-
-                            <div className="flex-1 flex flex-col min-h-0">
-                                <div className="flex justify-between items-center px-2 mb-4 sm:mb-6">
-                                    <div className="flex flex-col">
-                                        <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">Public Matches</span>
-                                        <span className="text-[9px] sm:text-[10px] font-semibold text-white/40 uppercase tracking-wider mt-0.5">{publicRooms.length} {publicRooms.length === 1 ? 'room' : 'rooms'} available</span>
-                                    </div>
-                                    <button 
-                                        onClick={refreshRooms} 
-                                        disabled={isRefreshing} 
-                                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all duration-200 active:scale-90 ${isRefreshing ? 'opacity-50' : 'hover:bg-white/10 hover:border-yellow-500/30 hover:text-yellow-400'}`}
-                                    >
-                                        <div className={isRefreshing ? 'animate-spin' : ''}><RecycleIcon /></div>
-                                    </button>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                                    {publicRooms.length === 0 ? (
-                                        <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-                                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
-                                                <span className="text-3xl sm:text-4xl">🃏</span>
-                                            </div>
-                                            <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
-                                            <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                            {publicRooms.map(room => (
-                                                <div 
-                                                    key={room.id} 
-                                                    onClick={() => joinRoom(room.id)}
-                                                    className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
-                                                >
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="relative">
-                                                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                                                                <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
-                                                            </div>
-                                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
-                                                        </div>
-                                                        <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
-                                                            <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
-                                                        <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
-                                                    </div>
-                                                    <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                {/* Tab Content - ONLY activeTab controls visibility */}
+                <div className="tab-content flex-1 overflow-y-auto">
+                  {activeTab === 'PUBLIC' && (
+                    <PublicTabContent
+                      roomIdInput={roomIdInput}
+                      setRoomIdInput={setRoomIdInput}
+                      joinRoom={joinRoom}
+                      publicRooms={publicRooms}
+                      remoteEmotes={remoteEmotes}
+                      isRefreshing={isRefreshing}
+                      refreshRooms={refreshRooms}
+                      socketConnected={socketConnected}
+                    />
+                  )}
+                  {activeTab === 'CREATE' && (
+                    <CreateTabContent
+                      roomNameInput={roomNameInput}
+                      setRoomNameInput={setRoomNameInput}
+                      isPublic={isPublic}
+                      setIsPublic={setIsPublic}
+                      localTurnTimer={localTurnTimer}
+                      setLocalTurnTimer={setLocalTurnTimer}
+                      createRoom={createRoom}
+                      isCreatingRoom={isCreatingRoom}
+                      socketConnected={socketConnected}
+                    />
+                  )}
+                  {activeTab === 'LOCAL' && (
+                    <div className="space-y-6">
+                      <div className="bg-gradient-to-br from-amber-950/20 via-amber-900/10 to-amber-950/20 backdrop-blur-xl border-2 border-amber-700/30 rounded-2xl p-6 sm:p-8">
+                        <h3 className="text-lg sm:text-xl font-black uppercase tracking-wider text-amber-400 mb-4 flex items-center gap-3">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                          </svg>
+                          Traveler's Guide
+                        </h3>
+                        <div className="space-y-3 text-sm sm:text-base text-amber-200/90 leading-relaxed">
+                          <p className="flex items-start gap-3">
+                            <span className="text-amber-500 font-black text-lg">1.</span>
+                            <span>Host starts Hotspot.</span>
+                          </p>
+                          <p className="flex items-start gap-3">
+                            <span className="text-amber-500 font-black text-lg">2.</span>
+                            <span>Friends join Wi-Fi.</span>
+                          </p>
+                          <p className="flex items-start gap-3">
+                            <span className="text-amber-500 font-black text-lg">3.</span>
+                            <span>Play anywhere—even mid-flight.</span>
+                          </p>
                         </div>
-                    ) : (
-                        <div className="h-full flex flex-col justify-center space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-xl mx-auto w-full">
-                            <div className="space-y-3">
-                                <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
-                                <input 
-                                    type="text" 
-                                    value={roomNameInput}
-                                    onChange={e => setRoomNameInput(e.target.value.toUpperCase())}
-                                    maxLength={24}
-                                    placeholder="Enter room name..."
-                                    className="w-full bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 px-6 sm:px-8 py-4 sm:py-6 rounded-2xl sm:rounded-[2rem] text-white font-black uppercase tracking-wider text-lg sm:text-xl focus:border-yellow-500/50 focus:shadow-[0_0_30px_rgba(234,179,8,0.2)] outline-none transition-all duration-300 shadow-inner placeholder:text-white/10"
-                                />
-                            </div>
-
-                            <div className="bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 space-y-6 sm:space-y-8">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-sm font-black text-white uppercase tracking-wider">Public Room</span>
-                                        <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Anyone can discover and join</span>
-                                    </div>
-                                    <button 
-                                        onClick={() => setIsPublic(!isPublic)}
-                                        className={`w-14 h-7 rounded-full relative transition-all duration-300 p-1 flex items-center ${isPublic ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-white/10'}`}
-                                    >
-                                        <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-lg transition-transform duration-300 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
-                                    </button>
-                                </div>
-
-                                <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-
-                                <div className="space-y-3 sm:space-y-4">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-sm font-black text-white uppercase tracking-wider">Turn Timer</span>
-                                        <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Time per move before auto-pass</span>
-                                    </div>
-                                    <div className="grid grid-cols-4 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner">
-                                        {[0, 15, 30, 60].map(val => (
-                                            <button 
-                                                key={val} 
-                                                onClick={() => setLocalTurnTimer(val)}
-                                                className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'}`}
-                                            >
-                                                {val === 0 ? 'OFF' : `${val}S`}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={createRoom}
-                                disabled={isCreatingRoom}
-                                className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-300 active:scale-95 relative overflow-hidden group ${isCreatingRoom ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
-                                <span className="relative z-10 flex items-center justify-center gap-3">
-                                    {isCreatingRoom ? (
-                                        <>
-                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                            <span>Creating...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className="text-xl sm:text-2xl">🎮</span>
-                                            Create Room
-                                        </>
-                                    )}
-                                </span>
-                            </button>
-                        </div>
-                    )}
+                      </div>
+                      <LocalTabContent
+                        localNetworkInfo={localNetworkInfo}
+                        localRoomCode={localRoomCode}
+                        setLocalRoomCode={setLocalRoomCode}
+                        isHostingLocal={isHostingLocal}
+                        setIsHostingLocal={setIsHostingLocal}
+                        joinRoom={joinRoom}
+                        playerName={playerName}
+                        playerAvatar={playerAvatar}
+                        localTurnTimer={localTurnTimer}
+                        myId={myId}
+                        selected_sleeve_id={selected_sleeve_id}
+                        setErrorToast={setErrorToast}
+                      />
+                    </div>
+                  )}
                 </div>
+              </main>
             </GlassPanel>
 
             <div className="w-full max-w-xl mt-4 sm:mt-6">
-                <button
-                    onClick={onBack!}
-                    className="w-full py-4 sm:py-5 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 hover:border-white/20 hover:bg-white/10 text-white font-black uppercase tracking-wider text-xs sm:text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 shadow-lg"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                    Back to Menu
-                </button>
+              <button
+                onClick={onBack!}
+                className="w-full py-4 sm:py-5 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 hover:border-white/20 hover:bg-white/10 text-white font-black uppercase tracking-wider text-xs sm:text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 shadow-lg"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Back to Menu
+              </button>
             </div>
           </div>
         ) : (
@@ -810,7 +1241,19 @@ export const Lobby: React.FC<LobbyProps> = ({
           0% { background-position: -100% 0; }
           100% { background-position: 100% 0; }
         }
+        @keyframes auric-shimmer {
+          0% { transform: translateX(-100%) skewX(-15deg); }
+          100% { transform: translateX(200%) skewX(-15deg); }
+        }
+        .animate-auric-shimmer {
+          animation: auric-shimmer 3s ease-in-out infinite;
+        }
       `}} />
     </BackgroundWrapper>
+    </React.Fragment>
   );
 };
+
+// Temporarily remove React.memo to test if it's preventing re-renders
+// React.memo should NOT prevent re-renders from internal state changes, but let's test
+export const Lobby = LobbyComponent;

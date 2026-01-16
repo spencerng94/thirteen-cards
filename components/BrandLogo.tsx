@@ -55,6 +55,11 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
+          <linearGradient id="thirteenGoldGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#fbbf24" />
+            <stop offset="50%" stopColor="#d97706" />
+            <stop offset="100%" stopColor="#b45309" />
+          </linearGradient>
           <linearGradient id="goldMetallicPremium" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#1a0f00" />
             <stop offset="8%" stopColor="#4a2e0a" />
@@ -341,11 +346,18 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               textLength="880"
               lengthAdjust="spacing"
               fontFamily="'Cinzel', serif"
-              fill="url(#goldMetallicPremium)"
+              fill="url(#thirteenGoldGradient)"
               filter="url(#goldBloomPremium)"
               stroke="rgba(0,0,0,0.6)"
               strokeWidth="0.8"
-              style={{ textTransform: 'uppercase', paintOrder: 'stroke fill', letterSpacing: '0.18em' }}
+              style={{ 
+                textTransform: 'uppercase', 
+                paintOrder: 'stroke fill', 
+                letterSpacing: '0.18em',
+                WebkitTextFillColor: 'transparent',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text'
+              }}
             >
               THIRTEEN
             </text>

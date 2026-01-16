@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { CurrencyIcon } from './Store';
 
@@ -8,14 +8,16 @@ interface GuestBannerProps {
 }
 
 export const GuestBanner: React.FC<GuestBannerProps> = ({ profile, onLinkAccount }) => {
-  if (!profile) return null;
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  if (!profile || isDismissed) return null;
 
   const gemCount = profile.gems || 0;
   const xp = profile.xp || 0;
   const coins = profile.coins || 0;
 
   return (
-    <div className="relative w-full mb-4 sm:mb-6">
+    <div className="fixed top-[calc(env(safe-area-inset-top)+1rem)] left-1/2 -translate-x-1/2 z-[100] w-full max-w-[calc(100vw-120px)] mx-auto px-4" style={{ zIndex: 100 }}>
       {/* Amber warning banner with dark/gold theme */}
       <div className="relative bg-gradient-to-br from-amber-900/40 via-amber-800/30 to-amber-900/40 backdrop-blur-xl border-2 border-amber-500/40 rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_20px_60px_rgba(217,119,6,0.3)]">
         {/* Animated background glow */}
@@ -23,6 +25,22 @@ export const GuestBanner: React.FC<GuestBannerProps> = ({ profile, onLinkAccount
         
         {/* Inner glow effect */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(217,119,6,0.15)_0%,transparent_70%)]"></div>
+        
+        {/* Dismiss button */}
+        <button
+          onClick={() => setIsDismissed(true)}
+          className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full bg-amber-900/60 hover:bg-amber-800/80 border border-amber-500/40 hover:border-amber-400/60 transition-all duration-200 hover:scale-110 active:scale-95"
+          aria-label="Dismiss"
+        >
+          <svg 
+            className="w-3 h-3 sm:w-4 sm:h-4 text-amber-200" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
         
         <div className="relative z-10 p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

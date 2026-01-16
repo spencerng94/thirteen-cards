@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useTransition } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme, Emote, Card as CardType, Rank, Suit } from '../types';
 import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, buyFinisherPack, buyPack, equipFinisher, Finisher, processAdReward, fetchChatPresets, ChatPreset, purchasePhrase, incrementGems, processGemTransaction, claimAdRewardGems, fetchWeeklyRewardStatus } from '../services/supabase';
@@ -18,6 +19,7 @@ import { SaltShakeFinisher } from './SaltShakeFinisher';
 import { TooFunnyFinisher } from './TooFunnyFinisher';
 import { SanctumSnapFinisher } from './SanctumSnapFinisher';
 import { SeductiveFinishFinisher } from './SeductiveFinishFinisher';
+import { ShopSkeleton } from './ShopSkeleton';
 import { KissMyShibaFinisher } from './KissMyShibaFinisher';
 import { ChatBubble } from './ChatBubble';
 import { sanitizePath, safeSVGNumber, isValidNumber } from '../utils/svgSanitizer';
@@ -1490,6 +1492,7 @@ export const Store: React.FC<{
   const [buying, setBuying] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [finishers, setFinishers] = useState<Finisher[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [showSleevePreview, setShowSleevePreview] = useState(false);
   const [showBoardPreview, setShowBoardPreview] = useState(false);
   const [showFinisherPreview, setShowFinisherPreview] = useState(false);
@@ -1561,20 +1564,26 @@ export const Store: React.FC<{
   const hasFetchedChatPresets = useRef(false);
 
   useEffect(() => { 
+    // Show loading skeleton initially
+    setIsLoadingItems(true);
+
     // THE FETCH SHIELD: Return early if already fetched - prevents duplicate concurrent requests
     // Even if component mounts 5 times in a row (as it does in Prod), this ensures fetch only runs once
     if (hasFetchedEmotes.current && hasFetchedFinishers.current && hasFetchedChatPresets.current) {
+      setIsLoadingItems(false);
       return;
     }
     
     // STOP ABORTING: No AbortController, no signal, no cleanup function
     // We want these requests to persist even if the component re-renders
     
+    const fetchPromises: Promise<any>[] = [];
+    
     // Fetch emotes - function handles its own internal locking
     if (!hasFetchedEmotes.current && typeof fetchEmotes === 'function') {
       // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
       hasFetchedEmotes.current = true;
-      fetchEmotes(true)
+      const emotePromise = fetchEmotes(true)
         .then((emotes) => {
           setRemoteEmotes(emotes || []);
           // Do NOT reset hasFetchedEmotes - shield remains active even on error
@@ -1584,13 +1593,14 @@ export const Store: React.FC<{
           setRemoteEmotes([]);
           // Do NOT reset hasFetchedEmotes - shield remains active even on error
         });
+      fetchPromises.push(emotePromise);
     }
     
     // Fetch finishers - function handles its own internal locking
     if (!hasFetchedFinishers.current && typeof fetchFinishers === 'function') {
       // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
       hasFetchedFinishers.current = true;
-      fetchFinishers()
+      const finisherPromise = fetchFinishers()
         .then((finishersData) => {
           setFinishers(finishersData || []);
           // Do NOT reset hasFetchedFinishers - shield remains active even on error
@@ -1600,13 +1610,14 @@ export const Store: React.FC<{
           setFinishers([]);
           // Do NOT reset hasFetchedFinishers - shield remains active even on error
         });
+      fetchPromises.push(finisherPromise);
     }
     
     // Fetch chat presets - function handles its own internal locking
     if (!hasFetchedChatPresets.current && typeof fetchChatPresets === 'function') {
       // THE FETCH SHIELD: Set guard IMMEDIATELY and PERMANENTLY - never reset it
       hasFetchedChatPresets.current = true;
-      fetchChatPresets()
+      const chatPresetPromise = fetchChatPresets()
         .then((presets) => {
           setChatPresets(presets || []);
           // Do NOT reset hasFetchedChatPresets - shield remains active even on error
@@ -1616,7 +1627,16 @@ export const Store: React.FC<{
           setChatPresets([]);
           // Do NOT reset hasFetchedChatPresets - shield remains active even on error
         });
+      fetchPromises.push(chatPresetPromise);
     }
+
+    // Wait for all fetches to complete, then hide loading
+    Promise.all(fetchPromises).finally(() => {
+      // Small delay to allow smooth transition
+      setTimeout(() => {
+        setIsLoadingItems(false);
+      }, 150);
+    });
     
     // CRITICAL: NO CLEANUP FUNCTION - Do NOT return a cleanup that would abort fetches
     // STOP ABORTING: Let Supabase requests finish even if component re-renders
@@ -2659,9 +2679,9 @@ export const Store: React.FC<{
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(236,72,153,0.05)_0%,transparent_70%)] pointer-events-none"></div>
         
         {/* Premium Header with Currency - Mobile First, Compact on Desktop */}
-        <div className="relative px-5 sm:px-6 md:px-6 lg:px-8 pt-5 sm:pt-6 md:pt-4 lg:pt-5 pb-4 sm:pb-6 md:pb-3 lg:pb-4 border-b border-white/20 bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent backdrop-blur-xl">
+        <div className="relative px-5 sm:px-6 md:px-6 lg:px-8 pt-[calc(env(safe-area-inset-top)+1.25rem)] sm:pt-[calc(env(safe-area-inset-top)+1.5rem)] md:pt-[calc(env(safe-area-inset-top)+1rem)] lg:pt-[calc(env(safe-area-inset-top)+1.25rem)] pb-4 sm:pb-6 md:pb-3 lg:pb-4 border-b border-white/20 bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent backdrop-blur-xl">
           {/* Desktop: Top Bar with Currency and Close Button */}
-          <div className="hidden md:flex md:items-center md:justify-between md:mb-3 lg:mb-4">
+          <div className="hidden md:flex md:items-start md:justify-between md:mb-3 lg:mb-4">
             {/* Desktop: Currency Display - Compact Horizontal */}
             <div className="flex items-center gap-2 lg:gap-3">
               <div className="relative group">
@@ -3197,36 +3217,65 @@ export const Store: React.FC<{
               })}
             </div>
           ) : (
-          <div className={`grid gap-3 sm:gap-4 md:gap-5 pb-8 auto-rows-fr ${
-            density === 1 ? 'grid-cols-1' :
-            density === 2 ? 'grid-cols-2' :
-            'grid-cols-3'
-          }`}>
-            {tabItems.length === 0 ? (
-              <div className="col-span-full text-center text-white/50 py-8">No items available</div>
+          <AnimatePresence mode="wait">
+            {isLoadingItems ? (
+              <motion.div
+                key="skeleton"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                style={{
+                  transform: 'translateZ(0)',
+                  willChange: 'opacity',
+                }}
+              >
+                <ShopSkeleton density={density} count={density === 1 ? 6 : density === 2 ? 8 : 9} />
+              </motion.div>
             ) : (
-              tabItems.map((item, idx) => {
-                try {
-                  const uniqueKey = activeTab === 'EMOTES' ? `emote-${item}-${idx}` : 
-                                   activeTab === 'BOARDS' ? `board-${item.id || item}-${idx}` :
-                                   activeTab === 'ITEMS' ? `item-${item.id}-${idx}` :
-                                   activeTab === 'FINISHERS' ? `finisher-${(item as Finisher).id}-${idx}` :
-                                   activeTab === 'QUICK_CHATS' ? `chat-${(item as ChatPreset).id}-${idx}` :
-                                   `sleeve-${item.id || item}-${idx}`;
-                  
-                  if (activeTab === 'EMOTES') return renderItemCard(item, true, false, false, uniqueKey);
-                  if (activeTab === 'BOARDS') return renderItemCard(item, false, true, false, uniqueKey);
-                  if (activeTab === 'ITEMS') return renderItemCard(item, false, false, true, uniqueKey);
-                  if (activeTab === 'FINISHERS') return renderFinisherCard(item as Finisher, uniqueKey);
-                  if (activeTab === 'QUICK_CHATS') return renderQuickChatCard(item as ChatPreset, uniqueKey);
-                  return renderItemCard(item, false, false, false, uniqueKey);
-                } catch (error) {
-                  console.error('Error rendering item:', item, error);
-                  return null;
-                }
-              }).filter(Boolean)
+              <motion.div
+                key="content"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`grid gap-3 sm:gap-4 md:gap-5 pb-8 auto-rows-fr ${
+                  density === 1 ? 'grid-cols-1' :
+                  density === 2 ? 'grid-cols-2' :
+                  'grid-cols-3'
+                }`}
+                style={{
+                  transform: 'translateZ(0)',
+                  willChange: 'opacity',
+                }}
+              >
+                {tabItems.length === 0 ? (
+                  <div className="col-span-full text-center text-white/50 py-8">No items available</div>
+                ) : (
+                  tabItems.map((item, idx) => {
+                    try {
+                      const uniqueKey = activeTab === 'EMOTES' ? `emote-${item}-${idx}` : 
+                                       activeTab === 'BOARDS' ? `board-${item.id || item}-${idx}` :
+                                       activeTab === 'ITEMS' ? `item-${item.id}-${idx}` :
+                                       activeTab === 'FINISHERS' ? `finisher-${(item as Finisher).id}-${idx}` :
+                                       activeTab === 'QUICK_CHATS' ? `chat-${(item as ChatPreset).id}-${idx}` :
+                                       `sleeve-${item.id || item}-${idx}`;
+                      
+                      if (activeTab === 'EMOTES') return renderItemCard(item, true, false, false, uniqueKey);
+                      if (activeTab === 'BOARDS') return renderItemCard(item, false, true, false, uniqueKey);
+                      if (activeTab === 'ITEMS') return renderItemCard(item, false, false, true, uniqueKey);
+                      if (activeTab === 'FINISHERS') return renderFinisherCard(item as Finisher, uniqueKey);
+                      if (activeTab === 'QUICK_CHATS') return renderQuickChatCard(item as ChatPreset, uniqueKey);
+                      return renderItemCard(item, false, false, false, uniqueKey);
+                    } catch (error) {
+                      console.error('Error rendering item:', item, error);
+                      return null;
+                    }
+                  }).filter(Boolean)
+                )}
+              </motion.div>
             )}
-          </div>
+          </AnimatePresence>
           )}
         </div>
       </div>

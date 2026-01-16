@@ -124,10 +124,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID'];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4" style={{ touchAction: 'pan-y' }} onClick={onClose}>
       <div 
         className="relative bg-black/60 backdrop-blur-2xl border border-white/10 w-full max-md rounded-[2.5rem] overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.8)] flex flex-col transition-all duration-500 scale-100" 
         onClick={e => e.stopPropagation()}
+        style={{ touchAction: 'pan-y' }}
       >
         <div className="absolute inset-0 rounded-[2.5rem] ring-1 ring-inset ring-white/5 pointer-events-none"></div>
 
@@ -141,8 +142,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
           
           <button 
-            onClick={onClose} 
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-400 hover:text-white transition-all group active:scale-90"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              onClose();
+            }}
+            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-gray-400 hover:text-white transition-transform duration-150 group active:scale-95"
+            style={{ userSelect: 'none', touchAction: 'manipulation' }}
           >
             <span className="text-xl group-hover:rotate-90 transition-transform">✕</span>
           </button>
@@ -169,8 +174,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                 </div>
                 <button 
-                    onClick={() => handleChange(() => setSoundEnabled(!soundEnabled))}
-                    className={`w-14 h-7 rounded-full relative transition-all duration-500 ${soundEnabled ? 'bg-emerald-600/80 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-white/5'}`}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      handleChange(() => setSoundEnabled(!soundEnabled));
+                    }}
+                    className={`w-14 h-7 rounded-full relative transition-transform duration-150 active:scale-95 ${soundEnabled ? 'bg-emerald-600/80 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-white/5'}`}
+                    style={{ userSelect: 'none', touchAction: 'manipulation' }}
                 >
                     <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-500 ${soundEnabled ? 'translate-x-8' : 'translate-x-1'}`}></div>
                 </button>
@@ -190,8 +199,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
                   </div>
                   <button 
-                      onClick={() => handleChange(() => setSpQuickFinish(!spQuickFinish))}
-                      className={`w-14 h-7 rounded-full relative transition-all duration-500 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]' : 'bg-white/5'}`}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        handleChange(() => setSpQuickFinish(!spQuickFinish));
+                      }}
+                      className={`w-14 h-7 rounded-full relative transition-transform duration-150 active:scale-95 ${spQuickFinish ? 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]' : 'bg-white/5'}`}
+                      style={{ userSelect: 'none', touchAction: 'manipulation' }}
                   >
                       <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-500 ${spQuickFinish ? 'translate-x-8' : 'translate-x-1'}`}></div>
                   </button>
@@ -206,8 +219,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map((d) => (
                           <button
                               key={d}
-                              onClick={() => handleChange(() => onChangeDifficulty(d))}
-                              className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${getDifficultyStyles(d, currentDifficulty === d)} active:scale-95`}
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                handleChange(() => onChangeDifficulty(d));
+                              }}
+                              className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-transform duration-150 border ${getDifficultyStyles(d, currentDifficulty === d)} active:scale-95`}
+                              style={{ userSelect: 'none', touchAction: 'manipulation' }}
                           >
                               {d}
                           </button>
@@ -237,11 +254,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                  ].map((theme) => (
                    <button 
                       key={theme.id}
-                      onClick={() => handleChange(() => onChangeTheme(theme.id as BackgroundTheme))}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        handleChange(() => onChangeTheme(theme.id as BackgroundTheme));
+                      }}
                       className={`
-                        py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border active:scale-95
+                        py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-transform duration-150 border active:scale-95
                         ${getThemeStyles(theme.id as BackgroundTheme, currentTheme === theme.id)}
                       `}
+                      style={{ userSelect: 'none', touchAction: 'manipulation' }}
                    >
                       {theme.name}
                    </button>
@@ -255,11 +276,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                  {coverStyles.map((style) => (
                    <div 
                       key={style}
-                      onClick={() => handleChange(() => onChangeCoverStyle(style))}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        handleChange(() => onChangeCoverStyle(style));
+                      }}
                       className={`
-                        cursor-pointer transition-all duration-300 relative group flex flex-col items-center gap-1
+                        cursor-pointer transition-transform duration-150 relative group flex flex-col items-center gap-1 active:scale-95
                         ${currentCoverStyle === style ? 'scale-110 z-10' : 'opacity-40 grayscale-[0.5] hover:opacity-100 hover:grayscale-0 hover:scale-105'}
                       `}
+                      style={{ userSelect: 'none', touchAction: 'manipulation' }}
                    >
                      {currentCoverStyle === style && (
                         <div className="absolute inset-[-15px] bg-yellow-500/10 blur-2xl rounded-full animate-pulse"></div>
@@ -282,8 +307,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="pt-4 flex flex-col gap-4">
              {hasChanged && (
                 <button
-                  onClick={onClose}
-                  className="group w-full relative overflow-hidden py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all duration-300 active:scale-95 border border-emerald-400/30 shadow-[0_15px_40px_rgba(16,185,129,0.3)]"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    onClose();
+                  }}
+                  className="group w-full relative overflow-hidden py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-transform duration-150 active:scale-95 border border-emerald-400/30 shadow-[0_15px_40px_rgba(16,185,129,0.3)]"
+                  style={{ userSelect: 'none', touchAction: 'manipulation' }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 group-hover:scale-110 transition-transform duration-700"></div>
                   <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
@@ -296,8 +325,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              {/* Update Available Button */}
              {isUpdateAvailable && (
                 <button
-                  onClick={handleUpdate}
-                  className="group w-full relative overflow-hidden py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all duration-300 active:scale-95 border border-yellow-400/50 shadow-[0_15px_40px_rgba(234,179,8,0.4)] animate-pulse"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    handleUpdate();
+                  }}
+                  className="group w-full relative overflow-hidden py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-transform duration-150 active:scale-95 border border-yellow-400/50 shadow-[0_15px_40px_rgba(234,179,8,0.4)] animate-pulse"
+                  style={{ userSelect: 'none', touchAction: 'manipulation' }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 group-hover:scale-110 transition-transform duration-700"></div>
                   <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.3)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_2s_infinite] pointer-events-none"></div>
@@ -309,8 +342,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
              {/* Support & Feedback Button */}
              <button
-               onClick={() => setShowSupportModal(true)}
-               className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-all duration-300 active:scale-95"
+               onPointerDown={(e) => {
+                 e.preventDefault();
+                 setShowSupportModal(true);
+               }}
+               className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-transform duration-150 active:scale-95"
+               style={{ userSelect: 'none', touchAction: 'manipulation' }}
              >
                <span className="relative z-10 flex items-center justify-center gap-3 text-gray-500 group-hover:text-white font-black text-[11px] uppercase tracking-[0.4em] transition-colors">
                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
@@ -322,8 +359,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
              {/* Legacy Feedback Button (keep for compatibility) */}
              <button
-               onClick={() => setShowFeedbackModal(true)}
-               className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-all duration-300 active:scale-95"
+               onPointerDown={(e) => {
+                 e.preventDefault();
+                 setShowFeedbackModal(true);
+               }}
+               className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-transform duration-150 active:scale-95"
+               style={{ userSelect: 'none', touchAction: 'manipulation' }}
              >
                <span className="relative z-10 flex items-center justify-center gap-3 text-gray-500 group-hover:text-white font-black text-[11px] uppercase tracking-[0.4em] transition-colors">
                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
@@ -335,8 +376,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
              <div className="grid grid-cols-2 gap-4">
                 <button
-                  onClick={onExitGame}
-                  className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-all duration-300 active:scale-95"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    onExitGame();
+                  }}
+                  className="group relative overflow-hidden py-5 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 rounded-3xl transition-transform duration-150 active:scale-95"
+                  style={{ userSelect: 'none', touchAction: 'manipulation' }}
                 >
                   <span className="relative z-10 flex items-center justify-center gap-3 text-gray-500 group-hover:text-white font-black text-[11px] uppercase tracking-[0.4em] transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">

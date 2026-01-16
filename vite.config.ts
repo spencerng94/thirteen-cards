@@ -58,7 +58,10 @@ export default defineConfig({
     // Note: To use terser for better compression, install terser and change to 'terser'
     // Enable source maps for debugging (optional - can disable for smaller builds)
     sourcemap: false,
+    // Copy service worker to dist folder
+    copyPublicDir: true,
   },
+  publicDir: 'public',
   // Optimize dependencies
   optimizeDeps: {
     include: ['react', 'react-dom', '@supabase/supabase-js', 'socket.io-client', '@revenuecat/purchases-capacitor'],
