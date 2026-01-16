@@ -1771,18 +1771,116 @@ export const GameTable: React.FC<GameTableProps> = ({
               padding-left: 1.5rem !important;
               padding-right: 1.5rem !important;
             }
+            /* iPad Air (820px) - Center YOUR TURN and NO MOVES POSSIBLE indicators horizontally */
+            @media (orientation: portrait) and (min-width: 820px) and (max-width: 830px) {
+              /* Center the indicators horizontally on the screen */
+              .ipad-button-container > div:first-child {
+                align-items: center !important;
+              }
+              .ipad-button-container > div:first-child > div {
+                position: relative !important;
+                left: auto !important;
+                right: auto !important;
+                transform: none !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 100% !important;
+              }
+              .ipad-button-container > div:first-child > div > div {
+                margin-left: auto !important;
+                margin-right: auto !important;
+              }
+              /* Ensure NO MOVES POSSIBLE is also centered */
+              .ipad-button-container > div:first-child > div > div:last-child {
+                margin-left: auto !important;
+                margin-right: auto !important;
+              }
+              /* Restore original card size (scale 1.5) but ensure cards fit within viewport with overlap */
+              .ipad-hand-container.flex-nowrap {
+                transform: scale(1.5) !important; /* Restore original size */
+                z-index: 10 !important;
+                flex-direction: row !important; /* Normal order: smallest on left, highest on right */
+                max-width: 100vw !important;
+                overflow-x: hidden !important;
+                overflow-y: visible !important; /* Allow cards to show fully */
+                box-sizing: border-box !important;
+                padding-bottom: 2rem !important; /* Add bottom padding to show full cards */
+                padding-top: 2rem !important; /* Add top padding to show full cards */
+                margin-bottom: -2rem !important; /* Negative margin to maintain position */
+                margin-top: -2rem !important; /* Negative margin to maintain position */
+              }
+              /* Use negative spacing to allow overlap while keeping cards within viewport */
+              .ipad-hand-container.flex-nowrap > .hand-card:not(:first-child) {
+                margin-left: -6vw !important; /* Negative spacing for overlap */
+              }
+              /* Ensure parent container doesn't overflow and allows full card visibility */
+              div[class*="relative"][class*="flex"][class*="items-center"][class*="portrait:justify-center"] {
+                max-width: 100vw !important;
+                overflow-x: hidden !important;
+                overflow-y: visible !important; /* Allow cards to show fully */
+                box-sizing: border-box !important;
+                padding-bottom: 2rem !important; /* Add padding to show full cards */
+                padding-top: 2rem !important; /* Add padding to show full cards */
+              }
+              /* Override the md:portrait:pb-4 and md:portrait:pt-32 classes on the parent */
+              div[class*="relative"][class*="flex"][class*="items-center"][class*="portrait:justify-center"][class*="md:portrait:pb-4"] {
+                padding-bottom: 2rem !important; /* Allow space for full cards */
+              }
+              div[class*="relative"][class*="flex"][class*="items-center"][class*="portrait:justify-center"][class*="md:portrait:pt-32"] {
+                padding-top: 2rem !important; /* Allow space for full cards */
+              }
+              /* Ensure the hand container parent also respects viewport */
+              div[class*="relative"][class*="flex"][class*="items-center"][class*="portrait:justify-center"] > div[class*="ipad-hand-container"] {
+                max-width: 100% !important;
+                width: 100% !important;
+                overflow: visible !important; /* Ensure no clipping */
+              }
+              /* Ensure all ancestor containers allow overflow */
+              div[class*="absolute"][class*="bottom-0"] {
+                overflow: visible !important; /* Allow cards to render fully */
+              }
+              /* Ensure the gradient overlay doesn't clip cards */
+              div[class*="absolute"][class*="bottom-0"][class*="left-0"][class*="w-full"][class*="bg-gradient-to-t"] {
+                overflow: visible !important; /* Allow cards to render fully */
+                pointer-events: none !important; /* Don't block card interactions */
+              }
+              /* Ensure cards can render above the gradient */
+              .ipad-hand-container.flex-nowrap > .hand-card {
+                position: relative !important;
+                z-index: 50 !important; /* Above gradient overlay */
+              }
+              /* Move play cards pile and MOVE indicator up more */
+              .ipad-cards-in-play-container {
+                transform: translateY(-120px) !important; /* Move up more (was -100px) */
+              }
+            }
             @media (min-width: 1024px) {
               /* Restore larger margin for Pro screens */
               div[class*="relative"][class*="flex"][class*="items-center"][class*="portrait:justify-center"] {
                 margin-top: 6rem !important;
               }
+              /* Move YOUR TURN and NO MOVES POSSIBLE indicators up */
               .ipad-button-container {
                 padding-left: 0 !important;
                 padding-right: 0 !important;
+                transform: translateY(-4rem) !important; /* Move indicators up more for iPad Pro */
               }
+              /* Move button row (PASS, PLAY CARDS, ROW) down while keeping indicators in place */
+              /* The container moves up by -4rem, so we move buttons down by 4rem to cancel, plus a bit extra */
               .ipad-button-row {
                 padding-left: 1.5rem !important;
                 padding-right: 1.5rem !important;
+                transform: translateY(5rem) !important; /* Move buttons down slightly (4rem to offset container + 1rem extra) */
+              }
+              /* Move play card pile and <PLAYER NAME>'S MOVE indicator up */
+              .ipad-cards-in-play-container {
+                transform: translateY(-120px) !important; /* Move up more for iPad Pro (was -80px) */
+              }
+              /* Move user's icon/name up */
+              div[class*="absolute"][class*="left-"][class*="bottom-[44px]"],
+              div[class*="absolute"][class*="left-"][class*="md:portrait:bottom-[136px]"] {
+                bottom: 200px !important; /* Move user icon up (was 136px) */
+                top: auto !important;
               }
               .ipad-hand-container.flex-nowrap {
                 transform: scale(1.7) !important;
@@ -1940,6 +2038,13 @@ export const GameTable: React.FC<GameTableProps> = ({
               .multi-row-bottom-row > .hand-card:not(:first-child) {
                 margin-left: -3vw !important;
               }
+            }
+          }
+          
+          /* iPhone SE Portrait - Reduce play cards pile size */
+          @media (orientation: portrait) and (max-width: 375px) {
+            .ipad-cards-in-play {
+              transform: scale(0.75) !important; /* Reduce from scale-90 (0.9) to 0.75 for smaller size */
             }
           }
         `}} />
