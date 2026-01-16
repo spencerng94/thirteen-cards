@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useTransition } from 'react';
 import { Card, CardCoverStyle } from './Card';
 import { UserProfile, BackgroundTheme, Emote, Card as CardType, Rank, Suit } from '../types';
 import { buyItem, getAvatarName, fetchEmotes, updateProfileSettings, fetchFinishers, buyFinisher, buyFinisherPack, buyPack, equipFinisher, Finisher, processAdReward, fetchChatPresets, ChatPreset, purchasePhrase, incrementGems, processGemTransaction, claimAdRewardGems, fetchWeeklyRewardStatus } from '../services/supabase';
@@ -195,7 +195,7 @@ const CoinIconSVG: React.FC<{ coins?: number | null }> = ({ coins }) => {
   const path2 = sanitizePath("M 90 50 A 40 40 0 0 1 50 90", "M0 0");
   
   return (
-  <svg viewBox="0 0 100 100" className="w-full h-full">
+  <svg viewBox="0 0 100 100" className="w-full h-full" style={{ imageRendering: 'auto' }}>
     <defs>
       <radialGradient id="goldCoinGrad" cx="30%" cy="30%">
         <stop offset="0%" stopColor="#FFE082" />
@@ -276,7 +276,7 @@ const GemIconSVG: React.FC<{ gems?: number | null }> = ({ gems }) => {
   const pathLines2 = sanitizePath("M50 8 L25 28 M50 8 L75 28 M25 58 L50 78 M75 58 L50 78", "M0 0");
   
   return (
-  <svg viewBox="0 0 100 100" className="w-full h-full">
+  <svg viewBox="0 0 100 100" className="w-full h-full" style={{ imageRendering: 'auto' }}>
     <defs>
       <linearGradient id="gemGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#FFB3E6" />
@@ -519,7 +519,7 @@ export const CurrencyIcon: React.FC<{
   const safeClassName = (typeof className === 'string' ? className : '') || '';
   
   return (
-    <div className={`relative ${dim} flex items-center justify-center shrink-0 ${safeClassName}`}>
+      <div className={`relative ${dim} flex items-center justify-center shrink-0 ${safeClassName}`} style={{ imageRendering: 'auto' }}>
       <div className="w-full h-full relative z-10 transition-transform duration-300 hover:scale-125">
         {/* SANITIZE SVG DATA: Pass currency value to SVG component for validation */}
         {/* SVG components will validate the value internally and return null if invalid */}
@@ -1482,6 +1482,7 @@ export const Store: React.FC<{
   }, []);
 
   const [activeTab, setActiveTab] = useState<'SLEEVES' | 'EMOTES' | 'BOARDS' | 'ITEMS' | 'FINISHERS' | 'DEALS' | 'QUICK_CHATS'>(initialTab as any);
+  const [, startTransition] = useTransition();
   const [chatPresets, setChatPresets] = useState<ChatPreset[]>([]);
   const [previewingChat, setPreviewingChat] = useState<ChatPreset | null>(null);
   const [pendingPurchase, setPendingPurchase] = useState<any>(null);
@@ -1847,19 +1848,28 @@ export const Store: React.FC<{
     return <span className="text-4xl">📦</span>;
   };
 
-  // Helper function to check if an item is owned
-  const isItemOwned = (item: { type: 'FINISHER' | 'EMOTE' | 'BOARD' | 'SLEEVE'; id: string }): boolean => {
-    if (item.type === 'FINISHER') {
-      return profile?.unlocked_finishers?.includes(item.id) || false;
-    } else if (item.type === 'EMOTE') {
-      return profile?.unlocked_avatars?.includes(item.id) || false;
-    } else if (item.type === 'BOARD') {
-      return profile?.unlocked_boards?.includes(item.id) || false;
-    } else if (item.type === 'SLEEVE') {
-      return profile?.unlocked_sleeves?.includes(item.id) || false;
-    }
-    return false;
-  };
+  // Helper function to check if an item is owned - memoized for performance
+  const isItemOwned = useMemo(() => {
+    if (!profile) return (item: { type: 'FINISHER' | 'EMOTE' | 'BOARD' | 'SLEEVE' | 'AVATAR' | 'QUICK_CHAT'; id: string }): boolean => false;
+    
+    const ownedFinishers = new Set(profile.unlocked_finishers || []);
+    const ownedAvatars = new Set(profile.unlocked_avatars || []);
+    const ownedBoards = new Set(profile.unlocked_boards || []);
+    const ownedSleeves = new Set(profile.unlocked_sleeves || []);
+    
+    return (item: { type: 'FINISHER' | 'EMOTE' | 'BOARD' | 'SLEEVE' | 'AVATAR' | 'QUICK_CHAT'; id: string }): boolean => {
+      if (item.type === 'FINISHER') {
+        return ownedFinishers.has(item.id);
+      } else if (item.type === 'EMOTE' || item.type === 'AVATAR') {
+        return ownedAvatars.has(item.id);
+      } else if (item.type === 'BOARD') {
+        return ownedBoards.has(item.id);
+      } else if (item.type === 'SLEEVE') {
+        return ownedSleeves.has(item.id);
+      }
+      return false;
+    };
+  }, [profile?.unlocked_finishers, profile?.unlocked_avatars, profile?.unlocked_boards, profile?.unlocked_sleeves]);
 
   // Helper function to check if a pack is fully owned
   const isPackOwned = (pack: DealPack): boolean => {
@@ -2168,7 +2178,7 @@ export const Store: React.FC<{
     if (isAvatar) unlocked = profile?.unlocked_avatars?.includes(item) || false;
     else if (isBoard) unlocked = profile?.unlocked_boards.includes(id) || id === 'EMERALD';
     else if (isItem) unlocked = false;
-    else unlocked = profile?.unlocked_sleeves.includes(id);
+    else unlocked = profile?.unlocked_sleeves?.includes(id) || false;
 
     // For avatars, check if it's a remote emote with custom price
     const remoteEmote = isAvatar ? remoteEmotes.find(e => e.trigger_code === item) : null;
@@ -2222,7 +2232,7 @@ export const Store: React.FC<{
           {isAvatar ? (
             <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center group/avatar">
               <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/20 via-transparent to-pink-500/20 rounded-3xl blur-xl opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500"></div>
-              <VisualEmote trigger={item} remoteEmotes={remoteEmotes} size="lg" />
+              <VisualEmote trigger={item} remoteEmotes={remoteEmotes} size="lg" useLazyLoading={true} />
             </div>
           ) : isBoard ? (
             <div className="relative w-full group/board">
@@ -2424,7 +2434,7 @@ export const Store: React.FC<{
   }, [activeTab, remoteEmotes, hideUnowned, showDealsOnly, dailyDealSleeveId, profile, finishers, storeItems]);
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in" style={{ touchAction: 'pan-y' }} onClick={onClose}>
       {showSleevePreview && pendingPurchase?.type === 'SLEEVE' && (
         <CardSleevePreview 
           sleeveStyle={pendingPurchase.style} 
@@ -2613,19 +2623,29 @@ export const Store: React.FC<{
             {/* Action Buttons - Clean */}
             <div className="relative z-10 grid grid-cols-2 gap-3 md:gap-4 w-full">
               <button 
-                onClick={() => setPendingPurchase(null)} 
-                className="py-3 md:py-4 lg:py-5 rounded-xl bg-white/5 border border-white/10 text-sm md:text-base lg:text-lg font-medium uppercase tracking-wide text-white/70 hover:text-white hover:bg-white/10 transition-all"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  setPendingPurchase(null);
+                }}
+                className="py-3 md:py-4 lg:py-5 rounded-xl bg-white/5 border border-white/10 text-sm md:text-base lg:text-lg font-medium uppercase tracking-wide text-white/70 hover:text-white hover:bg-white/10 transition-transform duration-150 active:scale-95"
+                style={{ userSelect: 'none', touchAction: 'manipulation' }}
               >
                 Cancel
               </button>
               <button 
-                onClick={executePurchase} 
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  if (!pendingPurchase.equipped && buying !== pendingPurchase.id) {
+                    executePurchase();
+                  }
+                }}
                 disabled={pendingPurchase.equipped || buying === pendingPurchase.id} 
-                className={`py-3 md:py-4 lg:py-5 rounded-xl text-sm md:text-base lg:text-lg font-bold uppercase tracking-wide transition-all ${
+                className={`py-3 md:py-4 lg:py-5 rounded-xl text-sm md:text-base lg:text-lg font-bold uppercase tracking-wide transition-transform duration-150 active:scale-95 ${
                   pendingPurchase.equipped 
                     ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/10' 
                     : 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black border border-yellow-400/50 shadow-[0_0_20px_rgba(251,191,36,0.4)] hover:shadow-[0_0_30px_rgba(251,191,36,0.6)]'
                 }`}
+                style={{ userSelect: 'none', touchAction: 'manipulation' }}
               >
                 {pendingPurchase.equipped ? 'EQUIPPED' : pendingPurchase.unlocked ? 'EQUIP' : 'Confirm'}
               </button>
@@ -2633,7 +2653,7 @@ export const Store: React.FC<{
           </div>
         </div>
       )}
-      <div className="relative bg-gradient-to-br from-[#0a0a0a] via-[#050505] to-[#000000] border-2 border-white/20 w-full max-w-6xl max-h-[95vh] rounded-[4rem] overflow-hidden shadow-[0_0_150px_rgba(0,0,0,1)] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="relative bg-gradient-to-br from-[#0a0a0a] via-[#050505] to-[#000000] border-2 border-white/20 w-full max-w-6xl max-h-[95vh] rounded-[4rem] overflow-hidden shadow-[0_0_150px_rgba(0,0,0,1)] flex flex-col z-50" onClick={e => e.stopPropagation()} style={{ touchAction: 'pan-y' }}>
         {/* Premium Ambient Effects */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.08)_0%,transparent_70%)] pointer-events-none"></div>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(236,72,153,0.05)_0%,transparent_70%)] pointer-events-none"></div>
@@ -2749,12 +2769,18 @@ export const Store: React.FC<{
                 return (
                 <button 
                   key={tab} 
-                  onClick={() => setActiveTab(tab)} 
-                  className={`relative px-2.5 lg:px-3 py-1.5 lg:py-2 rounded-lg lg:rounded-xl text-[10px] lg:text-xs font-bold uppercase tracking-wide transition-all duration-300 overflow-hidden group whitespace-nowrap touch-manipulation flex-shrink-0 ${
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    startTransition(() => {
+                    setActiveTab(tab);
+                    });
+                  }}
+                  className={`relative px-2.5 lg:px-3 py-1.5 lg:py-2 rounded-lg lg:rounded-xl text-[10px] lg:text-xs font-bold uppercase tracking-wide transition-transform duration-150 overflow-hidden group whitespace-nowrap touch-manipulation flex-shrink-0 active:scale-95 ${
                     activeTab === tab 
                       ? 'bg-gradient-to-br from-yellow-500/40 via-yellow-600/35 to-yellow-500/40 text-white border-2 border-yellow-500/60 shadow-[0_0_30px_rgba(251,191,36,0.5)]' 
                       : 'bg-white/[0.08] text-white/60 hover:text-white/90 hover:bg-white/[0.12] border-2 border-white/15 hover:border-white/25'
                   }`}
+                  style={{ userSelect: 'none', touchAction: 'manipulation' }}
                 >
                   {activeTab === tab && (
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
@@ -2764,12 +2790,18 @@ export const Store: React.FC<{
               )})}
               {/* Desktop: DEALS as part of tabs row */}
               <button
-                onClick={() => setActiveTab('DEALS')}
-                className={`relative px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg lg:rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-wide transition-all duration-500 overflow-hidden group touch-manipulation ${
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  startTransition(() => {
+                    setActiveTab('DEALS');
+                  });
+                }}
+                className={`relative px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg lg:rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-wide transition-transform duration-150 overflow-hidden group touch-manipulation active:scale-95 ${
                   activeTab === 'DEALS'
                     ? 'bg-gradient-to-br from-pink-500/60 via-purple-500/50 to-pink-500/60 text-white border-2 border-pink-400/80 shadow-[0_0_30px_rgba(236,72,153,0.7)] scale-105'
                     : 'bg-gradient-to-br from-pink-500/40 via-purple-500/30 to-pink-500/40 text-white border-2 border-pink-400/60 shadow-[0_0_20px_rgba(236,72,153,0.5)] hover:scale-105 hover:shadow-[0_0_30px_rgba(236,72,153,0.8)]'
                 }`}
+                style={{ userSelect: 'none', touchAction: 'manipulation' }}
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 <div className="absolute -inset-1 bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 rounded-lg lg:rounded-xl opacity-50 blur-lg animate-pulse"></div>
@@ -2786,8 +2818,18 @@ export const Store: React.FC<{
               return (
               <button 
                 key={tab} 
-                onClick={() => setActiveTab(tab)} 
-                className={`relative px-2.5 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold uppercase tracking-wide transition-all duration-300 overflow-hidden group whitespace-nowrap touch-manipulation flex-shrink-0 ${
+                onClick={() => {
+                  startTransition(() => {
+                    setActiveTab(tab);
+                  });
+                }}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  startTransition(() => {
+                    setActiveTab(tab);
+                  });
+                }} 
+                className={`relative px-2.5 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold uppercase tracking-wide transition-all duration-300 overflow-hidden group whitespace-nowrap touch-manipulation flex-shrink-0 active:scale-95 ${
                   activeTab === tab 
                     ? 'bg-gradient-to-br from-yellow-500/40 via-yellow-600/35 to-yellow-500/40 text-white border-2 border-yellow-500/60 shadow-[0_0_30px_rgba(251,191,36,0.5)]' 
                     : 'bg-white/[0.08] text-white/60 hover:text-white/90 hover:bg-white/[0.12] border-2 border-white/15 hover:border-white/25'
@@ -2805,7 +2847,17 @@ export const Store: React.FC<{
           {/* Mobile: DEALS Button - Stylistically Distinct Row */}
           <div className="md:hidden w-full flex items-center justify-center mt-3 sm:mt-4 px-3 sm:px-4">
             <button
-              onClick={() => setActiveTab('DEALS')}
+              onClick={() => {
+                startTransition(() => {
+                  setActiveTab('DEALS');
+                });
+              }}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                startTransition(() => {
+                  setActiveTab('DEALS');
+                });
+              }}
               className={`relative px-6 sm:px-8 md:px-10 lg:px-12 py-3 sm:py-3.5 md:py-4 rounded-xl sm:rounded-2xl md:rounded-3xl text-sm sm:text-base md:text-lg lg:text-xl font-black uppercase tracking-wider transition-all duration-500 overflow-hidden group touch-manipulation ${
                 activeTab === 'DEALS'
                   ? 'bg-gradient-to-br from-pink-500/60 via-purple-500/50 to-pink-500/60 text-white border-2 border-pink-400/80 shadow-[0_0_50px_rgba(236,72,153,0.7)] scale-105'
@@ -2828,7 +2880,7 @@ export const Store: React.FC<{
         </div>
 
         {/* Premium Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-4 lg:p-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-4 lg:p-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent" style={{ willChange: 'transform' }}>
           {/* Free Gems Card - Top of Shop */}
           <div className="mb-4 sm:mb-6 md:mb-3 lg:mb-4">
             <FreeGemsCard 
@@ -2846,13 +2898,17 @@ export const Store: React.FC<{
               {([1, 2, 4] as const).map((d) => (
                 <button 
                   key={d} 
-                  onClick={() => setDensity(d)} 
-                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 ${
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    setDensity(d);
+                  }}
+                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-150 active:scale-95 ${
                     density === d 
                       ? 'bg-gradient-to-br from-yellow-500/30 to-yellow-600/20 text-white shadow-[0_0_15px_rgba(234,179,8,0.4)]' 
                       : 'text-white/30 hover:text-white/60 hover:bg-white/5'
                   }`}
                   title={d === 1 ? '1 tile' : d === 2 ? '4 tiles' : '9 tiles'}
+                  style={{ userSelect: 'none', touchAction: 'manipulation' }}
                 >
                   {d === 1 ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -2887,14 +2943,18 @@ export const Store: React.FC<{
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <span className="text-xs sm:text-sm font-medium text-white/70 uppercase tracking-wide whitespace-nowrap">Deals</span>
                 <button
-                  onClick={() => setShowDealsOnly(!showDealsOnly)}
-                  className={`relative w-11 h-6 sm:w-12 sm:h-6 rounded-full transition-all duration-300 touch-manipulation ${
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    setShowDealsOnly(!showDealsOnly);
+                  }}
+                  className={`relative w-11 h-6 sm:w-12 sm:h-6 rounded-full transition-transform duration-150 touch-manipulation active:scale-95 ${
                     showDealsOnly
                       ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 shadow-[0_0_15px_rgba(251,191,36,0.4)]'
                       : 'bg-white/10 border-2 border-white/20'
                   }`}
                   role="switch"
                   aria-checked={showDealsOnly}
+                  style={{ userSelect: 'none', touchAction: 'manipulation' }}
                 >
                   <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-300 flex items-center justify-center ${
                     showDealsOnly ? 'translate-x-5' : 'translate-x-0'
