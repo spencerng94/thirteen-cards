@@ -62,6 +62,11 @@ export default defineConfig({
     copyPublicDir: true,
   },
   publicDir: 'public',
+  // Server configuration for development
+  server: {
+    port: 3000,
+    host: true, // Allow external connections for mobile devices
+  },
   // Optimize dependencies
   optimizeDeps: {
     include: ['react', 'react-dom', '@supabase/supabase-js', 'socket.io-client', '@revenuecat/purchases-capacitor'],

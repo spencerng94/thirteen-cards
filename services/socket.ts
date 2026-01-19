@@ -1,5 +1,5 @@
-
 import { io, Socket } from 'socket.io-client';
+import { Capacitor } from '@capacitor/core';
 
 const getEnv = (key: string): string | undefined => {
   try {
@@ -21,15 +21,23 @@ const getSocketUrl = (): string => {
   const envUrl = getEnv('VITE_SERVER_URL');
   if (envUrl) return envUrl;
   
-  // Use environment-based URL
+  // Check if running on mobile/Capacitor
+  const isMobile = Capacitor.isNativePlatform();
+  
+  // Use local network IP for mobile devices and development
+  if (isMobile) {
+    return 'http://10.0.0.131:3001';
+  }
+  
+  // Use environment-based URL for web
   if (typeof window !== 'undefined') {
     const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
     return isProduction 
       ? (getEnv('VITE_PROD_SERVER_URL') || 'https://your-prod-server.com')
-      : 'http://localhost:3001';
+      : 'http://10.0.0.131:3001'; // Use local IP for development instead of localhost
   }
   
-  return 'http://localhost:3001';
+  return 'http://10.0.0.131:3001'; // Use local IP for development instead of localhost
 };
 
 const SERVER_URL = getSocketUrl();

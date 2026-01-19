@@ -14,7 +14,8 @@
     "test:e2e:debug": "playwright test --debug",
     "assets": "npx @capacitor/assets generate",
     "mobile:build": "npm run build && npx cap copy android && npx cap open android",
-    "mobile:build:ios": "npm run build && npx cap copy ios && npx cap open ios"
+    "mobile:build:ios": "npm run build && npx cap copy ios && npx cap open ios",
+    "mobile:dev": "npx cap copy android && npx cap run android --live-reload"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",

@@ -200,7 +200,7 @@ const CreateTabContent: React.FC<CreateTabProps> = ({
   socketConnected
 }) => {
   return (
-    <div className="h-full flex flex-col justify-center space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-xl mx-auto w-full">
+    <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-xl mx-auto w-full py-4 sm:py-6">
       <div className="space-y-3">
         <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
         <input 
@@ -233,17 +233,63 @@ const CreateTabContent: React.FC<CreateTabProps> = ({
           <div className="flex flex-col gap-1">
             <span className="text-sm font-black text-white uppercase tracking-wider">Turn Timer</span>
             <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Time per move before auto-pass</span>
+            {/* Visual Debugger */}
+            <span style={{ color: 'yellow', fontSize: '10px', marginTop: '4px' }}>DEBUG: {localTurnTimer}</span>
           </div>
-          <div className="grid grid-cols-4 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner">
-            {[0, 15, 30, 60].map(val => (
-              <button 
-                key={val} 
-                onClick={() => setLocalTurnTimer(val)}
-                className={`py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${localTurnTimer === val ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-black shadow-lg scale-105' : 'text-white/30 hover:text-white/50 hover:bg-white/5'}`}
-              >
-                {val === 0 ? 'OFF' : `${val}S`}
-              </button>
-            ))}
+          {/* Pink Border Proof - State Check */}
+          <div 
+            id={`pink-box-version-${localTurnTimer}`}
+            style={{ 
+              transform: `translateZ(${localTurnTimer}px)`,
+              border: '5px solid pink',
+              padding: '10px',
+              marginBottom: '10px'
+            }}
+          >
+            LIVE STATE: {localTurnTimer}
+          </div>
+          <div 
+            key={`timer-container-${localTurnTimer}`} 
+            className="grid grid-cols-4 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner timer-options" 
+            style={{ isolation: 'isolate' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {[0, 15, 30, 60].map(val => {
+              const isActive = localTurnTimer === val;
+              
+              return (
+                <button 
+                  key={val} 
+                  onClick={() => {
+                    setLocalTurnTimer((prev) => {
+                      console.log('Updating from', prev, 'to', val);
+                      return val;
+                    });
+                  }}
+                  className={`timer-btn py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${isActive ? 'active-timer' : ''}`}
+                  style={{ 
+                    backgroundColor: isActive ? 'rgba(255, 215, 0, 0.2)' : 'transparent',
+                    borderColor: isActive ? '#FFD700' : '#444',
+                    color: isActive ? '#FFD700' : '#999',
+                    borderWidth: '2px',
+                    borderStyle: 'solid',
+                    padding: '0.625rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '9px',
+                    fontWeight: '900',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    transform: `translateZ(${localTurnTimer === val ? localTurnTimer : 0}px) ${isActive ? 'scale(1.05)' : 'scale(1)'}`,
+                    boxShadow: isActive ? '0 4px 6px rgba(255, 215, 0, 0.3)' : 'none'
+                  }}
+                  type="button"
+                >
+                  {val === 0 ? 'OFF' : `${val}S`}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -353,7 +399,7 @@ const LocalTabContent: React.FC<LocalTabProps> = ({
                           playerId: myId,
                           isPublic: false,
                           roomName: `${playerName.toUpperCase()}'S LOCAL TABLE`,
-                          turnTimer: localTurnTimer,
+                          turnTimer: globalSyncTimer,
                           selected_sleeve_id: selected_sleeve_id
                         });
                       }
@@ -451,7 +497,7 @@ const LuxuryActionTile: React.FC<{
     );
 };
 
-const LobbyComponent: React.FC<LobbyProps> = ({ 
+function LobbyComponent({ 
   playerName, 
   gameState, 
   error, 
@@ -463,12 +509,18 @@ const LobbyComponent: React.FC<LobbyProps> = ({
   onSignOut,
   myId,
   turnTimerSetting
-}) => {
+}: LobbyProps) {
+  // Turn timer state - MUST be first to avoid stale closures
+  const [globalSyncTimer, setGlobalSyncTimer] = useState(turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30);
+  
+  // DOM Sync Check
+  useEffect(() => {
+    console.log('DOM SYNC CHECK - Current State:', globalSyncTimer);
+  }, [globalSyncTimer]);
+  
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(`${playerName.toUpperCase()}'S MATCH`);
   const [isPublic, setIsPublic] = useState(true);
-  // Use user's setting or default to 30s (0 means no timer)
-  const [localTurnTimer, setLocalTurnTimer] = useState(turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
@@ -644,33 +696,67 @@ const LobbyComponent: React.FC<LobbyProps> = ({
     }
     
     // Network/connection errors
-    if (errorLower.includes('unable to create') || errorLower.includes('could not create')) {
+    if (errorLower.includes('unable to create') || errorLower.includes('could not create') || errorLower.includes('connection')) {
       return 'Unable to create room right now. Please check your connection and try again.';
     }
     
+    // Server errors
+    if (errorLower.includes('server') || errorLower.includes('internal')) {
+      return 'Server error occurred. Please try again in a moment.';
+    }
+    
+    // Room name errors
+    if (errorLower.includes('name') || errorLower.includes('invalid')) {
+      return 'Invalid room name. Please choose a different name.';
+    }
+    
+    // Permission/authorization errors
+    if (errorLower.includes('permission') || errorLower.includes('unauthorized') || errorLower.includes('auth')) {
+      return 'You don\'t have permission to create a room. Please sign in and try again.';
+    }
+    
+    // Return the original message if it's already user-friendly, otherwise generic message
+    if (errorMessage.length < 100 && !errorMessage.includes('Error:') && !errorMessage.includes('error:')) {
+      return errorMessage;
+    }
+    
     // Generic errors
-    return 'Something went wrong. Please try again.';
+    return 'Failed to create room. Please try again.';
   };
 
   // Listen for socket errors related to room creation
   useEffect(() => {
     const handleError = (errorMessage: string) => {
-      // Only show toast for errors that might be related to room creation
+      // Show toast for errors that might be related to room creation
       // We'll check if we're on the CREATE tab or if the error seems room-creation related
       if (activeTab === 'CREATE' || 
           errorMessage.toLowerCase().includes('create') || 
           errorMessage.toLowerCase().includes('room') ||
           errorMessage.toLowerCase().includes('rate limit') ||
-          errorMessage.toLowerCase().includes('too quickly')) {
+          errorMessage.toLowerCase().includes('too quickly') ||
+          errorMessage.toLowerCase().includes('failed') ||
+          errorMessage.toLowerCase().includes('error')) {
         const friendlyMessage = getUserFriendlyErrorMessage(errorMessage);
         setErrorToast({ show: true, message: friendlyMessage });
+        setIsCreatingRoom(false); // Reset creating state on error
       }
     };
 
+    const handleCreateRoomError = (error: { message?: string; error?: string }) => {
+      const errorMessage = error.message || error.error || 'Failed to create room';
+      const friendlyMessage = getUserFriendlyErrorMessage(errorMessage);
+      setErrorToast({ show: true, message: friendlyMessage });
+      setIsCreatingRoom(false);
+    };
+
     socket.on(SocketEvents.ERROR, handleError);
+    socket.on('create_room_error', handleCreateRoomError);
+    socket.on('room_creation_failed', handleCreateRoomError);
 
     return () => {
       socket.off(SocketEvents.ERROR, handleError);
+      socket.off('create_room_error', handleCreateRoomError);
+      socket.off('room_creation_failed', handleCreateRoomError);
     };
   }, [activeTab]);
 
@@ -691,24 +777,43 @@ const LobbyComponent: React.FC<LobbyProps> = ({
 
     const emitCreateRoom = () => {
       try {
+        // Set up a timeout to show error if no response is received
+        const responseTimeout = setTimeout(() => {
+          setIsCreatingRoom(false);
+          setErrorToast({ show: true, message: 'Room creation timed out. Please check your connection and try again.' });
+        }, 10000); // 10 second timeout
+
+        // Store timeout ID to clear it if we get a response
+        (window as any).__createRoomTimeout = responseTimeout;
+
         socket.emit(SocketEvents.CREATE_ROOM, { 
           name: playerName, 
           avatar: playerAvatar,
           playerId: myId,
           isPublic,
           roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
-          turnTimer: localTurnTimer,
+          turnTimer: globalSyncTimer,
           selected_sleeve_id: selected_sleeve_id
         });
-        // Reset creating state after a short delay to allow for server response
-        setTimeout(() => setIsCreatingRoom(false), 1000);
+        
+        // Reset creating state after a delay to allow for server response
+        // This will be cleared if we get an error response
+        setTimeout(() => {
+          if ((window as any).__createRoomTimeout) {
+            clearTimeout((window as any).__createRoomTimeout);
+            delete (window as any).__createRoomTimeout;
+          }
+          setIsCreatingRoom(false);
+        }, 1000);
       } catch (error) {
         // Non-blocking socket error - only warn in development
         if (import.meta.env.DEV) {
           console.warn('Socket create_room error (non-blocking):', error);
         }
         setIsCreatingRoom(false);
-        setErrorToast({ show: true, message: 'Failed to create room. Please try again.' });
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create room. Please try again.';
+        const friendlyMessage = getUserFriendlyErrorMessage(errorMessage);
+        setErrorToast({ show: true, message: friendlyMessage });
       }
     };
 
@@ -938,35 +1043,26 @@ const LobbyComponent: React.FC<LobbyProps> = ({
                     </div>
               </nav>
 
-              {/* Subpage Description Subheader */}
-              <div className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-white/5">
-                <p className="text-[10px] sm:text-xs text-zinc-400 text-center font-medium leading-relaxed">
+                {/* Subpage Description Subheader */}
+                <div className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-white/5">
+                    <p className="text-[10px] sm:text-xs text-zinc-400 text-center font-medium leading-relaxed">
                   {activeTab === 'PUBLIC' && 'Connect to global arenas or use a lobby code.'}
                   {activeTab === 'CREATE' && 'Host your own table for public or private play.'}
                   {activeTab === 'LOCAL' && 'Play offline via Personal Hotspot—perfect for travel.'}
-                </p>
-              </div>
+                    </p>
+                </div>
 
               <main className="tab-area flex-1 p-4 sm:p-6 sm:p-8 overflow-hidden flex flex-col">
-                {/* Connection Status Banner - Only show for PUBLIC and CREATE tabs */}
-                {(activeTab === 'PUBLIC' || activeTab === 'CREATE') && !socketConnected && (
-                  <div className="mb-4 sm:mb-6 bg-gradient-to-r from-amber-950/40 via-amber-900/30 to-amber-950/40 backdrop-blur-xl border-2 border-amber-700/40 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-3">
-                    <div className="flex-shrink-0">
-                      {socketConnecting ? (
-                        <div className="w-4 h-4 border-2 border-amber-400/50 border-t-amber-400 rounded-full animate-spin"></div>
-                      ) : (
-                        <div className="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/40"></div>
-                                    )}
-                                </div>
-                    <p className="text-[10px] sm:text-xs font-medium text-amber-400/80 uppercase tracking-wider">
-                      {socketConnecting ? 'Connecting to Arena...' : 'Arena Connection Offline'}
-                    </p>
-                            </div>
-                )}
-
-                {/* Tab Content - ONLY activeTab controls visibility */}
-                <div className="tab-content flex-1 overflow-y-auto">
-                  {activeTab === 'PUBLIC' && (
+                {/* Tab Content - Smooth Transitions */}
+                <div className="tab-content flex-1 overflow-hidden relative">
+                  {/* Public Tab */}
+                  <div 
+                    className={`absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out ${
+                      activeTab === 'PUBLIC' 
+                        ? 'opacity-100 pointer-events-auto translate-y-0 z-10' 
+                        : 'opacity-0 pointer-events-none translate-y-2 z-0'
+                    }`}
+                  >
                     <PublicTabContent
                       roomIdInput={roomIdInput}
                       setRoomIdInput={setRoomIdInput}
@@ -976,22 +1072,39 @@ const LobbyComponent: React.FC<LobbyProps> = ({
                       isRefreshing={isRefreshing}
                       refreshRooms={refreshRooms}
                       socketConnected={socketConnected}
-                    />
-                  )}
-                  {activeTab === 'CREATE' && (
+                                />
+                            </div>
+
+                  {/* Create Tab */}
+                  <div 
+                    className={`absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out ${
+                      activeTab === 'CREATE' 
+                        ? 'opacity-100 translate-y-0 z-10' 
+                        : 'opacity-0 pointer-events-none translate-y-2 z-0'
+                    }`}
+                    style={{ paddingTop: '1rem' }}
+                  >
                     <CreateTabContent
                       roomNameInput={roomNameInput}
                       setRoomNameInput={setRoomNameInput}
                       isPublic={isPublic}
                       setIsPublic={setIsPublic}
-                      localTurnTimer={localTurnTimer}
-                      setLocalTurnTimer={setLocalTurnTimer}
+                      localTurnTimer={globalSyncTimer}
+                      setLocalTurnTimer={setGlobalSyncTimer}
                       createRoom={createRoom}
                       isCreatingRoom={isCreatingRoom}
                       socketConnected={socketConnected}
-                    />
-                  )}
-                  {activeTab === 'LOCAL' && (
+                                />
+                            </div>
+
+                  {/* Local Tab */}
+                  <div 
+                    className={`absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out ${
+                      activeTab === 'LOCAL' 
+                        ? 'opacity-100 pointer-events-auto translate-y-0 z-10' 
+                        : 'opacity-0 pointer-events-none translate-y-2 z-0'
+                    }`}
+                  >
                     <div className="space-y-6">
                       <div className="bg-gradient-to-br from-amber-950/20 via-amber-900/10 to-amber-950/20 backdrop-blur-xl border-2 border-amber-700/30 rounded-2xl p-6 sm:p-8">
                         <h3 className="text-lg sm:text-xl font-black uppercase tracking-wider text-amber-400 mb-4 flex items-center gap-3">
@@ -1027,19 +1140,19 @@ const LobbyComponent: React.FC<LobbyProps> = ({
                         joinRoom={joinRoom}
                         playerName={playerName}
                         playerAvatar={playerAvatar}
-                        localTurnTimer={localTurnTimer}
+                        localTurnTimer={globalSyncTimer}
                         myId={myId}
                         selected_sleeve_id={selected_sleeve_id}
                         setErrorToast={setErrorToast}
                       />
-                                        </div>
-                            )}
-                        </div>
+                                                </div>
+                                            </div>
+                                            </div>
               </main>
             </GlassPanel>
             </div>
 
-            <div className="w-full max-w-xl mt-4 sm:mt-6">
+            <div className="w-full max-w-xl mt-4 sm:mt-6 mb-4 sm:mb-6" style={{ position: 'relative', zIndex: 20 }}>
                 <button
                     onClick={onBack!}
                     className="w-full py-4 sm:py-5 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 hover:border-white/20 hover:bg-white/10 text-white font-black uppercase tracking-wider text-xs sm:text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 shadow-lg"
