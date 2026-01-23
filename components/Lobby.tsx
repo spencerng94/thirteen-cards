@@ -399,7 +399,10 @@ function LobbyComponent({
 
   
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
-  const [roomNameInput, setRoomNameInput] = useState(`${playerName.toUpperCase()}'S MATCH`);
+  const [roomNameInput, setRoomNameInput] = useState(() => {
+    const name = playerName?.trim() || 'PLAYER';
+    return `${name.toUpperCase()}'S MATCH`;
+  });
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
@@ -1164,7 +1167,16 @@ function LobbyComponent({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (!socketConnected || isCreatingRoom) return;
+                            console.log('CREATE ROOM BUTTON CLICKED', { socketConnected, isCreatingRoom });
+                            if (!socketConnected) {
+                              console.log('BLOCKED: Socket not connected');
+                              return;
+                            }
+                            if (isCreatingRoom) {
+                              console.log('BLOCKED: Already creating room');
+                              return;
+                            }
+                            console.log('CALLING createRoom()');
                             createRoom();
                             requestAnimationFrame(() => {
                               const btn = document.getElementById('create-room-btn');
@@ -1175,7 +1187,7 @@ function LobbyComponent({
                           }}
                           disabled={isCreatingRoom || !socketConnected}
                           className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-200 active:scale-95 relative overflow-hidden group ${isCreatingRoom || !socketConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          style={{ position: 'relative', zIndex: 10001, pointerEvents: 'auto' }}
+                          style={{ position: 'relative', zIndex: 10001, pointerEvents: 'auto', cursor: (isCreatingRoom || !socketConnected) ? 'not-allowed' : 'pointer' }}
                         >
                           <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                           <span className="relative z-10 flex items-center justify-center gap-3">
