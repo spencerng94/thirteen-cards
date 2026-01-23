@@ -1,6 +1,8 @@
 // ============================================================================
 // PROCESS IDENTITY - Verify single process execution
 // ============================================================================
+import "dotenv/config";
+
 console.log("🔥 SERVER START", {
   pid: process.pid,
   startedAt: new Date().toISOString(),
@@ -59,32 +61,33 @@ interface PlayerSpeedData {
   totalSpeedXp: number;
 }
 
-interface GameRoom {
-  id: string;
-  status: 'LOBBY' | 'PLAYING' | 'FINISHED';
-  players: Player[];
-  currentPlayerIndex: number;
-  currentPlayPile: PlayTurn[];
-  roundHistory: PlayTurn[][];
-  lastPlayerToPlayId: string | null; 
-  finishedPlayers: string[];
-  isFirstTurnOfGame: boolean;
-  turnEndTime?: number;
-  turnTimer?: any;
-  isPublic: boolean;
-  roomName: string;
-  turnDuration: number; // In ms
-  turnStartTime?: number; // When current turn started
-  playerSpeedData: Record<string, PlayerSpeedData>; // playerId -> speed data
-  playerMutedByAfk: Set<string>; // playerIds muted due to AFK
-  quickMoveRewardGiven: Set<string>; // playerIds who have received quick move reward this game
-}
+// GameRoom interface is now imported from './rooms' - removed local declaration
 
 // Import socket mappings from roomStore
 import { socketToRoom, socketToPlayerId } from './roomStore';
 
-// Import rooms singleton, functions, and types from rooms.ts
-import { rooms, createRoom, joinRoom, getRoom, getPublicRooms, getAllRoomIds, type SimplePlayer, type GameRoom } from './rooms';
+// Import room functions, Map, and types from rooms.ts (hybrid: Map + Supabase)
+import { rooms, createRoom, joinRoom, getRoom, fetchRoom, getPublicRooms, getAllRoomIds, deleteRoom, type SimplePlayer, type GameRoom } from './rooms';
+
+// Import serializeRoomForDB for updating Supabase
+// Note: serializeRoomForDB is not exported from rooms.ts, so we'll define it locally
+const serializeRoomForDB = (room: GameRoom): any => {
+  return {
+    id: room.id,
+    status: room.status,
+    host_id: room.hostId, // CRITICAL: Include host_id in serialization
+    players: room.players,
+    room_name: room.roomName,
+    is_public: room.isPublic,
+    turn_duration: room.turnDuration,
+    current_player_index: room.currentPlayerIndex,
+    current_play_pile: room.currentPlayPile,
+    round_history: room.roundHistory,
+    last_player_to_play_id: room.lastPlayerToPlayId,
+    finished_players: room.finishedPlayers,
+    is_first_turn_of_game: room.isFirstTurnOfGame
+  };
+};
 
 // ============================================================================
 // ROOM STORE - Using singleton from rooms.ts
@@ -263,7 +266,7 @@ if (globalThis.__SOCKET_IO_SERVER__) {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -282,13 +285,11 @@ if (globalThis.__SOCKET_HANDLERS_REGISTERED__) {
 console.log('✅ Socket.IO Server created (PID:', process.pid, ')');
 
 // ============================================================================
-// ROOM STORE - Using singleton from rooms.ts
+// ROOM STORE - Using Supabase from rooms.ts
 // ============================================================================
-// The rooms Map is imported from rooms.ts which provides a true singleton
-// that persists across hot reloads via global.__GLOBAL_ROOMS_MAP__
-// All handlers use the same persistent Map instance
-console.log('📦 Rooms Map imported from rooms.ts singleton');
-console.log('📋 Initial room count:', rooms.size);
+// Room management functions are imported from rooms.ts which uses Supabase
+// as the persistent storage layer instead of in-memory Maps
+console.log('📦 Room functions imported from rooms.ts (Supabase-backed)');
 
 // --- Logic Helpers ---
 
@@ -465,6 +466,7 @@ const findBestMove = (hand: Card[], playPile: PlayTurn[], isFirstTurn: boolean):
 const getGameStateData = (room: GameRoom) => ({
   roomId: room.id,
   status: room.status,
+  hostId: room.hostId,
   isPublic: room.isPublic,
   roomName: room.roomName,
   turnDuration: Math.floor(room.turnDuration / 1000),
@@ -498,9 +500,16 @@ const getGameStateData = (room: GameRoom) => ({
     }, {} as Record<string, { gold: number; xp: number }>) : undefined
 });
 
-const broadcastState = (roomId: string) => {
-  const room = rooms.get(roomId);
+const broadcastState = async (roomId: string) => {
+  // First check local Map (fast path)
+  let room = rooms.get(roomId);
+  
+  // If not in Map, try to fetch from Supabase and rehydrate
+  if (!room) {
+    room = await fetchRoom(roomId);
   if (!room) return;
+  }
+  
   const state = getGameStateData(room);
   io.to(roomId).emit('game_state', state);
   room.players.forEach(p => {
@@ -508,13 +517,13 @@ const broadcastState = (roomId: string) => {
   });
 };
 
-const getPublicRoomsList = () => {
+const getPublicRoomsList = async () => {
   // Use the getPublicRooms function for consistency
-  const publicRooms = getPublicRooms();
+  const publicRooms = await getPublicRooms();
   
   // Enhance with host information for compatibility
-  return publicRooms.map(room => {
-    const fullRoom = rooms.get(room.id);
+  const enhancedRooms = await Promise.all(publicRooms.map(async (room) => {
+    const fullRoom = await fetchRoom(room.id);
     return {
       id: room.id,
       name: room.name,
@@ -523,16 +532,26 @@ const getPublicRoomsList = () => {
       hostName: fullRoom?.players.find(p => p.isHost)?.name || 'Unknown',
       hostAvatar: fullRoom?.players.find(p => p.isHost)?.avatar || ':smile:'
     };
-  });
+  }));
+  
+  return enhancedRooms;
 };
 
-const broadcastPublicLobbies = () => {
-  io.emit('public_rooms_list', getPublicRoomsList());
+const broadcastPublicLobbies = async () => {
+  const roomsList = await getPublicRoomsList();
+  io.emit('public_rooms_list', roomsList);
 };
 
-const startTurnTimer = (roomId: string) => {
-  const room = rooms.get(roomId);
+const startTurnTimer = async (roomId: string) => {
+  // Check local Map first (fast path)
+  let room = rooms.get(roomId);
+  if (!room) {
+    // Try to rehydrate from Supabase
+    room = await fetchRoom(roomId);
   if (!room || room.status !== 'PLAYING') return;
+  } else if (room.status !== 'PLAYING') {
+    return;
+  }
   if (room.turnTimer) clearTimeout(room.turnTimer);
   
   // Track when turn starts for quick move detection
@@ -547,14 +566,21 @@ const startTurnTimer = (roomId: string) => {
   room.turnTimer = setTimeout(() => { handleTurnTimeout(roomId); }, room.turnDuration);
 };
 
-const handleTurnTimeout = (roomId: string) => {
-  const room = rooms.get(roomId);
+const handleTurnTimeout = async (roomId: string) => {
+  // Check local Map first (fast path)
+  let room = rooms.get(roomId);
+  if (!room) {
+    // Try to rehydrate from Supabase
+    room = await fetchRoom(roomId);
   if (!room || room.status !== 'PLAYING') return;
+  } else if (room.status !== 'PLAYING') {
+    return;
+  }
   const currentPlayer = room.players[room.currentPlayerIndex];
   if (!currentPlayer || currentPlayer.finishedRank || currentPlayer.isBot) {
     room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex, true);
-    startTurnTimer(roomId);
-    broadcastState(roomId);
+    await startTurnTimer(roomId);
+    await broadcastState(roomId);
     return;
   }
   
@@ -580,15 +606,20 @@ const handleTurnTimeout = (roomId: string) => {
       const threeSpades = sortedHand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
       if (threeSpades) cardToPlay = [threeSpades];
     }
-    handlePlay(roomId, currentPlayer.id, cardToPlay);
+    await handlePlay(roomId, currentPlayer.id, cardToPlay);
   } else {
-    handlePass(roomId, currentPlayer.id);
+    await handlePass(roomId, currentPlayer.id);
   }
 };
 
-const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
-  const room = rooms.get(roomId);
+const handlePlay = async (roomId: string, playerId: string, cards: Card[]) => {
+  // Check local Map first (fast path)
+  let room = rooms.get(roomId);
+  if (!room) {
+    // Try to rehydrate from Supabase
+    room = await fetchRoom(roomId);
   if (!room) return;
+  }
   const currentPlayer = room.players[room.currentPlayerIndex];
   if (!currentPlayer || currentPlayer.id !== playerId || currentPlayer.finishedRank) {
     return;
@@ -710,7 +741,15 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
         }
         room.status = 'FINISHED';
         resetRound(room);
-        broadcastState(roomId); 
+        await broadcastState(roomId);
+        
+        // Schedule room deletion 30 seconds after game ends
+        setTimeout(async () => {
+          console.log(`🧹 Cleaning up finished game room: ${roomId}`);
+          await deleteRoom(roomId);
+          broadcastPublicLobbies();
+        }, 30000); // 30 seconds
+        
         return;
     }
   }
@@ -729,14 +768,19 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
      room.currentPlayerIndex = getNextActivePlayerIndex(room, room.currentPlayerIndex);
   }
   
-  startTurnTimer(roomId);
-  broadcastState(roomId);
-  checkBotTurn(roomId);
+  await startTurnTimer(roomId);
+  await broadcastState(roomId);
+  await checkBotTurn(roomId);
 };
 
-const handlePass = (roomId: string, playerId: string) => {
-  const room = rooms.get(roomId);
+const handlePass = async (roomId: string, playerId: string) => {
+  // Check local Map first (fast path)
+  let room = rooms.get(roomId);
+  if (!room) {
+    // Try to rehydrate from Supabase
+    room = await fetchRoom(roomId);
   if (!room) return;
+  }
   const currentPlayer = room.players[room.currentPlayerIndex];
   
   if (!currentPlayer || currentPlayer.id !== playerId) return;
@@ -780,22 +824,70 @@ const handlePass = (roomId: string, playerId: string) => {
   }
   
   room.currentPlayerIndex = nextIdx;
-  startTurnTimer(roomId);
-  broadcastState(roomId);
-  checkBotTurn(roomId);
+  await startTurnTimer(roomId);
+  await broadcastState(roomId);
+  await checkBotTurn(roomId);
 };
 
-const checkBotTurn = (roomId: string) => {
-  const room = rooms.get(roomId);
-  if (!room || room.status !== 'PLAYING') return;
+const checkBotTurn = async (roomId: string) => {
+  // Check local Map first (fast path)
+  let room = rooms.get(roomId);
+  if (!room) {
+    // Try to rehydrate from Supabase
+    room = await fetchRoom(roomId);
+  if (!room || room.status !== 'PLAYING') {
+    console.log('⚠️ checkBotTurn: Room not found or not PLAYING', { roomId, status: room?.status });
+    return;
+  }
+  } else if (room.status !== 'PLAYING') {
+    console.log('⚠️ checkBotTurn: Room not in PLAYING status', { roomId, status: room.status });
+    return;
+  }
+  
   const curPlayer = room.players[room.currentPlayerIndex];
+  console.log('🤖 checkBotTurn: Checking current player', { 
+    roomId, 
+    currentPlayerIndex: room.currentPlayerIndex,
+    playerName: curPlayer?.name,
+    isBot: curPlayer?.isBot,
+    finishedRank: curPlayer?.finishedRank,
+    handSize: curPlayer?.hand?.length,
+    isFirstTurnOfGame: room.isFirstTurnOfGame
+  });
+  
   if (curPlayer?.isBot && !curPlayer.finishedRank) {
     // Random delay between 2-4 seconds
     const delay = 2000 + Math.random() * 2000;
+    console.log(`🤖 checkBotTurn: Bot ${curPlayer.name} will play in ${Math.round(delay)}ms`);
     
     setTimeout(() => {
         const roomRef = rooms.get(roomId);
-        if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
+        if (!roomRef) {
+          console.error('❌ checkBotTurn: Room not found in setTimeout callback', { roomId });
+          return;
+        }
+        if (roomRef.status !== 'PLAYING') {
+          console.log('⚠️ checkBotTurn: Room no longer in PLAYING status', { roomId, status: roomRef.status });
+          return;
+        }
+        if (roomRef.currentPlayerIndex !== room.currentPlayerIndex) {
+          console.log('⚠️ checkBotTurn: Current player index changed', { 
+            roomId, 
+            originalIndex: room.currentPlayerIndex, 
+            currentIndex: roomRef.currentPlayerIndex 
+          });
+          return;
+        }
+        
+        const currentBot = roomRef.players[roomRef.currentPlayerIndex];
+        if (!currentBot || !currentBot.isBot || currentBot.finishedRank) {
+          console.log('⚠️ checkBotTurn: Current player is no longer a bot or finished', { 
+            roomId,
+            isBot: currentBot?.isBot,
+            finishedRank: currentBot?.finishedRank
+          });
+          return;
+        }
         
         // Weighted random: 80% smart move, 20% mistake
         const shouldMakeMistake = Math.random() < 0.2;
@@ -803,13 +895,19 @@ const checkBotTurn = (roomId: string) => {
         let move: Card[] | null = null;
         if (shouldMakeMistake) {
           // 20% chance: Make a mistake (play a random card or suboptimal move)
-          const sortedHand = sortCards(curPlayer.hand);
-          if (room.currentPlayPile.length === 0) {
+          const sortedHand = sortCards(currentBot.hand);
+          if (roomRef.currentPlayPile.length === 0) {
             // Leading: play a random card (might not be optimal)
-            move = [sortedHand[Math.floor(Math.random() * sortedHand.length)]];
+            // But if it's first turn, must play 3♠
+            if (roomRef.isFirstTurnOfGame) {
+              const threeSpades = sortedHand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
+              move = threeSpades ? [threeSpades] : [sortedHand[Math.floor(Math.random() * sortedHand.length)]];
+            } else {
+              move = [sortedHand[Math.floor(Math.random() * sortedHand.length)]];
+            }
           } else {
             // Try to find a valid move, but pick a random one instead of best
-            const lastTurn = room.currentPlayPile[room.currentPlayPile.length - 1];
+            const lastTurn = roomRef.currentPlayPile[roomRef.currentPlayPile.length - 1];
             const lastCards = lastTurn.cards;
             const lType = getComboType(lastCards);
             const lHigh = getHighestCard(lastCards);
@@ -845,27 +943,55 @@ const checkBotTurn = (roomId: string) => {
           }
         } else {
           // 80% chance: Make a smart move
-          move = findBestMove(curPlayer.hand, room.currentPlayPile, room.isFirstTurnOfGame);
+          move = findBestMove(currentBot.hand, roomRef.currentPlayPile, roomRef.isFirstTurnOfGame);
         }
         
         if (move) {
-          handlePlay(roomId, curPlayer.id, move);
+          console.log(`🤖 checkBotTurn: Bot ${currentBot.name} playing move`, { 
+            moveLength: move.length, 
+            isFirstTurn: roomRef.isFirstTurnOfGame,
+            playPileLength: roomRef.currentPlayPile.length,
+            cards: move.map(c => `${c.rank}-${c.suit}`)
+          });
+          handlePlay(roomId, currentBot.id, move);
         } else {
-          if (room.currentPlayPile.length === 0) {
-            // Hard Fail-safe: leader must play.
-            const sortedHand = sortCards(curPlayer.hand);
-            handlePlay(roomId, curPlayer.id, [sortedHand[0]]);
+          if (roomRef.currentPlayPile.length === 0) {
+            // Hard Fail-safe: leader must play (especially on first turn with 3♠)
+            const sortedHand = sortCards(currentBot.hand);
+            let cardToPlay = sortedHand[0];
+            
+            // If it's the first turn, try to find 3♠
+            if (roomRef.isFirstTurnOfGame) {
+              const threeSpades = sortedHand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
+              if (threeSpades) {
+                cardToPlay = threeSpades;
+                console.log(`🤖 checkBotTurn: Bot ${currentBot.name} playing 3♠ (first turn requirement)`);
+              } else {
+                console.log(`⚠️ checkBotTurn: Bot ${currentBot.name} doesn't have 3♠ but is starting - playing lowest card`);
+              }
+            }
+            console.log(`🤖 checkBotTurn: Bot ${currentBot.name} playing fallback card (no move found)`, { 
+              card: `${cardToPlay.rank}-${cardToPlay.suit}`,
+              isFirstTurn: roomRef.isFirstTurnOfGame
+            });
+            handlePlay(roomId, currentBot.id, [cardToPlay]);
           } else {
-            handlePass(roomId, curPlayer.id);
+            console.log(`🤖 checkBotTurn: Bot ${currentBot.name} passing (no valid move)`);
+            handlePass(roomId, currentBot.id);
           }
         }
     }, delay);
   }
 };
 
-const performCleanup = (roomId: string, playerId: string) => {
-  const room = rooms.get(roomId);
+const performCleanup = async (roomId: string, playerId: string) => {
+  // Check local Map first (fast path)
+  let room = rooms.get(roomId);
+  if (!room) {
+    // Try to rehydrate from Supabase
+    room = await fetchRoom(roomId);
   if (!room) return;
+  }
   const playerIndex = room.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) return;
   const wasHost = room.players[playerIndex].isHost;
@@ -897,7 +1023,28 @@ const performCleanup = (roomId: string, playerId: string) => {
   const humans = room.players.filter(p => !p.isBot);
   if (humans.length === 0) {
     if (room.turnTimer) clearTimeout(room.turnTimer);
-    rooms.delete(roomId);
+    
+    // For LOBBY rooms, give a grace period before deletion
+    // This prevents rooms from being deleted immediately after creation
+    if (room.status === 'LOBBY') {
+      // Schedule deletion after 30 seconds
+      setTimeout(async () => {
+        const finalRoom = await fetchRoom(roomId);
+        if (finalRoom) {
+          const finalHumans = finalRoom.players.filter(p => !p.isBot);
+          if (finalHumans.length === 0 && finalRoom.status === 'LOBBY') {
+            console.log(`🧹 Cleaning up empty LOBBY room from performCleanup: ${roomId}`);
+            await deleteRoom(roomId);
+            broadcastPublicLobbies();
+          }
+        }
+      }, 30000); // 30 second grace period
+      return;
+    }
+    
+    // For non-LOBBY rooms (PLAYING, FINISHED), delete immediately
+    // Use deleteRoom to remove from both memory and Supabase
+    await deleteRoom(roomId);
     broadcastPublicLobbies();
     return;
   }
@@ -921,7 +1068,6 @@ if (globalThis.__SOCKET_HANDLERS_REGISTERED__) {
 }
 
 console.log('📡 Registering socket handlers...');
-console.log('📋 Registering socket handlers - Rooms Map size:', rooms.size);
 
 // Mark handlers as registered BEFORE registering to prevent race conditions
 globalThis.__SOCKET_HANDLERS_REGISTERED__ = true;
@@ -930,80 +1076,63 @@ io.on('connection', (socket: Socket) => {
   console.log('🚀 SOCKET CONNECTED:', socket.id);
   
   // ============================================================================
-  // CRITICAL: ROOMS MAP PERSISTENCE GUARD
+  // ROOM MANAGEMENT - Using Supabase
   // ============================================================================
-  // The 'rooms' Map is imported from rooms.ts as a singleton that persists
-  // across hot reloads via global.__GLOBAL_ROOMS_MAP__
-  // 
-  // IT IS NEVER RESET, CLEARED, OR REASSIGNED INSIDE THIS CONNECTION HANDLER.
-  // All handlers below use the same persistent Map instance.
-  //
-  // ============================================================================
-  // CRITICAL VERIFICATION: Ensure rooms Map is the same instance
-  // ============================================================================
-  // This check ensures that the rooms Map hasn't been reassigned or replaced
-  const globalMap = (global as any).__GLOBAL_ROOMS_MAP__;
-  if (!globalMap) {
-    console.error('🚨 CRITICAL ERROR: global.__GLOBAL_ROOMS_MAP__ is undefined!');
-    throw new Error('CRITICAL: global.__GLOBAL_ROOMS_MAP__ is undefined');
-  }
-  
-  if (rooms !== globalMap) {
-    console.error('🚨 CRITICAL ERROR: rooms Map is NOT the same instance as global.__GLOBAL_ROOMS_MAP__!');
-    console.error('🚨 This indicates rooms was reassigned or a new Map was created.');
-    console.error('🚨 rooms identity:', rooms);
-    console.error('🚨 global.__GLOBAL_ROOMS_MAP__ identity:', globalMap);
-    console.error('🚨 rooms size:', rooms.size);
-    console.error('🚨 globalMap size:', globalMap.size);
-    throw new Error('CRITICAL: rooms Map instance mismatch - rooms may have been reassigned');
-  }
-  
-  // Additional check: if Map is empty but we know rooms were created, something is wrong
-  const mapSize = rooms.size;
-  const mapKeys = Array.from(rooms.keys());
-  console.log(`📋 Connection: Rooms Map size: ${mapSize}, Keys: [${mapKeys.join(', ')}]`);
-  console.log(`📋 Connection: Rooms Map identity verified: ${rooms === globalMap}`);
-  console.log(`📋 Connection: Global Map size: ${globalMap.size}, Keys: [${Array.from(globalMap.keys()).join(', ')}]`);
-  
-  // VERIFICATION: Ensure rooms Map is not being reset
-  if (mapSize === 0 && (global as any).__ROOMS_EVER_CREATED__) {
-    console.error('🚨 WARNING: Rooms Map is empty but rooms were previously created!');
-    console.error('🚨 This indicates the server process restarted or the Map was cleared.');
-    console.error('🚨 Checking if Map was replaced...');
-    console.error('🚨 rooms === globalMap:', rooms === globalMap);
-    console.error('🚨 rooms.constructor:', rooms.constructor.name);
-    console.error('🚨 globalMap.constructor:', globalMap.constructor.name);
-  }
+  // All room operations now use Supabase as the source of truth via rooms.ts
+  // No in-memory Map is used - all data is persisted in the database
   
   // Catch-All logger to see ALL events
   socket.onAny((event, ...args) => {
     console.log(`📡 RECEIVED EVENT: ${event}`, args);
   });
 
-  socket.emit('public_rooms_list', getPublicRoomsList());
+  // Send initial public rooms list
+  getPublicRoomsList().then(roomsList => {
+    socket.emit('public_rooms_list', roomsList);
+  });
 
-  socket.on('create_room', (data, callback) => {
-    console.log('✅ CREATE_ROOM: Received request from', socket.id, data);
+  socket.on('create_room', async (data, callback) => {
+    // CRITICAL: Log at the very start to confirm Render is receiving the event
+    console.log('📡 RECEIVED create_room');
     
+    // Ensure callback is always called, even on errors
+    const sendResponse = (response: { roomId?: string; error?: string }) => {
+      if (callback && typeof callback === 'function') {
+        try {
+          callback(response);
+        } catch (err) {
+          console.error('❌ Error calling create_room callback:', err);
+          socket.emit('error', response.error || 'Room creation failed');
+        }
+      } else {
+        if (response.error) {
+          socket.emit('error', response.error);
+        } else if (response.roomId) {
+          socket.emit('room_created', { roomId: response.roomId, settings: data });
+        }
+      }
+    };
+    
+    try {
+      console.log('✅ CREATE_ROOM: Received request from', socket.id, data);
+      
     // Rate limit check
     const rateLimitResult = checkRateLimit(socket.id, 'create_room');
     if (!rateLimitResult.allowed) {
-      const errorMsg = 'You\'re creating rooms too quickly. Please wait a moment and try again.';
-      console.warn('⚠️ CREATE_ROOM: Rate limited', socket.id);
-      if (callback) callback({ error: errorMsg });
-      else socket.emit('error', errorMsg);
+        const errorMsg = 'You\'re creating rooms too quickly. Please wait a moment and try again.';
+        console.warn('⚠️ CREATE_ROOM: Rate limited', socket.id);
+        sendResponse({ error: errorMsg });
       return;
     }
     
     // SECURITY: Sanitize and validate input
-    const { name, avatar, playerId, isPublic, roomName, turnTimer, selected_sleeve_id } = data;
+      const { name, avatar, playerId, isPublic, roomName, turnTimer, selected_sleeve_id } = data;
     const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
     const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
     const sanitizedRoomName = roomName ? roomName.trim().substring(0, 24).replace(/[<>\"'&]/g, '') : `${sanitizedName.toUpperCase()}'S MATCH`;
     const validTurnTimer = typeof turnTimer === 'number' && [0, 15, 30, 60].includes(turnTimer) ? turnTimer : 30;
     const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
-    try {
       const pId = playerId || uuidv4();
       
       // Create player object
@@ -1013,11 +1142,11 @@ io.on('connection', (socket: Socket) => {
         avatar: sanitizedAvatar
       };
       
-      // Use createRoom function to create the room (uses singleton Map)
-      const newRoom = createRoom(player, sanitizedRoomName, isPublic === true, validTurnTimer);
+      // Use createRoom function to create the room (saves to Map + Supabase)
+      const newRoom = await createRoom(player, sanitizedRoomName, isPublic === true, validTurnTimer);
       const roomId = newRoom.id;
       
-      // Verify room was saved to singleton Map
+      // Verify room was saved to local Map
       const verifyRoom = rooms.get(roomId);
       if (!verifyRoom) {
         throw new Error(`Failed to save room ${roomId} - room not found in Map after creation`);
@@ -1036,14 +1165,14 @@ io.on('connection', (socket: Socket) => {
       // Join socket to room
       socket.join(roomId);
       
-      // Send callback response
-      if (callback) {
-        callback({ roomId });
-      }
+      // CRITICAL: Send callback response AFTER DB insert succeeds
+      // This ensures the client gets a response only after room is persisted
+      sendResponse({ roomId });
+      console.log(`🚀 SERVER: Sent callback response with roomId: '${roomId}'`);
       
       // IMPORTANT: Notify client of room creation (for UI navigation)
       socket.emit('room_created', { roomId, settings: data });
-      console.log(`🚀 SERVER: Sent room_created for ID: '${roomId}'`);
+      console.log(`🚀 SERVER: Sent room_created event for ID: '${roomId}'`);
       
       // Send game state to the creator
       const state = getGameStateData(newRoom);
@@ -1055,39 +1184,72 @@ io.on('connection', (socket: Socket) => {
       }
       
       console.log(`🎮 Room ${roomId} created by ${sanitizedName}`);
-      console.log(`✅ CREATE_ROOM SUCCESS: Map size: ${rooms.size}, Room exists: ${rooms.has(roomId)}, Room ID: '${roomId}'`);
+      console.log(`✅ CREATE_ROOM SUCCESS: Room ID: '${roomId}'`);
 
       // Broadcast to all players
-      broadcastState(roomId);
-      broadcastPublicLobbies();
+      await broadcastState(roomId);
+      await broadcastPublicLobbies();
+      
+      // Secondary Supabase operations (non-blocking)
+      if (supabase) {
+        try {
+          // Update user profile with selected sleeve if provided
+          if (sanitizedSleeveId) {
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ active_sleeve: sanitizedSleeveId })
+              .eq('id', pId);
+
+            if (updateError) {
+              console.error('❌ Supabase: Error updating player sleeve:', updateError);
+              // Do not block room creation if this fails
+            } else {
+              console.log(`✅ Supabase: Player ${pId} active sleeve updated to ${sanitizedSleeveId}`);
+            }
+          }
+        } catch (dbError: any) {
+          // Log DB error but don't fail room creation
+          console.error('⚠️ CREATE_ROOM: Supabase DB operation failed (non-critical):', dbError.message);
+          console.error('⚠️ Room was still created successfully:', roomId);
+          // Room creation succeeded, so we don't send an error to the client
+        }
+      }
+      
     } catch (error: any) {
       console.error('❌ CREATE_ROOM ERROR:', error);
       const errorMsg = error.message || 'Unable to create room. Please try again.';
-      if (callback) {
-        callback({ error: errorMsg });
-      } else {
-        socket.emit('error', errorMsg);
-      }
+      // CRITICAL: Always send response, even on error
+      sendResponse({ error: errorMsg });
     }
   });
 
-  socket.on('join_room', ({ roomId, name, avatar, playerId, selected_sleeve_id }, callback) => {
+  socket.on('join_room', async ({ roomId, name, avatar, playerId, selected_sleeve_id }, callback) => {
+    console.log('📡 RECEIVED join_room');
+    
+    const sendResponse = (response: any) => {
+      if (callback) {
+        callback(response);
+      } else {
+        if (response.error) {
+          socket.emit('error', response.error);
+        } else if (response.success) {
+          socket.emit('room_joined', response);
+        }
+      }
+    };
+    
     const requestedId = roomId;
     console.log(`🔍 JOIN_ROOM: Client ${socket.id} is looking for: '${requestedId}'`);
-    console.log(`📋 JOIN_ROOM: Current Map size: ${rooms.size}, All room keys: [${Array.from(rooms.keys()).join(', ')}]`);
     
     // SECURITY: Validate roomId format (accepts both 4-character codes and LOBBY_XXXXX format)
     if (!requestedId || typeof requestedId !== 'string') {
       console.error('❌ JOIN_ROOM: Invalid roomId format:', requestedId, typeof requestedId);
       const errorMsg = 'Invalid room code.';
-      if (callback) {
-        callback({ 
-          error: errorMsg, 
-          availableRooms: Array.from(rooms.keys()) 
-        });
-      } else {
-        socket.emit('error', errorMsg);
-      }
+      const availableRooms = await getAllRoomIds();
+      sendResponse({ 
+        error: errorMsg, 
+        availableRooms: availableRooms 
+      });
       return;
     }
     
@@ -1096,14 +1258,11 @@ io.on('connection', (socket: Socket) => {
     if (!isValidFormat) {
       console.error('❌ JOIN_ROOM: RoomId format validation failed:', requestedId);
       const errorMsg = 'Invalid room code format.';
-      if (callback) {
-        callback({ 
-          error: errorMsg, 
-          availableRooms: Array.from(rooms.keys()) 
-        });
-      } else {
-        socket.emit('error', errorMsg);
-      }
+      const availableRooms = await getAllRoomIds();
+      sendResponse({ 
+        error: errorMsg, 
+        availableRooms: availableRooms 
+      });
       return;
     }
     
@@ -1113,7 +1272,7 @@ io.on('connection', (socket: Socket) => {
     const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
     try {
-      const pid = playerId || uuidv4();
+    const pid = playerId || uuidv4();
       
       // Create player object
       const player: SimplePlayer = {
@@ -1122,8 +1281,29 @@ io.on('connection', (socket: Socket) => {
         avatar: sanitizedAvatar
       };
       
-      // Use joinRoom function to join the room (uses singleton Map)
-      const room = joinRoom(player, requestedId);
+      // Use joinRoom function to join the room (checks Map first, then Supabase)
+      // CRITICAL: await the join operation (may rehydrate from Supabase if not in Map)
+      const room = await joinRoom(player, requestedId);
+      
+      // CRITICAL: If room has no hostId assigned, assign the first player as host
+      if (!room.hostId || room.hostId === '') {
+        console.log('⚠️ join_room: Room has no hostId. Assigning first player as host...');
+        if (room.players.length > 0) {
+          const firstPlayer = room.players[0];
+          room.hostId = firstPlayer.id;
+          firstPlayer.isHost = true;
+          console.log(`✅ join_room: Assigned hostId: ${room.hostId} to player: ${firstPlayer.name}`);
+          
+          // Update Supabase if available
+          if (supabase) {
+            const roomData = serializeRoomForDB(room);
+            await supabase
+              .from('rooms')
+              .update({ host_id: firstPlayer.id })
+              .eq('id', requestedId);
+          }
+        }
+      }
       
       // Update player with socket ID and sleeve
       const roomPlayer = room.players.find(p => p.id === pid);
@@ -1140,22 +1320,20 @@ io.on('connection', (socket: Socket) => {
       // Map socket to room and player
       mapIdentity(socket, requestedId, pid);
       
-      // Join socket to room
+      // CRITICAL: Join socket to room for Socket.IO room-based messaging
       socket.join(requestedId);
       
-      // Send callback response
-      if (callback) {
-        callback({ 
-          success: true, 
-          room: {
-            id: room.id,
-            name: room.roomName,
-            players: room.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar })),
-            isPublic: room.isPublic,
-            turnTimer: room.turnDuration / 1000
-          }
-        });
-      }
+      // CRITICAL: Send callback response AFTER DB update succeeds
+      sendResponse({ 
+        success: true, 
+        room: {
+          id: room.id,
+          name: room.roomName,
+          players: room.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar })),
+          isPublic: room.isPublic,
+          turnTimer: room.turnDuration / 1000
+        }
+      });
       
       // Send game state to the joining player
       const state = getGameStateData(room);
@@ -1167,54 +1345,451 @@ io.on('connection', (socket: Socket) => {
       }
       
       console.log(`👤 Player ${socket.id} (${sanitizedName}) joined '${requestedId}'`);
-      console.log(`✅ JOIN_ROOM SUCCESS: Map size: ${rooms.size}, Room exists: ${rooms.has(requestedId)}, Room ID: '${requestedId}'`);
+      console.log(`✅ JOIN_ROOM SUCCESS: Room ID: '${requestedId}'`);
       
       // Broadcast to all players in the room
-      broadcastState(requestedId);
-      broadcastPublicLobbies();
+      await broadcastState(requestedId);
+      await broadcastPublicLobbies();
     } catch (error: any) {
       console.error(`❌ JOIN_ROOM ERROR for '${requestedId}':`, error.message);
-      console.error(`📋 JOIN_ROOM: Available rooms: [${Array.from(rooms.keys()).join(', ')}]`);
       const errorMsg = error.message || 'Unable to join room. Please try again.';
-      const availableRooms = Array.from(rooms.keys());
+      const availableRooms = await getAllRoomIds();
+      console.error(`📋 JOIN_ROOM: Available rooms: [${availableRooms.join(', ')}]`);
       
-      if (callback) {
-        callback({ 
-          error: errorMsg, 
-          availableRooms: availableRooms 
-        });
-      } else {
-        socket.emit('error', errorMsg);
+      sendResponse({ 
+        error: errorMsg, 
+        availableRooms: availableRooms 
+      });
+    }
+  });
+
+  socket.on('add_bot', async ({ roomId, playerId }, callback) => {
+    console.log('🤖 add_bot event received', { roomId, playerId, socketId: socket.id });
+    
+    const sendResponse = (response: { success?: boolean; error?: string }) => {
+      if (callback && typeof callback === 'function') {
+        try {
+          callback(response);
+        } catch (err) {
+          console.error('❌ Error calling add_bot callback:', err);
+          if (response.error) {
+            socket.emit('error', response.error);
+          }
+        }
+      } else if (response.error) {
+        socket.emit('error', response.error);
+      }
+    };
+    
+    // 1. Verify room exists
+    let room = rooms.get(roomId);
+    if (!room) {
+      room = await fetchRoom(roomId);
+      if (!room) {
+        console.error('❌ add_bot: Room not found', { roomId });
+        sendResponse({ error: 'Room not found.' });
+        return;
       }
     }
-  });
-
-  socket.on('add_bot', ({ roomId, playerId }) => {
-    const room = rooms.get(roomId);
-    if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
-    const requesterId = playerId || socketToPlayerId[socket.id];
-    const requester = room.players.find(p => p.id === requesterId);
-    if (!requester || !requester.isHost) return;
-    const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
-    room.players.push({
-      id: botId, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], avatar: getRandomEmote(),
-      socketId: 'BOT', hand: [], isHost: false, hasPassed: false, finishedRank: null, isBot: true, difficulty: 'MEDIUM'
-    });
-    broadcastState(roomId);
-    broadcastPublicLobbies();
-  });
-
-  socket.on('update_bot_difficulty', ({ roomId, botId, difficulty, playerId }) => {
-    const room = rooms.get(roomId);
-    if (!room || room.status !== 'LOBBY') return;
-    const requesterId = playerId || socketToPlayerId[socket.id];
-    const requester = room.players.find(p => p.id === requesterId);
-    if (!requester || !requester.isHost) return;
-    const bot = room.players.find(p => p.id === botId);
-    if (bot) {
-      bot.difficulty = difficulty;
-      broadcastState(roomId);
+    
+    // 2. Verify room status is LOBBY
+    if (room.status !== 'LOBBY') {
+      console.error('❌ add_bot: Room is not in LOBBY status', { roomId, currentStatus: room.status });
+      sendResponse({ error: 'Cannot add bot - game has already started.' });
+      return;
     }
+    
+    // 3. Verify max 4 players
+    if (room.players.length >= 4) {
+      console.error('❌ add_bot: Room is full', { roomId, playerCount: room.players.length });
+      sendResponse({ error: 'Room is full (4/4 players).' });
+      return;
+    }
+    
+    // 4. Security: Check if requester is host
+    const requesterId = playerId || socketToPlayerId[socket.id];
+    if (!requesterId) {
+      console.error('❌ add_bot: No playerId found', { socketId: socket.id });
+      sendResponse({ error: 'Player not identified.' });
+      return;
+    }
+    
+    const requester = room.players.find(p => p.id === requesterId);
+    if (!requester) {
+      console.error('❌ add_bot: Requester not found in room', { playerId: requesterId, roomId });
+      sendResponse({ error: 'You are not in this room.' });
+      return;
+    }
+    
+    // DEBUG: Log host check details
+    console.log('🔍 DEBUG HOST CHECK:', { 
+      roomHostId: room.hostId, 
+      requesterId: requesterId,
+      roomPlayers: room.players.map(p => ({ id: p.id, name: p.name, isHost: p.isHost })),
+      playerCount: room.players.length
+    });
+    
+    // Robust host check: compare hostId with requesterId (as strings)
+    let isHost = String(room.hostId) === String(requesterId);
+    
+    // Fallback: If hostId is missing or check fails, but there's only one player and it's the requester, promote them to host
+    if (!isHost && (!room.hostId || room.hostId === '')) {
+      console.log('⚠️ add_bot: Room has no hostId assigned. Checking if requester is the only player...');
+      if (room.players.length === 1 && room.players[0].id === requesterId) {
+        console.log('✅ add_bot: Promoting single player to host (fixing stale state)');
+        room.hostId = requesterId;
+        requester.isHost = true;
+        isHost = true;
+        
+        // Update Supabase if available
+        if (supabase) {
+          const roomData = serializeRoomForDB(room);
+          await supabase
+            .from('rooms')
+            .update({ host_id: requesterId })
+            .eq('id', roomId);
+        }
+      }
+    }
+    
+    if (!isHost) {
+      console.error('❌ add_bot: Requester is not the host', { 
+        playerId: requesterId, 
+        roomHostId: room.hostId,
+        isHostCheck: String(room.hostId) === String(requesterId)
+      });
+      sendResponse({ error: 'Only the host can add bots.' });
+      return;
+    }
+    
+    console.log('✅ add_bot: Security checks passed', { 
+      roomId, 
+      hostName: requester.name,
+      currentPlayerCount: room.players.length 
+    });
+    
+    // 5. Create bot player
+    const botId = 'bot-' + Math.random().toString(36).substr(2, 9);
+    const botName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+    const botAvatar = getRandomEmote();
+    
+    const botPlayer: Player = {
+      id: botId,
+      name: botName,
+      avatar: botAvatar,
+      socketId: 'BOT',
+      hand: [],
+      isHost: false,
+      hasPassed: false,
+      finishedRank: null,
+      isBot: true,
+      difficulty: 'MEDIUM'
+    };
+    
+    // 6. Add bot to room
+    room.players.push(botPlayer);
+    
+    console.log('🤖 Bot added to room', {
+      roomId,
+      botName,
+      botId,
+      totalPlayers: room.players.length
+    });
+    
+    // 7. Update Supabase if available
+    if (supabase) {
+      try {
+        const roomData = serializeRoomForDB(room);
+        const { error } = await supabase
+          .from('rooms')
+          .update(roomData)
+          .eq('id', roomId);
+        
+        if (error) {
+          console.error('❌ add_bot: Error updating Supabase (non-critical):', error);
+        } else {
+          console.log('✅ add_bot: Updated room in Supabase');
+        }
+      } catch (err) {
+        console.error('❌ add_bot: Exception updating Supabase (non-critical):', err);
+      }
+    }
+    
+    // 8. Broadcast updated state to ALL players in the room
+    console.log('📡 add_bot: Broadcasting updated state to room', { 
+      roomId, 
+      playerCount: room.players.length,
+      players: room.players.map(p => ({ id: p.id, name: p.name, isBot: p.isBot }))
+    });
+    await broadcastState(roomId);
+    await broadcastPublicLobbies();
+    
+    // Send success response
+    sendResponse({ success: true });
+    
+    // Also emit a specific event to confirm bot was added (for debugging)
+    io.to(roomId).emit('bot_added', { 
+      botId, 
+      botName, 
+      totalPlayers: room.players.length 
+    });
+  });
+
+  // Handle both 'remove_player' and 'remove_bot' events (they do the same thing)
+  const handleRemovePlayer = async ({ roomId, targetPlayerId, botId, playerId }: { roomId: string; targetPlayerId?: string; botId?: string; playerId: string }, callback?: (response: { success?: boolean; error?: string }) => void) => {
+    const sendResponse = (response: { success?: boolean; error?: string }) => {
+      if (callback && typeof callback === 'function') {
+        try {
+          callback(response);
+        } catch (err) {
+          console.error('❌ Error calling remove_player callback:', err);
+          if (response.error) {
+            socket.emit('error', response.error);
+          }
+        }
+      } else if (response.error) {
+        socket.emit('error', response.error);
+      }
+    };
+    
+    // Support both targetPlayerId and botId (for backwards compatibility)
+    const targetId = targetPlayerId || botId;
+    if (!targetId) {
+      console.error('❌ remove_player: No target player ID provided');
+      sendResponse({ error: 'No target player specified.' });
+      return;
+    }
+    
+    console.log('🗑️ remove_player event received', { roomId, targetPlayerId: targetId, playerId, socketId: socket.id });
+    
+    // 1. Verify room exists
+    let room = rooms.get(roomId);
+    if (!room) {
+      room = await fetchRoom(roomId);
+      if (!room) {
+        console.error('❌ remove_player: Room not found', { roomId });
+        sendResponse({ error: 'Room not found.' });
+        return;
+      }
+    }
+    
+    // 2. Verify room status is LOBBY (can't remove players during game)
+    if (room.status !== 'LOBBY') {
+      console.error('❌ remove_player: Room is not in LOBBY status', { roomId, currentStatus: room.status });
+      sendResponse({ error: 'Cannot remove players - game has already started.' });
+      return;
+    }
+    
+    // 3. Security: Check if requester is host using hostId
+    const requesterId = playerId || socketToPlayerId[socket.id];
+    if (!requesterId) {
+      console.error('❌ remove_player: No playerId found', { socketId: socket.id });
+      sendResponse({ error: 'Player not identified.' });
+      return;
+    }
+    
+    const requester = room.players.find(p => p.id === requesterId);
+    if (!requester) {
+      console.error('❌ remove_player: Requester not found in room', { playerId: requesterId, roomId });
+      sendResponse({ error: 'You are not in this room.' });
+      return;
+    }
+    
+    // DEBUG: Log host check details
+    console.log('🔍 DEBUG HOST CHECK (remove_player):', { 
+      roomHostId: room.hostId, 
+      requesterId: requesterId,
+      isHostCheck: String(room.hostId) === String(requesterId)
+    });
+    
+    // Robust host check: compare hostId with requesterId (as strings)
+    let isHost = String(room.hostId) === String(requesterId);
+    
+    // Fallback: If hostId is missing, check if requester is the only player
+    if (!isHost && (!room.hostId || room.hostId === '')) {
+      if (room.players.length === 1 && room.players[0].id === requesterId) {
+        console.log('✅ remove_player: Promoting single player to host (fixing stale state)');
+        room.hostId = requesterId;
+        requester.isHost = true;
+        isHost = true;
+      }
+    }
+    
+    if (!isHost) {
+      console.error('❌ remove_player: Requester is not the host', { 
+        playerId: requesterId, 
+        roomHostId: room.hostId,
+        isHostCheck: String(room.hostId) === String(requesterId)
+      });
+      sendResponse({ error: 'Only the host can remove players.' });
+      return;
+    }
+    
+    // 4. Find target player
+    const targetPlayerIndex = room.players.findIndex(p => p.id === targetId);
+    if (targetPlayerIndex === -1) {
+      console.error('❌ remove_player: Target player not found', { targetId, roomId });
+      sendResponse({ error: 'Player not found in room.' });
+      return;
+    }
+    
+    const targetPlayer = room.players[targetPlayerIndex];
+    
+    // 5. Prevent removing the host
+    if (targetPlayer.id === room.hostId) {
+      console.error('❌ remove_player: Cannot remove host', { targetId });
+      sendResponse({ error: 'Cannot remove the host.' });
+      return;
+    }
+    
+    console.log('✅ remove_player: Security checks passed', { 
+      roomId, 
+      hostName: requester.name,
+      targetPlayerName: targetPlayer.name,
+      isBot: targetPlayer.isBot
+    });
+    
+    // 6. Remove player from room using immutable update
+    room.players = room.players.filter((p, idx) => idx !== targetPlayerIndex);
+    
+    console.log('🗑️ Player removed from room', {
+      roomId,
+      removedPlayer: targetPlayer.name,
+      remainingPlayers: room.players.length
+    });
+    
+    // 7. Update Supabase if available
+    if (supabase) {
+      try {
+        const roomData = serializeRoomForDB(room);
+        const { error } = await supabase
+          .from('rooms')
+          .update(roomData)
+          .eq('id', roomId);
+        
+        if (error) {
+          console.error('❌ remove_player: Error updating Supabase (non-critical):', error);
+        } else {
+          console.log('✅ remove_player: Updated room in Supabase');
+        }
+      } catch (err) {
+        console.error('❌ remove_player: Exception updating Supabase (non-critical):', err);
+      }
+    }
+    
+    // 8. Broadcast updated state
+    await broadcastState(roomId);
+    await broadcastPublicLobbies();
+    
+    // 9. Send success response
+    sendResponse({ success: true });
+  };
+  
+  // Listen for both 'remove_player' and 'remove_bot' events
+  socket.on('remove_player', async (data, callback) => {
+    await handleRemovePlayer(data, callback);
+  });
+  
+  socket.on('remove_bot', async ({ roomId, botId, playerId }, callback) => {
+    await handleRemovePlayer({ roomId, botId, playerId }, callback);
+  });
+
+  socket.on('update_bot_difficulty', async ({ roomId, botId, difficulty, playerId }) => {
+    // 1. Verify room exists
+    let room = rooms.get(roomId);
+    if (!room) {
+      room = await fetchRoom(roomId);
+      if (!room) {
+        console.error('❌ update_bot_difficulty: Room not found', { roomId });
+        socket.emit('error', 'Room not found.');
+        return;
+      }
+    }
+    
+    // 2. Verify room status is LOBBY
+    if (room.status !== 'LOBBY') {
+      console.error('❌ update_bot_difficulty: Room is not in LOBBY status', { roomId, currentStatus: room.status });
+      socket.emit('error', 'Cannot update bot difficulty - game has already started.');
+      return;
+    }
+    
+    // 3. Security: Check if requester is host
+    const requesterId = playerId || socketToPlayerId[socket.id];
+    if (!requesterId) {
+      console.error('❌ update_bot_difficulty: No playerId found', { socketId: socket.id });
+      socket.emit('error', 'Player not identified.');
+      return;
+    }
+    
+    const requester = room.players.find(p => p.id === requesterId);
+    if (!requester) {
+      console.error('❌ update_bot_difficulty: Requester not found in room', { playerId: requesterId, roomId });
+      socket.emit('error', 'You are not in this room.');
+      return;
+    }
+    
+    // DEBUG: Log host check details
+    console.log('🔍 DEBUG HOST CHECK (update_bot_difficulty):', { 
+      roomHostId: room.hostId, 
+      requesterId: requesterId,
+      isHostCheck: String(room.hostId) === String(requesterId)
+    });
+    
+    // Robust host check: compare hostId with requesterId (as strings)
+    let isHost = String(room.hostId) === String(requesterId);
+    
+    // Fallback: If hostId is missing, check if requester is the only player
+    if (!isHost && (!room.hostId || room.hostId === '')) {
+      if (room.players.length === 1 && room.players[0].id === requesterId) {
+        console.log('✅ update_bot_difficulty: Promoting single player to host (fixing stale state)');
+        room.hostId = requesterId;
+        requester.isHost = true;
+        isHost = true;
+      }
+    }
+    
+    if (!isHost) {
+      console.error('❌ update_bot_difficulty: Requester is not the host', { 
+        playerId: requesterId, 
+        roomHostId: room.hostId,
+        isHostCheck: String(room.hostId) === String(requesterId)
+      });
+      socket.emit('error', 'Only the host can update bot difficulty.');
+      return;
+    }
+    
+    // 4. Find and update the bot using immutable update
+    const botIndex = room.players.findIndex(p => p.id === botId && p.isBot);
+    if (botIndex === -1) {
+      console.error('❌ update_bot_difficulty: Bot not found', { botId, roomId });
+      socket.emit('error', 'Bot not found.');
+      return;
+    }
+    
+    // Immutable update: create new array with updated bot
+    room.players = room.players.map((p, idx) => 
+      idx === botIndex ? { ...p, difficulty } : p
+    );
+    
+    // 5. Update Supabase if available
+    if (supabase) {
+      try {
+        const roomData = serializeRoomForDB(room);
+        const { error } = await supabase
+          .from('rooms')
+          .update(roomData)
+          .eq('id', roomId);
+        
+        if (error) {
+          console.error('❌ update_bot_difficulty: Error updating Supabase (non-critical):', error);
+        }
+      } catch (err) {
+        console.error('❌ update_bot_difficulty: Exception updating Supabase (non-critical):', err);
+      }
+    }
+    
+    // 6. Broadcast updated state
+    await broadcastState(roomId);
   });
 
   socket.on('update_room_settings', ({ roomId, timer, isPublic, playerId }) => {
@@ -1246,16 +1821,7 @@ io.on('connection', (socket: Socket) => {
     console.log('SERVER: Broadcasted room_settings_updated to room', roomId);
   });
 
-  socket.on('remove_bot', ({ roomId, botId, playerId }) => {
-    const room = rooms.get(roomId);
-    if (!room || room.status !== 'LOBBY') return;
-    const requesterId = playerId || socketToPlayerId[socket.id];
-    const requester = room.players.find(p => p.id === requesterId);
-    if (!requester || !requester.isHost) return;
-    room.players = room.players.filter(p => p.id !== botId);
-    broadcastState(roomId);
-    broadcastPublicLobbies();
-  });
+  // Duplicate remove_bot handler removed - using handleRemovePlayer above instead
 
   socket.on('reconnect_session', ({ roomId, playerId }) => {
     const room = rooms.get(roomId);
@@ -1270,37 +1836,203 @@ io.on('connection', (socket: Socket) => {
     broadcastState(roomId);
   });
 
-  socket.on('start_game', ({ roomId, playerId }) => {
-    const room = rooms.get(roomId);
-    if (!room) return;
-    const pId = playerId || socketToPlayerId[socket.id];
-    const requester = room.players.find(p => p.id === pId);
-    if (!requester || !requester.isHost) return;
-    if (pId) mapIdentity(socket, roomId, pId);
-
-    // Don't auto-fill CPUs - users should manually add them if needed
-
+  // Helper function to deal cards to all players in a room
+  const dealCards = (room: GameRoom): void => {
+    // Generate a 52-card deck (13 ranks * 4 suits, starting from Rank 3)
     const deck: Card[] = [];
-    for (let s = 0; s < 4; s++) for (let r = 3; r <= 15; r++) deck.push({ suit: s as Suit, rank: r as Rank, id: uuidv4() });
-    for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-    room.players.forEach((p, i) => { p.hand = deck.slice(i * 13, (i + 1) * 13); p.hasPassed = false; p.finishedRank = null; });
+    for (let s = 0; s < 4; s++) {
+      for (let r = 3; r <= 15; r++) {
+        deck.push({ 
+          suit: s as Suit, 
+          rank: r as Rank, 
+          id: uuidv4() 
+        });
+      }
+    }
+    
+    // Shuffle the deck using Fisher-Yates algorithm
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    
+    // Deal 13 cards to each of the 4 players
+    room.players.forEach((player, index) => {
+      player.hand = deck.slice(index * 13, (index + 1) * 13);
+      player.hasPassed = false;
+      player.finishedRank = null;
+    });
+    
+    console.log(`🃏 Dealt cards to ${room.players.length} players in room ${room.id}`);
+  };
+
+  // Helper function to find the starting player (holder of 3 of Spades)
+  const findStartingPlayer = (room: GameRoom): number => {
+    // Find the player holding the 3 of Spades (Rank.Three = 3, Suit.Spades = 0)
+    for (let i = 0; i < room.players.length; i++) {
+      const player = room.players[i];
+      const hasThreeSpades = player.hand.some(
+        card => card.rank === Rank.Three && card.suit === Suit.Spades
+      );
+      if (hasThreeSpades) {
+        console.log(`🎯 Starting player found: ${player.name} (index ${i}) - holds 3♠`);
+        return i;
+      }
+    }
+    
+    // Fallback: If no one has 3 of Spades (shouldn't happen), find lowest card
     let starter = 0;
     let minScore = 999;
-    let threeSpadesFound = false;
-    room.players.forEach((p, i) => {
-      p.hand.forEach(card => {
+    room.players.forEach((player, i) => {
+      player.hand.forEach(card => {
         const score = card.rank * 10 + card.suit;
-        if (score < minScore) { minScore = score; starter = i; }
-        if (card.rank === Rank.Three && card.suit === Suit.Spades) threeSpadesFound = true;
+        if (score < minScore) {
+          minScore = score;
+          starter = i;
+        }
       });
     });
-    room.status = 'PLAYING'; room.currentPlayerIndex = starter; room.isFirstTurnOfGame = threeSpadesFound;
-    room.currentPlayPile = []; room.roundHistory = []; room.finishedPlayers = [];
+    
+    console.log(`⚠️ No 3♠ found, using fallback: ${room.players[starter].name} (index ${starter})`);
+    return starter;
+  };
+
+  socket.on('start_game', async ({ roomId, playerId }) => {
+    console.log('🚀 start_game event received', { roomId, playerId, socketId: socket.id });
+    
+    // 1. Verify the room exists
+    let room = rooms.get(roomId);
+    if (!room) {
+      // Try to fetch from Supabase
+      room = await fetchRoom(roomId);
+      if (!room) {
+        console.error('❌ start_game: Room not found', { roomId });
+        socket.emit('error', 'Room not found.');
+        return;
+      }
+    }
+    
+    // 2. Verify room status is LOBBY
+    if (room.status !== 'LOBBY') {
+      console.error('❌ start_game: Room is not in LOBBY status', { roomId, currentStatus: room.status });
+      socket.emit('error', 'Game has already started.');
+      return;
+    }
+    
+    // 3. Security: Check if the requesting socket belongs to the isHost player
+    const pId = playerId || socketToPlayerId[socket.id];
+    if (!pId) {
+      console.error('❌ start_game: No playerId found', { socketId: socket.id });
+      socket.emit('error', 'Player not identified.');
+      return;
+    }
+    
+    const requester = room.players.find(p => p.id === pId);
+    if (!requester) {
+      console.error('❌ start_game: Requester not found in room', { playerId: pId, roomId });
+      socket.emit('error', 'You are not in this room.');
+      return;
+    }
+    
+    // DEBUG: Log host check details
+    console.log('🔍 DEBUG HOST CHECK (start_game):', { 
+      roomHostId: room.hostId, 
+      requesterId: pId,
+      isHostCheck: String(room.hostId) === String(pId)
+    });
+    
+    // Robust host check: compare hostId with requesterId (as strings)
+    let isHost = String(room.hostId) === String(pId);
+    
+    // Fallback: If hostId is missing, check if requester is the only player
+    if (!isHost && (!room.hostId || room.hostId === '')) {
+      if (room.players.length === 1 && room.players[0].id === pId) {
+        console.log('✅ start_game: Promoting single player to host (fixing stale state)');
+        room.hostId = pId;
+        requester.isHost = true;
+        isHost = true;
+        
+        // Update Supabase if available
+        if (supabase) {
+          const roomData = serializeRoomForDB(room);
+          await supabase
+            .from('rooms')
+            .update({ host_id: pId })
+            .eq('id', roomId);
+        }
+      }
+    }
+    
+    if (!isHost) {
+      console.error('❌ start_game: Requester is not the host', { 
+        playerId: pId, 
+        roomHostId: room.hostId,
+        isHostCheck: String(room.hostId) === String(pId)
+      });
+      socket.emit('error', 'Only the host can start the game.');
+      return;
+    }
+    
+    // Map socket identity
+    if (pId) mapIdentity(socket, roomId, pId);
+    
+    console.log('✅ start_game: Security checks passed', { 
+      roomId, 
+      hostName: requester.name,
+      playerCount: room.players.length 
+    });
+    
+    // 4. Auto-fill CPU players if needed (players < 4)
+    if (room.players.length < 4) {
+      console.log(`🤖 Auto-filling ${4 - room.players.length} CPU players`);
+      autoFillCPUPlayers(room);
+    }
+    
+    // 5. Deal cards to all players
+    dealCards(room);
+    
+    // 6. Find the starting player (holder of 3 of Spades)
+    const startingPlayerIndex = findStartingPlayer(room);
+    
+    // 7. Update room state: status to PLAYING, set currentPlayerIndex, isFirstTurnOfGame
+    room.status = 'PLAYING';
+    room.currentPlayerIndex = startingPlayerIndex;
+    room.isFirstTurnOfGame = room.players[startingPlayerIndex].hand.some(
+      card => card.rank === Rank.Three && card.suit === Suit.Spades
+    );
+    room.currentPlayPile = [];
+    room.roundHistory = [];
+    room.finishedPlayers = [];
+    
     // Reset quick move reward tracking for new game
     room.quickMoveRewardGiven = new Set();
+    room.playerMutedByAfk = new Set();
+    
+    const startingPlayer = room.players[startingPlayerIndex];
+    console.log('🎮 Game started', {
+      roomId,
+      status: room.status,
+      startingPlayer: startingPlayer.name,
+      startingPlayerIndex: startingPlayerIndex,
+      isBot: startingPlayer.isBot,
+      isFirstTurnOfGame: room.isFirstTurnOfGame,
+      playerCount: room.players.length,
+      hasThreeSpades: startingPlayer.hand.some(c => c.rank === Rank.Three && c.suit === Suit.Spades),
+      handSize: startingPlayer.hand.length
+    });
+    
+    // 8. Broadcast state and start turn timer
+    await broadcastState(roomId);
     startTurnTimer(roomId);
-    broadcastState(roomId);
-    checkBotTurn(roomId);
+    
+    // Check if starting player is a bot and trigger their turn
+    // CRITICAL: Use setTimeout to ensure state is fully broadcast before checking
+    // This gives clients time to receive the game_state update
+    setTimeout(async () => {
+      await checkBotTurn(roomId);
+    }, 500);
+    
+    // Update public lobbies list
     broadcastPublicLobbies();
   });
 
@@ -1350,7 +2082,7 @@ io.on('connection', (socket: Socket) => {
     handlePass(roomId, pId);
   });
 
-  socket.on('get_public_rooms', () => {
+  socket.on('get_public_rooms', async () => {
     console.log('📋 GET_PUBLIC_ROOMS: Requested');
     console.log('📋 Rooms Map size:', rooms.size);
     
@@ -1361,7 +2093,7 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     
-    const publicRooms = getPublicRooms();
+    const publicRooms = await getPublicRooms();
     console.log(`📋 Found ${publicRooms.length} public rooms`);
     socket.emit('public_rooms_list', getPublicRoomsList());
   });
@@ -1417,7 +2149,7 @@ io.on('connection', (socket: Socket) => {
     io.to(roomId).emit('receive_emote', { playerId, emote: sanitizedEmote });
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     const roomId = socketToRoom[socket.id];
     const playerId = socketToPlayerId[socket.id];
     
@@ -1425,23 +2157,128 @@ io.on('connection', (socket: Socket) => {
     clearRateLimit(socket.id);
     
     if (!roomId || !playerId) return;
-    const room = rooms.get(roomId);
+    const room = await fetchRoom(roomId);
     if (!room) return;
     const player = room.players.find(p => p.id === playerId);
     if (!player) return;
-    if (room.status !== 'PLAYING') {
-        performCleanup(roomId, playerId);
-    } else {
+    
+    if (room.status === 'LOBBY') {
+      // For LOBBY rooms, remove the player immediately
+      await performCleanup(roomId, playerId);
+      
+      // Check if room is now empty (0 human players)
+      const updatedRoom = await fetchRoom(roomId);
+      if (updatedRoom) {
+        const humanPlayers = updatedRoom.players.filter(p => !p.isBot);
+        if (humanPlayers.length === 0) {
+          // Give LOBBY rooms a 30-second grace period before deletion
+          // This prevents rooms from being deleted immediately after creation if player disconnects/reconnects
+          setTimeout(async () => {
+            const finalCheckRoom = await fetchRoom(roomId);
+            if (finalCheckRoom) {
+              const finalHumanPlayers = finalCheckRoom.players.filter(p => !p.isBot);
+              if (finalHumanPlayers.length === 0) {
+                // Room is still empty after grace period, delete it
+                console.log(`🧹 Cleaning up empty LOBBY room after grace period: ${roomId}`);
+                await deleteRoom(roomId);
+                broadcastPublicLobbies();
+              }
+            }
+          }, 30000); // 30 second grace period for LOBBY rooms
+        }
+      }
+    } else if (room.status === 'PLAYING') {
+      // For PLAYING rooms, mark as offline and allow 5 minutes for reconnection
         player.isOffline = true;
-        broadcastState(roomId);
-        player.reconnectionTimeout = setTimeout(() => performCleanup(roomId, playerId), RECONNECTION_GRACE_PERIOD);
+      await broadcastState(roomId);
+      
+      // Set timeout for cleanup after 5 minutes (300000ms)
+      const PLAYING_RECONNECTION_GRACE_PERIOD = 5 * 60 * 1000; // 5 minutes
+      player.reconnectionTimeout = setTimeout(async () => {
+        await performCleanup(roomId, playerId);
+        
+        // After cleanup, check if room should be deleted
+        const finalRoom = await fetchRoom(roomId);
+        if (finalRoom) {
+          const humanPlayers = finalRoom.players.filter(p => !p.isBot);
+          if (humanPlayers.length === 0) {
+            console.log(`🧹 Cleaning up empty PLAYING room after timeout: ${roomId}`);
+            await deleteRoom(roomId);
+            broadcastPublicLobbies();
+          }
+        }
+      }, PLAYING_RECONNECTION_GRACE_PERIOD);
+    } else {
+      // For other statuses (FINISHED, etc.), perform cleanup immediately
+      await performCleanup(roomId, playerId);
     }
+    
     delete socketToRoom[socket.id];
     delete socketToPlayerId[socket.id];
   });
 });
 
 console.log('✅ Socket handlers registered');
+
+// ============================================================================
+// PRUNE STALE ROOMS ON SERVER START
+// ============================================================================
+async function pruneStaleRooms() {
+  if (!supabase) {
+    console.log('⚠️ Prune stale rooms: Supabase not configured, skipping');
+    return;
+  }
+  
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    // Delete rooms older than 24 hours
+    const { error: oldRoomsError } = await supabase
+      .from('rooms')
+      .delete()
+      .lt('created_at', twentyFourHoursAgo);
+    
+    if (oldRoomsError) {
+      console.error('❌ Error deleting old rooms:', oldRoomsError);
+    } else {
+      console.log('🧹 Pruned rooms older than 24 hours');
+    }
+    
+    // Delete LOBBY rooms with 0 players
+    const { data: lobbyRooms, error: lobbyError } = await supabase
+      .from('rooms')
+      .select('id, players, status')
+      .eq('status', 'LOBBY');
+    
+    if (lobbyError) {
+      console.error('❌ Error fetching LOBBY rooms:', lobbyError);
+    } else if (lobbyRooms) {
+      const emptyLobbyRooms = lobbyRooms.filter(room => {
+        const players = room.players || [];
+        return players.length === 0;
+      });
+      
+      if (emptyLobbyRooms.length > 0) {
+        const emptyRoomIds = emptyLobbyRooms.map(r => r.id);
+        const { error: deleteError } = await supabase
+          .from('rooms')
+          .delete()
+          .in('id', emptyRoomIds);
+        
+        if (deleteError) {
+          console.error('❌ Error deleting empty LOBBY rooms:', deleteError);
+        } else {
+          console.log(`🧹 Pruned ${emptyLobbyRooms.length} empty LOBBY rooms`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('❌ Error pruning stale rooms:', err);
+  }
+}
+
+// Run prune on server start
+pruneStaleRooms();
 
 // ============================================================================
 // PAYMENT WEBHOOKS

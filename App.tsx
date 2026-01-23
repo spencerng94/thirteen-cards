@@ -10,6 +10,7 @@ import { GameEndTransition } from './components/GameEndTransition';
 import { AuthScreen } from './components/AuthScreen';
 import { AuthCallback } from './components/AuthCallback';
 import { GameSettings, SocialFilter } from './components/GameSettings';
+import { CardCoverStyle } from './components/Card';
 import { LegalView } from './components/LegalView';
 import { SupportView } from './components/SupportView';
 import { StatusBar } from '@capacitor/status-bar';
@@ -28,7 +29,6 @@ const Store = lazy(() => import('./components/Store').then(m => ({ default: m.St
 const GemPacks = lazy(() => import('./components/GemPacks').then(m => ({ default: m.GemPacks })));
 const InventoryModal = lazy(() => import('./components/InventoryModal').then(m => ({ default: m.InventoryModal })));
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
-import { CardCoverStyle } from './components/Card';
 import { audioService } from './services/audio';
 import { recordGameResult, fetchProfile, fetchGuestProfile, transferGuestData, calculateLevel, AVATAR_NAMES, updateProfileAvatar, updateProfileEquipped, updateActiveBoard, updateProfileSettings, globalAuthState, getGuestProgress, migrateGuestData, clearGuestProgress, persistSupabaseAuthTokenBruteforce } from './services/supabase';
 import { formatUsername } from './utils/username';
@@ -973,11 +973,31 @@ const AppContent: React.FC = () => {
     const onGameState = async (state: GameState) => {
       if (view === 'WELCOME' && !gameMode) return;
       const prevStatus = mpGameState?.status;
+      
+      // CRITICAL: Always update gameState first - this triggers Lobby re-render
+      console.log('📡 App.tsx: Received game_state event', { 
+        status: state.status, 
+        roomId: state.roomId, 
+        roomName: state.roomName,
+        playerCount: state.players?.length,
+        playerIds: state.players?.map(p => p.id),
+        prevStatus 
+      });
+      
+      // CRITICAL: Update mpGameState - this will be passed to Lobby component as gameState prop
       setMpGameState(state);
       if (state.roomId !== 'LOCAL') {
          localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: state.roomId, playerId: myPlayerId, timestamp: Date.now() }));
       }
-      if (state.status === GameStatus.PLAYING) {
+      
+      // CRITICAL: Handle LOBBY status first - set view to LOBBY
+      if (state.status === GameStatus.LOBBY) {
+        console.log('📡 App.tsx: Status is LOBBY, setting view to LOBBY');
+        if (view !== 'LOBBY') {
+          setView('LOBBY');
+        }
+      } else if (state.status === GameStatus.PLAYING) {
+        console.log('📡 App.tsx: Status is PLAYING, setting view to GAME_TABLE');
         setView('GAME_TABLE');
       } else if (state.status === GameStatus.FINISHED) {
         // Check if we were just playing or already on game table
@@ -1078,14 +1098,28 @@ const AppContent: React.FC = () => {
           console.warn('Game finished but victory screen not shown - forcing transition', { prevStatus, view, alreadyProcessed, status: state.status });
           setView('VICTORY');
         }
-      } else if (state.status === GameStatus.LOBBY) {
-        // Don't reset view if already in LOBBY to prevent remounts
-        if (view !== 'LOBBY') {
-          setView('LOBBY');
-        }
+      }
+      // Note: LOBBY status is now handled at the top of the if/else chain
+    };
+    // CRITICAL: player_hand updates should NOT trigger view changes
+    // Only update hand state, don't change view based on receiving cards
+    const onPlayerHand = (cards: Card[]) => {
+      // Only update hand if status is PLAYING
+      // Note: game_state event (which sets status to PLAYING) is sent before player_hand,
+      // so by the time player_hand arrives, status should already be PLAYING
+      if (mpGameState && mpGameState.status === GameStatus.PLAYING) {
+        console.log('📋 App.tsx: Updating player hand', { 
+          status: mpGameState.status,
+          cardsReceived: cards.length 
+        });
+        setMpMyHand(cards);
+      } else {
+        console.log('📋 App.tsx: Ignoring player_hand update - status is not PLAYING', { 
+          currentStatus: mpGameState?.status,
+          cardsReceived: cards.length 
+        });
       }
     };
-    const onPlayerHand = (cards: Card[]) => setMpMyHand(cards);
     socket.on(SocketEvents.GAME_STATE, onGameState);
     socket.on(SocketEvents.PLAYER_HAND, onPlayerHand);
     socket.on(SocketEvents.ERROR, (m) => { if (m === 'Session Expired') localStorage.removeItem(SESSION_KEY); setError(m); setTimeout(() => setError(null), 3000); });
@@ -1620,6 +1654,19 @@ const AppContent: React.FC = () => {
   
   // 3. If session || isGuest, show Main Game App (only rendered when isAppReady is true)
 
+  // CRITICAL: Get current gameState and roomId for render decision
+  const currentGameState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
+  const currentRoomId = currentGameState?.roomId;
+  
+  // CRITICAL: Log render decision at the top
+  console.log("🎯 RENDER DECISION:", { 
+    status: currentGameState?.status, 
+    currentView: view,
+    hasGameState: !!currentGameState,
+    roomId: currentRoomId,
+    gameMode
+  });
+
   return (
     <BillingProvider 
       session={session}
@@ -1653,16 +1700,140 @@ const AppContent: React.FC = () => {
           isModalOpen={isModalOpen}
         />
       )}
-      {view === 'LOBBY' && (
-        <div id="SINGLE_LOBBY_ROOT">
-          <Lobby key="main-lobby-instance" playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPlayerId} turnTimerSetting={turnTimerSetting} selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} />
-        </div>
-      )}
-      {view === 'GAME_TABLE' && (
-        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
-          <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPlayerId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPlayerId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} autoPassEnabled={autoPassEnabled} onOpenSettings={() => setGameSettingsOpen(true)} socialFilter={socialFilter} sessionMuted={sessionMuted} setSessionMuted={setSessionMuted} />
-        </Suspense>
-      )}
+      {/* CRITICAL: Strict render hierarchy based on roomId and gameState.status */}
+      {(() => {
+        // Get roomId from gameState or URL
+        const roomId = currentGameState?.roomId || urlRoomCode;
+        
+        // STRICT HIERARCHY:
+        // 1. IF !roomId: Show LobbyBrowser/LobbyMenu (Lobby component handles this when gameState is null)
+        // 2. IF roomId EXISTS but !gameState: Show "Loading game..."
+        // 3. IF roomId EXISTS and gameState.status === "LOBBY": Force LobbyContainer
+        // 4. IF roomId EXISTS and gameState.status === "PLAYING": Show GameTable
+        // 5. ELSE: Fallback to LobbyContainer
+        
+        // 1. IF !roomId: Show LobbyBrowser/LobbyMenu (Create Room screen)
+        // This shows the creation menu when user hasn't created/joined a room yet
+        if (!roomId) {
+          if (gameMode === 'MULTI_PLAYER') {
+            console.log('📋 App.tsx: No roomId, showing LobbyBrowser/LobbyMenu (Create Room screen)');
+            return (
+              <div id="LobbyContainer" className="w-full h-full min-h-screen">
+                <Lobby 
+                  key="lobby-browser-instance" 
+                  playerName={playerName} 
+                  gameState={null} 
+                  error={error} 
+                  playerAvatar={playerAvatar} 
+                  initialRoomCode={null} 
+                  backgroundTheme={backgroundTheme} 
+                  onBack={handleExit} 
+                  onSignOut={handleSignOut} 
+                  myId={myPlayerId} 
+                  turnTimerSetting={turnTimerSetting} 
+                  selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} 
+                />
+              </div>
+            );
+          }
+          return null; // Let WELCOME view handle it for non-MULTI_PLAYER modes
+        }
+        
+        // 2. IF roomId EXISTS but !gameState: Show "Loading game..."
+        // This is the ONLY time we show "Loading game..." - when we have a roomId but are waiting for gameState
+        if (!currentGameState) {
+          if (gameMode === 'MULTI_PLAYER') {
+            console.log('📋 App.tsx: roomId exists but no gameState, showing Loading', { roomId });
+            return (
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="text-yellow-400 text-lg">Loading game...</div>
+              </div>
+            );
+          }
+          return null; // Let WELCOME view handle it for non-MULTI_PLAYER modes
+        }
+        
+        // 3. IF gameState.status === "LOBBY": Force LobbyContainer
+        if (currentGameState.status === GameStatus.LOBBY) {
+          console.log('📋 App.tsx: FORCING LobbyContainer - status is LOBBY', {
+            roomId: currentGameState.roomId,
+            roomName: currentGameState.roomName,
+            playerCount: currentGameState.players?.length,
+            playerIds: currentGameState.players?.map(p => p.id)
+          });
+          return (
+            <div id="LobbyContainer" className="w-full h-full min-h-screen">
+              <Lobby 
+                key={`lobby-${currentGameState.roomId}-${currentGameState.players.length}-${currentGameState.players.map(p => `${p.id}-${p.difficulty || 'MEDIUM'}`).join('-')}`}
+                playerName={playerName} 
+                gameState={mpGameState} 
+                error={error} 
+                playerAvatar={playerAvatar} 
+                initialRoomCode={urlRoomCode} 
+                backgroundTheme={backgroundTheme} 
+                onBack={handleExit} 
+                onSignOut={handleSignOut} 
+                myId={myPlayerId} 
+                turnTimerSetting={turnTimerSetting} 
+                selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} 
+              />
+            </div>
+          );
+        }
+        
+        // 4. IF gameState.status === "PLAYING": Show GameTable
+        if (currentGameState.status === GameStatus.PLAYING) {
+          console.log('📋 App.tsx: Rendering GameTable - status is PLAYING', {
+            roomId: currentGameState.roomId,
+            playerCount: currentGameState.players?.length
+          });
+          return (
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
+              <GameTable 
+                gameState={currentGameState} 
+                myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} 
+                myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} 
+                onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPlayerId }) : handleLocalPlay('me', cards)} 
+                onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPlayerId }) : handleLocalPass('me')} 
+                cardCoverStyle={cardCoverStyle} 
+                backgroundTheme={backgroundTheme} 
+                profile={profile} 
+                playAnimationsEnabled={playAnimationsEnabled} 
+                autoPassEnabled={autoPassEnabled} 
+                onOpenSettings={() => setGameSettingsOpen(true)} 
+                socialFilter={socialFilter} 
+                sessionMuted={sessionMuted} 
+                setSessionMuted={setSessionMuted} 
+              />
+            </Suspense>
+          );
+        }
+        
+        // 5. ELSE: Fallback to LobbyContainer (for FINISHED, CELEBRATING, SYNCING, or unexpected statuses)
+        // Note: VICTORY screen is handled by view === 'VICTORY' check below
+        console.warn('📋 App.tsx: Unexpected gameState status, showing LobbyContainer as fallback', {
+          status: currentGameState.status,
+          roomId: currentGameState.roomId
+        });
+        return (
+          <div id="LobbyContainer" className="w-full h-full min-h-screen">
+            <Lobby 
+              key={`lobby-fallback-${currentGameState?.roomId || 'no-room'}-${currentGameState?.players.length || 0}`}
+              playerName={playerName} 
+              gameState={mpGameState} 
+              error={error} 
+              playerAvatar={playerAvatar} 
+              initialRoomCode={urlRoomCode} 
+              backgroundTheme={backgroundTheme} 
+              onBack={handleExit} 
+              onSignOut={handleSignOut} 
+              myId={myPlayerId} 
+              turnTimerSetting={turnTimerSetting} 
+              selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} 
+            />
+          </div>
+        );
+      })()}
       {view === 'VICTORY' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading results...</div></div>}>
           <VictoryScreen players={gameMode === 'MULTI_PLAYER' ? mpGameState!.players : spGameState!.players} myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} onPlayAgain={() => { setView(gameMode === 'MULTI_PLAYER' ? 'LOBBY' : 'WELCOME'); if (gameMode === 'SINGLE_PLAYER') handleStart(playerName, 'SINGLE_PLAYER'); }} onGoHome={handleExit} profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} totalXpAfter={lastMatchRewards?.totalXpAfter} speedBonus={lastMatchRewards?.speedBonus} />
@@ -1749,6 +1920,11 @@ const Game: React.FC = () => {
   const [myId, setMyId] = useState<string>('');
   const [playerName, setPlayerName] = useState<string>('');
   const [playerAvatar, setPlayerAvatar] = useState<string>(':cool:');
+  const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
+  const [cardCoverStyle, setCardCoverStyle] = useState<CardCoverStyle>('RED');
+  const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>('EMERALD');
+  const [socialFilter, setSocialFilter] = useState<SocialFilter>('UNMUTED');
+  const [sessionMuted, setSessionMuted] = useState<string[]>([]);
   
   // Guard against React StrictMode double mounting
   const hasJoinedRef = useRef<boolean>(false);
@@ -1895,7 +2071,16 @@ const Game: React.FC = () => {
     socket.emit(SocketEvents.PASS_TURN, { roomId, playerId: myId });
   }, [socket, roomId, myId]);
   
-  // Show loading if we don't have game state yet
+  // CRITICAL: Log render decision
+  console.log("🎯 GAME COMPONENT RENDER DECISION:", { 
+    status: gameState?.status, 
+    hasGameState: !!gameState,
+    roomId: gameState?.roomId,
+    playerCount: gameState?.players?.length
+  });
+  
+  // STRICT HIERARCHY (same as AppContent):
+  // 1. IF !gameState: Show Loading
   if (!gameState || !gameState.roomId || !gameState.players || gameState.players.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
@@ -1904,20 +2089,107 @@ const Game: React.FC = () => {
     );
   }
   
+  // 2. IF gameState.status === "LOBBY": Force LobbyContainer
+  if (gameState.status === GameStatus.LOBBY) {
+    console.log('📋 Game Component: FORCING LobbyContainer - status is LOBBY', {
+      playerCount: gameState.players?.length,
+      playerIds: gameState.players?.map(p => p.id)
+    });
+    // CRITICAL: Key must include player count, IDs, AND difficulties to force re-render when difficulty changes
+    const lobbyKey = `lobby-${gameState.roomId}-${gameState.players?.length || 0}-${gameState.players?.map(p => `${p.id}-${p.difficulty || 'MEDIUM'}`).join('-') || ''}`;
+    return (
+      <div id="LobbyContainer" className="w-full h-full min-h-screen bg-black">
+        <Lobby 
+          key={lobbyKey}
+          playerName={playerName} 
+          gameState={gameState} 
+          error={null} 
+          playerAvatar={playerAvatar} 
+          initialRoomCode={roomId || null} 
+          backgroundTheme="EMERALD" 
+          onBack={() => window.location.href = '/'} 
+          onSignOut={() => {}} 
+          myId={myId} 
+          turnTimerSetting={30} 
+          selected_sleeve_id={undefined} 
+        />
+      </div>
+    );
+  }
+  
+  // 3. IF gameState.status === "PLAYING": Show GameTable
+  if (gameState.status === GameStatus.PLAYING) {
+    console.log('📋 Game Component: Rendering GameTable - status is PLAYING');
+    return (
+      <>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
+          <GameTable 
+            gameState={gameState} 
+            myId={myId} 
+            myHand={myHand} 
+            onPlayCards={handlePlayCards} 
+            onPassTurn={handlePassTurn} 
+            cardCoverStyle={cardCoverStyle} 
+            backgroundTheme={backgroundTheme} 
+            onOpenSettings={() => setGameSettingsOpen(true)} 
+            profile={null}
+            socialFilter={socialFilter}
+            sessionMuted={sessionMuted}
+            setSessionMuted={setSessionMuted}
+          />
+        </Suspense>
+        {gameSettingsOpen && (
+          <GameSettings 
+            onClose={() => setGameSettingsOpen(false)} 
+            onExitGame={() => window.location.href = '/'} 
+            currentCoverStyle={cardCoverStyle} 
+            onChangeCoverStyle={setCardCoverStyle} 
+            currentTheme={backgroundTheme} 
+            onChangeTheme={setBackgroundTheme} 
+            isSinglePlayer={false} 
+            spQuickFinish={false} 
+            setSpQuickFinish={() => {}} 
+            currentDifficulty="MEDIUM" 
+            onChangeDifficulty={() => {}} 
+            soundEnabled={true} 
+            setSoundEnabled={() => {}} 
+            sleeveEffectsEnabled={true} 
+            setSleeveEffectsEnabled={() => {}} 
+            playAnimationsEnabled={true} 
+            setPlayAnimationsEnabled={() => {}} 
+            autoPassEnabled={false} 
+            setAutoPassEnabled={() => {}} 
+            unlockedSleeves={[]} 
+            unlockedBoards={[]} 
+            socialFilter={socialFilter} 
+            setSocialFilter={setSocialFilter} 
+          />
+        )}
+      </>
+    );
+  }
+  
+  // 4. ELSE: Fallback to LobbyContainer
+  console.warn('📋 Game Component: Unexpected status, showing LobbyContainer as fallback', {
+    status: gameState.status
+  });
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
-      <GameTable 
+    <div id="LobbyContainer" className="w-full h-full min-h-screen bg-black">
+      <Lobby 
+        key="game-route-lobby-instance" 
+        playerName={playerName} 
         gameState={gameState} 
-        myId={myId} 
-        myHand={myHand} 
-        onPlayCards={handlePlayCards} 
-        onPassTurn={handlePassTurn} 
-        cardCoverStyle="RED" 
+        error={null} 
+        playerAvatar={playerAvatar} 
+        initialRoomCode={roomId || null} 
         backgroundTheme="EMERALD" 
-        onOpenSettings={() => {}} 
-        profile={null} 
+        onBack={() => window.location.href = '/'} 
+        onSignOut={() => {}} 
+        myId={myId} 
+        turnTimerSetting={30} 
+        selected_sleeve_id={undefined} 
       />
-    </Suspense>
+    </div>
   );
 };
 

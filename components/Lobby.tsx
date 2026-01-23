@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
+import { GameState, GameStatus, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket, connectSocket } from '../services/socket';
 import { BoardSurface } from './UserHub';
 import { VisualEmote } from './VisualEmote';
@@ -48,6 +48,143 @@ const BackgroundWrapperComponent: React.FC<{ children: React.ReactNode; theme: B
 };
 
 const BackgroundWrapper = memo(BackgroundWrapperComponent, (prevProps, nextProps) => prevProps.theme === nextProps.theme);
+
+// Memoized PlayerSlot component to prevent unnecessary re-renders
+interface PlayerSlotProps {
+  index: number;
+  player: any | null;
+  isHost: boolean;
+  myId: string | undefined;
+  remoteEmotes: Emote[];
+  onRemoveBot: (botId: string) => void;
+  onUpdateDifficulty: (botId: string, difficulty: AiDifficulty) => void;
+  onAddBot: () => void;
+  gameState: GameState | null;
+}
+
+const PlayerSlot = memo(({ index, player, isHost, myId, remoteEmotes, onRemoveBot, onUpdateDifficulty, onAddBot, gameState }: PlayerSlotProps) => {
+  if (player) {
+    const isMe = player.id === myId;
+    const currentPlayer = gameState?.players?.find(p => p.id === player.id);
+    const currentDifficulty = currentPlayer?.difficulty || player.difficulty || 'MEDIUM';
+    
+    return (
+      <div className="player-slot transition-all duration-200 ease-in-out">
+        <div className={`relative group flex flex-col p-4 sm:p-5 rounded-[2.5rem] bg-black/40 border-2 transition-all duration-200 overflow-visible min-h-[140px] ${player.id === myId ? 'border-yellow-500/40 shadow-[inset_0_0_30px_rgba(234,179,8,0.05)]' : player.isBot ? 'border-cyan-500/40 shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]' : 'border-white/5 hover:border-white/10'}`}>
+          <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0 relative">
+            <div className="relative flex-shrink-0">
+              <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-[1.5rem] bg-black border flex items-center justify-center overflow-hidden shadow-2xl group-hover:scale-105 transition-transform duration-200 ${player.isBot ? 'border-cyan-500/60 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-white/10'}`}>
+                <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="md" />
+                {player.isBot && (
+                  <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-cyan-500/90 text-white text-[6px] font-black uppercase tracking-wider px-1 py-0.5 rounded-full border border-cyan-400/50 shadow-lg whitespace-nowrap">
+                    CPU
+                  </div>
+                )}
+              </div>
+              {player.isHost && (
+                <div className="absolute -top-2 -left-2 w-6 h-6 sm:w-8 sm:h-8 bg-yellow-500 rounded-full flex items-center justify-center text-xs border-4 border-black shadow-lg z-10">👑</div>
+              )}
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className={`text-xs sm:text-sm font-black uppercase tracking-[0.15em] truncate ${player.id === myId ? 'text-yellow-500' : player.isBot ? 'text-cyan-400' : 'text-white'}`}>{player.name}</span>
+            </div>
+            
+            {player.isBot && isHost && (
+              <button 
+                onClick={() => onRemoveBot(player.id)}
+                className="absolute -top-6 -right-6 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-rose-600/90 hover:bg-rose-600 border-2 border-rose-500 text-white hover:text-white transition-all duration-150 flex items-center justify-center flex-shrink-0 z-20 shadow-lg"
+                title="Remove Bot"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {player.isBot && isHost && (
+            <div className="mt-3 pt-3 border-t border-white/5">
+              <div className="flex items-center justify-center">
+                <div className="flex gap-1 bg-black/60 p-1 rounded-xl border border-white/5">
+                  {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map(d => {
+                    const active = currentDifficulty === d;
+                    const colors = d === 'EASY' ? 'bg-emerald-600' : d === 'MEDIUM' ? 'bg-yellow-500 text-black' : 'bg-rose-600';
+                    return (
+                      <button 
+                        key={`${player.id}-${d}`}
+                        onClick={() => onUpdateDifficulty(player.id, d)}
+                        className={`w-7 h-7 rounded-lg text-[10px] font-black transition-all duration-150 flex items-center justify-center ${active ? `${colors} scale-110 shadow-lg` : 'text-white/20 hover:text-white/40 bg-white/5'}`}
+                        title={`Combat Difficulty: ${d}`}
+                      >
+                        {d[0]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Empty slot
+  return (
+    <div className="slot-empty min-h-[140px] transition-all duration-200 ease-in-out">
+      {isHost && (gameState?.players?.length || 0) < 4 ? (
+        <button 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onAddBot();
+          }}
+          disabled={(gameState?.players?.length || 0) >= 4}
+          className="flex items-center gap-5 p-5 rounded-[2.5rem] border-2 border-dashed border-white/5 bg-white/[0.01] hover:bg-white/[0.04] hover:border-yellow-500/40 transition-all duration-200 group w-full min-h-[140px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        >
+          <div className="w-16 h-16 rounded-[1.5rem] border-2 border-dashed border-white/10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 group-hover:border-yellow-500/40 group-hover:bg-yellow-500/5">
+            <span className="text-3xl font-black text-white/10 group-hover:text-yellow-500 transition-colors duration-200">+</span>
+          </div>
+          <div className="flex flex-col items-start text-left">
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 group-hover:text-white transition-colors duration-200">ADD CPU</span>
+            <span className="text-[7px] font-bold uppercase tracking-widest text-white/5 group-hover:text-yellow-500/40 mt-1 transition-colors duration-200">Slot {index + 1}</span>
+          </div>
+        </button>
+      ) : (
+        <div className="flex items-center gap-5 p-5 rounded-[2.5rem] border-2 border-dashed border-white/[0.03] bg-white/[0.01] opacity-20 min-h-[140px] w-full">
+          <div className="w-16 h-16 rounded-[1.5rem] border-2 border-dashed border-white/10"></div>
+          <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/10">WAITING...</span>
+        </div>
+      )}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison function for memo
+  const prevPlayer = prevProps.player;
+  const nextPlayer = nextProps.player;
+  
+  // If both are null/undefined, they're equal
+  if (!prevPlayer && !nextPlayer) return true;
+  
+  // If one is null and the other isn't, they're different
+  if (!prevPlayer || !nextPlayer) return false;
+  
+  // Compare player properties that matter
+  return (
+    prevPlayer.id === nextPlayer.id &&
+    prevPlayer.name === nextPlayer.name &&
+    prevPlayer.avatar === nextPlayer.avatar &&
+    prevPlayer.difficulty === nextPlayer.difficulty &&
+    prevPlayer.isBot === nextPlayer.isBot &&
+    prevPlayer.isHost === nextPlayer.isHost &&
+    prevProps.isHost === nextProps.isHost &&
+    prevProps.index === nextProps.index &&
+    prevProps.gameState?.players?.length === nextProps.gameState?.players?.length
+  );
+});
+
+PlayerSlot.displayName = 'PlayerSlot';
 
 const GlassPanel: React.FC<{ children: React.ReactNode; className?: string; isLight?: boolean }> = ({ children, className = '', isLight = false }) => (
   <div className={`relative ${isLight ? 'bg-white/60' : 'bg-black/60'} backdrop-blur-3xl border ${isLight ? 'border-white/40' : 'border-white/10'} shadow-[0_40px_100px_rgba(0,0,0,0.8)] rounded-[3rem] overflow-hidden ${className}`}>
@@ -386,6 +523,17 @@ function LobbyComponent({
     });
   }, []);
 
+  // CRITICAL: Force re-render when gameState prop changes
+  // This ensures the component updates when App.tsx receives new game_state from server
+  const [forceRenderKey, setForceRenderKey] = useState(0);
+  
+  useEffect(() => {
+    if (gameState) {
+      // Force re-render by updating key
+      setForceRenderKey(prev => prev + 1);
+    }
+  }, [gameState]);
+
   
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(() => {
@@ -393,8 +541,10 @@ function LobbyComponent({
     return `${name.toUpperCase()}'S MATCH`;
   });
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
+  
   // Single source of truth for tab navigation
   const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>('PUBLIC');
   
@@ -423,6 +573,11 @@ function LobbyComponent({
       setRoomIdInput(initialRoomCode);
     }
     fetchEmotes().then(setRemoteEmotes);
+    
+    // Initialize local network info
+    localDiscoveryService.detectLocalNetwork().then(setLocalNetworkInfo).catch(() => {
+      setLocalNetworkInfo({ isLocalNetwork: false, networkType: 'unknown', canHost: false });
+    });
   }, [initialRoomCode]);
 
   // Socket initialization - completely decoupled from UI rendering
@@ -470,22 +625,22 @@ function LobbyComponent({
         return;
       }
       
-      try {
-        setSocketConnecting(true);
+        try {
+          setSocketConnecting(true);
         console.log('Socket not connected, setting up listeners and connecting...');
-        
-        // Register event listeners
-        socket.on('connect', handleConnect);
-        socket.on('disconnect', handleDisconnect);
+          
+          // Register event listeners
+          socket.on('connect', handleConnect);
+          socket.on('disconnect', handleDisconnect);
         socket.on('connect_error', (error) => {
           console.log('Socket connect error:', error);
           handleConnectError();
         });
-        
+          
         // Attempt connection - try direct connect if connectSocket doesn't work
         console.log('Calling connectSocket()...');
-        connectSocket();
-        
+      connectSocket();
+          
         // Also try direct connect as fallback
         if (!socket.connected) {
           console.log('connectSocket() did not connect, trying direct socket.connect()...');
@@ -509,12 +664,12 @@ function LobbyComponent({
         //     setSocketConnected(false);
         //   }
         // }, 5000);
-      } catch (error) {
+        } catch (error) {
         console.error('Error initializing socket:', error);
-        if (isMounted) {
-          setSocketConnecting(false);
-          setSocketConnected(false);
-        }
+          if (isMounted) {
+            setSocketConnecting(false);
+            setSocketConnected(false);
+          }
       }
     };
 
@@ -584,23 +739,15 @@ function LobbyComponent({
       }
     };
     
-    // Listen for game_state updates which include room settings
-    socket.on(SocketEvents.GAME_STATE, (state: GameState) => {
-      if (state.roomId === gameState.roomId) {
-        // turnDuration is in seconds from server, convert to timer value
-        const timerValue = state.turnDuration !== undefined ? state.turnDuration : undefined;
-        handleRoomSettingsUpdate({ 
-          timer: timerValue, 
-          isPublic: state.isPublic 
-        });
-      }
-    });
+    // CRITICAL: Do NOT listen to GAME_STATE here - App.tsx handles it
+    // This listener was only updating room settings, but it could cause duplicate state updates
+    // Removed to ensure App.tsx is the single source of truth for gameState
     
     // Also listen for dedicated room settings update event
     socket.on('room_settings_updated', handleRoomSettingsUpdate);
     
     return () => {
-      socket.off(SocketEvents.GAME_STATE);
+      // Removed GAME_STATE listener - App.tsx handles it
       socket.off('room_settings_updated');
     };
   }, [socketConnected, gameState?.roomId, hookedTimer, isPublic, setHookedTimer, setIsPublic]);
@@ -640,7 +787,7 @@ function LobbyComponent({
     
     // Initial fetch
     if (socketConnected) {
-      refreshRooms();
+    refreshRooms();
     }
 
     // Cleanup: remove listener on unmount
@@ -794,10 +941,26 @@ function LobbyComponent({
           selected_sleeve_id: selected_sleeve_id
         };
         
-        console.log('EMITTING create_room with settings:', { timer: hookedTimer, isPublic, roomName: roomSettings.roomName });
+        console.log('🚀 Lobby: EMITTING create_room with settings:', { 
+          timer: hookedTimer, 
+          isPublic, 
+          roomName: roomSettings.roomName,
+          playerName: roomSettings.name,
+          playerId: roomSettings.playerId,
+          socketConnected: socket.connected
+        });
         
         socket.emit(SocketEvents.CREATE_ROOM, roomSettings, (response: any) => {
-          console.log('SERVER ACKNOWLEDGEMENT RECEIVED:', response);
+          console.log('✅ Lobby: SERVER ACKNOWLEDGEMENT RECEIVED:', response);
+          if (response?.error) {
+            console.error('❌ Lobby: Room creation failed:', response.error);
+            setIsCreatingRoom(false);
+            setErrorToast({ show: true, message: response.error });
+          } else if (response?.roomId) {
+            console.log('✅ Lobby: Room created successfully:', response.roomId);
+            // The server will send game_state event, which will update mpGameState
+            // No need to manually update state here
+          }
         });
         
         // Reset creating state after a delay to allow for server response
@@ -902,13 +1065,78 @@ function LobbyComponent({
   };
 
   const addBot = () => {
-    if (!gameState) return;
-    socket.emit(SocketEvents.ADD_BOT, { roomId: gameState.roomId, playerId: myId });
+    // CRITICAL: Read gameState directly from props, not from closure
+    if (!gameState) {
+      console.error('❌ Lobby: Cannot add bot - gameState is null');
+      return;
+    }
+    
+    if (!gameState.roomId) {
+      console.error('❌ Lobby: Cannot add bot - no roomId');
+      return;
+    }
+    
+    if (!myId) {
+      console.error('❌ Lobby: Cannot add bot - no myId');
+      return;
+    }
+    
+    // CRITICAL: Read fresh gameState.players.length to avoid stale closure
+    const currentPlayerCount = gameState.players?.length || 0;
+    
+    if (currentPlayerCount >= 4) {
+      console.warn('⚠️ Lobby: Cannot add bot - room is full', { currentPlayerCount });
+      return;
+    }
+    
+    console.log('🤖 Lobby: Emitting add_bot event', { 
+      roomId: gameState.roomId, 
+      playerId: myId,
+      currentPlayerCount: currentPlayerCount,
+      socketConnected: socket.connected,
+      players: gameState.players?.map(p => ({ id: p.id, name: p.name, isBot: p.isBot }))
+    });
+    
+    // CRITICAL: Only emit the event - do NOT update local state
+    // The server will broadcast game_state event, which App.tsx will receive and update mpGameState
+    // This will cause the Lobby component to re-render with the updated gameState prop
+    if (!socket.connected) {
+      console.error('❌ Lobby: Cannot add bot - socket not connected');
+      return;
+    }
+    
+    socket.emit(SocketEvents.ADD_BOT, { roomId: gameState.roomId, playerId: myId }, (response: any) => {
+      if (response && response.error) {
+        console.error('❌ Lobby: add_bot error from server:', response.error);
+      } else {
+        console.log('✅ Lobby: add_bot acknowledged by server');
+      }
+    });
   };
 
   const removeBot = (botId: string) => {
-    if (!gameState) return;
-    socket.emit(SocketEvents.REMOVE_BOT, { roomId: gameState.roomId, botId, playerId: myId });
+    if (!gameState) {
+      console.error('❌ Lobby: Cannot remove bot - gameState is null');
+      return;
+    }
+    if (!gameState.roomId) {
+      console.error('❌ Lobby: Cannot remove bot - no roomId');
+      return;
+    }
+    if (!myId) {
+      console.error('❌ Lobby: Cannot remove bot - no myId');
+      return;
+    }
+    console.log('🗑️ Lobby: Removing bot', { roomId: gameState.roomId, botId, playerId: myId });
+    socket.emit(SocketEvents.REMOVE_BOT, { roomId: gameState.roomId, botId, playerId: myId }, (response: any) => {
+      if (response && response.error) {
+        console.error('❌ Lobby: remove_bot error from server:', response.error);
+        setToast({ show: true, message: response.error, type: 'error' });
+      } else {
+        console.log('✅ Lobby: Bot removed successfully (server confirmed)');
+        setToast({ show: true, message: 'Bot removed from room!', type: 'success' });
+      }
+    });
   };
 
   const updateBotDifficulty = (botId: string, difficulty: AiDifficulty) => {
@@ -917,25 +1145,51 @@ function LobbyComponent({
   };
 
   const startGame = () => {
-    if (!gameState) return;
+    if (!gameState) {
+      console.error('❌ Lobby: Cannot start game - gameState is null');
+      return;
+    }
+    console.log('🚀 Lobby: Starting game', { roomId: gameState.roomId, playerId: myId, status: gameState.status });
     socket.emit(SocketEvents.START_GAME, { roomId: gameState.roomId, playerId: myId });
   };
 
-  // Removed useMemo to prevent caching issues
-  const isHost = gameState?.players.find(p => p.id === myId)?.isHost;
+  // Check if current player is host using hostId from gameState
+  // myId should be the persistent UUID from localStorage (e.g., 'fe3206bb-1987-4dda-ae3b-8549e6376b04')
+  const isHost = gameState?.hostId === myId;
+  
+  // Debug: Log isHost status
+  useEffect(() => {
+    if (gameState) {
+      console.log('👑 Lobby: isHost check', { 
+        isHost, 
+        myId, 
+        gameStateHostId: gameState.hostId,
+        playerName,
+        allPlayers: gameState.players.map(p => ({ id: p.id, name: p.name, isHost: p.isHost })),
+        playersLength: gameState.players.length
+      });
+    }
+  }, [gameState, myId, playerName, isHost]);
 
   // REMOVED renderTimerButtons function - inlining directly in JSX to prevent stale closures
+
+  // CRITICAL: Only render lobby interface when status is LOBBY
+  // If status is PLAYING, App.tsx should handle switching to GAME_TABLE view
+  if (gameState && gameState.status !== GameStatus.LOBBY) {
+    // Status is not LOBBY - don't render lobby interface
+    // This prevents showing empty game board when status transitions
+    return (
+      <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-yellow-400 text-lg">Preparing game...</div>
+        </div>
+      </BackgroundWrapper>
+    );
+  }
 
   return (
     <React.Fragment key={activeTab}>
     <>
-      {/* Emergency bypass button for testing */}
-      <button 
-        onClick={() => window.location.href = '/game/test-room'} 
-        style={{ position: 'fixed', top: 0, left: 0, zIndex: 99999, background: 'red', color: 'white', padding: '8px 12px', fontSize: '12px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
-      >
-        FORCE START (BYPASS SOCKET)
-      </button>
       <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
       <div className="lobby-viewport" key="lobby-viewport">
         
@@ -1097,10 +1351,10 @@ function LobbyComponent({
                         ? 'opacity-100 translate-y-0 z-10 pointer-events-auto' 
                         : 'opacity-0 pointer-events-none translate-y-2 z-0'
                     }`}
-                    style={{ paddingTop: '1rem', touchAction: 'pan-y' }}
+                    style={{ paddingTop: '1rem', paddingBottom: '2rem', touchAction: 'pan-y' }}
                   >
                     {activeTab === 'CREATE' && (
-                        <div className="h-full flex flex-col space-y-6 sm:space-y-8 max-w-xl mx-auto w-full py-4 sm:py-6" style={{ touchAction: 'pan-y' }}>
+                        <div className="h-full flex flex-col space-y-6 sm:space-y-8 max-w-xl mx-auto w-full py-4 sm:py-6 pb-8 sm:pb-10" style={{ touchAction: 'pan-y' }}>
                         <div className="space-y-3" style={{ position: 'relative', zIndex: 10000, pointerEvents: 'auto' }}>
                           <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
                           <input 
@@ -1378,8 +1632,9 @@ function LobbyComponent({
                         ? 'opacity-100 pointer-events-auto translate-y-0 z-10' 
                         : 'opacity-0 pointer-events-none translate-y-2 z-0'
                     }`}
+                    style={{ paddingTop: '1rem', paddingBottom: '2rem', touchAction: 'pan-y' }}
                   >
-                    <div className="space-y-6">
+                    <div className="space-y-6 px-2 sm:px-4">
                       <div className="bg-gradient-to-br from-amber-950/20 via-amber-900/10 to-amber-950/20 backdrop-blur-xl border-2 border-amber-700/30 rounded-2xl p-6 sm:p-8">
                         <h3 className="text-lg sm:text-xl font-black uppercase tracking-wider text-amber-400 mb-4 flex items-center gap-3">
                           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
@@ -1442,9 +1697,31 @@ function LobbyComponent({
               <div className="bg-emerald-500/10 border border-emerald-500/30 px-8 py-2 rounded-full mb-6">
                 <span className="text-[10px] font-black uppercase tracking-[0.8em] text-emerald-500 animate-pulse">DEPLOYMENT STANDBY</span>
               </div>
-              <h1 className="text-4xl sm:text-6xl font-black text-white uppercase italic tracking-tighter drop-shadow-2xl font-serif">
+              <h1 className="text-4xl sm:text-6xl font-black text-white uppercase italic tracking-tighter drop-shadow-2xl font-serif mb-4">
                 {gameState.roomName}
               </h1>
+              {/* Private/Public Match Indicator - Always show, default to private if undefined */}
+              <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full border-2 backdrop-blur-sm ${gameState.isPublic === true ? 'bg-cyan-500/20 border-cyan-500/60 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-amber-500/20 border-amber-500/60 shadow-[0_0_20px_rgba(234,179,8,0.3)]'}`}>
+                {gameState.isPublic === true ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-300">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-cyan-300">PUBLIC MATCH</span>
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-300">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-300">PRIVATE MATCH</span>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -1458,17 +1735,44 @@ function LobbyComponent({
                     <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
 
                     <button 
-                        onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?room=${gameState.roomId}`);
-                        setCopyFeedback('LINK SECURED');
-                        setTimeout(() => setCopyFeedback(null), 2000);
+                        onClick={async () => {
+                            if (!gameState?.roomId) {
+                                setToast({ show: true, message: 'Cannot copy invite - no room ID', type: 'error' });
+                                return;
+                            }
+                            
+                            const inviteUrl = `${window.location.origin}/game/${gameState.roomId}`;
+                            
+                            try {
+                                // Try modern clipboard API first
+                                if (navigator.clipboard && navigator.clipboard.writeText) {
+                                    await navigator.clipboard.writeText(inviteUrl);
+                                    setToast({ show: true, message: 'Invite link copied to clipboard!', type: 'success' });
+                                } else {
+                                    // Fallback for older browsers
+                                    const textArea = document.createElement('textarea');
+                                    textArea.value = inviteUrl;
+                                    textArea.style.position = 'fixed';
+                                    textArea.style.left = '-999999px';
+                                    textArea.style.top = '-999999px';
+                                    document.body.appendChild(textArea);
+                                    textArea.focus();
+                                    textArea.select();
+                                    try {
+                                        document.execCommand('copy');
+                                        setToast({ show: true, message: 'Invite link copied to clipboard!', type: 'success' });
+                                    } catch (err) {
+                                        setToast({ show: true, message: 'Failed to copy invite link', type: 'error' });
+                                    }
+                                    document.body.removeChild(textArea);
+                                }
+                            } catch (err) {
+                                setToast({ show: true, message: 'Failed to copy invite link', type: 'error' });
+                            }
                         }}
-                        className={`
-                            w-full py-5 rounded-2xl transition-all duration-200 flex items-center justify-center gap-4 active:scale-95 border-2
-                            ${copyFeedback ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' : 'bg-white/[0.03] border-white/5 text-white/60 hover:text-white hover:bg-white/10'}
-                        `}
+                        className="w-full py-5 rounded-2xl transition-all duration-200 flex items-center justify-center gap-4 active:scale-95 border-2 cursor-pointer bg-white/[0.03] border-white/5 text-white/60 hover:text-white hover:bg-white/10"
                     >
-                        <span className="text-[10px] font-black uppercase tracking-widest">{copyFeedback || 'DISTRIBUTE INVITE'}</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">DISTRIBUTE INVITE</span>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                     </button>
 
@@ -1485,7 +1789,7 @@ function LobbyComponent({
 
                   <LuxuryActionTile 
                     onClick={onBack!} 
-                    label="ABORT MISSION" 
+                    label="CLOSE LOBBY" 
                     sublabel="Terminate Session" 
                     variant="rose"
                     className="w-full"
@@ -1495,104 +1799,51 @@ function LobbyComponent({
 
               <div className="lg:col-span-8 space-y-6">
                 <GlassPanel className="p-8 sm:p-10">
+                    {/* CRITICAL: Use gameState from props directly - NO local state for players */}
+                    {/* Render 4 distinct slots using Array.from pattern - force direct access to gameState.players */}
+                    {/* Use stable index-based keys to prevent React from unmounting/remounting on player changes */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {gameState.players.map(p => {
-                            const isMe = p.id === myId;
+                        {/* CRITICAL: Map exactly 4 slots, using gameState.players directly from props */}
+                        {Array.from({ length: 4 }).map((_, i) => {
+                            // CRITICAL: Use gameState from props - NO local state
+                            // Force fresh read on every render
+                            const p = gameState?.players?.[i];
+                            
                             return (
-                            <div key={p.id} className={`relative group flex items-center justify-between p-5 rounded-[2.5rem] bg-black/40 border-2 transition-all duration-200 ${isMe ? 'border-yellow-500/40 shadow-[inset_0_0_30px_rgba(234,179,8,0.05)]' : p.isBot ? 'border-cyan-500/40 shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]' : 'border-white/5 hover:border-white/10'}`}>
-                                <div className="flex items-center gap-5">
-                                    <div className="relative">
-                                        <div className={`w-16 h-16 rounded-[1.5rem] bg-black border flex items-center justify-center overflow-hidden shadow-2xl group-hover:scale-105 transition-transform duration-200 ${p.isBot ? 'border-cyan-500/60 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-white/10'}`}>
-                                            <VisualEmote trigger={p.avatar} remoteEmotes={remoteEmotes} size="md" />
-                                            {p.isBot && (
-                                              <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-cyan-500/90 text-white text-[6px] font-black uppercase tracking-wider px-1 py-0.5 rounded-full border border-cyan-400/50 shadow-lg whitespace-nowrap">
-                                                CPU
-                                              </div>
-                                            )}
-                                        </div>
-                                        {p.isHost && (
-                                        <div className="absolute -top-2 -left-2 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-xs border-4 border-black shadow-lg z-10">👑</div>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col min-w-0">
-                                        <span className={`text-sm font-black uppercase tracking-[0.15em] truncate ${isMe ? 'text-yellow-500' : p.isBot ? 'text-cyan-400' : 'text-white'}`}>{p.name}</span>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${p.isOffline ? 'bg-rose-500' : p.isBot ? 'bg-cyan-500' : 'bg-emerald-500'} animate-pulse`}></div>
-                                            <span className="text-[8px] font-bold text-white/20 uppercase tracking-[0.2em]">{p.isBot ? 'CPU RECON' : (isMe ? 'LOCAL AGENT' : 'LINKED AGENT')}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {p.isBot && isHost && (
-                                    <div className="flex flex-col items-end gap-2 pr-2">
-                                        <div className="flex gap-1 bg-black/60 p-1.5 rounded-2xl border border-white/5">
-                                            {(['EASY', 'MEDIUM', 'HARD'] as AiDifficulty[]).map(d => {
-                                                const active = (p.difficulty || 'MEDIUM') === d;
-                                                const colors = d === 'EASY' ? 'bg-emerald-600' : d === 'MEDIUM' ? 'bg-yellow-500 text-black' : 'bg-rose-600';
-                                                return (
-                                                    <button 
-                                                        key={d} 
-                                                        onClick={() => updateBotDifficulty(p.id, d)}
-                                                        className={`w-7 h-7 rounded-xl text-[10px] font-black transition-all duration-150 ${active ? `${colors} scale-110 shadow-lg` : 'text-white/20 hover:text-white/40'}`}
-                                                        title={`Combat Difficulty: ${d}`}
-                                                    >
-                                                        {d[0]}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <button 
-                                            onClick={() => removeBot(p.id)}
-                                            className="px-4 py-1 bg-rose-600/10 hover:bg-rose-600 border border-rose-500/30 text-rose-500 hover:text-white text-[7px] font-black uppercase tracking-widest rounded-full transition-all duration-150"
-                                        >
-                                            DEACTIVATE
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                            );
-                        })}
-                        
-                        {Array.from({ length: MAX_PLAYERS - gameState.players.length }).map((_, i) => {
-                            if (isHost && i === 0) {
-                            return (
-                                <button 
-                                    key={`add-cpu-${i}`}
-                                    onClick={addBot}
-                                    className="flex items-center gap-5 p-5 rounded-[2.5rem] border-2 border-dashed border-white/5 bg-white/[0.01] hover:bg-white/[0.04] hover:border-yellow-500/40 transition-all duration-200 group h-[100px]"
-                                >
-                                    <div className="w-16 h-16 rounded-[1.5rem] border-2 border-dashed border-white/10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 group-hover:border-yellow-500/40 group-hover:bg-yellow-500/5">
-                                        <span className="text-3xl font-black text-white/10 group-hover:text-yellow-500 transition-colors duration-200">+</span>
-                                    </div>
-                                    <div className="flex flex-col items-start text-left">
-                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 group-hover:text-white transition-colors duration-200">ALLOCATE UNIT</span>
-                                        <span className="text-[7px] font-bold uppercase tracking-widest text-white/5 group-hover:text-yellow-500/40 mt-1 transition-colors duration-200">Combat Support Available</span>
-                                    </div>
-                                </button>
-                            );
-                            }
-                            return (
-                            <div key={`empty-${i}`} className="flex items-center gap-5 p-5 rounded-[2.5rem] border-2 border-dashed border-white/[0.03] bg-white/[0.01] opacity-20 h-[100px]">
-                                <div className="w-16 h-16 rounded-[1.5rem] border-2 border-dashed border-white/10"></div>
-                                <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/10">SECTOR OPEN</span>
-                            </div>
+                                <PlayerSlot
+                                    key={`slot-${i}`}
+                                    index={i}
+                                    player={p || null}
+                                    isHost={isHost}
+                                    myId={myId}
+                                    remoteEmotes={remoteEmotes}
+                                    onRemoveBot={removeBot}
+                                    onUpdateDifficulty={updateBotDifficulty}
+                                    onAddBot={addBot}
+                                    gameState={gameState}
+                                />
                             );
                         })}
                     </div>
+                    
 
                     <div className="mt-12">
                         {isHost ? (
                             <button 
                                 onClick={startGame}
-                                disabled={gameState.players.length < 2}
+                                disabled={!gameState?.players || gameState.players.length === 0}
                                 className={`
                                     w-full py-8 rounded-[2.5rem] font-black uppercase tracking-[0.5em] text-sm transition-all duration-300 shadow-[0_30px_80px_rgba(0,0,0,0.6)] group relative overflow-hidden active:scale-95
-                                    ${gameState.players.length < 2 ? 'bg-white/5 text-white/20 grayscale pointer-events-none' : 'bg-gradient-to-r from-emerald-700 via-green-500 to-emerald-700 text-white hover:scale-[1.01]'}
+                                    ${!gameState?.players || gameState.players.length === 0 ? 'bg-white/5 text-white/20 grayscale pointer-events-none' : 'bg-gradient-to-r from-emerald-700 via-green-500 to-emerald-700 text-white hover:scale-[1.01]'}
                                 `}
                             >
                                 <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                                 <span className="relative z-10 flex items-center justify-center gap-4">
-                                    INITIALIZE ARENA ⚔️
+                                    {gameState?.players?.length === 4 
+                                        ? 'START MATCH ⚔️' 
+                                        : gameState?.players?.length && gameState.players.length > 0
+                                        ? `START MATCH ⚔️ (${gameState.players.length}/4)`
+                                        : 'WAITING FOR PLAYERS'}
                                 </span>
                             </button>
                         ) : (
@@ -1646,8 +1897,16 @@ function LobbyComponent({
           animation: auric-shimmer 3s ease-in-out infinite;
         }
       `}} />
-      
     </BackgroundWrapper>
+    {toast && toast.show && (
+      <Toast 
+        message={toast.message} 
+        type={toast.type}
+        onClose={() => {
+          setToast(null);
+        }}
+      />
+    )}
     </>
     </React.Fragment>
   );

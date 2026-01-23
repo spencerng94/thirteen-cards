@@ -1,19 +1,36 @@
 // ============================================================================
-// ROOMS SINGLETON - True Singleton Pattern for Game Rooms
+// ROOMS MODULE - Hybrid Approach: Local Map + Supabase
 // ============================================================================
-// This module provides a singleton Map that persists across:
-// - Multiple socket connections
-// - Hot reloads (tsx watch, nodemon)
-// - Module re-imports
+// This module uses a hybrid approach:
+// - Local Map for fast game logic operations
+// - Supabase for room discovery and persistence across restarts
 // ============================================================================
 
-// CRITICAL: Log module load to detect re-imports
-const MODULE_LOAD_TIME = Date.now();
-const MODULE_LOAD_ID = Math.random().toString(36).substring(7);
-console.log(`📦 rooms.ts MODULE LOADED at ${new Date().toISOString()}, ID: ${MODULE_LOAD_ID}, PID: ${process.pid}`);
+import "dotenv/config";
+import { createClient } from "@supabase/supabase-js";
 
-// Import GameRoom type from server.ts (we'll define it here to avoid circular deps)
-// Types are defined inline to avoid circular dependencies
+// Initialize Supabase client with graceful fallback
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+// Prioritize service role key for better permissions, fallback to anon key
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+let supabase: ReturnType<typeof createClient> | null = null;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('⚠️ ROOMS: Supabase credentials not found - using local Map only');
+  console.warn('   SUPABASE_URL/VITE_SUPABASE_URL:', supabaseUrl ? '✓' : '✗');
+  console.warn('   SUPABASE_SERVICE_ROLE_KEY/VITE_SUPABASE_ANON_KEY:', supabaseKey ? '✓' : '✗');
+  console.warn('   Room discovery will be limited to local Map (rooms won\'t persist across restarts)');
+} else {
+  supabase = createClient(supabaseUrl, supabaseKey);
+  const keyType = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON';
+  console.log(`✅ ROOMS: Supabase client initialized with ${keyType} key`);
+}
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
 enum Suit { Spades = 0, Clubs = 1, Diamonds = 2, Hearts = 3 }
 enum Rank { Three = 3, Four = 4, Five = 5, Six = 6, Seven = 7, Eight = 8, Nine = 9, Ten = 10, Jack = 11, Queen = 12, King = 13, Ace = 14, Two = 15 }
 
@@ -59,6 +76,7 @@ export interface GameRoom {
   id: string;
   status: 'LOBBY' | 'PLAYING' | 'FINISHED';
   players: Player[];
+  hostId: string; // ID of the player who created the room
   currentPlayerIndex: number;
   currentPlayPile: PlayTurn[];
   roundHistory: PlayTurn[][];
@@ -84,7 +102,7 @@ export interface SimplePlayer {
 }
 
 // ============================================================================
-// SINGLETON MAP INITIALIZATION
+// LOCAL MAP SINGLETON - For Fast Game Logic
 // ============================================================================
 
 // Declare global type for the singleton Map
@@ -94,103 +112,68 @@ declare global {
 }
 
 // Initialize or reuse existing Map from global (survives hot reloads)
-// TRUE SINGLETON: Only one Map instance exists per Node.js process
-// CRITICAL: This code runs ONCE at module load - NEVER inside connection handlers
-// CRITICAL: If this module is re-imported, we MUST reuse the existing Map from global
 let roomsMap: Map<string, GameRoom>;
 
-// CRITICAL: ALWAYS check global first - if Map exists, REUSE IT (never create new)
-// This check MUST happen FIRST, before any other logic
-// Even if this module is re-imported, we MUST reuse the existing Map
 const existingGlobalMap = (global as any).__GLOBAL_ROOMS_MAP__;
 
 if (existingGlobalMap instanceof Map) {
-  // Map exists - REUSE IT (never create a new one)
-  // This is the CRITICAL path - we MUST use the existing Map
   roomsMap = existingGlobalMap;
-  const existingSize = roomsMap.size;
-  if (existingSize > 0) {
-    console.log(`💎 ROOMS SINGLETON: REUSING existing Map with ${existingSize} rooms (module re-import detected)`);
-    console.log(`📋 Existing room keys:`, Array.from(roomsMap.keys()));
-  } else {
-    console.log(`💎 ROOMS SINGLETON: REUSING existing Map (empty)`);
-  }
-  // CRITICAL: Verify we're using the exact same Map instance
-  if (roomsMap !== existingGlobalMap) {
-    console.error(`🚨 CRITICAL: Map reference changed during reuse!`);
-    throw new Error('Map reference integrity violation');
-  }
-  // CRITICAL: Ensure global reference is still set (defensive check)
-  if ((global as any).__GLOBAL_ROOMS_MAP__ !== roomsMap) {
-    console.error(`🚨 CRITICAL: Global Map reference was changed!`);
-    // Restore it immediately
-    (global as any).__GLOBAL_ROOMS_MAP__ = roomsMap;
-    throw new Error('Global Map reference was modified - restored but this should not happen');
-  }
-} else if (existingGlobalMap !== undefined) {
-  // Something exists but it's not a Map - this is a critical error
-  console.error(`🚨 CRITICAL: __GLOBAL_ROOMS_MAP__ exists but is not a Map!`);
-  console.error(`🚨 Type:`, typeof existingGlobalMap);
-  console.error(`🚨 Value:`, existingGlobalMap);
-  console.error(`🚨 Constructor:`, existingGlobalMap?.constructor?.name);
-  throw new Error('__GLOBAL_ROOMS_MAP__ exists but is not a Map - cannot recover');
+  console.log(`💎 ROOMS: REUSING existing Map with ${roomsMap.size} rooms`);
 } else {
-  // Map doesn't exist - create it (only on first server start)
   roomsMap = new Map<string, GameRoom>();
   (global as any).__GLOBAL_ROOMS_MAP__ = roomsMap;
-  console.log(`💎 ROOMS SINGLETON: Created new Map (first time)`);
+  console.log(`💎 ROOMS: Created new Map`);
 }
 
-// CRITICAL: Ensure the global reference is always set and is the same instance
-if ((global as any).__GLOBAL_ROOMS_MAP__ !== roomsMap) {
-  console.error(`🚨 CRITICAL: Global Map reference mismatch!`);
-  throw new Error('Global Map reference integrity violation');
-}
-
-// Add initialization flag to detect if Map was replaced
-if (!(roomsMap as any).__INITIALIZED__) {
-  Object.defineProperty(roomsMap, '__INITIALIZED__', {
-    value: true,
-    writable: false,
-    configurable: false,
-    enumerable: false
-  });
-}
-
-// CRITICAL: Override Map.clear() to prevent accidental clearing
-// This ensures the Map can never be cleared, even if someone calls .clear()
-const originalClear = roomsMap.clear.bind(roomsMap);
-roomsMap.clear = function() {
-  console.error('🚨 CRITICAL: Map.clear() was called! This should NEVER happen!');
-  console.error('🚨 Stack trace:', new Error().stack);
-  // DO NOT clear the Map - just log the error
-  // If you see this error, find and remove the code calling .clear()
-  throw new Error('CRITICAL: rooms Map.clear() was called - this is not allowed');
-};
-
-// Export the singleton Map - all handlers use this reference
-// CRITICAL: This is the SINGLE source of truth
-// CRITICAL: This export is NEVER reassigned - it always points to the same Map instance
+// Export the singleton Map - used for fast game logic operations
 export const rooms = roomsMap;
 
-// CRITICAL: Final verification - ensure export matches global
-if (rooms !== roomsMap || rooms !== (global as any).__GLOBAL_ROOMS_MAP__) {
-  console.error('🚨 CRITICAL: rooms export mismatch!');
-  console.error('📋 rooms:', rooms);
-  console.error('📋 roomsMap:', roomsMap);
-  console.error('📋 global.__GLOBAL_ROOMS_MAP__:', (global as any).__GLOBAL_ROOMS_MAP__);
-  throw new Error('rooms export must reference the same Map instance');
+// ============================================================================
+// SERIALIZATION HELPERS
+// ============================================================================
+
+// Convert GameRoom to database format (Sets -> arrays, etc.)
+function serializeRoomForDB(room: GameRoom): any {
+  return {
+    id: room.id,
+    status: room.status,
+    host_id: room.hostId,
+    players: room.players,
+    room_name: room.roomName,
+    is_public: room.isPublic,
+    turn_duration: room.turnDuration,
+    // Only save essential lobby state for discovery
+    // Full game state stays in memory
+  };
 }
 
-// Log initialization status
-const globalMapRef = (global as any).__GLOBAL_ROOMS_MAP__;
-console.log(`💎 ROOMS SINGLETON: Map size: ${rooms.size}, Identity: ${rooms === globalMapRef}`);
-console.log(`💎 ROOMS SINGLETON: Module loaded at ${new Date().toISOString()}, PID: ${process.pid}, Module ID: ${MODULE_LOAD_ID}`);
-console.log(`💎 ROOMS SINGLETON: Global Map exists: ${!!globalMapRef}`);
-console.log(`💎 ROOMS SINGLETON: Global Map is Map: ${globalMapRef instanceof Map}`);
-if (globalMapRef) {
-  console.log(`💎 ROOMS SINGLETON: Global Map size: ${globalMapRef.size}`);
-  console.log(`💎 ROOMS SINGLETON: Global Map keys: [${Array.from(globalMapRef.keys()).join(', ')}]`);
+// Convert database format to GameRoom (arrays -> Sets, etc.)
+function deserializeRoomFromDB(data: any): GameRoom {
+  // Fallback: if hostId is missing, use the first player's ID (legacy support)
+  const players = data.players || [];
+  const hostId = data.host_id || (players.length > 0 && players[0]?.id) || '';
+  
+  return {
+    id: data.id,
+    status: data.status || 'LOBBY',
+    hostId: hostId,
+    players: players,
+    currentPlayerIndex: data.current_player_index ?? 0,
+    currentPlayPile: data.current_play_pile || [],
+    roundHistory: data.round_history || [],
+    lastPlayerToPlayId: data.last_player_to_play_id ?? null,
+    finishedPlayers: data.finished_players || [],
+    isFirstTurnOfGame: data.is_first_turn_of_game ?? true,
+    turnEndTime: data.turn_end_time,
+    turnTimer: undefined, // Not persisted
+    isPublic: data.is_public ?? false,
+    roomName: data.room_name || '',
+    turnDuration: data.turn_duration ?? 30000,
+    turnStartTime: data.turn_start_time,
+    playerSpeedData: data.player_speed_data || {},
+    playerMutedByAfk: new Set(data.player_muted_by_afk || []),
+    quickMoveRewardGiven: new Set(data.quick_move_reward_given || [])
+  };
 }
 
 // ============================================================================
@@ -199,23 +182,41 @@ if (globalMapRef) {
 
 /**
  * Creates a new room and adds the player as the first player
+ * Saves to both local Map (for game logic) and Supabase (for discovery)
  */
-export function createRoom(
+export async function createRoom(
   player: SimplePlayer,
   roomName: string,
   isPublic: boolean = false,
   turnTimer: number = 30
-): GameRoom {
-  // Generate unique room ID
-  const roomId = "LOBBY_" + Math.random().toString(36).substring(7).toUpperCase();
+): Promise<GameRoom> {
+  // Generate unique 4-character room ID
+  // Use alphanumeric characters (A-Z, 0-9) for readability
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let roomId = '';
+  for (let i = 0; i < 4; i++) {
+    roomId += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  // Ensure uniqueness by checking if room already exists
+  // If it exists, generate a new one (very unlikely with 36^4 = 1.6M combinations)
+  while (rooms.has(roomId)) {
+    roomId = '';
+    for (let i = 0; i < 4; i++) {
+      roomId += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+  }
   
   // Validate turn timer
   const validTurnTimer = [0, 15, 30, 60].includes(turnTimer) ? turnTimer : 30;
   
   // Create new room with full GameRoom structure
+  // CRITICAL: Explicitly set hostId to the creator's ID
+  const creatorId = player.id;
   const room: GameRoom = {
     id: roomId,
     status: 'LOBBY',
+    hostId: creatorId, // Explicitly set the creator as the host
     currentPlayerIndex: 0,
     currentPlayPile: [],
     roundHistory: [],
@@ -240,65 +241,71 @@ export function createRoom(
     quickMoveRewardGiven: new Set()
   };
   
-  // Save to singleton Map
-  // CRITICAL: Verify we're using the correct Map instance
-  const globalMap = (global as any).__GLOBAL_ROOMS_MAP__;
-  if (rooms !== globalMap) {
-    console.error('🚨 CRITICAL: rooms !== globalMap in createRoom!');
-    throw new Error('Map instance mismatch in createRoom');
-  }
-  
-  // Store Map size before adding (for verification)
-  const sizeBefore = rooms.size;
-  
+  // Save to local Map first (for fast game logic)
   rooms.set(roomId, room);
+  console.log(`✅ ROOMS: Created room '${roomId}' in local Map with hostId: ${room.hostId}`);
   
-  // Mark that rooms have been created (for defensive checks)
-  (global as any).__ROOMS_EVER_CREATED__ = true;
-  
-  // Verify room was saved
-  const savedRoom = rooms.get(roomId);
-  if (!savedRoom) {
-    throw new Error(`Failed to save room ${roomId} to Map`);
+  // Save initial lobby state to Supabase (for discovery)
+  // CRITICAL: Ensure host_id is included in the insert
+  if (supabase) {
+    const roomData = serializeRoomForDB(room);
+    // Double-check that host_id is present
+    if (!roomData.host_id) {
+      console.error('❌ ROOMS: host_id missing from serialized room data! Setting it now...');
+      roomData.host_id = creatorId;
+    }
+    console.log(`📤 ROOMS: Inserting room to Supabase with host_id: ${roomData.host_id}`);
+    const { error } = await supabase
+      .from('rooms')
+      .insert(roomData);
+    
+    if (error) {
+      console.error('❌ ROOMS: Error saving room to Supabase (non-critical):', error);
+      // Don't throw - room is in memory and can still be used
+    } else {
+      console.log(`✅ ROOMS: Saved room '${roomId}' to Supabase for discovery with host_id: ${roomData.host_id}`);
+    }
+  } else {
+    console.log(`⚠️ ROOMS: Room '${roomId}' created in local Map only (Supabase not configured)`);
   }
   
-  // Double-check the global Map also has it
-  const globalRoom = globalMap.get(roomId);
-  if (!globalRoom) {
-    console.error('🚨 CRITICAL: Room saved to rooms but not found in globalMap!');
-    throw new Error(`Room ${roomId} not found in globalMap after save`);
-  }
-  
-  // Verify Map size increased
-  if (rooms.size !== sizeBefore + 1) {
-    console.error(`🚨 CRITICAL: Map size didn't increase! Before: ${sizeBefore}, After: ${rooms.size}`);
-    throw new Error(`Map size mismatch after room creation`);
-  }
-  
-  console.log(`✅ ROOMS: Created room '${roomId}' by ${player.name}`);
-  console.log(`📋 ROOMS: Map size: ${rooms.size}, Keys: [${Array.from(rooms.keys()).join(', ')}]`);
-  console.log(`📋 ROOMS: Global Map size: ${globalMap.size}, Keys: [${Array.from(globalMap.keys()).join(', ')}]`);
-  console.log(`🔍 ROOMS: Room exists in Map: ${rooms.has(roomId)}`);
-  console.log(`🔍 ROOMS: Room exists in globalMap: ${globalMap.has(roomId)}`);
-  
-  return savedRoom;
+  return room;
 }
 
 /**
  * Joins a player to an existing room
+ * Checks local Map first, then Supabase if not found (rehydration)
  */
-export function joinRoom(player: SimplePlayer, roomId: string): GameRoom {
+export async function joinRoom(player: SimplePlayer, roomId: string): Promise<GameRoom> {
   console.log(`🔍 ROOMS: Joining room '${roomId}' by player: ${player.name}`);
-  console.log(`📋 ROOMS: Map size: ${rooms.size}, All keys: [${Array.from(rooms.keys()).join(', ')}]`);
   
-  // Look up room from singleton Map
-  const room = rooms.get(roomId);
+  // FIRST: Check local Map (fast path)
+  let room = rooms.get(roomId);
   
   if (!room) {
-    const availableRooms = Array.from(rooms.keys());
-    console.error(`❌ ROOMS: Room '${roomId}' not found`);
-    console.error(`📋 ROOMS: Available rooms: [${availableRooms.join(', ')}]`);
-    throw new Error(`Room '${roomId}' not found`);
+    // NOT in local Map - check Supabase and rehydrate (if available)
+    if (supabase) {
+      console.log(`🔄 ROOMS: Room '${roomId}' not in local Map, checking Supabase...`);
+      
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+      
+      if (error || !data) {
+        console.error(`❌ ROOMS: Room '${roomId}' not found in Supabase:`, error);
+        throw new Error(`Room '${roomId}' not found`);
+      }
+      
+      // Rehydrate: Deserialize and add to local Map
+      room = deserializeRoomFromDB(data);
+      rooms.set(roomId, room);
+      console.log(`✅ ROOMS: Rehydrated room '${roomId}' from Supabase to local Map`);
+    } else {
+      // Supabase not configured - can't rehydrate
+      throw new Error(`Room '${roomId}' not found (Supabase not configured)`);
+    }
   }
   
   // Check if room is joinable
@@ -333,44 +340,175 @@ export function joinRoom(player: SimplePlayer, roomId: string): GameRoom {
     finishedRank: null
   });
   
+  // Update Supabase with new player list (for discovery)
+  if (supabase) {
+    const roomData = serializeRoomForDB(room);
+    const { error: updateError } = await supabase
+      .from('rooms')
+      .update({ players: roomData.players })
+      .eq('id', roomId);
+    
+    if (updateError) {
+      console.error('❌ ROOMS: Error updating room in Supabase (non-critical):', updateError);
+      // Don't throw - room is updated in memory
+    }
+  }
+  
   console.log(`✅ ROOMS: Player ${player.name} joined room '${roomId}'`);
   console.log(`📋 ROOMS: Room '${roomId}' now has ${room.players.length} players`);
-  console.log(`📋 ROOMS: Map size: ${rooms.size}, Room exists: ${rooms.has(roomId)}`);
   
   return room;
 }
 
 /**
- * Gets a room by ID
+ * Gets a room by ID - checks local Map first, then Supabase
  */
 export function getRoom(roomId: string): GameRoom | undefined {
   return rooms.get(roomId);
 }
 
 /**
- * Gets all public rooms
+ * Fetches a room by ID from Supabase (for rehydration)
  */
-export function getPublicRooms(): Array<{ id: string; name: string; playerCount: number; turnTimer: number }> {
-  return Array.from(rooms.values())
-    .filter(room => room.isPublic && room.status === 'LOBBY' && room.players.length < 4)
-    .map(room => ({
-      id: room.id,
-      name: room.roomName,
-      playerCount: room.players.length,
-      turnTimer: room.turnDuration / 1000 // Convert back to seconds
-    }));
+export async function fetchRoom(roomId: string): Promise<GameRoom | undefined> {
+  // First check local Map
+  const localRoom = rooms.get(roomId);
+  if (localRoom) {
+    return localRoom;
+  }
+  
+  // Not in Map - fetch from Supabase (if available)
+  if (!supabase) {
+    return undefined;
+  }
+  
+  const { data, error } = await supabase
+    .from('rooms')
+    .select('*')
+    .eq('id', roomId)
+    .single();
+  
+  if (error || !data) {
+    return undefined;
+  }
+  
+  // Rehydrate to local Map
+  const room = deserializeRoomFromDB(data);
+  rooms.set(roomId, room);
+  return room;
 }
 
 /**
- * Gets all room IDs
+ * Gets all public rooms from Supabase (for discovery)
+ * Falls back to local Map if Supabase is not configured
  */
-export function getAllRoomIds(): string[] {
-  return Array.from(rooms.keys());
+export async function getPublicRooms(): Promise<Array<{ id: string; name: string; playerCount: number; turnTimer: number }>> {
+  if (!supabase) {
+    // Fallback to local Map
+    return Array.from(rooms.values())
+      .filter(room => room.isPublic && room.status === 'LOBBY' && room.players.length < 4)
+      .map(room => ({
+        id: room.id,
+        name: room.roomName,
+        playerCount: room.players.length,
+        turnTimer: room.turnDuration / 1000 // Convert back to seconds
+      }));
+  }
+  
+  const { data, error } = await supabase
+    .from('rooms')
+    .select('id, room_name, players, turn_duration, is_public, status')
+    .eq('is_public', true)
+    .eq('status', 'LOBBY');
+  
+  if (error) {
+    console.error('❌ ROOMS: Error fetching public rooms:', error);
+    return [];
+  }
+  
+  if (!data) {
+    return [];
+  }
+  
+  return data
+    .map(room => {
+      const players = room.players || [];
+      return {
+        id: room.id,
+        name: room.room_name || '',
+        playerCount: players.length,
+        turnTimer: (room.turn_duration || 30000) / 1000 // Convert back to seconds
+      };
+    })
+    .filter(room => {
+      // Filter out full rooms (4+ players)
+      const roomData = data.find(r => r.id === room.id);
+      const players = roomData?.players || [];
+      return players.length < 4;
+    });
 }
 
 /**
- * Gets total room count
+ * Gets all room IDs from Supabase (falls back to local Map)
  */
-export function getRoomCount(): number {
-  return rooms.size;
+export async function getAllRoomIds(): Promise<string[]> {
+  if (!supabase) {
+    // Fallback to local Map
+    return Array.from(rooms.keys());
+  }
+  
+  const { data, error } = await supabase
+    .from('rooms')
+    .select('id');
+  
+  if (error || !data) {
+    console.error('❌ ROOMS: Error fetching room IDs:', error);
+    return [];
+  }
+  
+  return data.map(row => row.id);
+}
+
+/**
+ * Gets total room count from Supabase (falls back to local Map)
+ */
+export async function getRoomCount(): Promise<number> {
+  if (!supabase) {
+    // Fallback to local Map
+    return rooms.size;
+  }
+  
+  const { count, error } = await supabase
+    .from('rooms')
+    .select('*', { count: 'exact', head: true });
+  
+  if (error) {
+    console.error('❌ ROOMS: Error counting rooms:', error);
+    return 0;
+  }
+  
+  return count || 0;
+}
+
+/**
+ * Deletes a room from both Map and Supabase
+ */
+export async function deleteRoom(roomId: string): Promise<void> {
+  // Remove from local Map
+  rooms.delete(roomId);
+  
+  // Remove from Supabase (if configured)
+  if (supabase) {
+    const { error } = await supabase
+      .from('rooms')
+      .delete()
+      .eq('id', roomId);
+    
+    if (error) {
+      console.error(`❌ ROOMS: Error deleting room '${roomId}' from Supabase:`, error);
+      // Don't throw - room is removed from memory
+    }
+  }
+  
+  console.log(`✅ ROOMS: Deleted room '${roomId}'`);
 }
