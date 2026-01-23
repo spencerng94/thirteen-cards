@@ -29,6 +29,7 @@ interface LobbyProps {
   myId?: string; // Persistent UUID
   turnTimerSetting: number;
   selected_sleeve_id?: string; // Card sleeve ID for this player
+  initialTab?: 'PUBLIC' | 'CREATE' | 'LOCAL';
 }
 
 const MAX_PLAYERS = 4;

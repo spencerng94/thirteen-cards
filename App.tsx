@@ -917,8 +917,10 @@ const AppContent: React.FC = () => {
   const handleOpenFriends = () => setFriendsOpen(true);
   const handleOpenLocal = () => {
     // Navigate to Lobby with local mode indicator
+    setGameMode('MULTI_PLAYER');
+    connectSocket();
     setView('LOBBY');
-    // The Lobby component will handle local discovery
+    // The Lobby component will handle local discovery and set activeTab to 'LOCAL'
   };
 
   const handleRefreshProfile = useCallback(() => {
@@ -1757,7 +1759,8 @@ const AppContent: React.FC = () => {
                   onSignOut={handleSignOut} 
                   myId={myPlayerId} 
                   turnTimerSetting={turnTimerSetting} 
-                  selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} 
+                  selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve}
+                  initialTab={view === 'LOBBY' && gameMode === 'MULTI_PLAYER' ? 'LOCAL' : undefined}
                 />
               </div>
             );
