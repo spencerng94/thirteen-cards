@@ -275,8 +275,8 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
           </div>
           <button 
             onClick={refreshRooms} 
-            disabled={isRefreshing || !socketConnected} 
-            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all duration-200 active:scale-90 ${isRefreshing || !socketConnected ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:border-yellow-500/30 hover:text-yellow-400'}`}
+            disabled={isRefreshing || (!socketConnected && !socket?.connected)} 
+            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all duration-200 active:scale-90 ${isRefreshing || (!socketConnected && !socket?.connected) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:border-yellow-500/30 hover:text-yellow-400'}`}
           >
             <div className={isRefreshing ? 'animate-spin' : ''}><RecycleIcon /></div>
           </button>
@@ -569,6 +569,36 @@ function LobbyComponent({
   
   // Ref to prevent infinite loops on initial mount
   const isInitialMount = React.useRef(true);
+
+  // Sync socketConnected state with actual socket connection status
+  useEffect(() => {
+    if (!socket) return;
+    
+    const onConnect = () => {
+      console.log('📡 Lobby: Socket connected event received');
+      setSocketConnected(true);
+    };
+    
+    const onDisconnect = () => {
+      console.log('📡 Lobby: Socket disconnected event received');
+      setSocketConnected(false);
+    };
+    
+    // Register event listeners
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    
+    // Sync immediately if already connected
+    if (socket.connected) {
+      console.log('📡 Lobby: Socket already connected on mount, syncing state');
+      setSocketConnected(true);
+    }
+    
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+    };
+  }, [socket]);
   
   // Removed handleTabChange - using direct setState to avoid stale closures
   const [localNetworkInfo, setLocalNetworkInfo] = useState<{ isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean } | null>(null);
@@ -800,9 +830,9 @@ function LobbyComponent({
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
-  // Register socket listener - always register when socket is connected
+  // Register socket listener - always register when socket exists
   useEffect(() => {
-    if (!socketConnected) return;
+    if (!socket) return;
     
     const handleRoomsList = (list: PublicRoom[]) => {
       console.log('📋 Lobby: Received public rooms list', list.length, 'rooms', list.map(r => r.id));
@@ -831,7 +861,7 @@ function LobbyComponent({
     return () => {
       socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     };
-  }, [socketConnected, refreshRooms]); // Re-register when socket connects
+  }, [socket]); // Re-register when socket changes
 
   // CRITICAL: Fetch rooms when socket connects AND when switching to PUBLIC tab
   // This handles both initial load (when socket connects while on PUBLIC tab) and tab switching
@@ -842,9 +872,12 @@ function LobbyComponent({
         socketConnected,
         socketReady: socket?.connected
       });
-      refreshRooms();
+      // Emit directly to ensure it works even if refreshRooms has stale dependencies
+      if (socket?.connected) {
+        socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+      }
     }
-  }, [activeTab, socketConnected, socket?.connected, refreshRooms]);
+  }, [activeTab, socketConnected]);
 
   // Force refresh on mount if socket is already connected and we're on PUBLIC tab
   // This catches the case where the socket connected before the component mounted
