@@ -260,11 +260,11 @@ const CreateTabContent: React.FC<CreateTabProps> = ({
               return (
                 <button 
                   key={val} 
-                  onClick={() => {
-                    setLocalTurnTimer((prev) => {
-                      console.log('Updating from', prev, 'to', val);
-                      return val;
-                    });
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Timer button clicked:', val, 'Current:', localTurnTimer);
+                    setLocalTurnTimer(val);
                   }}
                   className={`timer-btn py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${isActive ? 'active-timer' : ''}`}
                   style={{ 
@@ -295,7 +295,20 @@ const CreateTabContent: React.FC<CreateTabProps> = ({
       </div>
 
       <button
-        onClick={createRoom}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Create Room clicked. Socket connected:', socketConnected, 'Is creating:', isCreatingRoom, 'Timer:', localTurnTimer);
+          if (!socketConnected) {
+            console.warn('Cannot create room: socket not connected');
+            return;
+          }
+          if (isCreatingRoom) {
+            console.warn('Room creation already in progress');
+            return;
+          }
+          createRoom();
+        }}
         disabled={isCreatingRoom || !socketConnected}
         className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-300 active:scale-95 relative overflow-hidden group ${isCreatingRoom || !socketConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
