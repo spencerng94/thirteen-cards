@@ -1449,19 +1449,28 @@ function LobbyComponent({
                     }`}
                   >
                     {activeTab === 'PUBLIC' && (
-                    <PublicTabContent
-                      key={`public-tab-${publicRooms.length}`}
-                      roomIdInput={roomIdInput}
-                      setRoomIdInput={setRoomIdInput}
-                      joinRoom={joinRoom}
-                      publicRooms={publicRooms}
-                      remoteEmotes={remoteEmotes}
-                      isRefreshing={isRefreshing}
-                      refreshRooms={refreshRooms}
-                      socketConnected={socketConnected}
-                    />
+                      !socketConnected ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="flex flex-col items-center gap-4">
+                            <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            <p className="text-sm font-black uppercase tracking-wider text-white/60">Connecting to server...</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <PublicTabContent
+                          key={`public-tab-${publicRooms.length}`}
+                          roomIdInput={roomIdInput}
+                          setRoomIdInput={setRoomIdInput}
+                          joinRoom={joinRoom}
+                          publicRooms={publicRooms}
+                          remoteEmotes={remoteEmotes}
+                          isRefreshing={isRefreshing}
+                          refreshRooms={refreshRooms}
+                          socketConnected={socketConnected}
+                        />
+                      )
                     )}
-                            </div>
+                  </div>
 
                   {/* Create Tab */}
                   <div 
