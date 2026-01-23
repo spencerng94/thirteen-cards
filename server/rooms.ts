@@ -423,7 +423,11 @@ export async function getPublicRooms(): Promise<Array<{ id: string; name: string
   if (!supabase) {
     // Fallback to local Map
     return Array.from(rooms.values())
-      .filter(room => room.isPublic && room.status === 'LOBBY' && room.players.length < 4)
+      .filter(room => {
+        // CRITICAL: Ensure filtering is correct - isPublic must be true AND players < 4
+        const isPublic = room.isPublic === true || String(room.isPublic).toLowerCase() === 'true';
+        return isPublic && room.status === 'LOBBY' && room.players.length < 4;
+      })
       .map(room => ({
         id: room.id,
         name: room.roomName,

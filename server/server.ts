@@ -583,6 +583,7 @@ const getPublicRoomsList = async () => {
     new Map(enhancedRooms.map(room => [room.id, room])).values()
   );
   console.log(`📋 getPublicRoomsList: Returning ${finalRooms.length} unique enhanced rooms`);
+  console.log("📋 Broadcasting Rooms:", finalRooms.length);
   
   return finalRooms;
 };
@@ -1136,9 +1137,13 @@ io.on('connection', (socket: Socket) => {
     console.log(`📡 RECEIVED EVENT: ${event}`, args);
   });
 
-  // Send initial public rooms list
+  // Send initial public rooms list automatically on connection
   getPublicRoomsList().then(roomsList => {
+    console.log("📋 Broadcasting Rooms:", roomsList.length);
     socket.emit('public_rooms_list', roomsList);
+  }).catch(error => {
+    console.error('❌ Error sending initial public rooms list:', error);
+    socket.emit('public_rooms_list', []);
   });
 
   socket.on('create_room', async (data, callback) => {
@@ -1183,6 +1188,10 @@ io.on('connection', (socket: Socket) => {
     const validTurnTimer = typeof turnTimer === 'number' && [0, 15, 30, 60].includes(turnTimer) ? turnTimer : 30;
     const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
+    // CRITICAL: Ensure isPublic is treated as a boolean
+    // If the client sends it as a string "true", convert it
+    const validIsPublic = typeof isPublic === 'boolean' ? isPublic : String(isPublic).toLowerCase() === 'true';
+    
       // CRITICAL: Ensure playerId is a valid UUID, not "guest" or empty string
       // If playerId is "guest", undefined, empty, or not a valid UUID format, generate a new one
       let pId = playerId;
@@ -1201,13 +1210,13 @@ io.on('connection', (socket: Socket) => {
       console.log(`📝 create_room: Creating room with player`, {
         playerId: pId,
         playerName: sanitizedName,
-        isPublic: isPublic === true,
+        isPublic: validIsPublic,
         roomName: sanitizedRoomName
       });
       
       // Use createRoom function to create the room (saves to Map + Supabase)
       // CRITICAL: player.id (pId) will be used as the hostId
-      const newRoom = await createRoom(player, sanitizedRoomName, isPublic === true, validTurnTimer);
+      const newRoom = await createRoom(player, sanitizedRoomName, validIsPublic, validTurnTimer);
       
       console.log(`✅ create_room: Room created successfully`, {
         roomId: newRoom.id,
@@ -2220,6 +2229,7 @@ io.on('connection', (socket: Socket) => {
       
       const roomsList = await getPublicRoomsList();
       console.log(`📋 Found ${roomsList.length} public rooms after getPublicRoomsList()`);
+      console.log("📋 Broadcasting Rooms:", roomsList.length);
       socket.emit('public_rooms_list', roomsList);
     } catch (error) {
       console.error('❌ get_public_rooms: Error fetching public rooms:', error);

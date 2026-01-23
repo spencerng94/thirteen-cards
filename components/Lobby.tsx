@@ -240,9 +240,9 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
       setSearchStartTime(Date.now());
       setShowSearching(true);
     } else if (searchStartTime !== null) {
-      // Ensure "Searching..." shows for at least 1 second
+      // Ensure "Searching..." shows for at least 400ms max (reduced from 1000ms for snappier UI)
       const elapsed = Date.now() - searchStartTime;
-      const remaining = Math.max(0, 1000 - elapsed);
+      const remaining = Math.max(0, 400 - elapsed);
       const timeout = setTimeout(() => {
         setShowSearching(false);
         setSearchStartTime(null);
@@ -305,7 +305,7 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          {(isRefreshing || showSearching) && publicRooms.length === 0 ? (
+          {isRefreshing && publicRooms.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
               <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
