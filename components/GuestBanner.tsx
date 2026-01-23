@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
-import { CurrencyIcon } from './Store';
+import { CurrencyIcon } from './CurrencyIcon';
 
 interface GuestBannerProps {
   profile: UserProfile | null;

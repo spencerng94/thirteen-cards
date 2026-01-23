@@ -77,10 +77,11 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
   const coverStyles: CardCoverStyle[] = ['BLUE', 'RED', 'PATTERN', 'GOLDEN_IMPERIAL', 'VOID_ONYX', 'ROYAL_JADE', 'CRYSTAL_EMERALD', 'DRAGON_SCALE', 'NEON_CYBER', 'PIXEL_CITY_LIGHTS', 'AMETHYST_ROYAL', 'CHERRY_BLOSSOM_NOIR', 'AETHER_VOID', 'WITS_END', 'DIVINE_ROYAL', 'EMPERORS_HUBRIS', 'SOVEREIGN_SPADE', 'SOVEREIGN_CLUB', 'SOVEREIGN_DIAMOND', 'SOVEREIGN_HEART', 'ROYAL_CROSS'];
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 sm:p-6 animate-in fade-in duration-300" onClick={onClose}>
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 sm:p-6 animate-in fade-in duration-300" onClick={onClose} style={{ touchAction: 'none' }}>
       <div 
         className="relative bg-gradient-to-br from-[#0a0a0a] via-[#080808] to-[#000000] border-2 border-white/20 w-full max-w-4xl max-h-[95vh] rounded-3xl sm:rounded-[3rem] overflow-hidden shadow-[0_0_150px_rgba(0,0,0,1)] flex flex-col" 
         onClick={e => e.stopPropagation()}
+        style={{ touchAction: 'pan-y' }}
       >
         {/* Premium Background Effects */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.08)_0%,transparent_70%)]"></div>
@@ -146,7 +147,14 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-10 space-y-8 sm:space-y-10 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+        <div 
+          className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-10 space-y-8 sm:space-y-10 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+          style={{
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            touchAction: 'pan-y'
+          }}
+        >
           
           {/* GAMEPLAY Tab Content */}
           {activeTab === 'GAMEPLAY' && (

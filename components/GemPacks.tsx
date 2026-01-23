@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { CurrencyIcon } from './Store';
+import { CurrencyIcon } from './CurrencyIcon';
 import { GemPurchaseCelebration } from './GemPurchaseCelebration';
 import { processGemTransaction, fetchGemTransactions, GemTransaction, handleGemPurchase, fetchProfile } from '../services/supabase';
 import { Toast } from './Toast';

@@ -964,26 +964,31 @@ const AppContent: React.FC = () => {
           const myRank = state.players.find(p => p.id === myPlayerId)?.finishedRank || 4;
           // Extract speed bonuses
           const mySpeedBonus = state.speedBonuses?.[myPlayerId] || { gold: 0, xp: 0 };
-          // Note: In MP, we lack precise metadata currently, defaults used.
-          const result = await recordGameResult(myRank, false, 'MEDIUM', isGuest, profile, { chopsInMatch: 0, bombsInMatch: 0, lastCardRank: 15 });
-          // Add speed bonuses to rewards
-          const totalCoins = result.coinsGained + mySpeedBonus.gold;
-          const totalXp = result.xpGained + mySpeedBonus.xp;
-          const newTotalXp = result.newTotalXp + mySpeedBonus.xp;
+          
+          // OPTIMISTIC RESULTS FLOW: Show victory immediately, sync in background
+          // Step 1: Set state to CELEBRATING (show victory animation immediately)
+          setMpGameState(prev => prev ? { ...prev, status: GameStatus.CELEBRATING } : prev);
+          
+          // Step 2: Calculate optimistic rewards (estimate based on rank)
+          const optimisticXp = myRank === 1 ? 100 : myRank === 2 ? 60 : myRank === 3 ? 30 : 10;
+          const optimisticCoins = myRank === 1 ? 50 : myRank === 2 ? 30 : myRank === 3 ? 15 : 5;
+          const optimisticTotalXp = (profile?.xp || 0) + optimisticXp + mySpeedBonus.xp;
+          
+          // Step 3: Show victory screen immediately with optimistic values
           setLastMatchRewards({ 
-            xp: result.xpGained, 
-            coins: result.coinsGained, 
+            xp: optimisticXp, 
+            coins: optimisticCoins, 
             diff: 'MEDIUM', 
-            bonus: result.xpBonusApplied, 
-            totalXpAfter: result.newTotalXp,
+            bonus: false, 
+            totalXpAfter: optimisticTotalXp,
             speedBonus: mySpeedBonus
           });
           
+          // Optimistically update profile for immediate UI feedback
           setProfile(prev => prev ? { 
             ...prev, 
-            xp: newTotalXp, 
-            coins: prev.coins + totalCoins,
-            event_stats: result.updatedStats || prev.event_stats
+            xp: optimisticTotalXp, 
+            coins: prev.coins + optimisticCoins + mySpeedBonus.gold
           } : null);
 
           // Always show victory screen when game finishes
@@ -992,6 +997,55 @@ const AppContent: React.FC = () => {
           } else {
             // If not on GAME_TABLE, go directly to victory screen
             setView('VICTORY');
+          }
+          
+          // Step 4: Sync to database in background (with timeout guard)
+          setMpGameState(prev => prev ? { ...prev, status: GameStatus.SYNCING } : prev);
+          
+          const syncPromise = recordGameResult(myRank, false, 'MEDIUM', isGuest, profile, { chopsInMatch: 0, bombsInMatch: 0, lastCardRank: 15 });
+          const timeoutPromise = new Promise<typeof (await syncPromise)>((resolve) => {
+            setTimeout(() => {
+              // Timeout guard: Force completion after 5 seconds
+              console.warn('Game result sync timeout - using optimistic values');
+              resolve({
+                xpGained: optimisticXp,
+                coinsGained: optimisticCoins,
+                newTotalXp: optimisticTotalXp,
+                xpBonusApplied: false,
+                updatedStats: profile?.event_stats
+              });
+            }, 5000);
+          });
+          
+          try {
+            const result = await Promise.race([syncPromise, timeoutPromise]);
+            // Add speed bonuses to actual rewards
+            const totalCoins = result.coinsGained + mySpeedBonus.gold;
+            const totalXp = result.xpGained + mySpeedBonus.xp;
+            const newTotalXp = result.newTotalXp + mySpeedBonus.xp;
+            
+            // Update with actual values from database
+            setLastMatchRewards({ 
+              xp: result.xpGained, 
+              coins: result.coinsGained, 
+              diff: 'MEDIUM', 
+              bonus: result.xpBonusApplied, 
+              totalXpAfter: result.newTotalXp,
+              speedBonus: mySpeedBonus
+            });
+            
+            setProfile(prev => prev ? { 
+              ...prev, 
+              xp: newTotalXp, 
+              coins: prev.coins + totalCoins,
+              event_stats: result.updatedStats || prev.event_stats
+            } : null);
+          } catch (error) {
+            console.error('Game result sync failed:', error);
+            // Keep optimistic values on error
+          } finally {
+            // Step 5: Mark as FINISHED
+            setMpGameState(prev => prev ? { ...prev, status: GameStatus.FINISHED } : prev);
           }
         } else if (view !== 'VICTORY' && !alreadyProcessed) {
           // Fallback: If game is finished but we're not on victory screen, show it
@@ -1090,24 +1144,85 @@ const AppContent: React.FC = () => {
       }
       if (finalStatus === GameStatus.FINISHED) {
           const myRank = players.find(p => p.id === 'me')?.finishedRank || 4;
+          
+          // OPTIMISTIC RESULTS FLOW: Show victory immediately, sync in background
+          // Step 1: Set state to CELEBRATING (show victory animation immediately)
+          const celebratingState = { ...prev, players, status: GameStatus.CELEBRATING, finishedPlayers, currentPlayPile: [], lastPlayerToPlayId: pid, turnEndTime: undefined };
+          
+          // Step 2: Calculate optimistic rewards
+          const optimisticXp = myRank === 1 ? 100 : myRank === 2 ? 60 : myRank === 3 ? 30 : 10;
+          const optimisticCoins = myRank === 1 ? 50 : myRank === 2 ? 30 : myRank === 3 ? 15 : 5;
+          const optimisticTotalXp = (profile?.xp || 0) + optimisticXp;
+          
+          // Step 3: Show victory screen immediately with optimistic values
+          setLastMatchRewards({ 
+            xp: optimisticXp, 
+            coins: optimisticCoins, 
+            diff: aiDifficulty, 
+            bonus: false, 
+            totalXpAfter: optimisticTotalXp
+          });
+          
+          // Optimistically update profile for immediate UI feedback
+          setProfile(prev => prev ? { 
+            ...prev, 
+            xp: optimisticTotalXp, 
+            coins: prev.coins + optimisticCoins
+          } : null);
+          
+          // Show victory screen immediately
+          triggerMatchEndTransition();
+          
+          // Step 4: Sync to database in background (with timeout guard)
           setTimeout(async () => {
-             const result = await recordGameResult(myRank, true, aiDifficulty, isGuest, profile, {
-                chopsInMatch: currentChops,
-                bombsInMatch: currentBombs,
-                lastCardRank: spLastCardRank || 15
-             });
-             setLastMatchRewards({ xp: result.xpGained, coins: result.coinsGained, diff: aiDifficulty, bonus: result.xpBonusApplied, totalXpAfter: result.newTotalXp });
-             
-             setProfile(prev => prev ? { 
-               ...prev, 
-               xp: result.newTotalXp, 
-               coins: prev.coins + result.coinsGained,
-               event_stats: result.updatedStats || prev.event_stats
-             } : null);
-
-             triggerMatchEndTransition();
-          }, 1000);
-          return { ...prev, players, status: finalStatus, finishedPlayers, currentPlayPile: [], lastPlayerToPlayId: pid, turnEndTime: undefined };
+            setSpGameState(prevState => prevState ? { ...prevState, status: GameStatus.SYNCING } : prevState);
+            
+            const syncPromise = recordGameResult(myRank, true, aiDifficulty, isGuest, profile, {
+              chopsInMatch: currentChops,
+              bombsInMatch: currentBombs,
+              lastCardRank: spLastCardRank || 15
+            });
+            
+            const timeoutPromise = new Promise<typeof (await syncPromise)>((resolve) => {
+              setTimeout(() => {
+                // Timeout guard: Force completion after 5 seconds
+                console.warn('Game result sync timeout - using optimistic values');
+                resolve({
+                  xpGained: optimisticXp,
+                  coinsGained: optimisticCoins,
+                  newTotalXp: optimisticTotalXp,
+                  xpBonusApplied: false,
+                  updatedStats: profile?.event_stats
+                });
+              }, 5000);
+            });
+            
+            try {
+              const result = await Promise.race([syncPromise, timeoutPromise]);
+              setLastMatchRewards({ 
+                xp: result.xpGained, 
+                coins: result.coinsGained, 
+                diff: aiDifficulty, 
+                bonus: result.xpBonusApplied, 
+                totalXpAfter: result.newTotalXp 
+              });
+              
+              setProfile(prev => prev ? { 
+                ...prev, 
+                xp: result.newTotalXp, 
+                coins: prev.coins + result.coinsGained,
+                event_stats: result.updatedStats || prev.event_stats
+              } : null);
+            } catch (error) {
+              console.error('Game result sync failed:', error);
+              // Keep optimistic values on error
+            } finally {
+              // Step 5: Mark as FINISHED
+              setSpGameState(prevState => prevState ? { ...prevState, status: GameStatus.FINISHED } : prevState);
+            }
+          }, 100);
+          
+          return celebratingState;
       }
       const newPlayPile = [...prev.currentPlayPile, { playerId: pid, cards: sortedCards, comboType: getComboType(sortedCards) }];
       let nextIndex = (prev.players.findIndex(p => p.id === pid) + 1) % prev.players.length;

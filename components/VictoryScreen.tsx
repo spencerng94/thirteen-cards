@@ -13,7 +13,7 @@ import { TooFunnyFinisher } from './TooFunnyFinisher';
 import { BashfulFinishFinisher } from './BashfulFinishFinisher';
 import { adService, AdPlacement } from '../services/adService';
 import { GemRain } from './GemRain';
-import { CurrencyIcon } from './Store';
+import { CurrencyIcon } from './CurrencyIcon';
 import { Toast } from './Toast';
 
 interface VictoryScreenProps {

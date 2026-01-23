@@ -2,7 +2,7 @@ import React from 'react';
 import { UserProfile, Emote, HubTab } from '../types';
 import { calculateLevel, getXpForLevel } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
-import { CurrencyIcon } from './Store';
+import { CurrencyIcon } from './CurrencyIcon';
 import { useGemBalance } from '../hooks/useGemBalance';
 import { isValidNumber } from '../utils/svgSanitizer';
 

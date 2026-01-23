@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { CurrencyIcon } from './Store';
+import { CurrencyIcon } from './CurrencyIcon';
 import { audioService } from '../services/audio';
 
 interface GemPurchaseCelebrationProps {

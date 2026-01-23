@@ -46,7 +46,9 @@ export interface Player {
 export enum GameStatus {
   LOBBY = 'LOBBY',
   PLAYING = 'PLAYING',
-  FINISHED = 'FINISHED'
+  CELEBRATING = 'CELEBRATING', // Victory/Defeat animation playing
+  SYNCING = 'SYNCING', // Database updates in progress
+  FINISHED = 'FINISHED' // Results screen ready
 }
 
 export interface PlayTurn {

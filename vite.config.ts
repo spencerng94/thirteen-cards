@@ -44,9 +44,11 @@ export default defineConfig({
           ],
           'ui-components': [
             './components/Store',
-            './components/UserHub',
             './components/InventoryModal',
             './components/GemPacks',
+          ],
+          'user-hub': [
+            './components/UserHub',
           ]
         }
       }

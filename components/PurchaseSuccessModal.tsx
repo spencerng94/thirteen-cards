@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Card } from './Card';
 import { BoardPreview } from './UserHub';
 import { VisualEmote } from './VisualEmote';
-import { CurrencyIcon } from './Store';
+import { CurrencyIcon } from './CurrencyIcon';
 import { CardCoverStyle } from './Card';
 import { BackgroundTheme } from '../types';
 import { Emote } from '../types';

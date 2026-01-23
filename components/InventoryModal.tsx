@@ -5,7 +5,7 @@ import { BoardSurface } from './UserHub';
 import { claimAdRewardGems, fetchWeeklyRewardStatus } from '../services/supabase';
 import { adService, AdPlacement } from '../services/adService';
 import { audioService } from '../services/audio';
-import { CurrencyIcon } from './Store';
+import { CurrencyIcon } from './CurrencyIcon';
 import { GemRain } from './GemRain';
 import { Toast } from './Toast';
 

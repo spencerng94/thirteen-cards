@@ -591,14 +591,32 @@ const CardComponent: React.FC<CardProps> = ({
             ${specialAnimation}
             ${className}
             `}
+            style={{
+              willChange: 'transform',
+              transform: 'translateZ(0)',
+              backfaceVisibility: 'hidden',
+              perspective: '1000px'
+            }}
         >
             <div className="absolute inset-1 border border-white/10 rounded-lg pointer-events-none"></div>
-            <div className="w-[88%] h-[88%] border border-white/5 rounded-lg flex items-center justify-center overflow-hidden relative">
+            <div 
+              className="w-[88%] h-[88%] border border-white/5 rounded-lg flex items-center justify-center overflow-hidden relative sleeve-overlay"
+              style={{
+                willChange: 'transform',
+                transform: 'translateZ(0)',
+                backfaceVisibility: 'hidden'
+              }}
+            >
                 {patternContent}
-                <div className={`absolute inset-0 ${metallicReflect} ${coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END' || coverStyle === 'ROYAL_CROSS' ? '' : '-translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out'}`}></div>
-                <div className="w-8 h-12 bg-white/5 rounded-full blur-xl transform rotate-45 group-hover:bg-white/10 transition-colors"></div>
+                <div className={`absolute inset-0 ${metallicReflect} ${coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END' || coverStyle === 'ROYAL_CROSS' ? '' : '-translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)]'}`} style={{ willChange: 'transform', transform: 'translateZ(0)' }}></div>
+                <div className="w-8 h-12 bg-white/5 rounded-full blur-xl transform rotate-45 group-hover:bg-white/10 transition-colors" style={{ willChange: 'transform', transform: 'translateZ(0)' }}></div>
             </div>
             <style dangerouslySetInnerHTML={{ __html: `
+                .sleeve-overlay {
+                  will-change: transform;
+                  transform: translateZ(0);
+                  backface-visibility: hidden;
+                }
                 @keyframes divineAura {
                     0% { transform: translateY(0); filter: drop-shadow(0 10px 20px rgba(234,179,8,0.3)); }
                     50% { transform: translateY(-5px); filter: drop-shadow(0 25px 40px rgba(234,179,8,0.5)); }
@@ -665,9 +683,15 @@ const CardComponent: React.FC<CardProps> = ({
         ${innerGlow}
         ${((coverStyle === 'DIVINE_ROYAL' || coverStyle === 'EMPERORS_HUBRIS' || coverStyle === 'WITS_END' || coverStyle === 'ROYAL_CROSS')) && !disableEffects ? (coverStyle === 'WITS_END' ? 'animate-ethereal-pulse' : coverStyle === 'ROYAL_CROSS' ? 'animate-royal-glow' : 'animate-divine-aura') : ''}
         ${className}
-        transition-all duration-200 ease-out
+        transition-all duration-200 ease-[cubic-bezier(0.19,1,0.22,1)]
         group
       `}
+      style={{
+        willChange: 'transform',
+        transform: 'translateZ(0)',
+        backfaceVisibility: 'hidden',
+        perspective: '1000px'
+      }}
     >
       <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/10 via-transparent to-black/20 pointer-events-none"></div>
       <div className={`absolute top-1.5 left-1.5 flex flex-col items-center leading-none ${textColor} ${small ? 'text-[10px]' : (isHandCard ? 'text-lg' : 'text-xl')} ${fontClass}`}>

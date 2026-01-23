@@ -7,7 +7,7 @@ import { VisualEmote } from './VisualEmote';
 import { LevelRewards } from './LevelRewards';
 import { InventoryGrid } from './InventoryGrid';
 import { CopyUsername } from './CopyUsername';
-import { CurrencyIcon } from './Store';
+import { CurrencyIcon } from './CurrencyIcon';
 import { DeleteAccountButton } from './DeleteAccountButton';
 import { sanitizePath } from '../utils/svgSanitizer';
 
@@ -38,7 +38,8 @@ export interface ThemeConfig {
   isCityLightsPixel?: boolean;
 }
 
-export const PREMIUM_BOARDS: ThemeConfig[] = [
+// Initialize PREMIUM_BOARDS as a const to ensure proper initialization order
+const PREMIUM_BOARDS_DATA: ThemeConfig[] = [
   // BASIC - Free or Gold
   { id: 'CLASSIC_GREEN', name: 'Classic Imperial', tier: 'BASIC', price: 0, currency: 'GOLD', base: 'bg-[#0a2e1c]', colors: 'from-green-600/20 via-transparent to-black', texture: false },
   { id: 'EMERALD', name: 'Emerald Felt', tier: 'BASIC', price: 0, currency: 'GOLD', base: 'bg-[#064e3b]', colors: 'from-emerald-400/40 via-emerald-600/20 to-[#022c22]', texture: true },
@@ -64,6 +65,9 @@ export const PREMIUM_BOARDS: ThemeConfig[] = [
   { id: 'GOLDEN_EMPEROR', name: 'Lucky Envelope', tier: 'PREMIUM', price: 1500, currency: 'GEMS', base: 'bg-[#1a0000]', colors: 'from-red-900/50 via-[#4a0000]/40 to-[#0a0000]', prestige: true, spotlight: 'rgba(251, 191, 36, 0.25)' },
   { id: 'ZEN_POND', name: 'Zen Pond', tier: 'PREMIUM', price: 1500, currency: 'GEMS', base: 'bg-[#000000]', colors: 'from-indigo-950/60 via-purple-950/40 to-[#000000]', zenPond: true, spotlight: 'rgba(192, 132, 252, 0.25)' }
 ];
+
+// Export as a getter to ensure proper initialization order
+export const PREMIUM_BOARDS: ThemeConfig[] = PREMIUM_BOARDS_DATA;
 
 const HeartIcon = ({ color }: { color: string }) => (
   <svg viewBox="0 0 24 24" fill={color} className="w-full h-full drop-shadow-sm">
@@ -3940,7 +3944,7 @@ const GoldFluxEngine: React.FC<{ isMini?: boolean }> = ({ isMini }) => {
 };
 
 export const BoardSurface: React.FC<{ themeId: BackgroundTheme; isMini?: boolean }> = ({ themeId, isMini }) => {
-    const config = PREMIUM_BOARDS.find(b => b.id === themeId) || PREMIUM_BOARDS[0];
+    const config = PREMIUM_BOARDS_DATA.find(b => b.id === themeId) || PREMIUM_BOARDS_DATA[0];
     return (
         <div className={`absolute inset-0 ${config.base} overflow-hidden bg-fixed bg-cover`} style={{ top: '-env(safe-area-inset-top, 0px)', height: 'calc(100% + env(safe-area-inset-top, 0px))' }}>
             {config.texture && <FeltTextureLayer />}
