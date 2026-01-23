@@ -270,16 +270,17 @@ export async function createRoom(
       console.error('❌ ROOMS: host_id missing from serialized room data! Setting it now...');
       roomData.host_id = creatorId;
     }
-    console.log(`📤 ROOMS: Inserting room to Supabase with host_id: ${roomData.host_id}`);
+    console.log(`📤 ROOMS: Inserting room to Supabase with host_id: ${roomData.host_id}, is_public: ${roomData.is_public}`);
     const { error } = await supabase
       .from('rooms')
       .insert(roomData);
     
     if (error) {
       console.error('❌ ROOMS: Error saving room to Supabase (non-critical):', error);
+      console.error('   Room data:', JSON.stringify(roomData, null, 2));
       // Don't throw - room is in memory and can still be used
     } else {
-      console.log(`✅ ROOMS: Saved room '${roomId}' to Supabase for discovery with host_id: ${roomData.host_id}`);
+      console.log(`✅ ROOMS: Saved room '${roomId}' to Supabase for discovery with host_id: ${roomData.host_id}, is_public: ${roomData.is_public}`);
     }
   } else {
     console.log(`⚠️ ROOMS: Room '${roomId}' created in local Map only (Supabase not configured)`);
@@ -443,10 +444,13 @@ export async function getPublicRooms(): Promise<Array<{ id: string; name: string
   }
   
   if (!data) {
+    console.log('📋 ROOMS: No public rooms found in Supabase');
     return [];
   }
   
-  return data
+  console.log(`📋 ROOMS: Found ${data.length} public rooms in Supabase`);
+  
+  const publicRooms = data
     .map(room => {
       const players = room.players || [];
       return {
@@ -462,6 +466,9 @@ export async function getPublicRooms(): Promise<Array<{ id: string; name: string
       const players = roomData?.players || [];
       return players.length < 4;
     });
+  
+  console.log(`📋 ROOMS: After filtering full rooms, ${publicRooms.length} public rooms available`);
+  return publicRooms;
 }
 
 /**

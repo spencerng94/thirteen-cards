@@ -1162,8 +1162,13 @@ io.on('connection', (socket: Socket) => {
       console.log(`✅ create_room: Room created successfully`, {
         roomId: newRoom.id,
         hostId: newRoom.hostId,
-        hostIdMatchesPlayerId: newRoom.hostId === pId
+        hostIdMatchesPlayerId: newRoom.hostId === pId,
+        isPublic: newRoom.isPublic,
+        status: newRoom.status
       });
+      
+      // Broadcast updated public rooms list after room creation
+      broadcastPublicLobbies();
       const roomId = newRoom.id;
       
       // Verify room was saved to local Map
@@ -2144,9 +2149,14 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     
-    const publicRooms = await getPublicRooms();
-    console.log(`📋 Found ${publicRooms.length} public rooms`);
-    socket.emit('public_rooms_list', getPublicRoomsList());
+    try {
+      const roomsList = await getPublicRoomsList();
+      console.log(`📋 Found ${roomsList.length} public rooms`);
+      socket.emit('public_rooms_list', roomsList);
+    } catch (error) {
+      console.error('❌ get_public_rooms: Error fetching public rooms:', error);
+      socket.emit('public_rooms_list', []);
+    }
   });
 
   socket.on('request_sync', ({ playerId }) => {
