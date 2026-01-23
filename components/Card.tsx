@@ -354,8 +354,11 @@ const CardComponent: React.FC<CardProps> = ({
                                const safeR = safeSVGNumber(5, 5);
                                return (
                                  <>
-                                   <path d={safePath1} opacity={safeOpacity} />
-                                   <path d={safePath2} />
+                                   {/* TEMPORARILY COMMENTED OUT: SVG path causing crashes */}
+                                   {/* <path d={safePath1} opacity={safeOpacity} /> */}
+                                   <path d="M0 0 L10 10" opacity={safeOpacity} />
+                                   {/* <path d={safePath2} /> */}
+                                   <path d="M0 0 L10 10" />
                                    <circle cx={safeCx} cy={safeCy} r={safeR} />
                                  </>
                                );

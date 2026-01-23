@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "server": "cd server && npm run dev",
+    "server:start": "cd server && npm start",
     "start": "vite",
     "serve": "tsx server/server.ts",
     "build": "vite build",

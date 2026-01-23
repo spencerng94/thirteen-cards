@@ -1,3 +1,12 @@
+// ============================================================================
+// PROCESS IDENTITY - Verify single process execution
+// ============================================================================
+console.log("🔥 SERVER START", {
+  pid: process.pid,
+  startedAt: new Date().toISOString(),
+  nodeVersion: process.version,
+  platform: process.platform,
+});
 
 import express from 'express';
 import cors from 'cors';
@@ -70,6 +79,18 @@ interface GameRoom {
   playerMutedByAfk: Set<string>; // playerIds muted due to AFK
   quickMoveRewardGiven: Set<string>; // playerIds who have received quick move reward this game
 }
+
+// Import socket mappings from roomStore
+import { socketToRoom, socketToPlayerId } from './roomStore';
+
+// Import rooms singleton, functions, and types from rooms.ts
+import { rooms, createRoom, joinRoom, getRoom, getPublicRooms, getAllRoomIds, type SimplePlayer, type GameRoom } from './rooms';
+
+// ============================================================================
+// ROOM STORE - Using singleton from rooms.ts
+// ============================================================================
+// The rooms Map and all room management functions are now imported from rooms.ts
+// which provides a true singleton that persists across hot reloads and connections
 
 // All in-house emote trigger codes (excluding premium/remote-only emotes)
 const IN_HOUSE_EMOTES = [':smile:', ':blush:', ':cool:', ':annoyed:', ':heart_eyes:', ':money_mouth_face:', ':robot:', ':devil:', ':girly:'];
@@ -231,13 +252,43 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 // ============================================================================
 app.use(express.json()); // Parse JSON bodies for all other routes
 
+// ============================================================================
+// SOCKET.IO SERVER - Created EXACTLY ONCE at module load
+// ============================================================================
+// Guard: Prevent multiple Server instances
+if (globalThis.__SOCKET_IO_SERVER__) {
+  console.error('❌ CRITICAL: Socket.IO Server already exists! Multiple instances detected.');
+  throw new Error('Socket.IO Server can only be created once');
+}
+
 const io = new Server(httpServer, {
-  cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true }
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
-const rooms: Record<string, GameRoom> = {};
-const socketToRoom: Record<string, string> = {};
-const socketToPlayerId: Record<string, string> = {};
+// Store reference to prevent duplicate creation
+globalThis.__SOCKET_IO_SERVER__ = io;
+
+// Guard: Prevent handler double-registration
+// Global declarations are now at the top of the file (line 92)
+
+if (globalThis.__SOCKET_HANDLERS_REGISTERED__) {
+  console.error('❌ CRITICAL: Socket handlers already registered! Multiple registrations detected.');
+  throw new Error('Socket handlers can only be registered once');
+}
+console.log('✅ Socket.IO Server created (PID:', process.pid, ')');
+
+// ============================================================================
+// ROOM STORE - Using singleton from rooms.ts
+// ============================================================================
+// The rooms Map is imported from rooms.ts which provides a true singleton
+// that persists across hot reloads via global.__GLOBAL_ROOMS_MAP__
+// All handlers use the same persistent Map instance
+console.log('📦 Rooms Map imported from rooms.ts singleton');
+console.log('📋 Initial room count:', rooms.size);
 
 // --- Logic Helpers ---
 
@@ -448,7 +499,7 @@ const getGameStateData = (room: GameRoom) => ({
 });
 
 const broadcastState = (roomId: string) => {
-  const room = rooms[roomId];
+  const room = rooms.get(roomId);
   if (!room) return;
   const state = getGameStateData(room);
   io.to(roomId).emit('game_state', state);
@@ -458,25 +509,21 @@ const broadcastState = (roomId: string) => {
 };
 
 const getPublicRoomsList = () => {
-  // Get all public lobbies and deduplicate by room ID (safety measure)
-  const roomMap = new Map<string, any>();
+  // Use the getPublicRooms function for consistency
+  const publicRooms = getPublicRooms();
   
-  Object.values(rooms)
-    .filter(r => r.isPublic && r.status === 'LOBBY' && r.players.length >= 2 && r.players.length < 4)
-    .forEach(r => {
-      // Use room ID as key to prevent duplicates
-      if (!roomMap.has(r.id)) {
-        roomMap.set(r.id, {
-          id: r.id,
-          name: r.roomName,
-          playerCount: r.players.length,
-          hostName: r.players.find(p => p.isHost)?.name || 'Unknown',
-          hostAvatar: r.players.find(p => p.isHost)?.avatar || ':smile:'
-        });
-      }
-    });
-  
-  return Array.from(roomMap.values());
+  // Enhance with host information for compatibility
+  return publicRooms.map(room => {
+    const fullRoom = rooms.get(room.id);
+    return {
+      id: room.id,
+      name: room.name,
+      playerCount: room.playerCount,
+      turnTimer: room.turnTimer,
+      hostName: fullRoom?.players.find(p => p.isHost)?.name || 'Unknown',
+      hostAvatar: fullRoom?.players.find(p => p.isHost)?.avatar || ':smile:'
+    };
+  });
 };
 
 const broadcastPublicLobbies = () => {
@@ -484,7 +531,7 @@ const broadcastPublicLobbies = () => {
 };
 
 const startTurnTimer = (roomId: string) => {
-  const room = rooms[roomId];
+  const room = rooms.get(roomId);
   if (!room || room.status !== 'PLAYING') return;
   if (room.turnTimer) clearTimeout(room.turnTimer);
   
@@ -501,7 +548,7 @@ const startTurnTimer = (roomId: string) => {
 };
 
 const handleTurnTimeout = (roomId: string) => {
-  const room = rooms[roomId];
+  const room = rooms.get(roomId);
   if (!room || room.status !== 'PLAYING') return;
   const currentPlayer = room.players[room.currentPlayerIndex];
   if (!currentPlayer || currentPlayer.finishedRank || currentPlayer.isBot) {
@@ -540,7 +587,7 @@ const handleTurnTimeout = (roomId: string) => {
 };
 
 const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
-  const room = rooms[roomId];
+  const room = rooms.get(roomId);
   if (!room) return;
   const currentPlayer = room.players[room.currentPlayerIndex];
   if (!currentPlayer || currentPlayer.id !== playerId || currentPlayer.finishedRank) {
@@ -688,7 +735,7 @@ const handlePlay = (roomId: string, playerId: string, cards: Card[]) => {
 };
 
 const handlePass = (roomId: string, playerId: string) => {
-  const room = rooms[roomId];
+  const room = rooms.get(roomId);
   if (!room) return;
   const currentPlayer = room.players[room.currentPlayerIndex];
   
@@ -739,7 +786,7 @@ const handlePass = (roomId: string, playerId: string) => {
 };
 
 const checkBotTurn = (roomId: string) => {
-  const room = rooms[roomId];
+  const room = rooms.get(roomId);
   if (!room || room.status !== 'PLAYING') return;
   const curPlayer = room.players[room.currentPlayerIndex];
   if (curPlayer?.isBot && !curPlayer.finishedRank) {
@@ -747,7 +794,7 @@ const checkBotTurn = (roomId: string) => {
     const delay = 2000 + Math.random() * 2000;
     
     setTimeout(() => {
-        const roomRef = rooms[roomId];
+        const roomRef = rooms.get(roomId);
         if (!roomRef || roomRef.currentPlayerIndex !== room.currentPlayerIndex) return;
         
         // Weighted random: 80% smart move, 20% mistake
@@ -817,7 +864,7 @@ const checkBotTurn = (roomId: string) => {
 };
 
 const performCleanup = (roomId: string, playerId: string) => {
-  const room = rooms[roomId];
+  const room = rooms.get(roomId);
   if (!room) return;
   const playerIndex = room.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) return;
@@ -850,7 +897,7 @@ const performCleanup = (roomId: string, playerId: string) => {
   const humans = room.players.filter(p => !p.isBot);
   if (humans.length === 0) {
     if (room.turnTimer) clearTimeout(room.turnTimer);
-    delete rooms[roomId];
+    rooms.delete(roomId);
     broadcastPublicLobbies();
     return;
   }
@@ -864,92 +911,286 @@ const mapIdentity = (socket: Socket, roomId: string, playerId: string) => {
   socketToPlayerId[socket.id] = playerId;
 };
 
+// ============================================================================
+// SOCKET HANDLERS - Registered exactly once at module load
+// ============================================================================
+// Guard: Prevent double registration
+if (globalThis.__SOCKET_HANDLERS_REGISTERED__) {
+  console.error('❌ CRITICAL: Socket handlers already registered! Skipping duplicate registration.');
+  throw new Error('Socket handlers can only be registered once');
+}
+
+console.log('📡 Registering socket handlers...');
+console.log('📋 Registering socket handlers - Rooms Map size:', rooms.size);
+
+// Mark handlers as registered BEFORE registering to prevent race conditions
+globalThis.__SOCKET_HANDLERS_REGISTERED__ = true;
+
 io.on('connection', (socket: Socket) => {
+  console.log('🚀 SOCKET CONNECTED:', socket.id);
+  
+  // ============================================================================
+  // CRITICAL: ROOMS MAP PERSISTENCE GUARD
+  // ============================================================================
+  // The 'rooms' Map is imported from rooms.ts as a singleton that persists
+  // across hot reloads via global.__GLOBAL_ROOMS_MAP__
+  // 
+  // IT IS NEVER RESET, CLEARED, OR REASSIGNED INSIDE THIS CONNECTION HANDLER.
+  // All handlers below use the same persistent Map instance.
+  //
+  // ============================================================================
+  // CRITICAL VERIFICATION: Ensure rooms Map is the same instance
+  // ============================================================================
+  // This check ensures that the rooms Map hasn't been reassigned or replaced
+  const globalMap = (global as any).__GLOBAL_ROOMS_MAP__;
+  if (!globalMap) {
+    console.error('🚨 CRITICAL ERROR: global.__GLOBAL_ROOMS_MAP__ is undefined!');
+    throw new Error('CRITICAL: global.__GLOBAL_ROOMS_MAP__ is undefined');
+  }
+  
+  if (rooms !== globalMap) {
+    console.error('🚨 CRITICAL ERROR: rooms Map is NOT the same instance as global.__GLOBAL_ROOMS_MAP__!');
+    console.error('🚨 This indicates rooms was reassigned or a new Map was created.');
+    console.error('🚨 rooms identity:', rooms);
+    console.error('🚨 global.__GLOBAL_ROOMS_MAP__ identity:', globalMap);
+    console.error('🚨 rooms size:', rooms.size);
+    console.error('🚨 globalMap size:', globalMap.size);
+    throw new Error('CRITICAL: rooms Map instance mismatch - rooms may have been reassigned');
+  }
+  
+  // Additional check: if Map is empty but we know rooms were created, something is wrong
+  const mapSize = rooms.size;
+  const mapKeys = Array.from(rooms.keys());
+  console.log(`📋 Connection: Rooms Map size: ${mapSize}, Keys: [${mapKeys.join(', ')}]`);
+  console.log(`📋 Connection: Rooms Map identity verified: ${rooms === globalMap}`);
+  console.log(`📋 Connection: Global Map size: ${globalMap.size}, Keys: [${Array.from(globalMap.keys()).join(', ')}]`);
+  
+  // VERIFICATION: Ensure rooms Map is not being reset
+  if (mapSize === 0 && (global as any).__ROOMS_EVER_CREATED__) {
+    console.error('🚨 WARNING: Rooms Map is empty but rooms were previously created!');
+    console.error('🚨 This indicates the server process restarted or the Map was cleared.');
+    console.error('🚨 Checking if Map was replaced...');
+    console.error('🚨 rooms === globalMap:', rooms === globalMap);
+    console.error('🚨 rooms.constructor:', rooms.constructor.name);
+    console.error('🚨 globalMap.constructor:', globalMap.constructor.name);
+  }
+  
+  // Catch-All logger to see ALL events
+  socket.onAny((event, ...args) => {
+    console.log(`📡 RECEIVED EVENT: ${event}`, args);
+  });
+
   socket.emit('public_rooms_list', getPublicRoomsList());
 
-  socket.on('create_room', ({ name, avatar, playerId, isPublic, roomName, turnTimer, selected_sleeve_id }) => {
+  socket.on('create_room', (data, callback) => {
+    console.log('✅ CREATE_ROOM: Received request from', socket.id, data);
+    
     // Rate limit check
     const rateLimitResult = checkRateLimit(socket.id, 'create_room');
     if (!rateLimitResult.allowed) {
-      socket.emit('error', 'You\'re creating rooms too quickly. Please wait a moment and try again.');
+      const errorMsg = 'You\'re creating rooms too quickly. Please wait a moment and try again.';
+      console.warn('⚠️ CREATE_ROOM: Rate limited', socket.id);
+      if (callback) callback({ error: errorMsg });
+      else socket.emit('error', errorMsg);
       return;
     }
     
     // SECURITY: Sanitize and validate input
+    const { name, avatar, playerId, isPublic, roomName, turnTimer, selected_sleeve_id } = data;
     const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
     const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
     const sanitizedRoomName = roomName ? roomName.trim().substring(0, 24).replace(/[<>\"'&]/g, '') : `${sanitizedName.toUpperCase()}'S MATCH`;
-    // Allow users to select timer for both public and private rooms (default to 30s)
-    // Valid options: 0 (no timer), 15, 30, or 60 seconds
     const validTurnTimer = typeof turnTimer === 'number' && [0, 15, 30, 60].includes(turnTimer) ? turnTimer : 30;
-    // Validate and sanitize sleeve_id
     const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
     try {
-      const roomId = generateRoomCode();
       const pId = playerId || uuidv4();
-      rooms[roomId] = {
-        id: roomId, status: 'LOBBY', currentPlayerIndex: 0, currentPlayPile: [], roundHistory: [], lastPlayerToPlayId: null, finishedPlayers: [], isFirstTurnOfGame: true,
-        isPublic: isPublic === true,
-        roomName: sanitizedRoomName,
-        turnDuration: validTurnTimer * 1000,
-        players: [{ id: pId, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: true, hasPassed: false, finishedRank: null, selected_sleeve_id: sanitizedSleeveId }],
-        playerSpeedData: {},
-        playerMutedByAfk: new Set(),
-        quickMoveRewardGiven: new Set()
+      
+      // Create player object
+      const player: SimplePlayer = {
+        id: pId,
+        name: sanitizedName,
+        avatar: sanitizedAvatar
       };
+      
+      // Use createRoom function to create the room (uses singleton Map)
+      const newRoom = createRoom(player, sanitizedRoomName, isPublic === true, validTurnTimer);
+      const roomId = newRoom.id;
+      
+      // Verify room was saved to singleton Map
+      const verifyRoom = rooms.get(roomId);
+      if (!verifyRoom) {
+        throw new Error(`Failed to save room ${roomId} - room not found in Map after creation`);
+      }
+      
+      // Update player with socket ID and sleeve
+      const roomPlayer = newRoom.players[0];
+      roomPlayer.socketId = socket.id;
+      if (sanitizedSleeveId) {
+        roomPlayer.selected_sleeve_id = sanitizedSleeveId;
+      }
+      
+      // Map socket to room and player
       mapIdentity(socket, roomId, pId);
+      
+      // Join socket to room
       socket.join(roomId);
-      // Don't auto-fill CPUs - let users manually add them if needed
+      
+      // Send callback response
+      if (callback) {
+        callback({ roomId });
+      }
+      
+      // IMPORTANT: Notify client of room creation (for UI navigation)
+      socket.emit('room_created', { roomId, settings: data });
+      console.log(`🚀 SERVER: Sent room_created for ID: '${roomId}'`);
+      
+      // Send game state to the creator
+      const state = getGameStateData(newRoom);
+      socket.emit('game_state', state);
+      socket.emit('room_update', state);
+      
+      if (roomPlayer && !roomPlayer.isBot && !roomPlayer.isOffline) {
+        socket.emit('player_hand', roomPlayer.hand);
+      }
+      
+      console.log(`🎮 Room ${roomId} created by ${sanitizedName}`);
+      console.log(`✅ CREATE_ROOM SUCCESS: Map size: ${rooms.size}, Room exists: ${rooms.has(roomId)}, Room ID: '${roomId}'`);
+
+      // Broadcast to all players
       broadcastState(roomId);
       broadcastPublicLobbies();
-    } catch (error) {
-      console.error('Error creating room:', error);
-      socket.emit('error', 'Unable to create room. Please try again.');
+    } catch (error: any) {
+      console.error('❌ CREATE_ROOM ERROR:', error);
+      const errorMsg = error.message || 'Unable to create room. Please try again.';
+      if (callback) {
+        callback({ error: errorMsg });
+      } else {
+        socket.emit('error', errorMsg);
+      }
     }
   });
 
-  socket.on('join_room', ({ roomId, name, avatar, playerId, selected_sleeve_id }) => {
-    // SECURITY: Validate roomId format (should be 4 alphanumeric characters)
-    if (!roomId || typeof roomId !== 'string' || roomId.length !== 4 || !/^[A-Z0-9]{4}$/i.test(roomId)) {
-      socket.emit('error', 'Invalid room code.');
+  socket.on('join_room', ({ roomId, name, avatar, playerId, selected_sleeve_id }, callback) => {
+    const requestedId = roomId;
+    console.log(`🔍 JOIN_ROOM: Client ${socket.id} is looking for: '${requestedId}'`);
+    console.log(`📋 JOIN_ROOM: Current Map size: ${rooms.size}, All room keys: [${Array.from(rooms.keys()).join(', ')}]`);
+    
+    // SECURITY: Validate roomId format (accepts both 4-character codes and LOBBY_XXXXX format)
+    if (!requestedId || typeof requestedId !== 'string') {
+      console.error('❌ JOIN_ROOM: Invalid roomId format:', requestedId, typeof requestedId);
+      const errorMsg = 'Invalid room code.';
+      if (callback) {
+        callback({ 
+          error: errorMsg, 
+          availableRooms: Array.from(rooms.keys()) 
+        });
+      } else {
+        socket.emit('error', errorMsg);
+      }
       return;
     }
     
-    const room = rooms[roomId];
-    if (!room || room.status !== 'LOBBY' || room.players.length >= 4) {
-      socket.emit('error', !room ? 'Room not found.' : room.status !== 'LOBBY' ? 'Match in progress.' : 'Lobby is full.');
+    // Accept either 4-character codes (ABCD) or LOBBY_XXXXX format
+    const isValidFormat = /^[A-Z0-9]{4}$/i.test(requestedId) || /^LOBBY_[A-Z0-9]+$/i.test(requestedId);
+    if (!isValidFormat) {
+      console.error('❌ JOIN_ROOM: RoomId format validation failed:', requestedId);
+      const errorMsg = 'Invalid room code format.';
+      if (callback) {
+        callback({ 
+          error: errorMsg, 
+          availableRooms: Array.from(rooms.keys()) 
+        });
+      } else {
+        socket.emit('error', errorMsg);
+      }
       return;
     }
     
     // SECURITY: Sanitize input
     const sanitizedName = (name || 'GUEST').trim().substring(0, 20).replace(/[<>\"'&]/g, '') || 'GUEST';
     const sanitizedAvatar = (avatar || ':smile:').trim().substring(0, 50);
-    // Validate and sanitize sleeve_id
     const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
-    const pid = playerId || uuidv4();
-    const existingPlayerIndex = room.players.findIndex(p => p.id === pid);
-    if (existingPlayerIndex !== -1) {
-       const player = room.players[existingPlayerIndex];
-       player.socketId = socket.id;
-       player.isOffline = false;
-       if (player.reconnectionTimeout) clearTimeout(player.reconnectionTimeout);
-       // Update sleeve_id on reconnection
-       if (sanitizedSleeveId !== undefined) {
-         player.selected_sleeve_id = sanitizedSleeveId;
-       }
-    } else {
-       room.players.push({ id: pid, name: sanitizedName, avatar: sanitizedAvatar, socketId: socket.id, hand: [], isHost: false, hasPassed: false, finishedRank: null, selected_sleeve_id: sanitizedSleeveId });
+    try {
+      const pid = playerId || uuidv4();
+      
+      // Create player object
+      const player: SimplePlayer = {
+        id: pid,
+        name: sanitizedName,
+        avatar: sanitizedAvatar
+      };
+      
+      // Use joinRoom function to join the room (uses singleton Map)
+      const room = joinRoom(player, requestedId);
+      
+      // Update player with socket ID and sleeve
+      const roomPlayer = room.players.find(p => p.id === pid);
+      if (roomPlayer) {
+        roomPlayer.socketId = socket.id;
+        if (sanitizedSleeveId) {
+          roomPlayer.selected_sleeve_id = sanitizedSleeveId;
+        }
+        if (roomPlayer.reconnectionTimeout) {
+          clearTimeout(roomPlayer.reconnectionTimeout);
+        }
+      }
+      
+      // Map socket to room and player
+      mapIdentity(socket, requestedId, pid);
+      
+      // Join socket to room
+      socket.join(requestedId);
+      
+      // Send callback response
+      if (callback) {
+        callback({ 
+          success: true, 
+          room: {
+            id: room.id,
+            name: room.roomName,
+            players: room.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar })),
+            isPublic: room.isPublic,
+            turnTimer: room.turnDuration / 1000
+          }
+        });
+      }
+      
+      // Send game state to the joining player
+      const state = getGameStateData(room);
+      socket.emit('game_state', state);
+      socket.emit('room_update', state);
+      
+      if (roomPlayer && !roomPlayer.isBot && !roomPlayer.isOffline) {
+        socket.emit('player_hand', roomPlayer.hand);
+      }
+      
+      console.log(`👤 Player ${socket.id} (${sanitizedName}) joined '${requestedId}'`);
+      console.log(`✅ JOIN_ROOM SUCCESS: Map size: ${rooms.size}, Room exists: ${rooms.has(requestedId)}, Room ID: '${requestedId}'`);
+      
+      // Broadcast to all players in the room
+      broadcastState(requestedId);
+      broadcastPublicLobbies();
+    } catch (error: any) {
+      console.error(`❌ JOIN_ROOM ERROR for '${requestedId}':`, error.message);
+      console.error(`📋 JOIN_ROOM: Available rooms: [${Array.from(rooms.keys()).join(', ')}]`);
+      const errorMsg = error.message || 'Unable to join room. Please try again.';
+      const availableRooms = Array.from(rooms.keys());
+      
+      if (callback) {
+        callback({ 
+          error: errorMsg, 
+          availableRooms: availableRooms 
+        });
+      } else {
+        socket.emit('error', errorMsg);
+      }
     }
-    mapIdentity(socket, roomId, pid);
-    socket.join(roomId);
-    broadcastState(roomId);
-    broadcastPublicLobbies();
   });
 
   socket.on('add_bot', ({ roomId, playerId }) => {
-    const room = rooms[roomId];
+    const room = rooms.get(roomId);
     if (!room || room.status !== 'LOBBY' || room.players.length >= 4) return;
     const requesterId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === requesterId);
@@ -964,7 +1205,7 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('update_bot_difficulty', ({ roomId, botId, difficulty, playerId }) => {
-    const room = rooms[roomId];
+    const room = rooms.get(roomId);
     if (!room || room.status !== 'LOBBY') return;
     const requesterId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === requesterId);
@@ -976,8 +1217,37 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
+  socket.on('update_room_settings', ({ roomId, timer, isPublic, playerId }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.status !== 'LOBBY') return;
+    const requesterId = playerId || socketToPlayerId[socket.id];
+    const requester = room.players.find(p => p.id === requesterId);
+    if (!requester || !requester.isHost) {
+      console.log('SERVER: update_room_settings rejected - not host', { requesterId, isHost: requester?.isHost });
+      return;
+    }
+    
+    // Update room settings
+    if (timer !== undefined && [0, 15, 30, 60].includes(timer)) {
+      room.turnDuration = timer * 1000;
+      console.log('SERVER: Updated room timer to', timer);
+    }
+    if (isPublic !== undefined) {
+      room.isPublic = isPublic === true;
+      console.log('SERVER: Updated room isPublic to', isPublic);
+    }
+    
+    // Broadcast updated state to ALL players including the sender
+    broadcastState(roomId);
+    broadcastPublicLobbies();
+    
+    // Also emit dedicated event for room settings update
+    io.to(roomId).emit('room_settings_updated', { timer: room.turnDuration / 1000, isPublic: room.isPublic });
+    console.log('SERVER: Broadcasted room_settings_updated to room', roomId);
+  });
+
   socket.on('remove_bot', ({ roomId, botId, playerId }) => {
-    const room = rooms[roomId];
+    const room = rooms.get(roomId);
     if (!room || room.status !== 'LOBBY') return;
     const requesterId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === requesterId);
@@ -988,7 +1258,7 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('reconnect_session', ({ roomId, playerId }) => {
-    const room = rooms[roomId];
+    const room = rooms.get(roomId);
     if (!room) { socket.emit('error', 'Session Expired'); return; }
     const player = room.players.find(p => p.id === playerId);
     if (!player) { socket.emit('error', 'Player not found'); return; }
@@ -1001,7 +1271,7 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('start_game', ({ roomId, playerId }) => {
-    const room = rooms[roomId];
+    const room = rooms.get(roomId);
     if (!room) return;
     const pId = playerId || socketToPlayerId[socket.id];
     const requester = room.players.find(p => p.id === pId);
@@ -1081,6 +1351,9 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('get_public_rooms', () => {
+    console.log('📋 GET_PUBLIC_ROOMS: Requested');
+    console.log('📋 Rooms Map size:', rooms.size);
+    
     // Rate limit check
     const rateLimitResult = checkRateLimit(socket.id, 'get_public_rooms');
     if (!rateLimitResult.allowed) {
@@ -1088,6 +1361,8 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     
+    const publicRooms = getPublicRooms();
+    console.log(`📋 Found ${publicRooms.length} public rooms`);
     socket.emit('public_rooms_list', getPublicRoomsList());
   });
 
@@ -1102,7 +1377,7 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     
-    let room = Object.values(rooms).find(r => r.players.some(p => p.id === pId));
+    let room = Array.from(rooms.values()).find(r => r.players.some(p => p.id === pId));
     if (!room) return;
     const player = room.players.find(p => p.id === pId);
     if (!player) return;
@@ -1150,7 +1425,7 @@ io.on('connection', (socket: Socket) => {
     clearRateLimit(socket.id);
     
     if (!roomId || !playerId) return;
-    const room = rooms[roomId];
+    const room = rooms.get(roomId);
     if (!room) return;
     const player = room.players.find(p => p.id === playerId);
     if (!player) return;
@@ -1165,6 +1440,8 @@ io.on('connection', (socket: Socket) => {
     delete socketToPlayerId[socket.id];
   });
 });
+
+console.log('✅ Socket handlers registered');
 
 // ============================================================================
 // PAYMENT WEBHOOKS
@@ -1636,3 +1913,30 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
 
 const generateRoomCode = (): string => 'ABCD'.split('').map(() => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.floor(Math.random() * 36))).join('');
 const PORT = process.env.PORT || 3001;
+
+// ============================================================================
+// SERVER STARTUP - Ensure exactly one process listens
+// ============================================================================
+// Guard against multiple server starts (hot reload, duplicate imports, etc.)
+if (!process.env.SERVER_STARTED) {
+  process.env.SERVER_STARTED = "true";
+  
+  try {
+    httpServer.listen(PORT, () => {
+      console.log("🚀 SERVER LISTENING", {
+        pid: process.pid,
+        port: PORT,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`📡 Socket.io server ready for connections`);
+    });
+  } catch (err) {
+    console.error("FATAL SERVER START ERROR:", err);
+    process.exit(1);
+  }
+} else {
+  console.warn("⚠️ SERVER ALREADY STARTED - Skipping duplicate listen() call", {
+    pid: process.pid,
+    existingPort: PORT,
+  });
+}

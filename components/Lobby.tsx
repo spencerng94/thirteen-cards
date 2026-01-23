@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket, connectSocket } from '../services/socket';
 import { BoardSurface } from './UserHub';
@@ -370,22 +370,11 @@ function LobbyComponent({
   myId,
   turnTimerSetting
 }: LobbyProps) {
-  // UNIQUE IDENTITY TEST: Track this instance to detect double mounts
-  const instanceId = React.useRef(Math.random().toString(36).substr(2, 9));
-  
   // Initialize hook at the very top to bypass closure issues
   const initialTimer = turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30;
   const { timer: hookedTimer, setTimer: setHookedTimer, isPublic, setIsPublic } = useLobbySettings(initialTimer, true);
   
   // Instance ID tracking (logging removed for production)
-  
-  // TEMPORARILY COMMENTED OUT: Server sync is reverting user changes
-  // Sync hook with prop changes (but allow user to override)
-  // useEffect(() => {
-  //   if (turnTimerSetting !== undefined && turnTimerSetting !== null) {
-  //     setHookedTimer(turnTimerSetting);
-  //   }
-  // }, [turnTimerSetting, setHookedTimer]);
   
   // State change tracking (logging removed for production)
 
@@ -411,6 +400,9 @@ function LobbyComponent({
   
   const [socketConnected, setSocketConnected] = useState(false);
   const [socketConnecting, setSocketConnecting] = useState(false);
+  
+  // Ref to prevent infinite loops on initial mount
+  const isInitialMount = React.useRef(true);
   
   // Removed handleTabChange - using direct setState to avoid stale closures
   const [localNetworkInfo, setLocalNetworkInfo] = useState<{ isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean } | null>(null);
@@ -460,33 +452,69 @@ function LobbyComponent({
     };
 
     const initializeSocket = () => {
-      if (!socket.connected && isMounted) {
-        try {
-          setSocketConnecting(true);
-          
-          // Register event listeners
-          socket.on('connect', handleConnect);
-          socket.on('disconnect', handleDisconnect);
-          socket.on('connect_error', handleConnectError);
-          
-          // Attempt connection with timeout
-      connectSocket();
-          
-          connectionTimeout = setTimeout(() => {
-            if (isMounted && !socket.connected) {
-              setSocketConnecting(false);
-              setSocketConnected(false);
-            }
-          }, 5000);
-        } catch (error) {
-          if (isMounted) {
-            setSocketConnecting(false);
-            setSocketConnected(false);
-          }
-        }
-      } else if (socket.connected && isMounted) {
+      console.log('Initializing socket...', { 
+        connected: socket.connected, 
+        disconnected: socket.disconnected,
+        isMounted 
+      });
+      
+      if (socket.connected && isMounted) {
+        console.log('Socket already connected on mount');
         setSocketConnected(true);
         setSocketConnecting(false);
+        return;
+      }
+      
+      if (!isMounted) {
+        console.log('Component not mounted, skipping socket init');
+        return;
+      }
+      
+      try {
+        setSocketConnecting(true);
+        console.log('Socket not connected, setting up listeners and connecting...');
+        
+        // Register event listeners
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
+        socket.on('connect_error', (error) => {
+          console.log('Socket connect error:', error);
+          handleConnectError();
+        });
+        
+        // Attempt connection - try direct connect if connectSocket doesn't work
+        console.log('Calling connectSocket()...');
+        connectSocket();
+        
+        // Also try direct connect as fallback
+        if (!socket.connected) {
+          console.log('connectSocket() did not connect, trying direct socket.connect()...');
+          try {
+            socket.connect();
+          } catch (err) {
+            console.error('Direct socket.connect() failed:', err);
+          }
+        }
+        
+        // COMMENTED OUT: Socket timeout error handling to prevent infinite loops
+        // connectionTimeout = setTimeout(() => {
+        //   console.log('Socket connection timeout check', { 
+        //     connected: socket.connected, 
+        //     disconnected: socket.disconnected,
+        //     isMounted 
+        //   });
+        //   if (isMounted && !socket.connected) {
+        //     console.log('Socket connection timed out after 5 seconds');
+        //     setSocketConnecting(false);
+        //     setSocketConnected(false);
+        //   }
+        // }, 5000);
+      } catch (error) {
+        console.error('Error initializing socket:', error);
+        if (isMounted) {
+          setSocketConnecting(false);
+          setSocketConnected(false);
+        }
       }
     };
 
@@ -503,6 +531,80 @@ function LobbyComponent({
     };
   }, []); // Only run once on mount - completely independent of UI state
 
+  // Refs to prevent render loops when receiving server updates
+  const lastReceivedTimer = React.useRef<number | null>(null);
+  const lastReceivedIsPublic = React.useRef<boolean | null>(null);
+  
+  // Listen for room_created event - Always listen, not dependent on socketConnected
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleRoomCreated = (data: { roomId: string; settings?: any; hostId?: string }) => {
+      console.log('🎉 SERVER REPLIED! Navigating to room:', data.roomId);
+      console.log('🎉 Full response data:', data);
+      // Clear the creating state
+      setIsCreatingRoom(false);
+      if ((window as any).__createRoomTimeout) {
+        clearTimeout((window as any).__createRoomTimeout);
+        delete (window as any).__createRoomTimeout;
+      }
+      // Navigate to the game room
+      if (data.roomId) {
+        window.location.href = `/game/${data.roomId}`;
+      }
+    };
+    
+    socket.on('room_created', handleRoomCreated);
+    
+    return () => {
+      socket.off('room_created', handleRoomCreated);
+    };
+  }, [socket]); // Depend on socket to ensure listener is set up correctly
+
+  // Listen for room settings updates from server (prevents state fighting)
+  useEffect(() => {
+    if (!socketConnected || !gameState?.roomId) return;
+    
+    const handleRoomSettingsUpdate = (data: { timer?: number; isPublic?: boolean }) => {
+      // Only update if the incoming value is different from current state
+      // This prevents render loops
+      if (data.timer !== undefined && data.timer !== lastReceivedTimer.current) {
+        console.log('SERVER UPDATE: timer', data.timer, 'current:', hookedTimer);
+        lastReceivedTimer.current = data.timer;
+        if (data.timer !== hookedTimer) {
+          setHookedTimer(data.timer);
+        }
+      }
+      if (data.isPublic !== undefined && data.isPublic !== lastReceivedIsPublic.current) {
+        console.log('SERVER UPDATE: isPublic', data.isPublic, 'current:', isPublic);
+        lastReceivedIsPublic.current = data.isPublic;
+        if (data.isPublic !== isPublic) {
+          setIsPublic(data.isPublic);
+        }
+      }
+    };
+    
+    // Listen for game_state updates which include room settings
+    socket.on(SocketEvents.GAME_STATE, (state: GameState) => {
+      if (state.roomId === gameState.roomId) {
+        // turnDuration is in seconds from server, convert to timer value
+        const timerValue = state.turnDuration !== undefined ? state.turnDuration : undefined;
+        handleRoomSettingsUpdate({ 
+          timer: timerValue, 
+          isPublic: state.isPublic 
+        });
+      }
+    });
+    
+    // Also listen for dedicated room settings update event
+    socket.on('room_settings_updated', handleRoomSettingsUpdate);
+    
+    return () => {
+      socket.off(SocketEvents.GAME_STATE);
+      socket.off('room_settings_updated');
+    };
+  }, [socketConnected, gameState?.roomId, hookedTimer, isPublic, setHookedTimer, setIsPublic]);
+
   // Deduplicate function to prevent duplicate rooms
   // Removed useCallback to prevent caching issues
   const deduplicateRooms = (list: PublicRoom[]): PublicRoom[] => {
@@ -516,13 +618,15 @@ function LobbyComponent({
     });
   };
 
-  const refreshRooms = () => {
+  const refreshRooms = useCallback(() => {
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-  };
+  }, []); // Stable function reference
 
   // Register socket listener once on mount
   useEffect(() => {
+    if (!isInitialMount.current) return;
+    
     const handleRoomsList = (list: PublicRoom[]) => {
       // Deduplicate before setting state to prevent infinite duplicates
       const uniqueRooms = deduplicateRooms(list);
@@ -535,21 +639,27 @@ function LobbyComponent({
     socket.on(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     
     // Initial fetch
-    refreshRooms();
+    if (socketConnected) {
+      refreshRooms();
+    }
 
     // Cleanup: remove listener on unmount
     return () => {
       socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     };
-  }, []); // Only register once on mount
+  }, [socketConnected]); // Only register once on mount
 
   // Separate effect to refresh when exiting a game
   useEffect(() => {
-    if (!gameState) {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (!gameState && socketConnected) {
       // Refresh rooms when we exit a game (gameState becomes null)
       refreshRooms();
     }
-  }, [gameState, refreshRooms]);
+  }, [gameState, socketConnected, refreshRooms]); // refreshRooms is now stable via useCallback
 
   useEffect(() => {
     let interval: any;
@@ -607,6 +717,8 @@ function LobbyComponent({
 
   // Listen for socket errors related to room creation
   useEffect(() => {
+    if (isInitialMount.current) return;
+    
     const handleError = (errorMessage: string) => {
       // Show toast for errors that might be related to room creation
       // We'll check if we're on the CREATE tab or if the error seems room-creation related
@@ -641,7 +753,12 @@ function LobbyComponent({
     };
   }, [activeTab]);
 
-  const createRoom = () => {
+  const createRoom = (e?: React.MouseEvent) => {
+    // CRITICAL: Prevent any form submission or page refresh
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     // Prevent multiple simultaneous create room attempts
     if (isCreatingRoom) {
       return;
@@ -667,7 +784,7 @@ function LobbyComponent({
         // Store timeout ID to clear it if we get a response
         (window as any).__createRoomTimeout = responseTimeout;
 
-        socket.emit(SocketEvents.CREATE_ROOM, { 
+        const roomSettings = {
           name: playerName, 
           avatar: playerAvatar,
           playerId: myId,
@@ -675,6 +792,12 @@ function LobbyComponent({
           roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
           turnTimer: hookedTimer,
           selected_sleeve_id: selected_sleeve_id
+        };
+        
+        console.log('EMITTING create_room with settings:', { timer: hookedTimer, isPublic, roomName: roomSettings.roomName });
+        
+        socket.emit(SocketEvents.CREATE_ROOM, roomSettings, (response: any) => {
+          console.log('SERVER ACKNOWLEDGEMENT RECEIVED:', response);
         });
         
         // Reset creating state after a delay to allow for server response
@@ -705,24 +828,26 @@ function LobbyComponent({
     }
 
     // Socket is not connected, set up connection handlers
-    const timeout = setTimeout(() => {
-      setIsCreatingRoom(false);
-      setErrorToast({ show: true, message: 'Connection timeout. Please check your connection and try again.' });
-      socket.off('connect', handleConnect);
-      socket.off('connect_error', handleConnectError);
-    }, 5000);
+    // COMMENTED OUT: Timeout error handling to prevent infinite loops
+    // const timeout = setTimeout(() => {
+    //   setIsCreatingRoom(false);
+    //   setErrorToast({ show: true, message: 'Connection timeout. Please check your connection and try again.' });
+    //   socket.off('connect', handleConnect);
+    //   socket.off('connect_error', handleConnectError);
+    // }, 5000);
 
     const handleConnect = () => {
-      clearTimeout(timeout);
+      // clearTimeout(timeout); // Commented out - timeout disabled
       socket.off('connect', handleConnect);
       socket.off('connect_error', handleConnectError);
       emitCreateRoom();
     };
 
     const handleConnectError = () => {
-      clearTimeout(timeout);
-      setIsCreatingRoom(false);
-      setErrorToast({ show: true, message: 'Unable to connect to server. Please check your connection and try again.' });
+      // clearTimeout(timeout); // Commented out - timeout disabled
+      // COMMENTED OUT: Error handling to prevent infinite loops
+      // setIsCreatingRoom(false);
+      // setErrorToast({ show: true, message: 'Unable to connect to server. Please check your connection and try again.' });
       socket.off('connect', handleConnect);
       socket.off('connect_error', handleConnectError);
     };
@@ -744,13 +869,13 @@ function LobbyComponent({
     // Ensure socket is connected before emitting
     if (!socket.connected) {
       connectSocket();
-      // Wait for connection before emitting (with timeout)
-      const timeout = setTimeout(() => {
-        setErrorToast({ show: true, message: 'Connection timeout. Please check your connection and try again.' });
-      }, 5000);
+      // COMMENTED OUT: Timeout error handling to prevent infinite loops
+      // const timeout = setTimeout(() => {
+      //   setErrorToast({ show: true, message: 'Connection timeout. Please check your connection and try again.' });
+      // }, 5000);
       
       socket.once('connect', () => {
-        clearTimeout(timeout);
+        // clearTimeout(timeout); // Commented out - timeout disabled
         socket.emit(SocketEvents.JOIN_ROOM, { 
           roomId: targetCode, 
           name: playerName, 
@@ -803,7 +928,15 @@ function LobbyComponent({
 
   return (
     <React.Fragment key={activeTab}>
-    <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
+    <>
+      {/* Emergency bypass button for testing */}
+      <button 
+        onClick={() => window.location.href = '/game/test-room'} 
+        style={{ position: 'fixed', top: 0, left: 0, zIndex: 99999, background: 'red', color: 'white', padding: '8px 12px', fontSize: '12px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+      >
+        FORCE START (BYPASS SOCKET)
+      </button>
+      <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
       <div className="lobby-viewport" key="lobby-viewport">
         
         {errorToast.show && (
@@ -1052,6 +1185,16 @@ function LobbyComponent({
                                 e.stopPropagation();
                                 setIsPublic((prev) => {
                                   const newState = !prev;
+                                  // Emit socket event to update room settings
+                                  if (gameState?.roomId && socketConnected) {
+                                    socket.emit(SocketEvents.UPDATE_ROOM_SETTINGS, { 
+                                      roomId: gameState.roomId, 
+                                      timer: hookedTimer, 
+                                      isPublic: newState,
+                                      playerId: myId 
+                                    });
+                                    console.log('CLIENT EMIT: update_room_settings', { timer: hookedTimer, isPublic: newState });
+                                  }
                                   // Force immediate DOM update
                                   requestAnimationFrame(() => {
                                     const btn = document.getElementById('public-toggle-btn');
@@ -1113,6 +1256,16 @@ function LobbyComponent({
                                       e.preventDefault();
                                       e.stopPropagation();
                                       setHookedTimer(val);
+                                      // Emit socket event to update room settings
+                                      if (gameState?.roomId && socketConnected) {
+                                        socket.emit(SocketEvents.UPDATE_ROOM_SETTINGS, { 
+                                          roomId: gameState.roomId, 
+                                          timer: val, 
+                                          isPublic: isPublic,
+                                          playerId: myId 
+                                        });
+                                        console.log('CLIENT EMIT: update_room_settings', { timer: val, isPublic });
+                                      }
                                       // Force immediate DOM update for all buttons
                                       requestAnimationFrame(() => {
                                         [0, 15, 30, 60].forEach((v) => {
@@ -1157,19 +1310,24 @@ function LobbyComponent({
                             }
                           }}
                           onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                            console.log('CREATE ROOM MOUSEDOWN', { disabled: isCreatingRoom || !socketConnected, socketConnected, isCreatingRoom });
+                            // Don't preventDefault - let click event fire
                           }}
                           onTouchStart={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                            console.log('CREATE ROOM TOUCHSTART', { disabled: isCreatingRoom || !socketConnected, socketConnected, isCreatingRoom });
+                            // Don't preventDefault - let click event fire
                           }}
                           onClick={(e) => {
+                            console.log('CREATE ROOM BUTTON CLICKED', { socketConnected, isCreatingRoom, disabled: isCreatingRoom || !socketConnected });
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('CREATE ROOM BUTTON CLICKED', { socketConnected, isCreatingRoom });
                             if (!socketConnected) {
                               console.log('BLOCKED: Socket not connected');
+                              setErrorToast({ 
+                                show: true, 
+                                message: 'Unable to connect to server. Please check your connection and ensure the server is running.' 
+                              });
+                              setTimeout(() => setErrorToast({ show: false, message: '' }), 5000);
                               return;
                             }
                             if (isCreatingRoom) {
@@ -1185,9 +1343,14 @@ function LobbyComponent({
                               }
                             });
                           }}
-                          disabled={isCreatingRoom || !socketConnected}
                           className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-200 active:scale-95 relative overflow-hidden group ${isCreatingRoom || !socketConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          style={{ position: 'relative', zIndex: 10001, pointerEvents: 'auto', cursor: (isCreatingRoom || !socketConnected) ? 'not-allowed' : 'pointer' }}
+                          style={{ 
+                            position: 'relative', 
+                            zIndex: 10001, 
+                            pointerEvents: 'auto',
+                            cursor: (isCreatingRoom || !socketConnected) ? 'not-allowed' : 'pointer'
+                          }}
+                          title={!socketConnected ? 'Waiting for connection...' : isCreatingRoom ? 'Creating room...' : 'Create Room'}
                         >
                           <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                           <span className="relative z-10 flex items-center justify-center gap-3">
@@ -1485,6 +1648,7 @@ function LobbyComponent({
       `}} />
       
     </BackgroundWrapper>
+    </>
     </React.Fragment>
   );
 };

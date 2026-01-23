@@ -4,8 +4,8 @@
   "main": "server.ts",
   "type": "module",
   "scripts": {
-    "start": "tsx server.ts",
-    "dev": "nodemon server.ts"
+    "start": "NODE_ENV=development tsx watch --ignore '../**' --watch '.' server.ts",
+    "dev": "NODE_ENV=development tsx watch --ignore '../**' --watch '.' server.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.1",

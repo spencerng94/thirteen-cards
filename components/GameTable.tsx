@@ -349,6 +349,15 @@ interface GameTableProps {
 const GameTableComponent: React.FC<GameTableProps> = ({ 
   gameState, myId, myHand, onPlayCards, onPassTurn, cardCoverStyle, backgroundTheme, onOpenSettings, profile, playAnimationsEnabled = true, autoPassEnabled = false, socialFilter = 'UNMUTED', sessionMuted = [], setSessionMuted
 }) => {
+  // Loading state: If gameState is missing or room data hasn't arrived, show loading
+  if (!gameState || !gameState.roomId || !gameState.players || gameState.players.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <div className="text-yellow-400 text-lg">Loading game...</div>
+      </div>
+    );
+  }
+
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showEmotePicker, setShowEmotePicker] = useState(false);
   const [activeEmotes, setActiveEmotes] = useState<ActiveEmote[]>([]);
@@ -547,33 +556,36 @@ const GameTableComponent: React.FC<GameTableProps> = ({
   }, [myId, profile, socialFilter]);
 
   // Combine sessionMuted with AFK-muted players from game state
+  // FIXED: Use JSON.stringify to create stable dependency
+  const playersKey = JSON.stringify(gameState.players.map(p => ({ id: p.id, mutedByAfk: p.mutedByAfk })));
   const allMutedPlayers = useMemo(() => {
     const afkMuted = gameState.players.filter(p => p.mutedByAfk).map(p => p.id);
     return Array.from(new Set([...sessionMuted, ...afkMuted]));
-  }, [sessionMuted, gameState.players]);
+  }, [sessionMuted, playersKey]);
 
   // Filter existing chats when mute settings change
-  useEffect(() => {
-    setActiveChats(prev => prev.filter(chat => {
-      // Check if player is muted (session mute or AFK mute)
-      if (allMutedPlayers.includes(chat.playerId)) {
-        return false;
-      }
-      
-      // Check global social filter
-      if (socialFilter === 'MUTED') {
-        return false;
-      }
-      
-      if (socialFilter === 'FRIENDS_ONLY') {
-        if (!friendsList.includes(chat.playerId)) {
-          return false;
-        }
-      }
-      
-      return true;
-    }));
-  }, [allMutedPlayers, socialFilter, friendsList]);
+  // TEMPORARILY COMMENTED OUT ENTIRELY TO FIX INFINITE RENDER LOOP
+  // useEffect(() => {
+  //   setActiveChats(prev => prev.filter(chat => {
+  //     // Check if player is muted (session mute or AFK mute)
+  //     if (allMutedPlayers.includes(chat.playerId)) {
+  //       return false;
+  //     }
+  //     
+  //     // Check global social filter
+  //     if (socialFilter === 'MUTED') {
+  //       return false;
+  //     }
+  //     
+  //     if (socialFilter === 'FRIENDS_ONLY') {
+  //       if (!friendsList.includes(chat.playerId)) {
+  //         return false;
+  //       }
+  //     }
+  //     
+  //     return true;
+  //   }));
+  // }, [allMutedPlayers, socialFilter, friendsList]);
 
   useEffect(() => {
     const handleReceiveChat = ({ playerId, phrase, style }: { playerId: string; phrase: string; style: ChatStyle }) => {

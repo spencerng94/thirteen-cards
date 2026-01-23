@@ -32,42 +32,57 @@ const getSocketUrl = (): string => {
   // Use environment-based URL for web
   if (typeof window !== 'undefined') {
     const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-    return isProduction 
-      ? (getEnv('VITE_PROD_SERVER_URL') || 'https://your-prod-server.com')
-      : 'http://10.0.0.131:3001'; // Use local IP for development instead of localhost
+    if (isProduction) {
+      return getEnv('VITE_PROD_SERVER_URL') || 'https://your-prod-server.com';
+    }
+    // For development, use localhost on port 3001 (socket server port)
+    return window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'http://localhost:3001';
   }
   
-  return 'http://10.0.0.131:3001'; // Use local IP for development instead of localhost
+  return 'http://localhost:3001'; // Use localhost for development (socket server port)
 };
 
 const SERVER_URL = getSocketUrl();
 
-export const socket: Socket = io(SERVER_URL, {
-  autoConnect: false,
-  reconnection: false, // Disable automatic reconnection to prevent infinite loops
-  timeout: 5000,
+// For development, use localhost:3001 directly
+const SOCKET_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+  ? 'http://localhost:3001' 
+  : SERVER_URL;
+
+export const socket: Socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
+  reconnectionAttempts: 5,
+  timeout: 10000,
 });
 
-// Suppress connection errors in console to prevent noise
+// Connection event logging
+socket.on('connect', () => {
+  console.log('✅ Socket connected to:', SOCKET_URL);
+});
+
 socket.on('connect_error', (error) => {
-  // Only log in development, suppress in production
-  if (import.meta.env.DEV) {
-    console.warn('Socket connection error (non-blocking):', error.message);
-  }
+  console.error('❌ Socket connection error:', error.message);
+  console.error('Attempted to connect to:', SOCKET_URL);
+});
+
+socket.on('disconnect', (reason) => {
+  console.warn('⚠️ Socket disconnected:', reason);
 });
 
 export const connectSocket = () => {
-  // Only connect if not already connected and not manually disconnected
-  if (!socket.connected && !socket.disconnected) {
+  // Only connect if not already connected
+  if (!socket.connected) {
     try {
-    socket.connect();
+      console.log('connectSocket: Attempting to connect to', SERVER_URL);
+      socket.connect();
     } catch (error) {
       // Silently fail - UI should continue to work
       if (import.meta.env.DEV) {
         console.warn('Socket connect attempt failed:', error);
       }
     }
+  } else {
+    console.log('connectSocket: Socket already connected');
   }
 };
 

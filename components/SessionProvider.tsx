@@ -261,9 +261,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setIsRedirecting(false);
         }
         
-        // CRUCIAL: If SIGNED_OUT, clear the flag
+        // CRUCIAL: If SIGNED_OUT, clear the flag and session state
         if (event === 'SIGNED_OUT') {
           localStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
+          // Clear session and user state immediately
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          isProcessingRef.current = false;
         }
             
         // FIX GHOST SESSION: Detect Ghost Sessions - if session exists but user.id is missing

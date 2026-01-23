@@ -88,6 +88,7 @@ export enum SocketEvents {
   PASS_TURN = 'pass_turn',
   PLAYER_HAND = 'player_hand',
   UPDATE_BOT_DIFFICULTY = 'update_bot_difficulty',
+  UPDATE_ROOM_SETTINGS = 'update_room_settings',
   EMOTE_SENT = 'emote_sent',
   RECEIVE_EMOTE = 'receive_emote',
   SEND_CHAT = 'send_chat',

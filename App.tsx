@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useParams } from 'react-router-dom';
 import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player, HubTab } from './types';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -842,25 +842,50 @@ const AppContent: React.FC = () => {
         }
       }
       
-      // Step 3: Clear all localStorage to remove ghost sessions
+      // Step 3: Disconnect socket if connected (before clearing storage)
       try {
+        if (socket.connected) {
+          disconnectSocket();
+        }
+      } catch (error) {
+        console.error('App: Error disconnecting socket:', error);
+      }
+      
+      // Step 4: Clear all localStorage to remove ghost sessions
+      try {
+        // Clear all Supabase keys first
+        const supabaseKeys = Object.keys(localStorage).filter(key => 
+          key.includes('supabase') || (key.startsWith('sb-') && key.includes('auth-token'))
+        );
+        for (const key of supabaseKeys) {
+          localStorage.removeItem(key);
+        }
+        // Clear has_active_session flag
+        localStorage.removeItem('has_active_session');
+        // Clear all other localStorage
         window.localStorage.clear();
       } catch (error) {
         console.error('App: Error clearing localStorage:', error);
       }
-      
-      // Step 4: Clear has_active_session flag
-      localStorage.removeItem('has_active_session');
       
       // Step 5: Reset all React states
       setProfile(null);
       setIsGuest(false);
       setLoadingStatus('Ready to play');
       initialSyncCompleteRef.current = false;
+      setGameMode(null);
+      setView('WELCOME');
+      setMpGameState(null);
+      setSpGameState(null);
       
-      // Step 5: Redirect to landing page
+      // Step 6: Ensure Supabase session is cleared before redirect
+      // Wait a moment for signOut to complete and SessionProvider to update
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Step 7: Redirect to landing page
       // Use window.location.replace to prevent back button navigation
-      window.location.replace('/');
+      // Add a timestamp query param to force a fresh load and indicate sign-out
+      window.location.replace('/?signout=' + Date.now());
       
     } catch (error) {
       console.error('App: Unexpected error during sign-out:', error);
@@ -1266,7 +1291,19 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleExit = () => { if (gameMode === 'MULTI_PLAYER') disconnectSocket(); setGameMode(null); setView('WELCOME'); setMpGameState(null); setSpGameState(null); localStorage.removeItem(SESSION_KEY); setGameSettingsOpen(false); };
+  const handleExit = () => { 
+    // Only disconnect socket if we're actually in a game (not just in lobby)
+    // Check if we have an active game state, not just gameMode
+    if (gameMode === 'MULTI_PLAYER' && mpGameState && view !== 'LOBBY') {
+      disconnectSocket();
+    }
+    setGameMode(null); 
+    setView('WELCOME'); 
+    setMpGameState(null); 
+    setSpGameState(null); 
+    localStorage.removeItem(SESSION_KEY); 
+    setGameSettingsOpen(false); 
+  };
 
   // Determine if any modal is open
   const isModalOpen = hubState.open || gameSettingsOpen || storeOpen || gemPacksOpen || inventoryOpen || friendsOpen || migrationSuccessData?.show || showWelcomeToast || migrationToast.show || showEULAModal;
@@ -1545,8 +1582,15 @@ const AppContent: React.FC = () => {
   const hasSessionUser = !!session?.user;
   const hasValidSession = hasSession && hasSessionUser; // Trust session object, not just user ID
   
+  // Bypass auth check for localhost development (but NOT if user explicitly signed out)
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  // Check if user just signed out by looking for signout query param
+  const justSignedOut = typeof window !== 'undefined' && window.location.search.includes('signout=');
+  // Only bypass auth on localhost if user hasn't explicitly signed out
+  const isAuthenticated = hasValidSession || (isLocalhost && !justSignedOut);
+  
   // Prevent Partial Renders: Only render AuthScreen if no session and not a guest
-  if (!hasValidSession && !isGuest) {
+  if (!isAuthenticated && !isGuest) {
     // Step C: Only if app is ready AND there is no user, show Landing
     
     // Check if we just came back from auth/callback (browser might be blocking cookies)
@@ -1697,6 +1741,186 @@ const AppContent: React.FC = () => {
   );
 };
 
+// Simple Game component wrapper for /game/:roomId route
+const Game: React.FC = () => {
+  const { roomId } = useParams<{ roomId: string }>();
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [myHand, setMyHand] = useState<Card[]>([]);
+  const [myId, setMyId] = useState<string>('');
+  const [playerName, setPlayerName] = useState<string>('');
+  const [playerAvatar, setPlayerAvatar] = useState<string>(':cool:');
+  
+  // Guard against React StrictMode double mounting
+  const hasJoinedRef = useRef<boolean>(false);
+  const joinAttemptedRef = useRef<string | null>(null);
+  
+  console.log('GAME COMPONENT MOUNTED WITH ID:', roomId);
+  
+  // Get player info from localStorage or defaults
+  useEffect(() => {
+    const savedName = localStorage.getItem('thirteen_player_name') || 'GUEST';
+    const savedAvatar = localStorage.getItem('thirteen_player_avatar') || ':cool:';
+    const savedId = localStorage.getItem(PERSISTENT_ID_KEY) || uuidv4();
+    console.log('👤 Loading player info:', { savedName, savedAvatar, savedId });
+    setPlayerName(savedName);
+    setPlayerAvatar(savedAvatar);
+    setMyId(savedId);
+  }, []);
+  
+  // Join room when component mounts and socket is connected
+  // CRITICAL: Wait for playerName to be set before joining
+  // SAFE: Use ref guard to prevent duplicate emits in React StrictMode
+  useEffect(() => {
+    if (!roomId || !socket) {
+      console.log('⏳ Waiting for roomId or socket:', { roomId: !!roomId, socket: !!socket });
+      return;
+    }
+    
+    // Don't try to join if playerName is not set yet
+    if (!playerName || playerName === '') {
+      console.log('⏳ Waiting for playerName to be set...');
+      return;
+    }
+    
+    // Guard against StrictMode double mounting - only join once per roomId
+    if (hasJoinedRef.current && joinAttemptedRef.current === roomId) {
+      console.log('🛡️ Guard: Already joined/attempted to join this room, skipping duplicate emit');
+      return;
+    }
+    
+    const handleError = (error: string) => {
+      console.error('❌ Socket error:', error);
+    };
+    
+    const joinRoom = () => {
+      // Double-check guard before emitting
+      if (hasJoinedRef.current && joinAttemptedRef.current === roomId) {
+        console.log('🛡️ Guard: Duplicate join attempt prevented');
+        return;
+      }
+      
+      if (socket.connected && roomId && playerName && myId) {
+        // Mark as attempted BEFORE emitting to prevent race conditions
+        hasJoinedRef.current = true;
+        joinAttemptedRef.current = roomId;
+        
+        console.log('📡 Requesting to join room:', roomId, { playerName, myId, playerAvatar });
+        socket.emit('join_room', {
+          roomId,
+          name: playerName,
+          avatar: playerAvatar,
+          playerId: myId,
+          selected_sleeve_id: undefined // Can be enhanced later
+        });
+      } else {
+        console.warn('⚠️ Cannot join room - missing requirements:', {
+          socketConnected: socket.connected,
+          roomId,
+          playerName: playerName || 'EMPTY',
+          myId: myId || 'EMPTY'
+        });
+      }
+    };
+    
+    socket.on('error', handleError);
+    
+    if (socket.connected) {
+      joinRoom();
+    } else {
+      console.log('⏳ Socket not connected, waiting for connection...');
+      socket.once('connect', () => {
+        console.log('✅ Socket connected, attempting to join room...');
+        joinRoom();
+      });
+      connectSocket();
+    }
+    
+    return () => {
+      socket.off('connect', joinRoom);
+      socket.off('error', handleError);
+      // Note: We intentionally DON'T reset the refs on cleanup
+      // This ensures we only join once even if component remounts
+    };
+  }, [roomId, socket, playerName, playerAvatar, myId]);
+  
+  // Listen for game_state and room_update events
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleGameState = (state: GameState) => {
+      console.log('🎮 Received game_state update:', state);
+      setGameState(state);
+      // Update myId if we find ourselves in the players array
+      const me = state.players.find(p => p.id === myId || p.name === playerName);
+      if (me) {
+        setMyId(me.id);
+      }
+    };
+    
+    const handleRoomUpdate = (updatedRoom: GameState) => {
+      console.log('🎮 DATA RECEIVED FROM SERVER (room_update):', updatedRoom);
+      setGameState(updatedRoom);
+      // Update myId if we find ourselves in the players array
+      const me = updatedRoom.players.find(p => p.id === myId || p.name === playerName);
+      if (me) {
+        setMyId(me.id);
+      }
+    };
+    
+    const handlePlayerHand = (cards: Card[]) => {
+      console.log('🃏 Received player_hand:', cards.length, 'cards');
+      setMyHand(cards);
+    };
+    
+    socket.on(SocketEvents.GAME_STATE, handleGameState);
+    socket.on('room_update', handleRoomUpdate);
+    socket.on(SocketEvents.PLAYER_HAND, handlePlayerHand);
+    
+    return () => {
+      socket.off(SocketEvents.GAME_STATE, handleGameState);
+      socket.off('room_update', handleRoomUpdate);
+      socket.off(SocketEvents.PLAYER_HAND, handlePlayerHand);
+    };
+  }, [socket, myId, playerName]);
+  
+  // Handle playing cards
+  const handlePlayCards = useCallback((cards: Card[]) => {
+    if (!socket || !roomId || !myId) return;
+    socket.emit(SocketEvents.PLAY_CARDS, { roomId, cards, playerId: myId });
+  }, [socket, roomId, myId]);
+  
+  // Handle passing turn
+  const handlePassTurn = useCallback(() => {
+    if (!socket || !roomId || !myId) return;
+    socket.emit(SocketEvents.PASS_TURN, { roomId, playerId: myId });
+  }, [socket, roomId, myId]);
+  
+  // Show loading if we don't have game state yet
+  if (!gameState || !gameState.roomId || !gameState.players || gameState.players.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <div className="text-yellow-400 text-lg">Loading game...</div>
+      </div>
+    );
+  }
+  
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
+      <GameTable 
+        gameState={gameState} 
+        myId={myId} 
+        myHand={myHand} 
+        onPlayCards={handlePlayCards} 
+        onPassTurn={handlePassTurn} 
+        cardCoverStyle="RED" 
+        backgroundTheme="EMERALD" 
+        onOpenSettings={() => {}} 
+        profile={null} 
+      />
+    </Suspense>
+  );
+};
+
 const App: React.FC = () => {
   const location = useLocation();
   
@@ -1714,8 +1938,14 @@ const App: React.FC = () => {
     return <SupportView />;
   }
   
-  // Otherwise, render the main app
-  return <AppContent />;
+  // Game route - unprotected, no AuthGuard, no redirects
+  // Add Routes for game route
+  return (
+    <Routes>
+      <Route path="/game/:roomId" element={<Game />} />
+      <Route path="*" element={<AppContent />} />
+    </Routes>
+  );
 };
 
 export default App;
