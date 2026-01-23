@@ -766,15 +766,22 @@ function LobbyComponent({
   };
 
   const refreshRooms = useCallback(() => {
+    if (!socketConnected) {
+      console.warn('⚠️ Lobby: Cannot refresh rooms - socket not connected');
+      setIsRefreshing(false);
+      return;
+    }
+    console.log('🔄 Lobby: Refreshing public rooms list...');
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-  }, []); // Stable function reference
+  }, [socketConnected]); // Include socketConnected in dependencies
 
-  // Register socket listener once on mount
+  // Register socket listener - always register when socket is connected
   useEffect(() => {
-    if (!isInitialMount.current) return;
+    if (!socketConnected) return;
     
     const handleRoomsList = (list: PublicRoom[]) => {
+      console.log('📋 Lobby: Received public rooms list', list.length);
       // Deduplicate before setting state to prevent infinite duplicates
       const uniqueRooms = deduplicateRooms(list);
       setPublicRooms(uniqueRooms);
@@ -786,15 +793,16 @@ function LobbyComponent({
     socket.on(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     
     // Initial fetch
-    if (socketConnected) {
-    refreshRooms();
+    if (isInitialMount.current) {
+      refreshRooms();
+      isInitialMount.current = false;
     }
 
     // Cleanup: remove listener on unmount
     return () => {
       socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     };
-  }, [socketConnected]); // Only register once on mount
+  }, [socketConnected, refreshRooms]); // Re-register when socket connects
 
   // Separate effect to refresh when exiting a game
   useEffect(() => {
@@ -1836,19 +1844,19 @@ function LobbyComponent({
                         {isHost ? (
                             <button 
                                 onClick={startGame}
-                                disabled={!gameState?.players || gameState.players.length === 0}
+                                disabled={!gameState?.players || gameState.players.length < 2}
                                 className={`
                                     w-full py-8 rounded-[2.5rem] font-black uppercase tracking-[0.5em] text-sm transition-all duration-300 shadow-[0_30px_80px_rgba(0,0,0,0.6)] group relative overflow-hidden active:scale-95
-                                    ${!gameState?.players || gameState.players.length === 0 ? 'bg-white/5 text-white/20 grayscale pointer-events-none' : 'bg-gradient-to-r from-emerald-700 via-green-500 to-emerald-700 text-white hover:scale-[1.01]'}
+                                    ${!gameState?.players || gameState.players.length < 2 ? 'bg-white/5 text-white/20 grayscale pointer-events-none' : 'bg-gradient-to-r from-emerald-700 via-green-500 to-emerald-700 text-white hover:scale-[1.01]'}
                                 `}
                             >
                                 <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
                                 <span className="relative z-10 flex items-center justify-center gap-4">
                                     {gameState?.players?.length === 4 
                                         ? 'START MATCH ⚔️' 
-                                        : gameState?.players?.length && gameState.players.length > 0
+                                        : gameState?.players?.length && gameState.players.length >= 2
                                         ? `START MATCH ⚔️ (${gameState.players.length}/4)`
-                                        : 'WAITING FOR PLAYERS'}
+                                        : 'WAITING FOR PLAYERS (MIN 2)'}
                                 </span>
                             </button>
                         ) : (

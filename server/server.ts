@@ -1168,7 +1168,10 @@ io.on('connection', (socket: Socket) => {
       });
       
       // Broadcast updated public rooms list after room creation
-      broadcastPublicLobbies();
+      // Add small delay to ensure Supabase insert completes first
+      setTimeout(() => {
+        broadcastPublicLobbies();
+      }, 500);
       const roomId = newRoom.id;
       
       // Verify room was saved to local Map
@@ -1975,7 +1978,14 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     
-    // 3. Security: Check if the requesting socket belongs to the isHost player
+    // 3. Verify there are at least 2 players before starting
+    if (room.players.length < 2) {
+      console.error('❌ start_game: Not enough players to start game', { roomId, playerCount: room.players.length });
+      socket.emit('error', 'Need at least 2 players to start the game.');
+      return;
+    }
+    
+    // 4. Security: Check if the requesting socket belongs to the isHost player
     const pId = playerId || socketToPlayerId[socket.id];
     if (!pId) {
       console.error('❌ start_game: No playerId found', { socketId: socket.id });
