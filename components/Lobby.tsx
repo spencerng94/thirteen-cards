@@ -625,13 +625,19 @@ function LobbyComponent({
 
   // Initialize local network info when component mounts or when LOCAL tab becomes active
   useEffect(() => {
-    // Initialize on mount or when switching to LOCAL tab
-    if (localNetworkInfo === null || activeTab === 'LOCAL') {
+    // Initialize on mount if null, or re-initialize when switching to LOCAL tab
+    if (localNetworkInfo === null) {
+      // First time initialization
+      localDiscoveryService.detectLocalNetwork().then(setLocalNetworkInfo).catch(() => {
+        setLocalNetworkInfo({ isLocalNetwork: false, networkType: 'unknown', canHost: false });
+      });
+    } else if (activeTab === 'LOCAL') {
+      // Re-check when switching to LOCAL tab (network status might have changed)
       localDiscoveryService.detectLocalNetwork().then(setLocalNetworkInfo).catch(() => {
         setLocalNetworkInfo({ isLocalNetwork: false, networkType: 'unknown', canHost: false });
       });
     }
-  }, [activeTab, localNetworkInfo]); // Re-run when tab changes or if networkInfo is null
+  }, [activeTab]); // Re-run when tab changes - localNetworkInfo check prevents unnecessary re-runs
 
   // Socket initialization - completely decoupled from UI rendering
   useEffect(() => {
