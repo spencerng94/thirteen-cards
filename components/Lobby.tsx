@@ -1756,7 +1756,8 @@ function LobbyComponent({
                         setErrorToast={setErrorToast}
                       />
                     )}
-                                            </div>
+                  </div>
+                </div>
               </main>
             </GlassPanel>
             </div>
