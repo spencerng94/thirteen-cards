@@ -50,30 +50,30 @@ if (!rootElement) {
 }
 
 
-// Service Worker Registration
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('[SW] Service Worker registered successfully:', registration.scope);
-        
-        // Check for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('[SW] New service worker available. Reload to update.');
-              }
-            });
-          }
-        });
-      })
-      .catch((error) => {
-        console.warn('[SW] Service Worker registration failed:', error);
-      });
-  });
-}
+// Service Worker Registration - TEMPORARILY COMMENTED OUT TO FIX GHOST DOM
+// if ('serviceWorker' in navigator) {
+//   window.addEventListener('load', () => {
+//     navigator.serviceWorker.register('/sw.js')
+//       .then((registration) => {
+//         console.log('[SW] Service Worker registered successfully:', registration.scope);
+//         
+//         // Check for updates
+//         registration.addEventListener('updatefound', () => {
+//           const newWorker = registration.installing;
+//           if (newWorker) {
+//             newWorker.addEventListener('statechange', () => {
+//               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+//                 console.log('[SW] New service worker available. Reload to update.');
+//               }
+//             });
+//           }
+//         });
+//       })
+//       .catch((error) => {
+//         console.warn('[SW] Service Worker registration failed:', error);
+//       });
+//   });
+// }
 
 // AuthGuard Component: Delays rendering by 100ms to give browser time to settle cookies
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useTransition, memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { GameState, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket, connectSocket } from '../services/socket';
 import { BoardSurface } from './UserHub';
@@ -7,6 +7,7 @@ import { fetchEmotes } from '../services/supabase';
 import { Toast } from './Toast';
 import { localDiscoveryService } from '../services/localDiscovery';
 import { containsProfanity } from '../utils/wordFilter';
+import { useLobbySettings } from '../hooks/useLobbySettings';
 
 interface PublicRoom {
   id: string;
@@ -176,160 +177,6 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
   );
 };
 
-interface CreateTabProps {
-  roomNameInput: string;
-  setRoomNameInput: (value: string) => void;
-  isPublic: boolean;
-  setIsPublic: (value: boolean) => void;
-  localTurnTimer: number;
-  setLocalTurnTimer: (value: number) => void;
-  createRoom: () => void;
-  isCreatingRoom: boolean;
-  socketConnected: boolean;
-}
-
-const CreateTabContent: React.FC<CreateTabProps> = ({
-  roomNameInput,
-  setRoomNameInput,
-  isPublic,
-  setIsPublic,
-  localTurnTimer,
-  setLocalTurnTimer,
-  createRoom,
-  isCreatingRoom,
-  socketConnected
-}) => {
-  return (
-    <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-xl mx-auto w-full py-4 sm:py-6">
-      <div className="space-y-3">
-        <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
-        <input 
-          type="text" 
-          value={roomNameInput}
-          onChange={e => setRoomNameInput(e.target.value.toUpperCase())}
-          maxLength={24}
-          placeholder="Enter room name..."
-          className="w-full bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 px-6 sm:px-8 py-4 sm:py-6 rounded-2xl sm:rounded-[2rem] text-white font-black uppercase tracking-wider text-lg sm:text-xl focus:border-yellow-500/50 focus:shadow-[0_0_30px_rgba(234,179,8,0.2)] outline-none transition-all duration-300 shadow-inner placeholder:text-white/10"
-        />
-      </div>
-
-      <div className="bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 space-y-6 sm:space-y-8">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-black text-white uppercase tracking-wider">Public Room</span>
-            <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Anyone can discover and join</span>
-          </div>
-          <button 
-            onClick={() => setIsPublic(!isPublic)}
-            className={`w-14 h-7 rounded-full relative transition-all duration-300 p-1 flex items-center ${isPublic ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-white/10'}`}
-          >
-            <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-lg transition-transform duration-300 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
-          </button>
-        </div>
-
-        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-
-        <div className="space-y-3 sm:space-y-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-black text-white uppercase tracking-wider">Turn Timer</span>
-            <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Time per move before auto-pass</span>
-            {/* Visual Debugger */}
-            <span style={{ color: 'yellow', fontSize: '10px', marginTop: '4px' }}>DEBUG: {localTurnTimer}</span>
-          </div>
-          {/* Pink Border Proof - State Check */}
-          <div 
-            id={`pink-box-version-${localTurnTimer}`}
-            style={{ 
-              transform: `translateZ(${localTurnTimer}px)`,
-              border: '5px solid pink',
-              padding: '10px',
-              marginBottom: '10px'
-            }}
-          >
-            LIVE STATE: {localTurnTimer}
-          </div>
-          <div 
-            key={`timer-container-${localTurnTimer}`} 
-            className="grid grid-cols-4 gap-2 p-1 bg-black/60 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner timer-options" 
-            style={{ isolation: 'isolate' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {[0, 15, 30, 60].map(val => {
-              const isActive = localTurnTimer === val;
-              
-              return (
-                <button 
-                  key={val} 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('Timer button clicked:', val, 'Current:', localTurnTimer);
-                    setLocalTurnTimer(val);
-                  }}
-                  className={`timer-btn py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${isActive ? 'active-timer' : ''}`}
-                  style={{ 
-                    backgroundColor: isActive ? 'rgba(255, 215, 0, 0.2)' : 'transparent',
-                    borderColor: isActive ? '#FFD700' : '#444',
-                    color: isActive ? '#FFD700' : '#999',
-                    borderWidth: '2px',
-                    borderStyle: 'solid',
-                    padding: '0.625rem 0.75rem',
-                    borderRadius: '0.5rem',
-                    fontSize: '9px',
-                    fontWeight: '900',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    transform: `translateZ(${localTurnTimer === val ? localTurnTimer : 0}px) ${isActive ? 'scale(1.05)' : 'scale(1)'}`,
-                    boxShadow: isActive ? '0 4px 6px rgba(255, 215, 0, 0.3)' : 'none'
-                  }}
-                  type="button"
-                >
-                  {val === 0 ? 'OFF' : `${val}S`}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('Create Room clicked. Socket connected:', socketConnected, 'Is creating:', isCreatingRoom, 'Timer:', localTurnTimer);
-          if (!socketConnected) {
-            console.warn('Cannot create room: socket not connected');
-            return;
-          }
-          if (isCreatingRoom) {
-            console.warn('Room creation already in progress');
-            return;
-          }
-          createRoom();
-        }}
-        disabled={isCreatingRoom || !socketConnected}
-        className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-300 active:scale-95 relative overflow-hidden group ${isCreatingRoom || !socketConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
-        <span className="relative z-10 flex items-center justify-center gap-3">
-          {isCreatingRoom ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              <span>Creating...</span>
-            </>
-          ) : (
-            <>
-              <span className="text-xl sm:text-2xl">🎮</span>
-              Create Room
-            </>
-          )}
-        </span>
-      </button>
-    </div>
-  );
-};
 
 interface LocalTabProps {
   localNetworkInfo: { isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean } | null;
@@ -412,7 +259,7 @@ const LocalTabContent: React.FC<LocalTabProps> = ({
                           playerId: myId,
                           isPublic: false,
                           roomName: `${playerName.toUpperCase()}'S LOCAL TABLE`,
-                          turnTimer: globalSyncTimer,
+                          turnTimer: hookedTimer,
                           selected_sleeve_id: selected_sleeve_id
                         });
                       }
@@ -523,17 +370,36 @@ function LobbyComponent({
   myId,
   turnTimerSetting
 }: LobbyProps) {
-  // Turn timer state - MUST be first to avoid stale closures
-  const [globalSyncTimer, setGlobalSyncTimer] = useState(turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30);
+  // UNIQUE IDENTITY TEST: Track this instance to detect double mounts
+  const instanceId = React.useRef(Math.random().toString(36).substr(2, 9));
   
-  // DOM Sync Check
+  // Initialize hook at the very top to bypass closure issues
+  const initialTimer = turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30;
+  const { timer: hookedTimer, setTimer: setHookedTimer, isPublic, setIsPublic } = useLobbySettings(initialTimer, true);
+  
+  // Instance ID tracking (logging removed for production)
+  
+  // TEMPORARILY COMMENTED OUT: Server sync is reverting user changes
+  // Sync hook with prop changes (but allow user to override)
+  // useEffect(() => {
+  //   if (turnTimerSetting !== undefined && turnTimerSetting !== null) {
+  //     setHookedTimer(turnTimerSetting);
+  //   }
+  // }, [turnTimerSetting, setHookedTimer]);
+  
+  // State change tracking (logging removed for production)
+
+  // DOM Force-Clear: Remove any loading spinners or splash screens that might be blocking
   useEffect(() => {
-    console.log('DOM SYNC CHECK - Current State:', globalSyncTimer);
-  }, [globalSyncTimer]);
+    document.querySelectorAll('.loading-spinner, #splash-screen, [class*="loading"], [id*="splash"], [id*="loading"]').forEach(el => {
+      console.log('Removing ghost DOM element:', el);
+      el.remove();
+    });
+  }, []);
+
   
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(`${playerName.toUpperCase()}'S MATCH`);
-  const [isPublic, setIsPublic] = useState(true);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
@@ -553,10 +419,8 @@ function LobbyComponent({
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [profanityToast, setProfanityToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
-  // Memoized profanity check for performance
-  const hasProfanity = useMemo(() => {
-    return containsProfanity(roomNameInput);
-  }, [roomNameInput]);
+  // Profanity check - removed useMemo to prevent caching issues
+  const hasProfanity = containsProfanity(roomNameInput);
 
   // Initialize component data - decoupled from socket
   useEffect(() => {
@@ -637,7 +501,8 @@ function LobbyComponent({
   }, []); // Only run once on mount - completely independent of UI state
 
   // Deduplicate function to prevent duplicate rooms
-  const deduplicateRooms = useCallback((list: PublicRoom[]): PublicRoom[] => {
+  // Removed useCallback to prevent caching issues
+  const deduplicateRooms = (list: PublicRoom[]): PublicRoom[] => {
     const seen = new Set<string>();
     return list.filter(room => {
       if (seen.has(room.id)) {
@@ -646,12 +511,12 @@ function LobbyComponent({
       seen.add(room.id);
       return true;
     });
-  }, []);
+  };
 
-  const refreshRooms = useCallback(() => {
+  const refreshRooms = () => {
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-  }, []);
+  };
 
   // Register socket listener once on mount
   useEffect(() => {
@@ -805,7 +670,7 @@ function LobbyComponent({
           playerId: myId,
           isPublic,
           roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
-          turnTimer: globalSyncTimer,
+          turnTimer: hookedTimer,
           selected_sleeve_id: selected_sleeve_id
         });
         
@@ -928,14 +793,15 @@ function LobbyComponent({
     socket.emit(SocketEvents.START_GAME, { roomId: gameState.roomId, playerId: myId });
   };
 
-  const isHost = useMemo(() => {
-    return gameState?.players.find(p => p.id === myId)?.isHost;
-  }, [gameState?.players, myId]);
+  // Removed useMemo to prevent caching issues
+  const isHost = gameState?.players.find(p => p.id === myId)?.isHost;
+
+  // REMOVED renderTimerButtons function - inlining directly in JSX to prevent stale closures
 
   return (
     <React.Fragment key={activeTab}>
-    <BackgroundWrapper theme={backgroundTheme}>
-      <div className="lobby-viewport">
+    <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
+      <div className="lobby-viewport" key="lobby-viewport">
         
         {errorToast.show && (
           <Toast
@@ -1090,24 +956,244 @@ function LobbyComponent({
 
                   {/* Create Tab */}
                   <div 
-                    className={`absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out ${
+                    className={`absolute inset-0 overflow-y-auto transition-all duration-200 ease-in-out ${
                       activeTab === 'CREATE' 
-                        ? 'opacity-100 translate-y-0 z-10' 
+                        ? 'opacity-100 translate-y-0 z-10 pointer-events-auto' 
                         : 'opacity-0 pointer-events-none translate-y-2 z-0'
                     }`}
-                    style={{ paddingTop: '1rem' }}
+                    style={{ paddingTop: '1rem', touchAction: 'pan-y' }}
                   >
-                    <CreateTabContent
-                      roomNameInput={roomNameInput}
-                      setRoomNameInput={setRoomNameInput}
-                      isPublic={isPublic}
-                      setIsPublic={setIsPublic}
-                      localTurnTimer={globalSyncTimer}
-                      setLocalTurnTimer={setGlobalSyncTimer}
-                      createRoom={createRoom}
-                      isCreatingRoom={isCreatingRoom}
-                      socketConnected={socketConnected}
-                                />
+                    {activeTab === 'CREATE' && (
+                        <div className="h-full flex flex-col space-y-6 sm:space-y-8 max-w-xl mx-auto w-full py-4 sm:py-6" style={{ touchAction: 'pan-y' }}>
+                        <div className="space-y-3" style={{ position: 'relative', zIndex: 10000, pointerEvents: 'auto' }}>
+                          <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
+                          <input 
+                            id="room-name-input"
+                            type="text" 
+                            value={roomNameInput}
+                            ref={(el) => {
+                              if (el) {
+                                el.style.position = 'relative';
+                                el.style.zIndex = '10001';
+                                el.style.pointerEvents = 'auto';
+                                el.value = roomNameInput;
+                                void el.offsetHeight; // Force reflow
+                              }
+                            }}
+                            onChange={(e) => {
+                              const newValue = e.target.value.toUpperCase();
+                              setRoomNameInput(newValue);
+                              requestAnimationFrame(() => {
+                                const input = document.getElementById('room-name-input') as HTMLInputElement;
+                                if (input) {
+                                  input.value = newValue;
+                                }
+                              });
+                            }}
+                            onInput={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onFocus={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                            }}
+                            maxLength={24}
+                            placeholder="Enter room name..."
+                            className="w-full bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 px-6 sm:px-8 py-4 sm:py-6 rounded-2xl sm:rounded-[2rem] text-white font-black uppercase tracking-wider text-lg sm:text-xl focus:border-yellow-500/50 focus:shadow-[0_0_30px_rgba(234,179,8,0.2)] outline-none transition-all duration-200 shadow-inner placeholder:text-white/10"
+                            style={{ position: 'relative', zIndex: 10001, pointerEvents: 'auto', touchAction: 'manipulation' }}
+                            autoComplete="off"
+                            autoFocus={false}
+                          />
+                        </div>
+
+                        <div className="bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 space-y-6 sm:space-y-8" style={{ position: 'relative', zIndex: 10000, pointerEvents: 'auto' }}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-black text-white uppercase tracking-wider">Public Room</span>
+                              <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Anyone can discover and join</span>
+                            </div>
+                            <button 
+                              id="public-toggle-btn"
+                              type="button"
+                              ref={(el) => {
+                                // Direct DOM manipulation to force paint
+                                if (el) {
+                                  el.style.position = 'relative';
+                                  el.style.zIndex = '10001';
+                                  el.style.pointerEvents = 'auto';
+                                  const bgColor = isPublic ? 'linear-gradient(to right, rgb(16, 185, 129), rgb(5, 150, 105))' : 'rgba(255, 255, 255, 0.1)';
+                                  el.style.background = bgColor;
+                                  const toggle = el.querySelector('.toggle-slider') as HTMLElement;
+                                  if (toggle) {
+                                    toggle.style.transform = isPublic ? 'translateX(28px)' : 'translateX(0)';
+                                  }
+                                  // Force reflow
+                                  void el.offsetHeight;
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onTouchStart={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsPublic((prev) => {
+                                  const newState = !prev;
+                                  // Force immediate DOM update
+                                  requestAnimationFrame(() => {
+                                    const btn = document.getElementById('public-toggle-btn');
+                                    if (btn) {
+                                      (btn as HTMLElement).style.background = newState 
+                                        ? 'linear-gradient(to right, rgb(16, 185, 129), rgb(5, 150, 105))' 
+                                        : 'rgba(255, 255, 255, 0.1)';
+                                      const toggle = btn.querySelector('.toggle-slider') as HTMLElement;
+                                      if (toggle) {
+                                        toggle.style.transform = newState ? 'translateX(28px)' : 'translateX(0)';
+                                      }
+                                    }
+                                  });
+                                  return newState;
+                                });
+                              }}
+                              className={`w-14 h-7 rounded-full relative transition-all duration-200 p-1 flex items-center ${isPublic ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-white/10'}`}
+                              style={{ position: 'relative', zIndex: 10001, pointerEvents: 'auto' }}
+                            >
+                              <div className={`toggle-slider absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-lg transition-transform duration-200 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
+                            </button>
+                          </div>
+
+                          <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+
+                          <div className="space-y-3 sm:space-y-4">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-black text-white uppercase tracking-wider">Turn Timer</span>
+                              <span className="text-[10px] font-medium text-white/40 uppercase tracking-tight">Time per move before auto-pass</span>
+                            </div>
+                            <div 
+                              className="grid grid-cols-4 gap-2 p-1 bg-zinc-950 rounded-xl sm:rounded-2xl border border-zinc-800/50 shadow-inner" 
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ touchAction: 'pan-y' }}
+                            >
+                              {[0, 15, 30, 60].map((val) => {
+                                const isActive = hookedTimer === val;
+                                const buttonId = `timer-btn-${val}`;
+                                
+                                return (
+                                  <button 
+                                    id={buttonId}
+                                    key={`${val}-${isActive}`}
+                                    type="button"
+                                    ref={(el) => {
+                                      // Direct DOM manipulation to force paint
+                                      if (el) {
+                                        const bgColor = isActive ? 'rgba(251, 191, 36, 0.2)' : 'rgb(9, 9, 11)';
+                                        const borderColor = isActive ? 'rgb(251, 191, 36)' : 'rgb(39, 39, 42)';
+                                        const textColor = isActive ? 'rgb(251, 191, 36)' : 'rgb(113, 113, 122)';
+                                        el.style.backgroundColor = bgColor;
+                                        el.style.borderColor = borderColor;
+                                        el.style.color = textColor;
+                                        // Force reflow
+                                        void el.offsetHeight;
+                                      }
+                                    }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setHookedTimer(val);
+                                      // Force immediate DOM update for all buttons
+                                      requestAnimationFrame(() => {
+                                        [0, 15, 30, 60].forEach((v) => {
+                                          const btn = document.getElementById(`timer-btn-${v}`);
+                                          if (btn) {
+                                            const active = v === val;
+                                            (btn as HTMLElement).style.backgroundColor = active ? 'rgba(251, 191, 36, 0.2)' : 'rgb(9, 9, 11)';
+                                            (btn as HTMLElement).style.borderColor = active ? 'rgb(251, 191, 36)' : 'rgb(39, 39, 42)';
+                                            (btn as HTMLElement).style.color = active ? 'rgb(251, 191, 36)' : 'rgb(113, 113, 122)';
+                                          }
+                                        });
+                                      });
+                                    }} 
+                                    className={`
+                                      py-2.5 sm:py-3 rounded-lg sm:rounded-xl
+                                      text-[9px] sm:text-[10px] font-black uppercase tracking-wider
+                                      transition-all duration-200 cursor-pointer
+                                      border-2
+                                      ${isActive
+                                        ? 'bg-amber-500/20 border-amber-400 text-amber-400 scale-105 shadow-[0_4px_12px_rgba(251,191,36,0.4)]'
+                                        : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-400 scale-100'
+                                      }
+                                    `}
+                                  >
+                                    {val === 0 ? 'OFF' : `${val}S`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          id="create-room-btn"
+                          type="button"
+                          ref={(el) => {
+                            if (el) {
+                              el.style.position = 'relative';
+                              el.style.zIndex = '10001';
+                              el.style.pointerEvents = 'auto';
+                              void el.offsetHeight; // Force reflow
+                            }
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onTouchStart={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!socketConnected || isCreatingRoom) return;
+                            createRoom();
+                            requestAnimationFrame(() => {
+                              const btn = document.getElementById('create-room-btn');
+                              if (btn) {
+                                (btn as HTMLElement).style.pointerEvents = isCreatingRoom ? 'none' : 'auto';
+                              }
+                            });
+                          }}
+                          disabled={isCreatingRoom || !socketConnected}
+                          className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-200 active:scale-95 relative overflow-hidden group ${isCreatingRoom || !socketConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          style={{ position: 'relative', zIndex: 10001, pointerEvents: 'auto' }}
+                        >
+                          <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_infinite] pointer-events-none"></div>
+                          <span className="relative z-10 flex items-center justify-center gap-3">
+                            {isCreatingRoom ? (
+                              <>
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                <span>Creating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-xl sm:text-2xl">🎮</span>
+                                Create Room
+                              </>
+                            )}
+                          </span>
+                        </button>
+                      </div>
+                    )}
                             </div>
 
                   {/* Local Tab */}
@@ -1153,7 +1239,7 @@ function LobbyComponent({
                         joinRoom={joinRoom}
                         playerName={playerName}
                         playerAvatar={playerAvatar}
-                        localTurnTimer={globalSyncTimer}
+                        localTurnTimer={hookedTimer}
                         myId={myId}
                         selected_sleeve_id={selected_sleeve_id}
                         setErrorToast={setErrorToast}
@@ -1385,6 +1471,7 @@ function LobbyComponent({
           animation: auric-shimmer 3s ease-in-out infinite;
         }
       `}} />
+      
     </BackgroundWrapper>
     </React.Fragment>
   );

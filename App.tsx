@@ -1473,7 +1473,8 @@ const AppContent: React.FC = () => {
   // Redefine the 'Ready' State: Derived boolean ensures proper loading gate
   // If a session exists, we must wait for the profile to load before hiding the loading screen.
   // If no session exists, we proceed to the landing page normally.
-  const isAppReady = isInitialized && (session ? !!profile : true);
+  // TEMPORARILY FORCE isAppReady to true to bypass loading screen for ghost DOM testing
+  const isAppReady = true; // isInitialized && (session ? !!profile : true);
   
   // Splash Screen Logic: Hide native splash screen only after app is ready
   // This ensures seamless transition from native splash to app content (no white flash)
@@ -1608,7 +1609,11 @@ const AppContent: React.FC = () => {
           isModalOpen={isModalOpen}
         />
       )}
-      {view === 'LOBBY' && <Lobby key="main-lobby-instance" playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPlayerId} turnTimerSetting={turnTimerSetting} selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} />}
+      {view === 'LOBBY' && (
+        <div id="SINGLE_LOBBY_ROOT">
+          <Lobby key="main-lobby-instance" playerName={playerName} gameState={mpGameState} error={error} playerAvatar={playerAvatar} initialRoomCode={urlRoomCode} backgroundTheme={backgroundTheme} onBack={handleExit} onSignOut={handleSignOut} myId={myPlayerId} turnTimerSetting={turnTimerSetting} selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} />
+        </div>
+      )}
       {view === 'GAME_TABLE' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
           <GameTable gameState={gameMode === 'MULTI_PLAYER' ? mpGameState! : spGameState!} myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPlayerId }) : handleLocalPlay('me', cards)} onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPlayerId }) : handleLocalPass('me')} cardCoverStyle={cardCoverStyle} backgroundTheme={backgroundTheme} profile={profile} playAnimationsEnabled={playAnimationsEnabled} autoPassEnabled={autoPassEnabled} onOpenSettings={() => setGameSettingsOpen(true)} socialFilter={socialFilter} sessionMuted={sessionMuted} setSessionMuted={setSessionMuted} />
