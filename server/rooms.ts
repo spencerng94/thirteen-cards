@@ -149,9 +149,18 @@ function serializeRoomForDB(room: GameRoom): any {
 
 // Convert database format to GameRoom (arrays -> Sets, etc.)
 function deserializeRoomFromDB(data: any): GameRoom {
-  // Fallback: if hostId is missing, use the first player's ID (legacy support)
+  // Fallback: if hostId is missing or invalid, use the first player's ID (legacy support)
   const players = data.players || [];
-  const hostId = data.host_id || (players.length > 0 && players[0]?.id) || '';
+  let hostId = data.host_id || (players.length > 0 && players[0]?.id) || '';
+  
+  // CRITICAL: If hostId is "guest" or invalid, use first player's ID instead
+  if (hostId === 'guest' || hostId === 'GUEST' || hostId.trim() === '') {
+    hostId = players.length > 0 && players[0]?.id ? players[0].id : '';
+    if (hostId === 'guest' || hostId === 'GUEST') {
+      console.warn('⚠️ ROOMS: First player also has invalid ID, hostId will be empty');
+      hostId = '';
+    }
+  }
   
   return {
     id: data.id,
@@ -212,7 +221,12 @@ export async function createRoom(
   
   // Create new room with full GameRoom structure
   // CRITICAL: Explicitly set hostId to the creator's ID
-  const creatorId = player.id;
+  // Validate that player.id is not "guest" or invalid
+  let creatorId = player.id;
+  if (!creatorId || creatorId === 'guest' || creatorId === 'GUEST' || creatorId.trim() === '' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(creatorId)) {
+    console.error(`❌ ROOMS: Invalid creatorId provided: "${creatorId}". This should never happen - player.id must be a valid UUID.`);
+    throw new Error(`Invalid player ID: ${creatorId}. Player ID must be a valid UUID.`);
+  }
   const room: GameRoom = {
     id: roomId,
     status: 'LOBBY',

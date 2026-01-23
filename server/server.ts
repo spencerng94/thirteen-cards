@@ -1133,7 +1133,13 @@ io.on('connection', (socket: Socket) => {
     const validTurnTimer = typeof turnTimer === 'number' && [0, 15, 30, 60].includes(turnTimer) ? turnTimer : 30;
     const sanitizedSleeveId = selected_sleeve_id && typeof selected_sleeve_id === 'string' && selected_sleeve_id.length <= 50 ? selected_sleeve_id.trim() : undefined;
     
-      const pId = playerId || uuidv4();
+      // CRITICAL: Ensure playerId is a valid UUID, not "guest" or empty string
+      // If playerId is "guest", undefined, empty, or not a valid UUID format, generate a new one
+      let pId = playerId;
+      if (!pId || pId === 'guest' || pId === 'GUEST' || pId.trim() === '' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pId)) {
+        pId = uuidv4();
+        console.log(`⚠️ create_room: Invalid playerId provided (${playerId}), generated new UUID: ${pId}`);
+      }
       
       // Create player object
       const player: SimplePlayer = {
@@ -1142,8 +1148,22 @@ io.on('connection', (socket: Socket) => {
         avatar: sanitizedAvatar
       };
       
+      console.log(`📝 create_room: Creating room with player`, {
+        playerId: pId,
+        playerName: sanitizedName,
+        isPublic: isPublic === true,
+        roomName: sanitizedRoomName
+      });
+      
       // Use createRoom function to create the room (saves to Map + Supabase)
+      // CRITICAL: player.id (pId) will be used as the hostId
       const newRoom = await createRoom(player, sanitizedRoomName, isPublic === true, validTurnTimer);
+      
+      console.log(`✅ create_room: Room created successfully`, {
+        roomId: newRoom.id,
+        hostId: newRoom.hostId,
+        hostIdMatchesPlayerId: newRoom.hostId === pId
+      });
       const roomId = newRoom.id;
       
       // Verify room was saved to local Map

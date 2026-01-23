@@ -1155,7 +1155,9 @@ function LobbyComponent({
 
   // Check if current player is host using hostId from gameState
   // myId should be the persistent UUID from localStorage (e.g., 'fe3206bb-1987-4dda-ae3b-8549e6376b04')
-  const isHost = gameState?.hostId === myId;
+  // Fallback: If hostId is "guest" and there's only one player, treat that player as host
+  const isHost = gameState?.hostId === myId || 
+    (gameState?.hostId === 'guest' && gameState?.players?.length === 1 && gameState?.players[0]?.id === myId);
   
   // Debug: Log isHost status
   useEffect(() => {
