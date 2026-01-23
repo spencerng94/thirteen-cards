@@ -1386,6 +1386,10 @@ function LobbyComponent({
                         ? 'opacity-100 pointer-events-auto translate-y-0 z-10' 
                         : 'opacity-0 pointer-events-none translate-y-2 z-0'
                     }`}
+                    style={{
+                      // Force visibility when activeTab is PUBLIC to prevent CSS transition issues
+                      display: activeTab === 'PUBLIC' ? 'block' : 'none'
+                    }}
                   >
                     {activeTab === 'PUBLIC' && (
                     <PublicTabContent
