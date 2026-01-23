@@ -530,11 +530,29 @@ const broadcastState = async (roomId: string) => {
   io.to(roomId).emit('room_update', state); // Also emit room_update for compatibility
   
   // Send player hands individually to each player
-  room.players.forEach(p => {
-    if (!p.isBot && !p.isOffline && p.socketId) {
-      io.to(p.socketId).emit('player_hand', p.hand);
+  // Use socketToPlayerId mapping to find the correct socket for each player
+  // This is more reliable than using p.socketId which might be stale
+  for (const socket of sockets) {
+    const playerId = socketToPlayerId[socket.id];
+    if (playerId) {
+      const player = room.players.find(p => p.id === playerId);
+      if (player && !player.isBot && !player.isOffline && player.hand) {
+        console.log(`📤 Sending player_hand to ${player.name} (${playerId}): ${player.hand.length} cards`);
+        socket.emit('player_hand', player.hand);
+      }
     }
-  });
+  }
+  
+  // Also update socketId in player objects for future reference
+  for (const socket of sockets) {
+    const playerId = socketToPlayerId[socket.id];
+    if (playerId) {
+      const player = room.players.find(p => p.id === playerId);
+      if (player) {
+        player.socketId = socket.id;
+      }
+    }
+  }
 };
 
 const getPublicRoomsList = async () => {
