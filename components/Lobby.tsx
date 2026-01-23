@@ -809,6 +809,14 @@ function LobbyComponent({
     };
   }, [socketConnected, refreshRooms]); // Re-register when socket connects
 
+  // CRITICAL: Refresh rooms when switching to PUBLIC tab
+  useEffect(() => {
+    if (activeTab === 'PUBLIC' && socketConnected) {
+      console.log('📋 Lobby: Switched to PUBLIC tab, refreshing rooms');
+      refreshRooms();
+    }
+  }, [activeTab, socketConnected, refreshRooms]);
+
   // Separate effect to refresh when exiting a game
   useEffect(() => {
     if (isInitialMount.current) {

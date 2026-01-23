@@ -935,7 +935,7 @@ const checkBotTurn = async (roomId: string) => {
               const threeSpades = sortedHand.find(c => c.rank === Rank.Three && c.suit === Suit.Spades);
               move = threeSpades ? [threeSpades] : [sortedHand[Math.floor(Math.random() * sortedHand.length)]];
             } else {
-              move = [sortedHand[Math.floor(Math.random() * sortedHand.length)]];
+            move = [sortedHand[Math.floor(Math.random() * sortedHand.length)]];
             }
           } else {
             // Try to find a valid move, but pick a random one instead of best
@@ -998,7 +998,7 @@ const checkBotTurn = async (roomId: string) => {
               if (threeSpades) {
                 cardToPlay = threeSpades;
                 console.log(`🤖 checkBotTurn: Bot ${currentBot.name} playing 3♠ (first turn requirement)`);
-              } else {
+          } else {
                 console.log(`⚠️ checkBotTurn: Bot ${currentBot.name} doesn't have 3♠ but is starting - playing lowest card`);
               }
             }
@@ -1392,7 +1392,7 @@ io.on('connection', (socket: Socket) => {
           }
         }
         console.log(`PROD DEBUG: Player ${pid} joined ${requestedId}. Room Host is now ${room.hostId}`);
-      } else {
+    } else {
         console.log(`PROD DEBUG: Player ${pid} joined ${requestedId}. Room Host is now ${room.hostId}`);
       }
       
@@ -2080,19 +2080,14 @@ io.on('connection', (socket: Socket) => {
       playerCount: room.players.length 
     });
     
-    // 4. Auto-fill CPU players if needed (players < 4)
-    if (room.players.length < 4) {
-      console.log(`🤖 Auto-filling ${4 - room.players.length} CPU players`);
-      autoFillCPUPlayers(room);
-    }
-    
-    // 5. Deal cards to all players
+    // 4. Deal cards to all players (no auto-fill - host must manually add CPUs if desired)
+    // Games can now start with 2-4 players as configured by the host
     dealCards(room);
     
-    // 6. Find the starting player (holder of 3 of Spades)
+    // 5. Find the starting player (holder of 3 of Spades)
     const startingPlayerIndex = findStartingPlayer(room);
     
-    // 7. Update room state: status to PLAYING, set currentPlayerIndex, isFirstTurnOfGame
+    // 6. Update room state: status to PLAYING, set currentPlayerIndex, isFirstTurnOfGame
     room.status = 'PLAYING';
     room.currentPlayerIndex = startingPlayerIndex;
     room.isFirstTurnOfGame = room.players[startingPlayerIndex].hand.some(
@@ -2119,7 +2114,7 @@ io.on('connection', (socket: Socket) => {
       handSize: startingPlayer.hand.length
     });
     
-    // 8. Broadcast state and start turn timer
+    // 7. Broadcast state and start turn timer
     await broadcastState(roomId);
     startTurnTimer(roomId);
     
@@ -2276,7 +2271,7 @@ io.on('connection', (socket: Socket) => {
         if (humanPlayers.length === 0) {
           // Give LOBBY rooms a 30-second grace period before deletion
           // This prevents rooms from being deleted immediately after creation if player disconnects/reconnects
-          setTimeout(async () => {
+          const gracePeriodTimeout = setTimeout(async () => {
             const finalCheckRoom = await fetchRoom(roomId);
             if (finalCheckRoom) {
               const finalHumanPlayers = finalCheckRoom.players.filter(p => !p.isBot);
@@ -2284,10 +2279,13 @@ io.on('connection', (socket: Socket) => {
                 // Room is still empty after grace period, delete it
                 console.log(`🧹 Cleaning up empty LOBBY room after grace period: ${roomId}`);
                 await deleteRoom(roomId);
-                broadcastPublicLobbies();
+                await broadcastPublicLobbies();
               }
             }
           }, 30000); // 30 second grace period for LOBBY rooms
+          
+          // Store timeout ID for potential cancellation if player rejoins
+          (updatedRoom as any).__cleanupTimeout = gracePeriodTimeout;
         }
       }
     } else if (room.status === 'PLAYING') {
@@ -2347,7 +2345,7 @@ async function pruneStaleRooms() {
       console.log('🧹 Pruned rooms older than 24 hours');
     }
     
-    // Delete LOBBY rooms with 0 players
+    // Delete LOBBY rooms with 0 human players
     const { data: lobbyRooms, error: lobbyError } = await supabase
       .from('rooms')
       .select('id, players, status')
@@ -2358,11 +2356,14 @@ async function pruneStaleRooms() {
     } else if (lobbyRooms) {
       const emptyLobbyRooms = lobbyRooms.filter(room => {
         const players = room.players || [];
-        return players.length === 0;
+        // Filter out bots - only count human players
+        const humanPlayers = players.filter((p: any) => !p.isBot);
+        return humanPlayers.length === 0;
       });
       
       if (emptyLobbyRooms.length > 0) {
         const emptyRoomIds = emptyLobbyRooms.map(r => r.id);
+        console.log(`🧹 Pruning ${emptyRoomIds.length} empty LOBBY rooms:`, emptyRoomIds);
         const { error: deleteError } = await supabase
           .from('rooms')
           .delete()
@@ -2371,7 +2372,7 @@ async function pruneStaleRooms() {
         if (deleteError) {
           console.error('❌ Error deleting empty LOBBY rooms:', deleteError);
         } else {
-          console.log(`🧹 Pruned ${emptyLobbyRooms.length} empty LOBBY rooms`);
+          console.log(`✅ Pruned ${emptyLobbyRooms.length} empty LOBBY rooms from database`);
         }
       }
     }
