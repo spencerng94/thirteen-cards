@@ -1963,7 +1963,6 @@ function LobbyComponent({
           </div>
         )}
       </div>
-
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes shimmer {
           0% { background-position: -100% 0; }
