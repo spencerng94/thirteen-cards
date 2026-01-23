@@ -597,6 +597,20 @@ function LobbyComponent({
     if (socket.connected) {
       console.log('📡 Lobby: Socket already connected on mount, syncing state');
       setSocketConnected(true);
+      // CRITICAL: If socket is already connected and we're on PUBLIC tab, emit immediately
+      // This prevents race condition where state hasn't updated yet
+      // Note: Listener registration happens in separate useEffect, so we use a small delay
+      if (activeTab === 'PUBLIC' && !isFetchingRef.current) {
+        console.log('📡 Lobby: Socket connected on mount, immediately fetching public rooms');
+        isFetchingRef.current = true;
+        setIsRefreshing(true);
+        // Small delay to ensure listener is registered (listener useEffect runs first)
+        setTimeout(() => {
+          if (socket?.connected) {
+            socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+          }
+        }, 10);
+      }
     } else {
       // Also sync if state says connected but socket says not (fix desync)
       setSocketConnected(socket.connected);
@@ -606,14 +620,14 @@ function LobbyComponent({
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
     };
-  }, [socket]);
+  }, [socket, activeTab]);
   
   // Removed handleTabChange - using direct setState to avoid stale closures
   // Initialize with default object to prevent loading spinner from hanging
   const [localNetworkInfo, setLocalNetworkInfo] = useState<{ isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean }>({ isLocalNetwork: true, networkType: 'unknown', canHost: true });
   const [localRoomCode, setLocalRoomCode] = useState<string>('');
   const [isHostingLocal, setIsHostingLocal] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(true); // Start as true to show loading until first response
   const [syncTimer, setSyncTimer] = useState(0);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
@@ -828,8 +842,9 @@ function LobbyComponent({
   };
 
   const refreshRooms = useCallback(() => {
-    // Check both state and actual socket connection status
-    const isConnected = socketConnected || socket?.connected;
+    // CRITICAL: Check socket.connected directly as fallback if local state is false
+    // This prevents race condition where state hasn't updated yet
+    const isConnected = socket?.connected || socketConnected;
     if (!isConnected) {
       console.warn('⚠️ Lobby: Cannot refresh rooms - socket not connected', {
         socketConnected,
@@ -858,6 +873,8 @@ function LobbyComponent({
     
     const handleRoomsList = (list: PublicRoom[]) => {
       console.log('📋 Lobby: Received public rooms list', list.length, 'rooms', list.map(r => r.id));
+      // DEBUG: Log exactly what the server is returning
+      console.log('📋 Lobby: [DEBUG] Server returned:', JSON.stringify(list, null, 2));
       // Deduplicate before setting state to prevent infinite duplicates
       const uniqueRooms = deduplicateRooms(list || []); // Ensure list is always an array
       console.log('📋 Lobby: After deduplication', uniqueRooms.length, 'unique rooms', uniqueRooms.map(r => r.id));
@@ -895,7 +912,8 @@ function LobbyComponent({
   // This handles both initial load (when socket connects while on PUBLIC tab) and tab switching
   // Use socket.connected as direct fallback to ensure emit fires even if state hasn't flipped yet
   useEffect(() => {
-    const isSocketReady = socketConnected || socket?.connected;
+    // CRITICAL: Check socket.connected directly as fallback
+    const isSocketReady = socket?.connected || socketConnected;
     if (activeTab === 'PUBLIC' && isSocketReady) {
       // Prevent multiple simultaneous fetches
       if (isFetchingRef.current) {
@@ -908,11 +926,18 @@ function LobbyComponent({
         socketReady: socket?.connected,
         isSocketReady
       });
+      // CRITICAL: Ensure listener is registered before emitting
+      // The listener registration happens in the separate useEffect above
       // Emit directly using socket.connected as fallback to ensure it fires
       if (socket?.connected) {
         isFetchingRef.current = true;
         setIsRefreshing(true);
-        socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+        // Small delay to ensure listener is registered (though it should already be)
+        setTimeout(() => {
+          if (socket?.connected) {
+            socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+          }
+        }, 0);
       }
     }
   }, [activeTab, socketConnected, socket]);
