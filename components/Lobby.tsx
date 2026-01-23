@@ -225,10 +225,31 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
   refreshRooms,
   socketConnected
 }) => {
+  // Track minimum search time to prevent flicker
+  const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
+  const [showSearching, setShowSearching] = useState(false);
+  
   // Debug: Log when publicRooms changes
   useEffect(() => {
     console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms.map(r => r.id));
   }, [publicRooms]);
+  
+  // Track search start time when isRefreshing becomes true
+  useEffect(() => {
+    if (isRefreshing) {
+      setSearchStartTime(Date.now());
+      setShowSearching(true);
+    } else if (searchStartTime !== null) {
+      // Ensure "Searching..." shows for at least 1 second
+      const elapsed = Date.now() - searchStartTime;
+      const remaining = Math.max(0, 1000 - elapsed);
+      const timeout = setTimeout(() => {
+        setShowSearching(false);
+        setSearchStartTime(null);
+      }, remaining);
+      return () => clearTimeout(timeout);
+    }
+  }, [isRefreshing, searchStartTime]);
 
   // CRITICAL DEBUG: Log on every render to confirm props are being received
   console.log("DEBUG: PublicTabContent received rooms:", publicRooms.length, {
