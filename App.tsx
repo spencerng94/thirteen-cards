@@ -1014,8 +1014,22 @@ const AppContent: React.FC = () => {
       } else if (state.status === GameStatus.FINISHED) {
         // Check if we were just playing or already on game table
         // Also prevent duplicate processing if we already processed this finished state
-        const alreadyProcessed = prevStatus === GameStatus.FINISHED;
-        const shouldShowVictory = (prevStatus === GameStatus.PLAYING || view === 'GAME_TABLE' || prevStatus === null || prevStatus === undefined) && !alreadyProcessed;
+        const alreadyProcessed = prevStatus === GameStatus.FINISHED || prevStatus === GameStatus.CELEBRATING || prevStatus === GameStatus.SYNCING;
+        // Show victory screen if:
+        // 1. We were playing (prevStatus was PLAYING)
+        // 2. We're on the game table view
+        // 3. We haven't already processed this finished state
+        // 4. OR if view is not VICTORY (to catch cases where victory screen didn't show)
+        const shouldShowVictory = (prevStatus === GameStatus.PLAYING || view === 'GAME_TABLE' || (view !== 'VICTORY' && prevStatus !== GameStatus.CELEBRATING && prevStatus !== GameStatus.SYNCING)) && !alreadyProcessed;
+        
+        console.log('🎯 Victory check:', { 
+          prevStatus, 
+          currentStatus: state.status, 
+          view, 
+          alreadyProcessed, 
+          shouldShowVictory,
+          myRank: state.players.find(p => p.id === myPlayerId)?.finishedRank 
+        });
         
         if (shouldShowVictory) {
           const myRank = state.players.find(p => p.id === myPlayerId)?.finishedRank || 4;
@@ -1848,7 +1862,28 @@ const AppContent: React.FC = () => {
       })()}
       {view === 'VICTORY' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading results...</div></div>}>
-          <VictoryScreen players={gameMode === 'MULTI_PLAYER' ? mpGameState!.players : spGameState!.players} myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} onPlayAgain={() => { setView(gameMode === 'MULTI_PLAYER' ? 'LOBBY' : 'WELCOME'); if (gameMode === 'SINGLE_PLAYER') handleStart(playerName, 'SINGLE_PLAYER'); }} onGoHome={handleExit} profile={profile} xpGained={lastMatchRewards?.xp || 0} coinsGained={lastMatchRewards?.coins || 0} xpBonusApplied={lastMatchRewards?.bonus} totalXpAfter={lastMatchRewards?.totalXpAfter} speedBonus={lastMatchRewards?.speedBonus} />
+          <VictoryScreen 
+            players={gameMode === 'MULTI_PLAYER' ? mpGameState!.players : spGameState!.players} 
+            myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} 
+            onPlayAgain={() => { 
+              // Reset game state when returning to lobby for multiplayer
+              if (gameMode === 'MULTI_PLAYER') {
+                setMpGameState(null);
+                setLastMatchRewards(null);
+                setView('LOBBY');
+              } else {
+                setView('WELCOME');
+                handleStart(playerName, 'SINGLE_PLAYER');
+              }
+            }} 
+            onGoHome={handleExit} 
+            profile={profile} 
+            xpGained={lastMatchRewards?.xp || 0} 
+            coinsGained={lastMatchRewards?.coins || 0} 
+            xpBonusApplied={lastMatchRewards?.bonus} 
+            totalXpAfter={lastMatchRewards?.totalXpAfter} 
+            speedBonus={lastMatchRewards?.speedBonus} 
+          />
         </Suspense>
       )}
       {view === 'TUTORIAL' && <TutorialMode onExit={() => setView('WELCOME')} />}
