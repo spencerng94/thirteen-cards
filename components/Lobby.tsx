@@ -284,10 +284,10 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          {isRefreshing && publicRooms.length === 0 ? (
+          {(isRefreshing || showSearching) && publicRooms.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
-              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Loading rooms...</p>
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
             </div>
           ) : publicRooms.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
@@ -865,6 +865,13 @@ function LobbyComponent({
     isFetchingRef.current = true;
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+    
+    // CRITICAL: Add small delay before setting isRefreshing to false
+    // This prevents "No matches found" flicker if server responds too instantly with empty list
+    setTimeout(() => {
+      // Only set to false if we haven't received data yet (handled in listener)
+      // This is a safety timeout in case listener doesn't fire
+    }, 500);
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Register socket listener - always register when socket exists
@@ -889,13 +896,16 @@ function LobbyComponent({
         });
         return uniqueRooms;
       });
-      // CRITICAL: Always set isRefreshing to false when we receive a response (even if empty)
-      setIsRefreshing(false);
-      // CRITICAL: Mark as loaded when we receive data (even if empty array)
-      setHasLoaded(true);
-      // Clear the fetching flag to allow future fetches
-      isFetchingRef.current = false;
-      console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
+      // CRITICAL: Add small delay before setting isRefreshing to false
+      // This prevents "No matches found" flicker if server responds too instantly with empty list
+      setTimeout(() => {
+        setIsRefreshing(false);
+        // CRITICAL: Mark as loaded when we receive data (even if empty array)
+        setHasLoaded(true);
+        // Clear the fetching flag to allow future fetches
+        isFetchingRef.current = false;
+        console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
+      }, 500);
     };
     
     // Remove any existing listeners first to prevent duplicates

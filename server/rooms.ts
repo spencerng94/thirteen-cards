@@ -432,23 +432,39 @@ export async function getPublicRooms(): Promise<Array<{ id: string; name: string
       }));
   }
   
-  const { data, error } = await supabase
+  // Fetch all LOBBY rooms first to check is_public values
+  const { data: allLobbyRooms, error: fetchError } = await supabase
     .from('rooms')
     .select('id, room_name, players, turn_duration, is_public, status')
-    .eq('is_public', true)
     .eq('status', 'LOBBY');
   
-  if (error) {
-    console.error('❌ ROOMS: Error fetching public rooms:', error);
+  if (fetchError) {
+    console.error('❌ ROOMS: Error fetching lobby rooms:', fetchError);
     return [];
   }
   
-  if (!data) {
-    console.log('📋 ROOMS: No public rooms found in Supabase');
+  if (!allLobbyRooms) {
+    console.log('📋 ROOMS: No lobby rooms found in Supabase');
     return [];
   }
   
-  console.log(`📋 ROOMS: Found ${data.length} public rooms in Supabase`);
+  console.log(`📋 ROOMS: Found ${allLobbyRooms.length} total lobby rooms in Supabase`);
+  
+  // DEBUG: Check is_public values - might be stored as string "true" instead of boolean
+  const publicRoomsData = allLobbyRooms.filter(room => {
+    const isPublic = room.is_public === true || room.is_public === 'true' || String(room.is_public) === 'true';
+    return isPublic;
+  });
+  
+  console.log(`📋 ROOMS: After isPublic filter: ${publicRoomsData.length} public rooms`);
+  console.log(`📋 ROOMS: Sample is_public values:`, allLobbyRooms.slice(0, 3).map(r => ({ id: r.id, is_public: r.is_public, type: typeof r.is_public })));
+  
+  const data = publicRoomsData;
+  
+  if (data.length === 0) {
+    console.log('📋 ROOMS: No public rooms found after filtering');
+    return [];
+  }
   
   // Deduplicate by room ID before processing
   const uniqueRoomData = Array.from(

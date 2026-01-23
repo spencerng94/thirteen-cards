@@ -2205,8 +2205,21 @@ io.on('connection', (socket: Socket) => {
     }
     
     try {
+      // DEBUG: Check total rooms in memory vs filtered
+      const allRoomsInMemory = Array.from(rooms.values());
+      const lobbyRooms = allRoomsInMemory.filter(r => r.status === 'LOBBY');
+      const publicLobbyRooms = lobbyRooms.filter(r => {
+        // Check both boolean true and string "true" for isPublic
+        const isPublic = r.isPublic === true || r.isPublic === 'true' || String(r.isPublic) === 'true';
+        return isPublic;
+      });
+      console.log(`📋 DEBUG: Total rooms in memory: ${allRoomsInMemory.length}`);
+      console.log(`📋 DEBUG: Lobby rooms: ${lobbyRooms.length}`);
+      console.log(`📋 DEBUG: Public lobby rooms (after isPublic filter): ${publicLobbyRooms.length}`);
+      console.log(`📋 DEBUG: Sample room isPublic values:`, lobbyRooms.slice(0, 3).map(r => ({ id: r.id, isPublic: r.isPublic, type: typeof r.isPublic })));
+      
       const roomsList = await getPublicRoomsList();
-      console.log(`📋 Found ${roomsList.length} public rooms`);
+      console.log(`📋 Found ${roomsList.length} public rooms after getPublicRoomsList()`);
       socket.emit('public_rooms_list', roomsList);
     } catch (error) {
       console.error('❌ get_public_rooms: Error fetching public rooms:', error);

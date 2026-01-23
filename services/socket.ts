@@ -49,11 +49,22 @@ const SOCKET_URL = typeof window !== 'undefined' && window.location.hostname ===
   ? 'http://localhost:3001' 
   : SERVER_URL;
 
+// CRITICAL: Export a single shared socket instance
+// This ensures Lobby and App components use the same socket instance
+// If different instances were created, the server might not have "authenticated" the Lobby's socket yet
 export const socket: Socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
   reconnectionAttempts: 5,
   timeout: 10000,
 });
+
+// Verify singleton pattern - log if multiple instances are created (shouldn't happen)
+if (typeof window !== 'undefined') {
+  (window as any).__SOCKET_INSTANCE__ = (window as any).__SOCKET_INSTANCE__ || socket;
+  if ((window as any).__SOCKET_INSTANCE__ !== socket) {
+    console.warn('⚠️ Multiple socket instances detected! This may cause connection issues.');
+  }
+}
 
 // Connection event logging
 socket.on('connect', () => {
