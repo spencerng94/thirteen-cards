@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { GameState, GameStatus, SocketEvents, BackgroundTheme, AiDifficulty, Emote } from '../types';
 import { socket, connectSocket } from '../services/socket';
 import { BoardSurface } from './UserHub';
