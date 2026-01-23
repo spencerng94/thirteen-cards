@@ -226,8 +226,16 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
 }) => {
   // Debug: Log when publicRooms changes
   useEffect(() => {
-    console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms);
+    console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms.map(r => r.id));
   }, [publicRooms]);
+
+  // Also log on every render to see if component is re-rendering
+  console.log('📋 PublicTabContent: RENDER', { 
+    publicRoomsLength: publicRooms.length, 
+    roomIds: publicRooms.map(r => r.id),
+    isRefreshing,
+    socketConnected
+  });
 
   return (
     <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -305,7 +313,7 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
                   <div className="flex flex-col gap-1">
                     <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
                       <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{room.id}</span>
                     </div>
                   </div>
@@ -802,8 +810,16 @@ function LobbyComponent({
       const uniqueRooms = deduplicateRooms(list);
       console.log('📋 Lobby: After deduplication', uniqueRooms.length, 'unique rooms', uniqueRooms.map(r => r.id));
       // Set the rooms directly - deduplication should handle it
-      setPublicRooms(uniqueRooms);
-      console.log('📋 Lobby: setPublicRooms called with', uniqueRooms.length, 'rooms');
+      // Use functional update to ensure we're using the latest state
+      setPublicRooms(prevRooms => {
+        console.log('📋 Lobby: setPublicRooms functional update', {
+          prevRoomsLength: prevRooms.length,
+          newRoomsLength: uniqueRooms.length,
+          prevRoomIds: prevRooms.map(r => r.id),
+          newRoomIds: uniqueRooms.map(r => r.id)
+        });
+        return uniqueRooms;
+      });
       setIsRefreshing(false);
     };
     
@@ -1371,8 +1387,9 @@ function LobbyComponent({
                         : 'opacity-0 pointer-events-none translate-y-2 z-0'
                     }`}
                   >
+                    {activeTab === 'PUBLIC' && (
                     <PublicTabContent
-                      key={`public-tab-${publicRooms.length}-${publicRooms.map(r => r.id).join('-')}`}
+                        key="public-tab"
                       roomIdInput={roomIdInput}
                       setRoomIdInput={setRoomIdInput}
                       joinRoom={joinRoom}
@@ -1382,6 +1399,7 @@ function LobbyComponent({
                       refreshRooms={refreshRooms}
                       socketConnected={socketConnected}
                                 />
+                    )}
                             </div>
 
                   {/* Create Tab */}
@@ -1849,7 +1867,7 @@ function LobbyComponent({
                             // Force fresh read on every render
                             const p = gameState?.players?.[i];
                             
-                            return (
+                                                return (
                                 <PlayerSlot
                                     key={`slot-${i}`}
                                     index={i}
@@ -1862,9 +1880,9 @@ function LobbyComponent({
                                     onAddBot={addBot}
                                     gameState={gameState}
                                 />
-                            );
-                        })}
-                    </div>
+                                                );
+                                            })}
+                                        </div>
                     
 
                     <div className="mt-12">
