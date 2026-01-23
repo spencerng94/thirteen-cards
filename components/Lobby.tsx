@@ -973,6 +973,14 @@ function LobbyComponent({
     }
   }, [activeTab, socketConnected, socket]);
 
+  // Auto-sync: Trigger refreshRooms() once if socket.connected is true but publicRooms.length is 0
+  useEffect(() => {
+    if (socket?.connected && publicRooms.length === 0 && !isFetchingRef.current && activeTab === 'PUBLIC') {
+      console.log('📋 Lobby: Auto-syncing public rooms (socket connected but no rooms)');
+      refreshRooms();
+    }
+  }, [socket?.connected, publicRooms.length, activeTab, refreshRooms]);
+
   // Force refresh on mount if socket is already connected and we're on PUBLIC tab
   // This catches the case where the socket connected before the component mounted
   useEffect(() => {
