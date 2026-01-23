@@ -872,13 +872,16 @@ function LobbyComponent({
         });
         return uniqueRooms;
       });
-      // CRITICAL: Always set isRefreshing to false when we receive a response (even if empty)
-      setIsRefreshing(false);
-      // CRITICAL: Mark as loaded when we receive data (even if empty array)
-      setHasLoaded(true);
-      // Clear the fetching flag to allow future fetches
-      isFetchingRef.current = false;
-      console.log('📋 Lobby: Updated loading state', { isRefreshing: false, hasLoaded: true, roomCount: uniqueRooms.length });
+      // CRITICAL: Use setTimeout to ensure isRefreshing is set after state update for rooms
+      // This ensures React batches the updates correctly and the child component reacts
+      setTimeout(() => {
+        setIsRefreshing(false);
+        // CRITICAL: Mark as loaded when we receive data (even if empty array)
+        setHasLoaded(true);
+        // Clear the fetching flag to allow future fetches
+        isFetchingRef.current = false;
+        console.log('📋 Lobby: Updated loading state', { isRefreshing: false, hasLoaded: true, roomCount: uniqueRooms.length });
+      }, 0);
     };
     
     // Remove any existing listeners first to prevent duplicates
@@ -1483,7 +1486,7 @@ function LobbyComponent({
                         </div>
                       ) : (
                     <PublicTabContent
-                          key={`public-list-${publicRooms.length}-${socketConnected}`}
+                          key={`public-tab-${activeTab}-${publicRooms.length}-${socketConnected}`}
                       roomIdInput={roomIdInput}
                       setRoomIdInput={setRoomIdInput}
                       joinRoom={joinRoom}
