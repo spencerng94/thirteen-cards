@@ -862,6 +862,8 @@ function LobbyComponent({
         return uniqueRooms;
       });
       setIsRefreshing(false);
+      setHasLoaded(true); // Mark as loaded when we receive data (even if empty array)
+      isFetchingRef.current = false; // Clear the fetching flag
     };
     
     // Remove any existing listeners first to prevent duplicates
