@@ -981,8 +981,20 @@ const AppContent: React.FC = () => {
         roomName: state.roomName,
         playerCount: state.players?.length,
         playerIds: state.players?.map(p => p.id),
-        prevStatus 
+        prevStatus,
+        currentRoomId: mpGameState?.roomId
       });
+      
+      // SECURITY: Only accept game_state updates for the room we're currently in
+      // This prevents players from being "moved" to different rooms by accident
+      if (mpGameState?.roomId && state.roomId !== mpGameState.roomId) {
+        console.warn('⚠️ App.tsx: Ignoring game_state for different room', {
+          receivedRoomId: state.roomId,
+          currentRoomId: mpGameState.roomId,
+          receivedStatus: state.status
+        });
+        return;
+      }
       
       // CRITICAL: Update mpGameState - this will be passed to Lobby component as gameState prop
       setMpGameState(state);
@@ -2026,6 +2038,29 @@ const Game: React.FC = () => {
     const handleGameState = (state: GameState) => {
       console.log('🎮 Received game_state update:', state);
       const prevStatus = gameState?.status;
+      
+      // SECURITY: Only accept game_state updates for the room we're currently in
+      // Check against both current gameState and roomId from URL/params
+      if (gameState?.roomId && state.roomId !== gameState.roomId) {
+        console.warn('⚠️ Game Component: Ignoring game_state for different room', {
+          receivedRoomId: state.roomId,
+          currentRoomId: gameState.roomId,
+          urlRoomId: roomId,
+          receivedStatus: state.status
+        });
+        return;
+      }
+      
+      // Also check against roomId from URL if gameState doesn't exist yet
+      if (roomId && state.roomId !== roomId) {
+        console.warn('⚠️ Game Component: Ignoring game_state - roomId mismatch with URL', {
+          receivedRoomId: state.roomId,
+          urlRoomId: roomId,
+          receivedStatus: state.status
+        });
+        return;
+      }
+      
       setGameState(state);
       
       // CRITICAL: Update view when status changes to PLAYING
@@ -2045,6 +2080,17 @@ const Game: React.FC = () => {
     const handleRoomUpdate = (updatedRoom: GameState) => {
       console.log('🎮 DATA RECEIVED FROM SERVER (room_update):', updatedRoom);
       const prevStatus = gameState?.status;
+      
+      // SECURITY: Only accept room_update for the room we're currently in
+      if (gameState?.roomId && updatedRoom.roomId !== gameState.roomId) {
+        console.warn('⚠️ Game Component: Ignoring room_update for different room', {
+          receivedRoomId: updatedRoom.roomId,
+          currentRoomId: gameState.roomId,
+          receivedStatus: updatedRoom.status
+        });
+        return;
+      }
+      
       setGameState(updatedRoom);
       
       // CRITICAL: Log status changes to help debug

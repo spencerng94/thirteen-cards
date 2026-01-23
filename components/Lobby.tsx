@@ -769,15 +769,23 @@ function LobbyComponent({
   };
 
   const refreshRooms = useCallback(() => {
-    if (!socketConnected) {
-      console.warn('⚠️ Lobby: Cannot refresh rooms - socket not connected');
+    // Check both state and actual socket connection status
+    const isConnected = socketConnected || socket?.connected;
+    if (!isConnected) {
+      console.warn('⚠️ Lobby: Cannot refresh rooms - socket not connected', {
+        socketConnected,
+        socketConnectedDirect: socket?.connected
+      });
       setIsRefreshing(false);
       return;
     }
-    console.log('🔄 Lobby: Refreshing public rooms list...');
+    console.log('🔄 Lobby: Refreshing public rooms list...', {
+      socketConnected,
+      socketConnectedDirect: socket?.connected
+    });
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-  }, [socketConnected]); // Include socketConnected in dependencies
+  }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Register socket listener - always register when socket is connected
   useEffect(() => {
@@ -796,12 +804,6 @@ function LobbyComponent({
     // Remove any existing listeners first to prevent duplicates
     socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
     socket.on(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
-    
-    // Initial fetch
-    if (isInitialMount.current) {
-      refreshRooms();
-      isInitialMount.current = false;
-    }
 
     // Cleanup: remove listener on unmount
     return () => {
@@ -809,10 +811,15 @@ function LobbyComponent({
     };
   }, [socketConnected, refreshRooms]); // Re-register when socket connects
 
-  // CRITICAL: Refresh rooms when switching to PUBLIC tab
+  // CRITICAL: Fetch rooms when socket connects AND when switching to PUBLIC tab
+  // This handles both initial load (when socket connects while on PUBLIC tab) and tab switching
   useEffect(() => {
     if (activeTab === 'PUBLIC' && socketConnected) {
-      console.log('📋 Lobby: Switched to PUBLIC tab, refreshing rooms');
+      console.log('📋 Lobby: PUBLIC tab active and socket connected, fetching rooms', {
+        activeTab,
+        socketConnected,
+        socketReady: socket?.connected
+      });
       refreshRooms();
     }
   }, [activeTab, socketConnected, refreshRooms]);
