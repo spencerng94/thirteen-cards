@@ -284,7 +284,12 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          {publicRooms.length === 0 ? (
+          {isRefreshing && publicRooms.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Loading rooms...</p>
+            </div>
+          ) : publicRooms.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
                 <span className="text-3xl sm:text-4xl">🃏</span>
