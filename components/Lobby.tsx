@@ -558,6 +558,8 @@ function LobbyComponent({
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
+  const [hasLoaded, setHasLoaded] = useState(false); // Track if we've received at least one response
+  const isFetchingRef = useRef(false); // Prevent multiple simultaneous fetches
   
   // Single source of truth for tab navigation - use initialTab prop if provided
   const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>(initialTab);
@@ -878,6 +880,11 @@ function LobbyComponent({
   useEffect(() => {
     const isSocketReady = socketConnected || socket?.connected;
     if (activeTab === 'PUBLIC' && isSocketReady) {
+      // Prevent multiple simultaneous fetches
+      if (isFetchingRef.current) {
+        console.log('📋 Lobby: Already fetching rooms, skipping duplicate request');
+        return;
+      }
       console.log('📋 Lobby: PUBLIC tab active and socket connected, fetching rooms', {
         activeTab,
         socketConnected,
@@ -886,6 +893,8 @@ function LobbyComponent({
       });
       // Emit directly using socket.connected as fallback to ensure it fires
       if (socket?.connected) {
+        isFetchingRef.current = true;
+        setIsRefreshing(true);
         socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
       }
     }
@@ -1456,20 +1465,20 @@ function LobbyComponent({
                           </div>
                         </div>
                       ) : (
-                        <PublicTabContent
+                    <PublicTabContent
                           key={`public-list-${publicRooms.length}-${socketConnected}`}
-                          roomIdInput={roomIdInput}
-                          setRoomIdInput={setRoomIdInput}
-                          joinRoom={joinRoom}
-                          publicRooms={publicRooms}
-                          remoteEmotes={remoteEmotes}
-                          isRefreshing={isRefreshing}
-                          refreshRooms={refreshRooms}
-                          socketConnected={socketConnected}
-                        />
+                      roomIdInput={roomIdInput}
+                      setRoomIdInput={setRoomIdInput}
+                      joinRoom={joinRoom}
+                      publicRooms={publicRooms}
+                      remoteEmotes={remoteEmotes}
+                      isRefreshing={isRefreshing}
+                      refreshRooms={refreshRooms}
+                      socketConnected={socketConnected}
+                                />
                       )
                     )}
-                  </div>
+                            </div>
 
                   {/* Create Tab */}
                   <div 
