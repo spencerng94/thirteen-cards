@@ -294,9 +294,9 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {publicRooms.map(room => (
+              {publicRooms && publicRooms.length > 0 && publicRooms.map(room => (
                 <div 
-                  key={room.id} 
+                  key={room.id || room.roomId || `room-${room.name}-${room.hostName}`} 
                   onClick={() => joinRoom(room.id)}
                   className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
                 >
