@@ -1305,8 +1305,36 @@ io.on('connection', (socket: Socket) => {
       // CRITICAL: await the join operation (may rehydrate from Supabase if not in Map)
       const room = await joinRoom(player, requestedId);
       
-      // CRITICAL: If room has no hostId assigned, assign the first player as host
-      if (!room.hostId || room.hostId === '') {
+      // HOST RESCUE LOGIC: If room has 0 or 1 players, the joining player MUST be the host
+      const humanPlayerCount = room.players.filter(p => !p.isBot).length;
+      if (humanPlayerCount <= 1) {
+        console.log(`🔧 join_room: Host Rescue - Room has ${humanPlayerCount} human player(s), setting joining player as host`);
+        room.hostId = pid;
+        // Update the player's isHost flag
+        const joiningPlayer = room.players.find(p => p.id === pid);
+        if (joiningPlayer) {
+          joiningPlayer.isHost = true;
+        }
+        // Clear isHost from other players
+        room.players.forEach(p => {
+          if (p.id !== pid) {
+            p.isHost = false;
+          }
+        });
+        
+        // Update Supabase immediately
+        if (supabase) {
+          const roomData = serializeRoomForDB(room);
+          await supabase
+            .from('rooms')
+            .update({ host_id: pid })
+            .eq('id', requestedId);
+          console.log(`✅ join_room: Updated Supabase with hostId: ${pid}`);
+        }
+        
+        console.log(`PROD DEBUG: Player ${pid} joined ${requestedId}. Room Host is now ${room.hostId}`);
+      } else if (!room.hostId || room.hostId === '') {
+        // Fallback: If room has no hostId assigned, assign the first player as host
         console.log('⚠️ join_room: Room has no hostId. Assigning first player as host...');
         if (room.players.length > 0) {
           const firstPlayer = room.players[0];
@@ -1323,6 +1351,9 @@ io.on('connection', (socket: Socket) => {
               .eq('id', requestedId);
           }
         }
+        console.log(`PROD DEBUG: Player ${pid} joined ${requestedId}. Room Host is now ${room.hostId}`);
+      } else {
+        console.log(`PROD DEBUG: Player ${pid} joined ${requestedId}. Room Host is now ${room.hostId}`);
       }
       
       // Update player with socket ID and sleeve

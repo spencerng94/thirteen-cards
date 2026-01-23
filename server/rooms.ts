@@ -227,10 +227,12 @@ export async function createRoom(
     console.error(`❌ ROOMS: Invalid creatorId provided: "${creatorId}". This should never happen - player.id must be a valid UUID.`);
     throw new Error(`Invalid player ID: ${creatorId}. Player ID must be a valid UUID.`);
   }
+  // Ensure hostId uses creatorId (with fallback to player.id if somehow creatorId is invalid)
+  const hostId = creatorId || player.id;
   const room: GameRoom = {
     id: roomId,
     status: 'LOBBY',
-    hostId: creatorId, // Explicitly set the creator as the host
+    hostId: hostId, // Explicitly set the creator as the host
     currentPlayerIndex: 0,
     currentPlayPile: [],
     roundHistory: [],
