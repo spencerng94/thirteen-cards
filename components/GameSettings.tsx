@@ -247,8 +247,13 @@ export const GameSettings: React.FC<GameSettingsProps> = ({
                   <span className="text-xs sm:text-sm font-medium text-white/50 uppercase tracking-tight">Automatically pass when no moves are possible</span>
                 </div>
                 <button 
-                  onClick={() => setAutoPassEnabled(!autoPassEnabled)}
-                  className={`relative z-10 w-14 h-7 sm:w-16 sm:h-8 rounded-full transition-all duration-300 touch-manipulation ${
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (setAutoPassEnabled) {
+                      setAutoPassEnabled(!autoPassEnabled);
+                    }
+                  }}
+                  className={`relative z-10 w-14 h-7 sm:w-16 sm:h-8 rounded-full transition-all duration-300 touch-manipulation cursor-pointer ${
                     autoPassEnabled 
                       ? 'bg-gradient-to-r from-rose-500 to-rose-600 shadow-[0_0_25px_rgba(244,63,94,0.5)]' 
                       : 'bg-white/10 hover:bg-white/15 border-2 border-white/20'
