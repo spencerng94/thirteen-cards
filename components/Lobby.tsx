@@ -1429,13 +1429,15 @@ function LobbyComponent({
                 {/* Tab Content - Smooth Transitions */}
                 <div className="tab-content flex-1 overflow-hidden relative">
                   {/* Public Tab */}
-                  {activeTab === 'PUBLIC' && (
-                    <div 
-                      className="absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out opacity-100 pointer-events-auto translate-y-0 z-10 visible"
-                      key={`public-tab-container-${publicRooms.length}`}
-                    >
+                  <div 
+                    className={`absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out ${
+                      activeTab === 'PUBLIC' 
+                        ? 'opacity-100 pointer-events-auto translate-y-0 z-10 visible' 
+                        : 'opacity-0 pointer-events-none translate-y-2 z-0 invisible'
+                    }`}
+                  >
+                    {activeTab === 'PUBLIC' && (
                       <PublicTabContent
-                        key={`public-tab-${publicRooms.length}-${publicRooms.map(r => r.id).join('-')}`}
                         roomIdInput={roomIdInput}
                         setRoomIdInput={setRoomIdInput}
                         joinRoom={joinRoom}
@@ -1445,8 +1447,8 @@ function LobbyComponent({
                         refreshRooms={refreshRooms}
                         socketConnected={socketConnected}
                       />
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Create Tab */}
                   <div 
