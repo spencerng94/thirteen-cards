@@ -224,6 +224,11 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
   refreshRooms,
   socketConnected
 }) => {
+  // Debug: Log when publicRooms changes
+  useEffect(() => {
+    console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms);
+  }, [publicRooms]);
+
   return (
     <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
       <div className="space-y-3">
@@ -792,12 +797,13 @@ function LobbyComponent({
     if (!socketConnected) return;
     
     const handleRoomsList = (list: PublicRoom[]) => {
-      console.log('📋 Lobby: Received public rooms list', list.length, 'rooms');
+      console.log('📋 Lobby: Received public rooms list', list.length, 'rooms', list.map(r => r.id));
       // Deduplicate before setting state to prevent infinite duplicates
       const uniqueRooms = deduplicateRooms(list);
-      console.log('📋 Lobby: After deduplication', uniqueRooms.length, 'unique rooms');
+      console.log('📋 Lobby: After deduplication', uniqueRooms.length, 'unique rooms', uniqueRooms.map(r => r.id));
       // Set the rooms directly - deduplication should handle it
       setPublicRooms(uniqueRooms);
+      console.log('📋 Lobby: setPublicRooms called with', uniqueRooms.length, 'rooms');
       setIsRefreshing(false);
     };
     
@@ -1366,6 +1372,7 @@ function LobbyComponent({
                     }`}
                   >
                     <PublicTabContent
+                      key={`public-tab-${publicRooms.length}-${publicRooms.map(r => r.id).join('-')}`}
                       roomIdInput={roomIdInput}
                       setRoomIdInput={setRoomIdInput}
                       joinRoom={joinRoom}

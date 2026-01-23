@@ -2363,17 +2363,17 @@ async function pruneStaleRooms() {
       
       if (emptyLobbyRooms.length > 0) {
         const emptyRoomIds = emptyLobbyRooms.map(r => r.id);
-        console.log(`🧹 Pruning ${emptyRoomIds.length} empty LOBBY rooms:`, emptyRoomIds);
-        const { error: deleteError } = await supabase
-          .from('rooms')
-          .delete()
-          .in('id', emptyRoomIds);
+        console.log(`🧹 Pruning ${emptyRoomIds.length} empty LOBBY rooms from database:`, emptyRoomIds);
         
-        if (deleteError) {
-          console.error('❌ Error deleting empty LOBBY rooms:', deleteError);
-        } else {
-          console.log(`✅ Pruned ${emptyLobbyRooms.length} empty LOBBY rooms from database`);
+        // Delete from both memory and database
+        for (const roomId of emptyRoomIds) {
+          await deleteRoom(roomId);
         }
+        
+        console.log(`✅ Pruned ${emptyLobbyRooms.length} empty LOBBY rooms from database`);
+        await broadcastPublicLobbies();
+      } else {
+        console.log('✅ No empty LOBBY rooms found in database');
       }
     }
   } catch (err) {
@@ -2383,6 +2383,26 @@ async function pruneStaleRooms() {
 
 // Run prune on server start
 pruneStaleRooms();
+
+// Run periodic cleanup every 5 minutes to remove empty rooms
+setInterval(async () => {
+  console.log('🧹 Running periodic cleanup for empty rooms...');
+  await pruneStaleRooms();
+  
+  // Also check all rooms in memory for empty LOBBY rooms
+  const allRoomIds = Array.from(rooms.keys());
+  for (const roomId of allRoomIds) {
+    const room = rooms.get(roomId);
+    if (room && room.status === 'LOBBY') {
+      const humanPlayers = room.players.filter(p => !p.isBot);
+      if (humanPlayers.length === 0) {
+        console.log(`🧹 Periodic cleanup: Deleting empty LOBBY room ${roomId}`);
+        await deleteRoom(roomId);
+        await broadcastPublicLobbies();
+      }
+    }
+  }
+}, 5 * 60 * 1000); // Every 5 minutes
 
 // ============================================================================
 // PAYMENT WEBHOOKS
