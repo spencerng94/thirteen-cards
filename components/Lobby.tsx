@@ -859,7 +859,7 @@ function LobbyComponent({
     const handleRoomsList = (list: PublicRoom[]) => {
       console.log('📋 Lobby: Received public rooms list', list.length, 'rooms', list.map(r => r.id));
       // Deduplicate before setting state to prevent infinite duplicates
-      const uniqueRooms = deduplicateRooms(list);
+      const uniqueRooms = deduplicateRooms(list || []); // Ensure list is always an array
       console.log('📋 Lobby: After deduplication', uniqueRooms.length, 'unique rooms', uniqueRooms.map(r => r.id));
       // Set the rooms directly - deduplication should handle it
       // Use functional update to ensure we're using the latest state
@@ -872,9 +872,13 @@ function LobbyComponent({
         });
         return uniqueRooms;
       });
+      // CRITICAL: Always set isRefreshing to false when we receive a response (even if empty)
       setIsRefreshing(false);
-      setHasLoaded(true); // Mark as loaded when we receive data (even if empty array)
-      isFetchingRef.current = false; // Clear the fetching flag
+      // CRITICAL: Mark as loaded when we receive data (even if empty array)
+      setHasLoaded(true);
+      // Clear the fetching flag to allow future fetches
+      isFetchingRef.current = false;
+      console.log('📋 Lobby: Updated loading state', { isRefreshing: false, hasLoaded: true, roomCount: uniqueRooms.length });
     };
     
     // Remove any existing listeners first to prevent duplicates
