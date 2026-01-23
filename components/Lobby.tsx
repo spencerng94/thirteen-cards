@@ -836,7 +836,7 @@ function LobbyComponent({
   // CRITICAL: Fetch rooms when socket connects AND when switching to PUBLIC tab
   // This handles both initial load (when socket connects while on PUBLIC tab) and tab switching
   useEffect(() => {
-    if (activeTab === 'PUBLIC' && socketConnected) {
+    if (activeTab === 'PUBLIC' && (socketConnected || socket?.connected)) {
       console.log('📋 Lobby: PUBLIC tab active and socket connected, fetching rooms', {
         activeTab,
         socketConnected,
@@ -844,7 +844,22 @@ function LobbyComponent({
       });
       refreshRooms();
     }
-  }, [activeTab, socketConnected, refreshRooms]);
+  }, [activeTab, socketConnected, socket?.connected, refreshRooms]);
+
+  // Force refresh on mount if socket is already connected and we're on PUBLIC tab
+  // This catches the case where the socket connected before the component mounted
+  useEffect(() => {
+    if (activeTab === 'PUBLIC' && socket?.connected && !socketConnected) {
+      // Small delay to ensure state is settled and avoid race conditions
+      const timeoutId = setTimeout(() => {
+        console.log('📋 Lobby: Force refresh on mount - socket already connected but state not synced');
+        if (socket?.connected) {
+          socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, []); // Empty deps - only run on mount
 
   // Separate effect to refresh when exiting a game
   useEffect(() => {
