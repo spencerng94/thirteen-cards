@@ -521,8 +521,14 @@ const getPublicRoomsList = async () => {
   // Use the getPublicRooms function for consistency
   const publicRooms = await getPublicRooms();
   
+  // Deduplicate by room ID before enhancing
+  const uniqueRooms = Array.from(
+    new Map(publicRooms.map(room => [room.id, room])).values()
+  );
+  console.log(`📋 getPublicRoomsList: ${publicRooms.length} rooms before dedup, ${uniqueRooms.length} after`);
+  
   // Enhance with host information for compatibility
-  const enhancedRooms = await Promise.all(publicRooms.map(async (room) => {
+  const enhancedRooms = await Promise.all(uniqueRooms.map(async (room) => {
     const fullRoom = await fetchRoom(room.id);
     return {
       id: room.id,
@@ -534,7 +540,13 @@ const getPublicRoomsList = async () => {
     };
   }));
   
-  return enhancedRooms;
+  // Final deduplication pass on enhanced rooms
+  const finalRooms = Array.from(
+    new Map(enhancedRooms.map(room => [room.id, room])).values()
+  );
+  console.log(`📋 getPublicRoomsList: Returning ${finalRooms.length} unique enhanced rooms`);
+  
+  return finalRooms;
 };
 
 const broadcastPublicLobbies = async () => {

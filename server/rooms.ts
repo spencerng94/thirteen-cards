@@ -450,7 +450,13 @@ export async function getPublicRooms(): Promise<Array<{ id: string; name: string
   
   console.log(`📋 ROOMS: Found ${data.length} public rooms in Supabase`);
   
-  const publicRooms = data
+  // Deduplicate by room ID before processing
+  const uniqueRoomData = Array.from(
+    new Map(data.map(room => [room.id, room])).values()
+  );
+  console.log(`📋 ROOMS: After deduplication, ${uniqueRoomData.length} unique rooms`);
+  
+  const publicRooms = uniqueRoomData
     .map(room => {
       const players = room.players || [];
       return {
@@ -462,7 +468,7 @@ export async function getPublicRooms(): Promise<Array<{ id: string; name: string
     })
     .filter(room => {
       // Filter out full rooms (4+ players)
-      const roomData = data.find(r => r.id === room.id);
+      const roomData = uniqueRoomData.find(r => r.id === room.id);
       const players = roomData?.players || [];
       return players.length < 4;
     });

@@ -299,7 +299,10 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
-                    <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
+                      <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{room.id}</span>
+                    </div>
                   </div>
                   <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
@@ -781,9 +784,11 @@ function LobbyComponent({
     if (!socketConnected) return;
     
     const handleRoomsList = (list: PublicRoom[]) => {
-      console.log('📋 Lobby: Received public rooms list', list.length);
+      console.log('📋 Lobby: Received public rooms list', list.length, 'rooms');
       // Deduplicate before setting state to prevent infinite duplicates
       const uniqueRooms = deduplicateRooms(list);
+      console.log('📋 Lobby: After deduplication', uniqueRooms.length, 'unique rooms');
+      // Set the rooms directly - deduplication should handle it
       setPublicRooms(uniqueRooms);
       setIsRefreshing(false);
     };
