@@ -230,9 +230,9 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
     console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms.map(r => r.id));
   }, [publicRooms]);
 
-  // Also log on every render to see if component is re-rendering
-  console.log('📋 PublicTabContent: RENDER', { 
-    publicRoomsLength: publicRooms.length, 
+  // CRITICAL DEBUG: Log on every render to confirm props are being received
+  console.log("DEBUG: PublicTabContent received rooms:", publicRooms.length, {
+    rooms: publicRooms,
     roomIds: publicRooms.map(r => r.id),
     isRefreshing,
     socketConnected
