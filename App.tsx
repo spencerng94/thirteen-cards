@@ -1337,6 +1337,7 @@ const AppContent: React.FC = () => {
     if (mode === 'TUTORIAL') { setView('TUTORIAL'); return; }
     setGameMode(mode);
     if (mode === 'MULTI_PLAYER') {
+        setLocalTabRequested(false); // Reset when starting normally
         connectSocket(); setView('LOBBY');
     } else {
         const hands = dealCards(); setSpMyHand(hands[0]); setSpOpponentHands({ b1: hands[1], b2: hands[2], b3: hands[3] }); setSpChops(0); setSpBombs(0); setSpLastCardRank(0);
