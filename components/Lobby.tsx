@@ -1383,13 +1383,9 @@ function LobbyComponent({
                   <div 
                     className={`absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out ${
                       activeTab === 'PUBLIC' 
-                        ? 'opacity-100 pointer-events-auto translate-y-0 z-10' 
-                        : 'opacity-0 pointer-events-none translate-y-2 z-0'
+                        ? 'opacity-100 pointer-events-auto translate-y-0 z-10 visible' 
+                        : 'opacity-0 pointer-events-none translate-y-2 z-0 invisible'
                     }`}
-                    style={{
-                      // Force visibility when activeTab is PUBLIC to prevent CSS transition issues
-                      display: activeTab === 'PUBLIC' ? 'block' : 'none'
-                    }}
                   >
                     {activeTab === 'PUBLIC' && (
                     <PublicTabContent
