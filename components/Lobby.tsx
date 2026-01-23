@@ -333,7 +333,7 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
 
 
 interface LocalTabProps {
-  localNetworkInfo: { isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean } | null;
+  localNetworkInfo: { isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean };
   localRoomCode: string;
   setLocalRoomCode: (value: string) => void;
   isHostingLocal: boolean;
@@ -363,11 +363,7 @@ const LocalTabContent: React.FC<LocalTabProps> = ({
 }) => {
   return (
     <div className="h-full flex flex-col space-y-6 sm:space-y-8">
-      {!localNetworkInfo ? (
-        <div className="flex items-center justify-center h-full">
-          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-        </div>
-      ) : !localNetworkInfo.canHost ? (
+      {!localNetworkInfo.canHost ? (
         <div className="flex flex-col items-center justify-center text-center space-y-4 py-12">
           <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-white/20 flex items-center justify-center bg-white/[0.02]">
             <span className="text-3xl">📡</span>
@@ -590,10 +586,13 @@ function LobbyComponent({
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     
-    // Sync immediately if already connected
+    // Sync immediately if already connected - check both state and actual socket
     if (socket.connected) {
       console.log('📡 Lobby: Socket already connected on mount, syncing state');
       setSocketConnected(true);
+    } else {
+      // Also sync if state says connected but socket says not (fix desync)
+      setSocketConnected(socket.connected);
     }
     
     return () => {
@@ -603,7 +602,8 @@ function LobbyComponent({
   }, [socket]);
   
   // Removed handleTabChange - using direct setState to avoid stale closures
-  const [localNetworkInfo, setLocalNetworkInfo] = useState<{ isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean } | null>(null);
+  // Initialize with default object to prevent loading spinner from hanging
+  const [localNetworkInfo, setLocalNetworkInfo] = useState<{ isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean }>({ isLocalNetwork: true, networkType: 'unknown', canHost: true });
   const [localRoomCode, setLocalRoomCode] = useState<string>('');
   const [isHostingLocal, setIsHostingLocal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -625,19 +625,15 @@ function LobbyComponent({
 
   // Initialize local network info when component mounts or when LOCAL tab becomes active
   useEffect(() => {
-    // Initialize on mount if null, or re-initialize when switching to LOCAL tab
-    if (localNetworkInfo === null) {
-      // First time initialization
-      localDiscoveryService.detectLocalNetwork().then(setLocalNetworkInfo).catch(() => {
-        setLocalNetworkInfo({ isLocalNetwork: false, networkType: 'unknown', canHost: false });
+    // Always fetch network info on mount and when switching to LOCAL tab
+    // The default object ensures UI doesn't hang, but we still want accurate detection
+    localDiscoveryService.detectLocalNetwork()
+      .then(setLocalNetworkInfo)
+      .catch(() => {
+        // Fallback: allow hosting even if detection fails (user can still try)
+        setLocalNetworkInfo({ isLocalNetwork: true, networkType: 'unknown', canHost: true });
       });
-    } else if (activeTab === 'LOCAL') {
-      // Re-check when switching to LOCAL tab (network status might have changed)
-      localDiscoveryService.detectLocalNetwork().then(setLocalNetworkInfo).catch(() => {
-        setLocalNetworkInfo({ isLocalNetwork: false, networkType: 'unknown', canHost: false });
-      });
-    }
-  }, [activeTab]); // Re-run when tab changes - localNetworkInfo check prevents unnecessary re-runs
+  }, [activeTab === 'LOCAL']); // Re-run when switching to LOCAL tab
 
   // Socket initialization - completely decoupled from UI rendering
   useEffect(() => {
@@ -878,19 +874,22 @@ function LobbyComponent({
 
   // CRITICAL: Fetch rooms when socket connects AND when switching to PUBLIC tab
   // This handles both initial load (when socket connects while on PUBLIC tab) and tab switching
+  // Use socket.connected as direct fallback to ensure emit fires even if state hasn't flipped yet
   useEffect(() => {
-    if (activeTab === 'PUBLIC' && (socketConnected || socket?.connected)) {
+    const isSocketReady = socketConnected || socket?.connected;
+    if (activeTab === 'PUBLIC' && isSocketReady) {
       console.log('📋 Lobby: PUBLIC tab active and socket connected, fetching rooms', {
         activeTab,
         socketConnected,
-        socketReady: socket?.connected
+        socketReady: socket?.connected,
+        isSocketReady
       });
-      // Emit directly to ensure it works even if refreshRooms has stale dependencies
+      // Emit directly using socket.connected as fallback to ensure it fires
       if (socket?.connected) {
         socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
       }
     }
-  }, [activeTab, socketConnected]);
+  }, [activeTab, socketConnected, socket]);
 
   // Force refresh on mount if socket is already connected and we're on PUBLIC tab
   // This catches the case where the socket connected before the component mounted
@@ -1458,7 +1457,7 @@ function LobbyComponent({
                         </div>
                       ) : (
                         <PublicTabContent
-                          key={`public-tab-${publicRooms.length}`}
+                          key={`public-list-${publicRooms.length}-${socketConnected}`}
                           roomIdInput={roomIdInput}
                           setRoomIdInput={setRoomIdInput}
                           joinRoom={joinRoom}
