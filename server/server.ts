@@ -507,13 +507,33 @@ const broadcastState = async (roomId: string) => {
   // If not in Map, try to fetch from Supabase and rehydrate
   if (!room) {
     room = await fetchRoom(roomId);
-  if (!room) return;
+    if (!room) {
+      console.error('❌ broadcastState: Room not found', { roomId });
+      return;
+    }
   }
   
   const state = getGameStateData(room);
+  
+  // CRITICAL: Broadcast to ALL players in the room using io.to(roomId)
+  // This ensures both host and non-host players receive the update
+  const sockets = await io.in(roomId).fetchSockets();
+  console.log(`📡 broadcastState: Broadcasting to room ${roomId}`, {
+    status: state.status,
+    playerCount: state.players?.length,
+    connectedSockets: sockets.length,
+    roomStatus: room.status
+  });
+  
+  // Emit to all sockets in the room
   io.to(roomId).emit('game_state', state);
+  io.to(roomId).emit('room_update', state); // Also emit room_update for compatibility
+  
+  // Send player hands individually to each player
   room.players.forEach(p => {
-    if (!p.isBot && !p.isOffline) io.to(p.socketId).emit('player_hand', p.hand);
+    if (!p.isBot && !p.isOffline && p.socketId) {
+      io.to(p.socketId).emit('player_hand', p.hand);
+    }
   });
 };
 

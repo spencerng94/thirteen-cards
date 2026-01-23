@@ -2025,7 +2025,16 @@ const Game: React.FC = () => {
     
     const handleGameState = (state: GameState) => {
       console.log('🎮 Received game_state update:', state);
+      const prevStatus = gameState?.status;
       setGameState(state);
+      
+      // CRITICAL: Update view when status changes to PLAYING
+      if (state.status === GameStatus.PLAYING && prevStatus !== GameStatus.PLAYING) {
+        console.log('🎮 Game Component: Status changed to PLAYING, game should start');
+        // The render logic will handle showing GameTable based on gameState.status
+        // But we need to ensure the component re-renders
+      }
+      
       // Update myId if we find ourselves in the players array
       const me = state.players.find(p => p.id === myId || p.name === playerName);
       if (me) {
@@ -2035,7 +2044,14 @@ const Game: React.FC = () => {
     
     const handleRoomUpdate = (updatedRoom: GameState) => {
       console.log('🎮 DATA RECEIVED FROM SERVER (room_update):', updatedRoom);
+      const prevStatus = gameState?.status;
       setGameState(updatedRoom);
+      
+      // CRITICAL: Log status changes to help debug
+      if (updatedRoom.status === GameStatus.PLAYING && prevStatus !== GameStatus.PLAYING) {
+        console.log('🎮 Game Component: room_update - Status changed to PLAYING, game should start');
+      }
+      
       // Update myId if we find ourselves in the players array
       const me = updatedRoom.players.find(p => p.id === myId || p.name === playerName);
       if (me) {
