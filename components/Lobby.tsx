@@ -1450,6 +1450,7 @@ function LobbyComponent({
                   >
                     {activeTab === 'PUBLIC' && (
                     <PublicTabContent
+                      key={`public-tab-${publicRooms.length}`}
                       roomIdInput={roomIdInput}
                       setRoomIdInput={setRoomIdInput}
                       joinRoom={joinRoom}
@@ -1458,7 +1459,7 @@ function LobbyComponent({
                       isRefreshing={isRefreshing}
                       refreshRooms={refreshRooms}
                       socketConnected={socketConnected}
-                                />
+                    />
                     )}
                             </div>
 
