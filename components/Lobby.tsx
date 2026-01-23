@@ -833,10 +833,16 @@ function LobbyComponent({
       setIsRefreshing(false);
       return;
     }
+    // Prevent multiple simultaneous fetches
+    if (isFetchingRef.current) {
+      console.log('📋 Lobby: Already fetching rooms, skipping duplicate request');
+      return;
+    }
     console.log('🔄 Lobby: Refreshing public rooms list...', {
       socketConnected,
       socketConnectedDirect: socket?.connected
     });
+    isFetchingRef.current = true;
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
