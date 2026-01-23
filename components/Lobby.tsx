@@ -361,7 +361,7 @@ const LocalTabContent: React.FC<LocalTabProps> = ({
   setErrorToast
 }) => {
   return (
-    <div className="h-full flex flex-col space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="h-full flex flex-col space-y-6 sm:space-y-8">
       {!localNetworkInfo ? (
         <div className="flex items-center justify-center h-full">
           <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -1735,37 +1735,12 @@ function LobbyComponent({
                   <div 
                     className={`absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out ${
                       activeTab === 'LOCAL' 
-                        ? 'opacity-100 pointer-events-auto translate-y-0 z-10' 
-                        : 'opacity-0 pointer-events-none translate-y-2 z-0'
+                        ? 'opacity-100 pointer-events-auto translate-y-0 z-10 visible' 
+                        : 'opacity-0 pointer-events-none translate-y-2 z-0 invisible'
                     }`}
                     style={{ paddingTop: '1rem', paddingBottom: '2rem', touchAction: 'pan-y' }}
                   >
-                    <div className="space-y-6 px-2 sm:px-4">
-                      <div className="bg-gradient-to-br from-amber-950/20 via-amber-900/10 to-amber-950/20 backdrop-blur-xl border-2 border-amber-700/30 rounded-2xl p-6 sm:p-8">
-                        <h3 className="text-lg sm:text-xl font-black uppercase tracking-wider text-amber-400 mb-4 flex items-center gap-3">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
-                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                            <line x1="12" y1="19" x2="12" y2="23"/>
-                            <line x1="8" y1="23" x2="16" y2="23"/>
-                          </svg>
-                          Traveler's Guide
-                        </h3>
-                        <div className="space-y-3 text-sm sm:text-base text-amber-200/90 leading-relaxed">
-                          <p className="flex items-start gap-3">
-                            <span className="text-amber-500 font-black text-lg">1.</span>
-                            <span>Host starts Hotspot.</span>
-                          </p>
-                          <p className="flex items-start gap-3">
-                            <span className="text-amber-500 font-black text-lg">2.</span>
-                            <span>Friends join Wi-Fi.</span>
-                          </p>
-                          <p className="flex items-start gap-3">
-                            <span className="text-amber-500 font-black text-lg">3.</span>
-                            <span>Play anywhere—even mid-flight.</span>
-                                        </p>
-                                    </div>
-                                            </div>
+                    {activeTab === 'LOCAL' && (
                       <LocalTabContent
                         localNetworkInfo={localNetworkInfo}
                         localRoomCode={localRoomCode}
@@ -1780,8 +1755,7 @@ function LobbyComponent({
                         selected_sleeve_id={selected_sleeve_id}
                         setErrorToast={setErrorToast}
                       />
-                                                </div>
-                                            </div>
+                    )}
                                             </div>
               </main>
             </GlassPanel>
