@@ -43,9 +43,11 @@ export default defineConfig({
             './components/VictoryScreen',
           ],
           'ui-components': [
-            './components/Store',
             './components/InventoryModal',
             './components/GemPacks',
+          ],
+          'store': [
+            './components/Store',
           ],
           'user-hub': [
             './components/UserHub',
