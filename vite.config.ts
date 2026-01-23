@@ -42,8 +42,10 @@ export default defineConfig({
             './components/GameTable',
             './components/VictoryScreen',
           ],
-          'ui-components': [
+          'inventory-modal': [
             './components/InventoryModal',
+          ],
+          'gem-packs': [
             './components/GemPacks',
           ],
           'store': [
