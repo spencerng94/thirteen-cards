@@ -625,13 +625,13 @@ function LobbyComponent({
 
   // Initialize local network info when component mounts or when LOCAL tab becomes active
   useEffect(() => {
-    // Only initialize if not already set or if switching to LOCAL tab
+    // Initialize on mount or when switching to LOCAL tab
     if (localNetworkInfo === null || activeTab === 'LOCAL') {
       localDiscoveryService.detectLocalNetwork().then(setLocalNetworkInfo).catch(() => {
         setLocalNetworkInfo({ isLocalNetwork: false, networkType: 'unknown', canHost: false });
       });
     }
-  }, [activeTab]); // Re-run when tab changes to ensure LOCAL tab has network info
+  }, [activeTab, localNetworkInfo]); // Re-run when tab changes or if networkInfo is null
 
   // Socket initialization - completely decoupled from UI rendering
   useEffect(() => {
