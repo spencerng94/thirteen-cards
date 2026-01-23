@@ -166,6 +166,7 @@ const AppContent: React.FC = () => {
 
   const [view, setView] = useState<ViewState>('WELCOME');
   const [gameMode, setGameMode] = useState<GameMode>(null);
+  const [localTabRequested, setLocalTabRequested] = useState(false);
   const [hubState, setHubState] = useState<{ open: boolean, tab: HubTab }>({ open: false, tab: 'PROFILE' });
   const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
@@ -917,6 +918,7 @@ const AppContent: React.FC = () => {
   const handleOpenFriends = () => setFriendsOpen(true);
   const handleOpenLocal = () => {
     // Navigate to Lobby with local mode indicator
+    setLocalTabRequested(true);
     setGameMode('MULTI_PLAYER');
     connectSocket();
     setView('LOBBY');
@@ -1760,7 +1762,7 @@ const AppContent: React.FC = () => {
                   myId={myPlayerId} 
                   turnTimerSetting={turnTimerSetting} 
                   selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve}
-                  initialTab={view === 'LOBBY' && gameMode === 'MULTI_PLAYER' ? 'LOCAL' : undefined}
+                  initialTab={localTabRequested ? 'LOCAL' : undefined}
                 />
               </div>
             );
