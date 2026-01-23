@@ -522,7 +522,8 @@ function LobbyComponent({
   onBack,
   onSignOut,
   myId,
-  turnTimerSetting
+  turnTimerSetting,
+  initialTab = 'PUBLIC'
 }: LobbyProps) {
   // Initialize hook at the very top to bypass closure issues
   const initialTimer = turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30;
@@ -562,8 +563,8 @@ function LobbyComponent({
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
   
-  // Single source of truth for tab navigation
-  const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>('PUBLIC');
+  // Single source of truth for tab navigation - use initialTab prop if provided
+  const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>(initialTab);
   
   const [socketConnected, setSocketConnected] = useState(false);
   const [socketConnecting, setSocketConnecting] = useState(false);
