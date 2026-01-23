@@ -621,12 +621,17 @@ function LobbyComponent({
       setRoomIdInput(initialRoomCode);
     }
     fetchEmotes().then(setRemoteEmotes);
-    
-    // Initialize local network info
-    localDiscoveryService.detectLocalNetwork().then(setLocalNetworkInfo).catch(() => {
-      setLocalNetworkInfo({ isLocalNetwork: false, networkType: 'unknown', canHost: false });
-    });
   }, [initialRoomCode]);
+
+  // Initialize local network info when component mounts or when LOCAL tab becomes active
+  useEffect(() => {
+    // Only initialize if not already set or if switching to LOCAL tab
+    if (localNetworkInfo === null || activeTab === 'LOCAL') {
+      localDiscoveryService.detectLocalNetwork().then(setLocalNetworkInfo).catch(() => {
+        setLocalNetworkInfo({ isLocalNetwork: false, networkType: 'unknown', canHost: false });
+      });
+    }
+  }, [activeTab]); // Re-run when tab changes to ensure LOCAL tab has network info
 
   // Socket initialization - completely decoupled from UI rendering
   useEffect(() => {
@@ -1438,18 +1443,18 @@ function LobbyComponent({
                     }`}
                   >
                     {activeTab === 'PUBLIC' && (
-                      <PublicTabContent
-                        roomIdInput={roomIdInput}
-                        setRoomIdInput={setRoomIdInput}
-                        joinRoom={joinRoom}
-                        publicRooms={publicRooms}
-                        remoteEmotes={remoteEmotes}
-                        isRefreshing={isRefreshing}
-                        refreshRooms={refreshRooms}
-                        socketConnected={socketConnected}
-                      />
+                    <PublicTabContent
+                      roomIdInput={roomIdInput}
+                      setRoomIdInput={setRoomIdInput}
+                      joinRoom={joinRoom}
+                      publicRooms={publicRooms}
+                      remoteEmotes={remoteEmotes}
+                      isRefreshing={isRefreshing}
+                      refreshRooms={refreshRooms}
+                      socketConnected={socketConnected}
+                                />
                     )}
-                  </div>
+                            </div>
 
                   {/* Create Tab */}
                   <div 
@@ -1757,8 +1762,8 @@ function LobbyComponent({
                         setErrorToast={setErrorToast}
                       />
                     )}
-                  </div>
-                </div>
+                                            </div>
+                                            </div>
               </main>
             </GlassPanel>
             </div>
