@@ -822,6 +822,57 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
 
         {/* Content */}
         <div className="relative z-10 flex-1 overflow-y-auto p-6 sm:p-8">
+          {/* Tab Navigation */}
+          {!searchQuery.trim() && (
+            <div className="mb-6 flex gap-2 border-b border-white/10 pb-2">
+              <button
+                onClick={() => setActiveTab('friends')}
+                className={`relative px-4 py-2 text-sm font-bold uppercase tracking-wide transition-all ${
+                  activeTab === 'friends'
+                    ? 'text-blue-400 border-b-2 border-blue-400'
+                    : 'text-white/50 hover:text-white/70'
+                }`}
+              >
+                Friends
+                {pendingCount > 0 && activeTab !== 'friends' && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-black/20">
+                    {pendingCount > 9 ? '9+' : pendingCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('received')}
+                className={`relative px-4 py-2 text-sm font-bold uppercase tracking-wide transition-all ${
+                  activeTab === 'received'
+                    ? 'text-blue-400 border-b-2 border-blue-400'
+                    : 'text-white/50 hover:text-white/70'
+                }`}
+              >
+                Requests
+                {pendingCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-black/20 animate-[badgePulse_2s_ease-in-out_infinite]">
+                    {pendingCount > 9 ? '9+' : pendingCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('sent')}
+                className={`relative px-4 py-2 text-sm font-bold uppercase tracking-wide transition-all ${
+                  activeTab === 'sent'
+                    ? 'text-blue-400 border-b-2 border-blue-400'
+                    : 'text-white/50 hover:text-white/70'
+                }`}
+              >
+                Sent
+                {pendingSent.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500/80 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-black/20">
+                    {pendingSent.length > 9 ? '9+' : pendingSent.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
           {/* New Friend Request Notification */}
           {newRequestNotification && (
             <div className="mb-4 p-4 bg-blue-500/20 border border-blue-500/50 rounded-xl text-blue-300 text-sm font-semibold flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
