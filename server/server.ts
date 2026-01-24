@@ -560,17 +560,32 @@ const getPublicRoomsList = async (): Promise<Array<{ id: string; name: string; p
     // Use the getPublicRooms function for consistency
     const publicRooms = await getPublicRooms();
     
-    // CRITICAL: Ensure publicRooms is an array
-    if (!Array.isArray(publicRooms)) {
+    // CRITICAL: Ensure publicRooms is an array - explicit conversion
+    let safePublicRooms: Array<any> = [];
+    if (Array.isArray(publicRooms)) {
+      safePublicRooms = publicRooms;
+    } else if (publicRooms && typeof publicRooms === 'object') {
+      // If it's an object (not array), try to convert it
+      if (publicRooms instanceof Map) {
+        safePublicRooms = Array.from(publicRooms.values());
+      } else if (publicRooms.constructor === Object) {
+        // Plain object - convert to array
+        safePublicRooms = Object.values(publicRooms);
+      } else {
+        console.error('❌ getPublicRoomsList: getPublicRooms returned non-array object:', typeof publicRooms, publicRooms);
+        return [];
+      }
+    } else {
+      // null, undefined, or other - return empty array
       console.error('❌ getPublicRoomsList: getPublicRooms returned non-array:', typeof publicRooms, publicRooms);
       return [];
     }
     
     // Deduplicate by room ID before enhancing
     const uniqueRooms = Array.from(
-      new Map(publicRooms.map(room => [room.id, room])).values()
+      new Map(safePublicRooms.map(room => [room.id, room])).values()
     );
-    console.log(`📋 getPublicRoomsList: ${publicRooms.length} rooms before dedup, ${uniqueRooms.length} after`);
+    console.log(`📋 getPublicRoomsList: ${safePublicRooms.length} rooms before dedup, ${uniqueRooms.length} after`);
     
     // Enhance with host information for compatibility
     const enhancedRooms = await Promise.all(uniqueRooms.map(async (room) => {
@@ -616,8 +631,32 @@ const getPublicRoomsList = async (): Promise<Array<{ id: string; name: string; p
 const broadcastPublicLobbies = async () => {
   const roomsList = await getPublicRoomsList();
   // CRITICAL: Ensure roomsList is always an array before broadcasting
-  const safeRoomsList = Array.isArray(roomsList) ? roomsList : [];
+  // Explicitly convert to array - handle null, undefined, objects, Maps, etc.
+  let safeRoomsList: Array<any> = [];
+  if (Array.isArray(roomsList)) {
+    safeRoomsList = roomsList;
+  } else if (roomsList && typeof roomsList === 'object') {
+    if (roomsList instanceof Map) {
+      safeRoomsList = Array.from(roomsList.values());
+    } else if (roomsList.constructor === Object) {
+      safeRoomsList = Object.values(roomsList);
+    } else {
+      console.error('❌ broadcastPublicLobbies: roomsList is an object but not a Map or plain object:', roomsList);
+      safeRoomsList = [];
+    }
+  } else {
+    console.warn('❌ broadcastPublicLobbies: roomsList is not an array:', typeof roomsList, roomsList);
+    safeRoomsList = [];
+  }
+  
+  // Final check
+  if (!Array.isArray(safeRoomsList)) {
+    console.error('❌ broadcastPublicLobbies: safeRoomsList is still not an array after conversion!');
+    safeRoomsList = [];
+  }
+  
   console.log("📋 Broadcasting Rooms:", safeRoomsList.length);
+  console.log("📋 Broadcasting Rooms Type:", Array.isArray(safeRoomsList) ? 'Array' : typeof safeRoomsList);
   io.emit('public_rooms_list', safeRoomsList);
 };
 
@@ -1168,8 +1207,32 @@ io.on('connection', (socket: Socket) => {
   // Send initial public rooms list automatically on connection
   getPublicRoomsList().then(roomsList => {
     // CRITICAL: Ensure roomsList is always an array before emitting
-    const safeRoomsList = Array.isArray(roomsList) ? roomsList : [];
+    // Explicitly convert to array - handle null, undefined, objects, Maps, etc.
+    let safeRoomsList: Array<any> = [];
+    if (Array.isArray(roomsList)) {
+      safeRoomsList = roomsList;
+    } else if (roomsList && typeof roomsList === 'object') {
+      if (roomsList instanceof Map) {
+        safeRoomsList = Array.from(roomsList.values());
+      } else if (roomsList.constructor === Object) {
+        safeRoomsList = Object.values(roomsList);
+      } else {
+        console.error('❌ Connection handler: roomsList is an object but not a Map or plain object:', roomsList);
+        safeRoomsList = [];
+      }
+    } else {
+      console.warn('❌ Connection handler: roomsList is not an array:', typeof roomsList, roomsList);
+      safeRoomsList = [];
+    }
+    
+    // Final check
+    if (!Array.isArray(safeRoomsList)) {
+      console.error('❌ Connection handler: safeRoomsList is still not an array after conversion!');
+      safeRoomsList = [];
+    }
+    
     console.log("📋 Broadcasting Rooms:", safeRoomsList.length);
+    console.log("📋 Broadcasting Rooms Type:", Array.isArray(safeRoomsList) ? 'Array' : typeof safeRoomsList);
     socket.emit('public_rooms_list', safeRoomsList);
   }).catch(error => {
     console.error('❌ Error sending initial public rooms list:', error);
@@ -2260,10 +2323,37 @@ io.on('connection', (socket: Socket) => {
       const roomsList = await getPublicRoomsList();
       
       // CRITICAL: Ensure roomsList is always an array before emitting
-      const safeRoomsList = Array.isArray(roomsList) ? roomsList : [];
+      // Explicitly convert to array - handle null, undefined, objects, Maps, etc.
+      let safeRoomsList: Array<any> = [];
+      if (Array.isArray(roomsList)) {
+        safeRoomsList = roomsList;
+      } else if (roomsList && typeof roomsList === 'object') {
+        // If it's an object (not array), try to convert it
+        if (roomsList instanceof Map) {
+          safeRoomsList = Array.from(roomsList.values());
+        } else if (roomsList.constructor === Object) {
+          // Plain object - convert to array
+          safeRoomsList = Object.values(roomsList);
+        } else {
+          // Unknown object type - log and use empty array
+          console.error('❌ get_public_rooms: roomsList is an object but not a Map or plain object:', roomsList);
+          safeRoomsList = [];
+        }
+      } else {
+        // null, undefined, or other non-array/non-object - use empty array
+        console.warn('❌ get_public_rooms: roomsList is not an array:', typeof roomsList, roomsList);
+        safeRoomsList = [];
+      }
+      
+      // CRITICAL: Final check - ensure it's definitely an array
+      if (!Array.isArray(safeRoomsList)) {
+        console.error('❌ get_public_rooms: safeRoomsList is still not an array after conversion!');
+        safeRoomsList = [];
+      }
       
       console.log(`📋 Found ${safeRoomsList.length} public rooms after getPublicRoomsList()`);
       console.log("📋 Broadcasting Rooms:", safeRoomsList.length);
+      console.log("📋 Broadcasting Rooms Type:", Array.isArray(safeRoomsList) ? 'Array' : typeof safeRoomsList);
       
       // CRITICAL: Always emit an array, never an object or Map
       socket.emit('public_rooms_list', safeRoomsList);

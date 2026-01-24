@@ -494,6 +494,13 @@ export async function getPublicRooms(): Promise<Array<{ id: string; name: string
     });
   
   console.log(`📋 ROOMS: After filtering full rooms, ${publicRooms.length} public rooms available`);
+  
+  // CRITICAL: Ensure we always return an array, never null, undefined, or object
+  if (!Array.isArray(publicRooms)) {
+    console.error('❌ ROOMS: getPublicRooms returning non-array:', typeof publicRooms, publicRooms);
+    return [];
+  }
+  
   return publicRooms;
 }
 
