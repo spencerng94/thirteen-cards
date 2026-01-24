@@ -641,12 +641,10 @@ function LobbyComponent({
     if (socket.connected) {
       console.log('📡 Lobby: Socket already connected on mount, syncing state');
       setSocketConnected(true);
-      // CRITICAL: If socket is already connected and we're on PUBLIC tab, trigger refreshRooms
-      // This prevents race condition where state hasn't updated yet
-      // Note: The consolidated useEffect will handle the actual fetch
-      // This just ensures we trigger it when socket connects
-      if (activeTab === 'PUBLIC' && !initialFetchDone.current && !isFetchingRef.current) {
-        console.log('📡 Lobby: Socket connected on mount, will trigger initial fetch');
+      // CRITICAL: Don't call refreshRooms here - the mount useEffect will handle it
+      // This prevents duplicate emits
+      if (activeTab === 'PUBLIC' && !initialFetchDone.current) {
+        console.log('📡 Lobby: Socket connected on mount, mount useEffect will handle fetch');
         // The consolidated useEffect will handle the actual fetch
       }
     } else {
@@ -998,13 +996,11 @@ function LobbyComponent({
       isFetchingRef.current = false;
       
       // CRITICAL: setIsRefreshing(false) must ALWAYS be called, regardless of whether rooms.length is 0 or more
-      // Use setTimeout to ensure it happens after setPublicRooms is committed
-      setTimeout(() => {
-        if (isMounted.current) {
-      setIsRefreshing(false);
-          console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
-        }
-      }, 0);
+      // Set it immediately (not in setTimeout) to ensure UI updates
+      if (isMounted.current) {
+        setIsRefreshing(false);
+        console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
+      }
     };
     
     // Remove any existing listeners first to prevent duplicates
