@@ -302,10 +302,16 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {publicRooms && publicRooms.length > 0 && publicRooms.map(room => (
-                <div 
-                    key={room.id || room.roomId || `room-${room.name}-${room.hostName}`} 
-                  onClick={() => joinRoom(room.id)}
+                {publicRooms && publicRooms.length > 0 && publicRooms.map((room, index) => {
+                  // CRITICAL: Ensure stable and unique key for room list items
+                  // Use room.id if available, fallback to room.roomId, then combination of name and hostName
+                  const roomKey = room.id || (room as any).roomId || `room-${room.name}-${room.hostName}-${index}`;
+                  const roomId = room.id || (room as any).roomId;
+                  
+                  return (
+                  <div 
+                    key={roomKey}
+                    onClick={() => joinRoom(roomId)}
                   className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
                 >
                   <div className="flex justify-between items-start">
@@ -368,6 +374,7 @@ interface LocalTabProps {
   playerName: string;
   playerAvatar?: string;
   localTurnTimer: number;
+  hookedTimer: number; // Add hookedTimer to interface
   myId?: string;
   selected_sleeve_id?: string;
   setErrorToast: (toast: { show: boolean; message: string }) => void;
@@ -383,6 +390,7 @@ const LocalTabContent: React.FC<LocalTabProps> = ({
   playerName,
   playerAvatar,
   localTurnTimer,
+  hookedTimer, // Add hookedTimer to destructured props
   myId,
   selected_sleeve_id,
   setErrorToast
@@ -884,8 +892,18 @@ function LobbyComponent({
     isFetchingRef.current = true;
     setIsRefreshing(true);
     
-    // Emit the request
+    // CRITICAL: Explicitly emit GET_PUBLIC_ROOMS
+    console.log('📡 Lobby: Emitting GET_PUBLIC_ROOMS event');
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+    
+    // Safety timeout: If server doesn't respond within 10 seconds, clear loading state
+    setTimeout(() => {
+      if (isFetchingRef.current && isMounted.current) {
+        console.warn('⚠️ Lobby: Safety timeout - server did not respond within 10 seconds, clearing loading state');
+        isFetchingRef.current = false;
+        setIsRefreshing(false);
+      }
+    }, 10000);
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Register socket listener - always register when socket exists
@@ -893,10 +911,32 @@ function LobbyComponent({
     if (!socket) return;
     
     const handleRoomsList = (data: any) => {
+      console.log('📋 Lobby: handleRoomsList received data:', {
+        type: typeof data,
+        isArray: Array.isArray(data),
+        dataLength: Array.isArray(data) ? data.length : 'N/A',
+        sample: Array.isArray(data) && data.length > 0 ? data[0] : data
+      });
+      
       let roomsArray: any[] = [];
       
       if (Array.isArray(data)) {
         roomsArray = data;
+        // CRITICAL: Verify data structure matches PublicRoom interface
+        if (roomsArray.length > 0) {
+          const sampleRoom = roomsArray[0];
+          console.log('📋 Lobby: Sample room structure:', {
+            hasId: 'id' in sampleRoom,
+            hasRoomId: 'roomId' in sampleRoom,
+            id: sampleRoom.id,
+            roomId: sampleRoom.roomId,
+            name: sampleRoom.name,
+            playerCount: sampleRoom.playerCount,
+            hostName: sampleRoom.hostName,
+            hostAvatar: sampleRoom.hostAvatar,
+            allKeys: Object.keys(sampleRoom)
+          });
+        }
       } else if (data && typeof data === 'object') {
         // Handle the {} case explicitly to clear the loading state
         roomsArray = Object.values(data).filter(item => item && typeof item === 'object');
@@ -909,7 +949,7 @@ function LobbyComponent({
       
       // Deduplicate before setting state
       const uniqueRooms = deduplicateRooms(roomsArray);
-      console.log('📋 Lobby: Received public rooms list', uniqueRooms.length, 'rooms', uniqueRooms.map((r: any) => r.id));
+      console.log('📋 Lobby: Received public rooms list', uniqueRooms.length, 'rooms', uniqueRooms.map((r: any) => r.id || r.roomId || 'NO_ID'));
       
       // CRITICAL: Ensure setIsRefreshing(false) is called regardless of rooms.length
       // Wrap state updates to ensure correct order: setPublicRooms first, then setIsRefreshing(false)
@@ -921,7 +961,7 @@ function LobbyComponent({
       // Use setTimeout to ensure it happens after setPublicRooms is committed
       setTimeout(() => {
         if (isMounted.current) {
-      setIsRefreshing(false);
+          setIsRefreshing(false);
           console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
         }
       }, 0);
@@ -956,8 +996,25 @@ function LobbyComponent({
       console.log('📋 Lobby: Initial mount fetch - PUBLIC tab, socket ready');
       initialFetchDone.current = true;
       
-      // Trigger refreshRooms exactly once
-      refreshRooms();
+      // CRITICAL: If socket is already connected on mount, immediately emit GET_PUBLIC_ROOMS
+      if (socket?.connected) {
+        console.log('📋 Lobby: Socket already connected on mount, immediately emitting GET_PUBLIC_ROOMS');
+        isFetchingRef.current = true;
+        setIsRefreshing(true);
+        socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+        
+        // Safety timeout: If server doesn't respond within 10 seconds, clear loading state
+        setTimeout(() => {
+          if (isFetchingRef.current && isMounted.current) {
+            console.warn('⚠️ Lobby: Safety timeout - server did not respond within 10 seconds, clearing loading state');
+            isFetchingRef.current = false;
+            setIsRefreshing(false);
+          }
+        }, 10000);
+      } else {
+        // Trigger refreshRooms which will handle the emit
+        refreshRooms();
+      }
     }
   }, [activeTab, socketConnected, socket, refreshRooms]); // Run when these change, but initialFetchDone prevents duplicate calls
 
@@ -1834,6 +1891,7 @@ function LobbyComponent({
                         playerName={playerName}
                         playerAvatar={playerAvatar}
                         localTurnTimer={hookedTimer}
+                        hookedTimer={hookedTimer}
                         myId={myId}
                         selected_sleeve_id={selected_sleeve_id}
                         setErrorToast={setErrorToast}
