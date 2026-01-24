@@ -1436,17 +1436,15 @@ function LobbyComponent({
 
   // CRITICAL: Only render lobby interface when status is LOBBY
   // If status is PLAYING, App.tsx should handle switching to GAME_TABLE view
-  if (gameState && gameState.status !== GameStatus.LOBBY) {
-    // Status is not LOBBY - don't render lobby interface
-    // This prevents showing empty game board when status transitions
-    return (
-      <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-yellow-400 text-lg">Preparing game...</div>
-        </div>
-      </BackgroundWrapper>
-    );
-  }
+  // REMOVED early return - always render lobby UI, let App.tsx handle view switching
+  
+  console.log("✅ FINAL RENDER PATH HIT", { 
+    hasGameState: !!gameState, 
+    gameStateStatus: gameState?.status,
+    activeTab,
+    publicRoomsCount: publicRooms.length,
+    isRefreshing
+  });
 
   return (
     <React.Fragment key={activeTab}>
