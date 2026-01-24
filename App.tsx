@@ -27,7 +27,7 @@ const GameTable = lazy(() => import('./components/GameTable').then(m => ({ defau
 const VictoryScreen = lazy(() => import('./components/VictoryScreen').then(m => ({ default: m.VictoryScreen })));
 const UserHub = lazy(() => import('./components/UserHub').then(m => ({ default: m.UserHub })));
 const Store = lazy(() => import('./components/Store').then(m => ({ default: m.Store })));
-const GemPacks = lazy(() => import('./components/GemPacks').then(m => ({ default: m.GemPacks })));
+const GemPacks = lazy(() => import('./components/GemPacks'));
 const InventoryModal = lazy(() => import('./components/InventoryModal').then(m => ({ default: m.InventoryModal })));
 import { dealCards, validateMove, findBestMove, getComboType, sortCards } from './utils/gameLogic';
 import { audioService } from './services/audio';

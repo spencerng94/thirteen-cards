@@ -795,3 +795,6 @@ export const GemPacks: React.FC<{
     </div>
   );
 };
+
+// Default export for lazy loading compatibility
+export default GemPacks;

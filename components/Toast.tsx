@@ -99,3 +99,6 @@ export const Toast: React.FC<ToastProps> = ({ message, onClose, type = 'error' }
     ? createPortal(content, document.body)
     : content;
 };
+
+// Default export for compatibility
+export default Toast;
