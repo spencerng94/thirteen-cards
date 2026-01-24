@@ -241,7 +241,7 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   });
 
   return (
-    <div key={isRefreshing ? 'loading' : 'idle'} className="h-full flex flex-col space-y-6 sm:space-y-8">
+    <div key={`public-content-${isRefreshing}-${publicRooms.length}`} className="h-full flex flex-col space-y-6 sm:space-y-8">
       <div className="space-y-3">
         <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Join with Room Code</label>
         <div className="flex items-stretch gap-2 sm:gap-3 bg-gradient-to-br from-black/60 to-black/40 p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] border-2 border-white/10 shadow-inner focus-within:border-yellow-500/50 focus-within:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300">
@@ -363,14 +363,27 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
 // CRITICAL: Make comparison MORE sensitive - return FALSE (trigger re-render) if any critical prop changes
 const PublicTabContent = memo(PublicTabContentComponent, (prevProps, nextProps) => {
   // Return FALSE (trigger re-render) if any of these change:
-  // - isRefreshing changes
+  // - isRefreshing changes (CRITICAL: must re-render when loading state changes)
   // - publicRooms.length changes
   // - socketConnected changes
   // - roomIdInput changes
-  if (prevProps.isRefreshing !== nextProps.isRefreshing) return false;
-  if (prevProps.publicRooms.length !== nextProps.publicRooms.length) return false;
+  // - publicRooms array reference changes (deep comparison)
+  if (prevProps.isRefreshing !== nextProps.isRefreshing) {
+    console.log('🔄 PublicTabContent: isRefreshing changed', { prev: prevProps.isRefreshing, next: nextProps.isRefreshing });
+    return false;
+  }
+  if (prevProps.publicRooms.length !== nextProps.publicRooms.length) {
+    console.log('🔄 PublicTabContent: publicRooms.length changed', { prev: prevProps.publicRooms.length, next: nextProps.publicRooms.length });
+    return false;
+  }
   if (prevProps.socketConnected !== nextProps.socketConnected) return false;
   if (prevProps.roomIdInput !== nextProps.roomIdInput) return false;
+  
+  // Deep comparison: check if publicRooms array reference changed
+  if (prevProps.publicRooms !== nextProps.publicRooms) {
+    console.log('🔄 PublicTabContent: publicRooms reference changed');
+    return false;
+  }
   
   // Return TRUE (skip re-render) only if all critical props are the same
   return true;
