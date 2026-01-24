@@ -574,25 +574,6 @@ function LobbyComponent({
   
   // State change tracking (logging removed for production)
 
-  // DOM Force-Clear: Remove any loading spinners or splash screens that might be blocking
-  useEffect(() => {
-    document.querySelectorAll('.loading-spinner, #splash-screen, [class*="loading"], [id*="splash"], [id*="loading"]').forEach(el => {
-      console.log('Removing ghost DOM element:', el);
-      el.remove();
-    });
-  }, []);
-
-  // CRITICAL: Force re-render when gameState prop changes
-  // This ensures the component updates when App.tsx receives new game_state from server
-  const [forceRenderKey, setForceRenderKey] = useState(0);
-  
-  useEffect(() => {
-    if (gameState) {
-      // Force re-render by updating key
-      setForceRenderKey(prev => prev + 1);
-    }
-  }, [gameState]);
-
   
   const [roomIdInput, setRoomIdInput] = useState(initialRoomCode || '');
   const [roomNameInput, setRoomNameInput] = useState(() => {
