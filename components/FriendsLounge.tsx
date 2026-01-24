@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { UserProfile } from '../types';
-import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship, getPendingRequests, acceptFriend, declineFriend } from '../services/supabase';
+import { UserProfile, Emote } from '../types';
+import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship, getPendingRequests, acceptFriend, declineFriend, cancelSentRequest } from '../services/supabase';
 import { calculateLevel } from '../services/supabase';
 import { CopyUsername } from './CopyUsername';
 import { parseUsername } from '../utils/username';
@@ -11,6 +11,7 @@ import { Toast } from './Toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Capacitor } from '@capacitor/core';
+import { VisualEmote } from './VisualEmote';
 
 // Default avatar icon component for when avatar_url is null
 const DefaultAvatarIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -38,6 +39,7 @@ interface FriendsLoungeProps {
   onPendingCountChange?: (count: number) => void;
   onInviteFriend?: (friendId: string) => void;
   currentRoomId?: string;
+  remoteEmotes?: Emote[];
 }
 
 export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ 
@@ -47,7 +49,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
   isGuest,
   onInviteFriend,
   currentRoomId,
-  onPendingCountChange
+  onPendingCountChange,
+  remoteEmotes = []
 }) => {
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [pendingSent, setPendingSent] = useState<Friendship[]>([]);
@@ -451,6 +454,27 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       setTimeout(() => setToast(null), 3000);
     } catch (e: any) {
       const errorMsg = e.message || 'Failed to decline friend request';
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const handleCancelSentRequest = async (receiverId: string) => {
+    if (!profile || isGuest) return;
+    await triggerHaptic();
+    try {
+      const success = await cancelSentRequest(profile.id, receiverId);
+      if (success) {
+        await loadPendingRequests();
+        setError(null);
+        setToast({ message: 'Friend request canceled', type: 'success' });
+        setTimeout(() => setToast(null), 3000);
+      } else {
+        throw new Error('Failed to cancel friend request');
+      }
+    } catch (e: any) {
+      const errorMsg = e.message || 'Failed to cancel friend request';
       setError(errorMsg);
       setToast({ message: errorMsg, type: 'error' });
       setTimeout(() => setToast(null), 3000);
@@ -963,9 +987,14 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden">
                             {user.avatar_url ? (
-                              <span className="text-xl sm:text-2xl">{user.avatar_url}</span>
+                              <VisualEmote 
+                                trigger={user.avatar_url} 
+                                remoteEmotes={remoteEmotes} 
+                                size="sm"
+                                className="w-full h-full"
+                              />
                             ) : (
                               <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
                             )}
@@ -1053,9 +1082,14 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                               >
                               <div className="flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden">
                                     {sender.avatar_url ? (
-                                      <span className="text-xl sm:text-2xl">{sender.avatar_url}</span>
+                                      <VisualEmote 
+                                        trigger={sender.avatar_url} 
+                                        remoteEmotes={remoteEmotes} 
+                                        size="sm"
+                                        className="w-full h-full"
+                                      />
                                     ) : (
                                       <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
                                     )}
@@ -1129,9 +1163,14 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                     >
                         <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden">
                             {friend.avatar_url ? (
-                              <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
+                              <VisualEmote 
+                                trigger={friend.avatar_url} 
+                                remoteEmotes={remoteEmotes} 
+                                size="sm"
+                                className="w-full h-full"
+                              />
                             ) : (
                               <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
                             )}
@@ -1272,13 +1311,18 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden">
                                 {friend.avatar_url ? (
-                                  <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
+                                  <VisualEmote 
+                                    trigger={friend.avatar_url} 
+                                    remoteEmotes={remoteEmotes} 
+                                    size="sm"
+                                    className="w-full h-full"
+                                  />
                                 ) : (
                                   <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-          )}
-        </div>
+                                )}
+                              </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <CopyUsername username={friend.username} discriminator={friend.discriminator} className="text-base sm:text-lg" />
@@ -1289,8 +1333,17 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                                 <p className="text-xs text-yellow-400/70 mt-1">Request pending...</p>
                               </div>
                             </div>
-                            <div className="px-3 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-bold uppercase tracking-wide">
-                              Pending
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => handleCancelSentRequest(friend.id)}
+                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all active:scale-95 flex items-center gap-1.5"
+                                title="Cancel Request"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                Cancel
+                              </button>
                             </div>
                           </div>
                         </div>

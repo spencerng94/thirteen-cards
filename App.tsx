@@ -2205,6 +2205,7 @@ const AppContent: React.FC = () => {
             // Optional callback when friend is invited
           }}
           onPendingCountChange={setPendingFriendRequestsCount}
+          remoteEmotes={[]}
         />
       )}
       

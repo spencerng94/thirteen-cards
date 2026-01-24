@@ -2279,6 +2279,29 @@ export const declineFriend = async (userId: string, senderId: string): Promise<b
 };
 
 /**
+ * Cancel a sent friend request (deletes pending request where we are the sender)
+ */
+export const cancelSentRequest = async (userId: string, receiverId: string): Promise<boolean> => {
+  if (!supabaseAnonKey || userId === 'guest' || receiverId === 'guest') return false;
+  
+  try {
+    // Delete the pending request where we are the sender
+    const { error } = await supabase
+      .from('friendships')
+      .delete()
+      .eq('sender_id', userId)
+      .eq('receiver_id', receiverId)
+      .eq('status', 'pending');
+    
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error canceling sent friend request:', e);
+    return false;
+  }
+};
+
+/**
  * Remove a friend (removes bidirectional friendship)
  */
 export const removeFriend = async (userId: string, friendId: string): Promise<boolean> => {
