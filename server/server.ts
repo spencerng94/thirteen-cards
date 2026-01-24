@@ -1258,6 +1258,72 @@ io.on('connection', (socket: Socket) => {
     socket.emit('public_rooms_list', []); // Always emit empty array on error
   });
 
+  // ============================================================================
+  // FRIENDS & GAME INVITES
+  // ============================================================================
+  
+  // Get online friends
+  socket.on('get_online_friends', (data: { friendIds: string[] }) => {
+    const { friendIds } = data;
+    const onlineFriendIds = friendIds.filter(friendId => {
+      // Check if friend is connected (in socketToPlayerId map)
+      return Object.values(socketToPlayerId).includes(friendId);
+    });
+    socket.emit('online_friends', { friendIds: onlineFriendIds });
+  });
+
+  // Send game invite
+  socket.on('send_game_invite', async (data: { receiverId: string; roomId: string; inviterName: string }) => {
+    const { receiverId, roomId, inviterName } = data;
+    const senderId = socketToPlayerId[socket.id];
+    
+    if (!senderId) {
+      socket.emit('error', { message: 'You must be authenticated to send invites' });
+      return;
+    }
+    
+    // Find the receiver's socket
+    const receiverSocketId = Object.keys(socketToPlayerId).find(
+      sid => socketToPlayerId[sid] === receiverId
+    );
+    
+    if (!receiverSocketId) {
+      socket.emit('error', { message: 'Friend is not online' });
+      return;
+    }
+    
+    // Send invite to receiver
+    io.to(receiverSocketId).emit('receive_game_invite', {
+      roomId,
+      inviterName,
+      inviterId: senderId
+    });
+    
+    console.log(`📨 Game invite sent from ${senderId} to ${receiverId} for room ${roomId}`);
+  });
+
+  // Accept invite
+  socket.on('accept_invite', async (data: { roomId: string }) => {
+    const { roomId } = data;
+    const playerId = socketToPlayerId[socket.id];
+    
+    if (!playerId) {
+      socket.emit('error', { message: 'You must be authenticated to accept invites' });
+      return;
+    }
+    
+    // Join the room (this will trigger the join_room handler)
+    socket.emit('join_room', { roomId, playerId });
+    console.log(`✅ Player ${playerId} accepted invite to room ${roomId}`);
+  });
+
+  // Decline invite
+  socket.on('decline_invite', (data: { roomId: string }) => {
+    const { roomId } = data;
+    const playerId = socketToPlayerId[socket.id];
+    console.log(`❌ Player ${playerId} declined invite to room ${roomId}`);
+  });
+
   socket.on('create_room', async (data, callback) => {
     // CRITICAL: Log at the very start to confirm Render is receiving the event
     console.log('📡 RECEIVED create_room');

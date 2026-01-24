@@ -96,7 +96,11 @@ export enum SocketEvents {
   GET_PUBLIC_ROOMS = 'get_public_rooms',
   PUBLIC_ROOMS_LIST = 'public_rooms_list',
   ERROR = 'error',
-  QUICK_MOVE_REWARD = 'quick_move_reward'
+  QUICK_MOVE_REWARD = 'quick_move_reward',
+  SEND_GAME_INVITE = 'send_game_invite',
+  RECEIVE_GAME_INVITE = 'receive_game_invite',
+  DECLINE_INVITE = 'decline_invite',
+  ACCEPT_INVITE = 'accept_invite'
 }
 
 export type BackgroundTheme = 'CLASSIC_GREEN' | 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'OBSIDIAN_MADNESS' | 'GOLD_FLUX' | 'ZEN_POND' | 'LAS_VEGAS' | 'SHIBA' | 'JUST_A_GIRL';

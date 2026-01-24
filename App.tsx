@@ -4,6 +4,7 @@ import { connectSocket, socket, disconnectSocket } from './services/socket';
 import { GameState, GameStatus, SocketEvents, Card, Rank, Suit, BackgroundTheme, AiDifficulty, PlayTurn, UserProfile, Player, HubTab } from './types';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { FriendsLounge } from './components/FriendsLounge';
+import { GameInviteModal } from './components/GameInviteModal';
 import { Lobby } from './components/Lobby';
 import { TutorialMode } from './components/TutorialMode';
 import { GameEndTransition } from './components/GameEndTransition';
@@ -176,6 +177,7 @@ const AppContent: React.FC = () => {
   const [gemPacksOpen, setGemPacksOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
+  const [gameInvite, setGameInvite] = useState<{ roomId: string; inviterName: string; inviterId: string } | null>(null);
   const [storeTab, setStoreTab] = useState<'SLEEVES' | 'EMOTES' | 'BOARDS'>('SLEEVES');
   
   const [playerName, setPlayerName] = useState('');
@@ -1182,8 +1184,14 @@ const AppContent: React.FC = () => {
     socket.on(SocketEvents.GAME_STATE, onGameState);
     socket.on(SocketEvents.PLAYER_HAND, onPlayerHand);
     socket.on(SocketEvents.ERROR, (m) => { if (m === 'Session Expired') localStorage.removeItem(SESSION_KEY); setError(m); setTimeout(() => setError(null), 3000); });
+    socket.on(SocketEvents.RECEIVE_GAME_INVITE, (data: { roomId: string; inviterName: string; inviterId: string }) => {
+      setGameInvite(data);
+    });
     return () => {
-      socket.off(SocketEvents.GAME_STATE); socket.off(SocketEvents.PLAYER_HAND); socket.off(SocketEvents.ERROR);
+      socket.off(SocketEvents.GAME_STATE); 
+      socket.off(SocketEvents.PLAYER_HAND); 
+      socket.off(SocketEvents.ERROR);
+      socket.off(SocketEvents.RECEIVE_GAME_INVITE);
     };
   }, [view, gameMode, triggerMatchEndTransition, myPlayerId, mpGameState?.status, mpMyHand.length, isGuest, session?.user?.id, profile]);
 
@@ -2184,7 +2192,38 @@ const AppContent: React.FC = () => {
           <GemPacks onClose={() => setGemPacksOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} />
         </Suspense>
       )}
-      {friendsOpen && <FriendsLounge onClose={() => setFriendsOpen(false)} profile={profile} onRefreshProfile={handleRefreshProfile} isGuest={isGuest} />}
+      {friendsOpen && (
+        <FriendsLounge 
+          onClose={() => setFriendsOpen(false)} 
+          profile={profile} 
+          onRefreshProfile={handleRefreshProfile} 
+          isGuest={isGuest}
+          currentRoomId={mpGameState?.roomId || undefined}
+          onInviteFriend={(roomId) => {
+            // Optional callback when friend is invited
+          }}
+        />
+      )}
+      
+      {/* Game Invite Modal */}
+      {gameInvite && (
+        <GameInviteModal
+          isOpen={!!gameInvite}
+          inviterName={gameInvite.inviterName}
+          roomId={gameInvite.roomId}
+          onAccept={() => {
+            // Navigate to the room
+            if (gameInvite) {
+              setView('LOBBY');
+              // The join_room will be handled by the accept_invite socket event
+              setGameInvite(null);
+            }
+          }}
+          onDecline={() => {
+            setGameInvite(null);
+          }}
+        />
+      )}
       {showWelcomeToast && welcomeUsername && (
         <WelcomeToast 
           username={welcomeUsername} 

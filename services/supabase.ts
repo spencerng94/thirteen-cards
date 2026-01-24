@@ -1956,21 +1956,25 @@ export interface Friendship {
   id: string;
   user_id: string;
   friend_id: string;
+  sender_id?: string;
+  receiver_id?: string;
+  status?: 'pending' | 'accepted';
   created_at: string;
   friend?: UserProfile; // Populated when fetching friends list
 }
 
 /**
- * Get all friends for a user
+ * Get all accepted friends for a user
  */
 export const getFriends = async (userId: string): Promise<Friendship[]> => {
   if (!supabaseAnonKey || userId === 'guest') return [];
   try {
-    // First get the friendships
+    // Get only accepted friendships
     const { data: friendships, error: friendshipsError } = await supabase
       .from('friendships')
       .select('*')
       .eq('user_id', userId)
+      .eq('status', 'accepted')
       .order('created_at', { ascending: false });
     
     if (friendshipsError) throw friendshipsError;
@@ -2002,40 +2006,241 @@ export const getFriends = async (userId: string): Promise<Friendship[]> => {
 };
 
 /**
- * Add a friend (creates bidirectional friendship)
- * The Postgres trigger will enforce the 20-friend limit
+ * Get pending friend requests (both sent and received)
  */
-export const addFriend = async (userId: string, friendId: string): Promise<boolean> => {
-  if (!supabaseAnonKey || userId === 'guest' || friendId === 'guest') return false;
-  if (userId === friendId) return false; // Can't friend yourself
+export const getPendingRequests = async (userId: string): Promise<{ sent: Friendship[]; received: Friendship[] }> => {
+  if (!supabaseAnonKey || userId === 'guest') return { sent: [], received: [] };
+  try {
+    // Get sent requests (pending)
+    const { data: sentRequests, error: sentError } = await supabase
+      .from('friendships')
+      .select('*')
+      .eq('sender_id', userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    
+    if (sentError) throw sentError;
+    
+    // Get received requests (pending)
+    const { data: receivedRequests, error: receivedError } = await supabase
+      .from('friendships')
+      .select('*')
+      .eq('receiver_id', userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    
+    if (receivedError) throw receivedError;
+    
+    // Fetch profiles for sent requests
+    const sentFriendIds = (sentRequests || []).map(f => f.friend_id);
+    const { data: sentProfiles } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', sentFriendIds);
+    
+    // Fetch profiles for received requests (sender profiles)
+    const receivedSenderIds = (receivedRequests || []).map(f => f.sender_id || f.user_id);
+    const { data: receivedProfiles } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', receivedSenderIds);
+    
+    const sentProfileMap = new Map((sentProfiles || []).map(p => [p.id, p]));
+    const receivedProfileMap = new Map((receivedProfiles || []).map(p => [p.id, p]));
+    
+    return {
+      sent: (sentRequests || []).map((f: any) => {
+        const friendProfile = sentProfileMap.get(f.friend_id);
+        return {
+          ...f,
+          friend: friendProfile ? { ...friendProfile, gems: friendProfile.gems ?? 0, turn_timer_setting: friendProfile.turn_timer_setting ?? 0 } as UserProfile : undefined
+        };
+      }) as Friendship[],
+      received: (receivedRequests || []).map((f: any) => {
+        const senderProfile = receivedProfileMap.get(f.sender_id || f.user_id);
+        return {
+          ...f,
+          friend: senderProfile ? { ...senderProfile, gems: senderProfile.gems ?? 0, turn_timer_setting: senderProfile.turn_timer_setting ?? 0 } as UserProfile : undefined
+        };
+      }) as Friendship[]
+    };
+  } catch (e) {
+    console.error('Error fetching pending requests:', e);
+    return { sent: [], received: [] };
+  }
+};
+
+/**
+ * Send a friend request (creates pending friendship)
+ * Returns { success: boolean, error?: string } for better error handling
+ * friendId must be a UUID, not a username
+ */
+export const addFriend = async (userId: string, friendId: string): Promise<{ success: boolean; error?: string }> => {
+  if (!supabaseAnonKey || userId === 'guest' || friendId === 'guest') {
+    return { success: false, error: 'Invalid user ID' };
+  }
+  if (userId === friendId) {
+    return { success: false, error: 'Cannot add yourself as a friend' };
+  }
+  
+  // Validate that friendId is a UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(friendId)) {
+    return { success: false, error: 'Invalid friend ID format. Must be a UUID.' };
+  }
   
   try {
-    // Check if friendship already exists
-    const { data: existing } = await supabase
-      .from('friendships')
+    // STEP 1: Get current user's UUID from auth
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authUser) {
+      console.error('❌ Failed to get authenticated user:', authError);
+      return { success: false, error: 'You must be logged in to add friends.' };
+    }
+    
+    const myUuid = authUser.id;
+    console.log('✅ Current user UUID from auth:', myUuid);
+    
+    // STEP 2: Verify friend UUID exists in profiles table
+    const { data: friendProfile, error: profileError } = await supabase
+      .from('profiles')
       .select('id')
-      .eq('user_id', userId)
-      .eq('friend_id', friendId)
+      .eq('id', friendId)
+      .single();
+    
+    if (profileError || !friendProfile) {
+      console.error('❌ Friend UUID not found in profiles:', { friendId, error: profileError });
+      return { success: false, error: 'User not found.' };
+    }
+    
+    const friendUuid = friendProfile.id;
+    console.log('✅ Friend UUID verified:', friendUuid);
+    
+    // STEP 3: Check if friendship already exists (accepted)
+    const { data: existingAccepted } = await supabase
+      .from('friendships')
+      .select('id, status')
+      .or(`and(sender_id.eq.${myUuid},receiver_id.eq.${friendUuid},status.eq.accepted),and(sender_id.eq.${friendUuid},receiver_id.eq.${myUuid},status.eq.accepted)`)
       .maybeSingle();
     
-    if (existing) return false; // Already friends
+    if (existingAccepted && existingAccepted.status === 'accepted') {
+      return { success: false, error: 'Already friends' };
+    }
     
-    // Insert friendship (trigger will create reverse relationship)
+    // STEP 4: Check if there's already a pending request from us to them
+    const { data: existingPending } = await supabase
+      .from('friendships')
+      .select('id, status')
+      .eq('sender_id', myUuid)
+      .eq('receiver_id', friendUuid)
+      .eq('status', 'pending')
+      .maybeSingle();
+    
+    if (existingPending) {
+      return { success: false, error: 'Friend request already pending' };
+    }
+    
+    // STEP 5: Check if there's a reverse pending request (they sent to us)
+    const { data: reverseRequest } = await supabase
+      .from('friendships')
+      .select('id')
+      .eq('sender_id', friendUuid)
+      .eq('receiver_id', myUuid)
+      .eq('status', 'pending')
+      .maybeSingle();
+    
+    if (reverseRequest) {
+      // Auto-accept the reverse request instead of creating a new one
+      const acceptResult = await acceptFriend(userId, friendId);
+      return acceptResult ? { success: true } : { success: false, error: 'Failed to accept reverse request' };
+    }
+    
+    // STEP 6: Insert pending friend request
+    // Only insert sender_id, receiver_id, and status (no user_id or friend_id)
     const { error } = await supabase
       .from('friendships')
-      .insert({
-        user_id: userId,
-        friend_id: friendId
+      .insert({ 
+        sender_id: myUuid, 
+        receiver_id: friendUuid, 
+        status: 'pending' 
       });
     
-    if (error) throw error;
-    return true;
+    // Log insert result
+    console.log('📝 Insert Result:', { error });
+    
+    if (error) {
+      // Log full error object for debugging
+      console.error('❌ Supabase insert error:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        fullError: error
+      });
+      
+      // Handle specific error codes
+      if (error.code === '23505') {
+        // Unique constraint violation (duplicate key)
+        return { success: false, error: 'Friend request already pending or accepted.' };
+      } else if (error.code === '42501') {
+        // RLS policy violation
+        console.warn('⚠️ RLS Policy Violation: The RLS policy is still blocking the insert. Check Supabase Inbound/Insert policies for friendships table.');
+        return { success: false, error: 'Permission denied. RLS policy is blocking this action.' };
+      } else if (error.code === '23503') {
+        // Foreign key violation
+        console.warn('⚠️ Foreign Key Violation: The friend UUID does not exist in the profiles table.');
+        return { success: false, error: 'User not found. The friend UUID does not exist in the profiles table.' };
+      }
+      
+      // Generic error
+      throw error;
+    }
+    
+    console.log('✅ Friend request inserted successfully');
+    return { success: true };
   } catch (e: any) {
-    console.error('Error adding friend:', e);
+    console.error('❌ Error adding friend - Full error object:', e);
+    
     // Check if error is due to friend limit
     if (e.message?.includes('friend limit') || e.code === 'P0001') {
-      throw new Error('Friend limit reached (maximum 20 friends)');
+      return { success: false, error: 'Friend limit reached (maximum 20 friends)' };
     }
+    
+    return { success: false, error: e.message || 'Failed to send friend request' };
+  }
+};
+
+/**
+ * Accept a friend request
+ */
+export const acceptFriend = async (userId: string, friendId: string): Promise<boolean> => {
+  if (!supabaseAnonKey || userId === 'guest' || friendId === 'guest') return false;
+  
+  try {
+    // Find the pending request where we are the receiver
+    const { data: request, error: findError } = await supabase
+      .from('friendships')
+      .select('*')
+      .eq('sender_id', friendId)
+      .eq('receiver_id', userId)
+      .eq('status', 'pending')
+      .maybeSingle();
+    
+    if (findError) throw findError;
+    if (!request) return false; // No pending request found
+    
+    // Update the request to accepted
+    const { error: updateError } = await supabase
+      .from('friendships')
+      .update({ status: 'accepted' })
+      .eq('id', request.id);
+    
+    if (updateError) throw updateError;
+    
+    // The trigger will create the reverse accepted friendship
+    return true;
+  } catch (e: any) {
+    console.error('Error accepting friend request:', e);
     throw e;
   }
 };

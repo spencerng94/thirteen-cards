@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { UserProfile } from '../types';
-import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship } from '../services/supabase';
+import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship, getPendingRequests, acceptFriend } from '../services/supabase';
 import { calculateLevel } from '../services/supabase';
 import { CopyUsername } from './CopyUsername';
 import { parseUsername } from '../utils/username';
+import { socket, connectSocket } from '../services/socket';
+import { SocketEvents } from '../types';
+import { supabase } from '../src/lib/supabase';
 
 // Default avatar icon component for when avatar_url is null
 const DefaultAvatarIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -30,18 +33,40 @@ interface FriendsLoungeProps {
   isGuest?: boolean;
 }
 
-export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, onRefreshProfile, isGuest }) => {
+export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ 
+  onClose, 
+  profile, 
+  onRefreshProfile, 
+  isGuest,
+  onInviteFriend,
+  currentRoomId
+}) => {
   const [friends, setFriends] = useState<Friendship[]>([]);
+  const [pendingSent, setPendingSent] = useState<Friendship[]>([]);
+  const [pendingReceived, setPendingReceived] = useState<Friendship[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingRequests, setPendingRequests] = useState<Set<string>>(new Set());
+  const [sendingRequests, setSendingRequests] = useState<Set<string>>(new Set()); // Track requests being sent
+  const [onlineFriends, setOnlineFriends] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'friends' | 'sent' | 'received'>('friends');
+  const [newRequestNotification, setNewRequestNotification] = useState<{ id: string; senderName: string } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const subscriptionRef = useRef<any>(null);
 
   useEffect(() => {
     if (profile && !isGuest) {
       loadFriends();
+      loadPendingRequests();
+      setupRealtimeSubscription();
     }
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
+    };
   }, [profile, isGuest]);
 
   const loadFriends = async () => {
@@ -55,6 +80,87 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadPendingRequests = async () => {
+    if (!profile || isGuest) return;
+    try {
+      const { sent, received } = await getPendingRequests(profile.id);
+      setPendingSent(sent);
+      setPendingReceived(received);
+    } catch (e) {
+      console.error('Error loading pending requests:', e);
+    }
+  };
+
+  // Setup Supabase Realtime subscription for friend requests
+  const setupRealtimeSubscription = () => {
+    if (!profile || isGuest || subscriptionRef.current) return;
+    
+    subscriptionRef.current = supabase
+      .channel('friend_requests')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'friendships',
+          filter: `receiver_id=eq.${profile.id}`
+        },
+        async (payload) => {
+          // New friend request received
+          console.log('📨 New friend request received:', payload);
+          
+          // Fetch sender profile to show in notification
+          const senderId = payload.new.sender_id;
+          if (senderId) {
+            try {
+              const { data: senderProfile } = await supabase
+                .from('profiles')
+                .select('username, discriminator')
+                .eq('id', senderId)
+                .single();
+              
+              if (senderProfile) {
+                const senderName = parseUsername(senderProfile.username || '', senderProfile.discriminator).full;
+                setNewRequestNotification({ id: payload.new.id, senderName });
+                
+                // Auto-switch to "Requests" tab if not already there
+                if (activeTab !== 'received') {
+                  setActiveTab('received');
+                }
+                
+                // Reload pending requests
+                await loadPendingRequests();
+                
+                // Auto-dismiss notification after 5 seconds
+                setTimeout(() => {
+                  setNewRequestNotification(null);
+                }, 5000);
+              }
+            } catch (e) {
+              console.error('Error fetching sender profile:', e);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'friendships',
+          filter: `receiver_id=eq.${profile.id}`
+        },
+        async (payload) => {
+          // Friend request was accepted
+          if (payload.new.status === 'accepted') {
+            await loadFriends();
+            await loadPendingRequests();
+          }
+        }
+      )
+      .subscribe();
   };
 
   const handleSearch = async (query: string) => {
@@ -119,42 +225,115 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
   const handleAddFriend = async (friendId: string) => {
     if (!profile || isGuest || friendId === profile.id) return; // Self-check
     
-    // Immediately set pending status to prevent spam
-    setPendingRequests(prev => new Set(prev).add(friendId));
+    // Validate friendId is a UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(friendId)) {
+      setError('Invalid user ID. Please search for the user again.');
+      return;
+    }
+    
+    // Check if already friends or request pending
+    const isAlreadyFriend = friends.some(f => f.friend_id === friendId);
+    const isPendingSent = pendingSent.some(f => f.friend_id === friendId);
+    const isPendingReceived = pendingReceived.some(f => (f.sender_id || f.user_id) === friendId);
+    
+    if (isAlreadyFriend) {
+      setError('You are already friends with this user.');
+      return;
+    }
+    
+    if (isPendingSent) {
+      setError('Friend request already sent.');
+      return;
+    }
+    
+    if (isPendingReceived) {
+      // Auto-accept if they sent us a request
+      try {
+        await acceptFriend(profile.id, friendId);
+        await loadFriends();
+        await loadPendingRequests();
+        setError(null);
+      } catch (e: any) {
+        setError(e.message || 'Failed to accept friend request');
+      }
+      return;
+    }
+    
+    // Set loading state
+    setSendingRequests(prev => new Set(prev).add(friendId));
     setError(null);
     
     try {
-      const success = await addFriend(profile.id, friendId);
-      if (success) {
-        await loadFriends();
+      const result = await addFriend(profile.id, friendId);
+      if (result.success) {
+        await loadPendingRequests();
         // Remove from search results
         setSearchResults(prev => prev.filter(u => u.id !== friendId));
         setError(null);
-        // Keep pending status for a moment, then remove (friend was added)
-        setTimeout(() => {
-          setPendingRequests(prev => {
-            const next = new Set(prev);
-            next.delete(friendId);
-            return next;
-          });
-        }, 2000);
+        // Keep in pendingRequests to show "Request Sent" state
+        setPendingRequests(prev => new Set(prev).add(friendId));
+        // Clear search input on success
+        setSearchQuery('');
+        // Show success toast
+        setToast({ message: 'Friend request sent!', type: 'success' });
+        setTimeout(() => setToast(null), 3000);
       } else {
-        // Request failed, remove pending status
-        setPendingRequests(prev => {
-          const next = new Set(prev);
-          next.delete(friendId);
-          return next;
-        });
-        setError('Unable to add friend. You may already be friends.');
+        // Request failed - show specific error message
+        const errorMsg = result.error || 'Unable to add friend. You may already be friends.';
+        setError(errorMsg);
+        
+        // Show toast for specific error codes
+        if (result.error?.includes('already pending') || result.error?.includes('already accepted')) {
+          setToast({ message: 'Friend request already pending or accepted.', type: 'error' });
+          setTimeout(() => setToast(null), 3000);
+        }
       }
     } catch (e: any) {
-      // Remove pending status on error
-      setPendingRequests(prev => {
+      console.error('❌ handleAddFriend error:', e);
+      setError(e.message || 'Failed to add friend');
+    } finally {
+      // Remove from sending state
+      setSendingRequests(prev => {
         const next = new Set(prev);
         next.delete(friendId);
         return next;
       });
-      setError(e.message || 'Failed to add friend');
+    }
+  };
+
+  const handleAcceptRequest = async (friendId: string) => {
+    if (!profile || isGuest) return;
+    try {
+      await acceptFriend(profile.id, friendId);
+      await loadFriends();
+      await loadPendingRequests();
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Failed to accept friend request');
+    }
+  };
+
+  const handleInviteFriend = (friendId: string) => {
+    if (!currentRoomId || !profile) {
+      setError('You must be in a room to invite friends.');
+      return;
+    }
+    
+    const friend = friends.find(f => f.friend_id === friendId);
+    if (!friend || !friend.friend) return;
+    
+    const inviterName = parseUsername(profile.username || '', profile.discriminator).full;
+    
+    // Emit invite to server
+    socket.emit(SocketEvents.SEND_GAME_INVITE, {
+      receiverId: friendId,
+      roomId: currentRoomId,
+      inviterName
+    });
+    
+    if (onInviteFriend) {
+      onInviteFriend(currentRoomId);
     }
   };
 
@@ -208,14 +387,26 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
       // Reconstruct handle with normalized format
       const fullHandle = `${namePart}#${discriminatorPart}`;
       
-      // Look up user by exact handle
+      // STEP 1: Resolve username to UUID by querying profiles table
+      console.log('🔍 Resolving handle to UUID:', fullHandle);
       const user = await getUserByHandle(fullHandle);
       
-      if (!user) {
+      if (!user || !user.id) {
         setError('User not found. Please check the handle and try again.');
         setLoading(false);
         return;
       }
+      
+      // Validate that we got a UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(user.id)) {
+        console.error('❌ Invalid UUID resolved from handle:', user.id);
+        setError('Invalid user ID resolved. Please try again.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('✅ Resolved handle to UUID:', user.id);
       
       // Check if already friends
       const friendIds = new Set(friends.map(f => f.friend_id));
@@ -232,13 +423,14 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
         return;
       }
       
-      // Add the friend
+      // STEP 2: Add the friend using the resolved UUID
       await handleAddFriend(user.id);
       
       // Add to search results so it shows up
       setSearchResults([user]);
       
     } catch (e: any) {
+      console.error('❌ handleAddByHandle error:', e);
       setError(e.message || 'Failed to add friend by handle');
     } finally {
       setLoading(false);
@@ -358,6 +550,23 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
 
         {/* Content */}
         <div className="relative z-10 flex-1 overflow-y-auto p-6 sm:p-8">
+          {/* New Friend Request Notification */}
+          {newRequestNotification && (
+            <div className="mb-4 p-4 bg-blue-500/20 border border-blue-500/50 rounded-xl text-blue-300 text-sm font-semibold flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
+              <span>
+                📨 <span className="font-bold">{newRequestNotification.senderName}</span> sent you a friend request!
+              </span>
+              <button
+                onClick={() => setNewRequestNotification(null)}
+                className="ml-4 text-blue-300/70 hover:text-blue-300 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+          
           {error && (
             <div className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-300 text-sm font-semibold">
               {error}
@@ -419,15 +628,23 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
                           <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/30 text-xs font-bold uppercase tracking-wide">
                             Limit
                           </div>
-                        ) : pendingRequests.has(user.id) ? (
+                        ) : sendingRequests.has(user.id) ? (
+                          <div className="px-4 py-2 bg-blue-500/20 border border-blue-500/50 rounded-xl text-blue-300 text-xs font-bold uppercase tracking-wide flex items-center gap-2">
+                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Sending...
+                          </div>
+                        ) : pendingRequests.has(user.id) || pendingSent.some(f => f.friend_id === user.id) ? (
                           <div className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-bold uppercase tracking-wide">
-                            Pending
+                            Request Sent
                           </div>
                         ) : (
                           <button
                             onClick={() => handleAddFriend(user.id)}
-                            disabled={loading || pendingRequests.has(user.id)}
-                            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-xl text-blue-300 text-xs font-bold uppercase tracking-wide transition-all disabled:opacity-50"
+                            disabled={loading || sendingRequests.has(user.id) || pendingRequests.has(user.id)}
+                            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-xl text-blue-300 text-xs font-bold uppercase tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Add
                           </button>
@@ -439,62 +656,205 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
               )}
             </div>
           ) : (
-            // Show friends list when not searching
+            // Show friends/pending lists when not searching
             <div className="space-y-3">
-              {loading && friends.length === 0 ? (
-                <div className="text-center py-12 text-white/50">Loading friends...</div>
-              ) : friends.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-white/50 text-sm mb-4">No friends yet</p>
-                  <p className="text-white/30 text-xs">Search for users to add as friends</p>
-                </div>
-              ) : (
-                friends.map((friendship) => {
-                  const friend = friendship.friend;
-                  if (!friend) return null;
-                  const friendLevel = calculateLevel(friend.xp || 0);
-                  
-                  return (
-                    <div
-                      key={friendship.id}
-                      className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
-                            {friend.avatar_url ? (
-                              <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
-                            ) : (
-                              <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <CopyUsername username={friend.username} className="text-base sm:text-lg" />
-                              <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
-                                Lv {friendLevel}
-                              </span>
+              {activeTab === 'friends' && (
+                <>
+                  {loading && friends.length === 0 ? (
+                    <div className="text-center py-12 text-white/50">Loading friends...</div>
+                  ) : friends.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-white/50 text-sm mb-4">No friends yet</p>
+                      <p className="text-white/30 text-xs">Search for users to add as friends</p>
+                    </div>
+                  ) : (
+                    friends.map((friendship) => {
+                      const friend = friendship.friend;
+                      if (!friend) return null;
+                      const friendLevel = calculateLevel(friend.xp || 0);
+                      const isOnline = onlineFriends.has(friend.id);
+                      
+                      return (
+                        <div
+                          key={friendship.id}
+                          className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                                {friend.avatar_url ? (
+                                  <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
+                                ) : (
+                                  <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                                )}
+                                {/* Online indicator */}
+                                {isOnline && (
+                                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-[#0a0a0a] rounded-full"></div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <CopyUsername username={friend.username} className="text-base sm:text-lg" />
+                                  <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
+                                    Lv {friendLevel}
+                                  </span>
+                                  {isOnline && (
+                                    <span className="text-xs font-semibold text-green-400 bg-green-500/20 px-2 py-0.5 rounded-full">
+                                      Online
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-white/50 mt-1">
+                                  {friend.wins || 0} wins • {friend.games_played || 0} games
+                                </p>
+                              </div>
                             </div>
-                            <p className="text-xs text-white/50 mt-1">
-                              {friend.wins || 0} wins • {friend.games_played || 0} games
-                            </p>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {currentRoomId && (
+                                <button
+                                  onClick={() => handleInviteFriend(friend.id)}
+                                  className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all"
+                                  title="Invite to Game"
+                                >
+                                  Invite
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleRemoveFriend(friend.id)}
+                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all"
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleRemoveFriend(friend.id)}
-                          className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all"
-                        >
-                          Remove
-                        </button>
-                      </div>
+                      );
+                    })
+                  )}
+                </>
+              )}
+              
+              {activeTab === 'received' && (
+                <>
+                  {loading && pendingReceived.length === 0 ? (
+                    <div className="text-center py-12 text-white/50">Loading requests...</div>
+                  ) : pendingReceived.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-white/50 text-sm">No pending requests</p>
                     </div>
-                  );
-                })
+                  ) : (
+                    pendingReceived.map((request) => {
+                      const sender = request.friend;
+                      if (!sender) return null;
+                      const senderLevel = calculateLevel(sender.xp || 0);
+                      
+                      return (
+                        <div
+                          key={request.id}
+                          className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                                {sender.avatar_url ? (
+                                  <span className="text-xl sm:text-2xl">{sender.avatar_url}</span>
+                                ) : (
+                                  <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <CopyUsername username={sender.username} className="text-base sm:text-lg" />
+                                  <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
+                                    Lv {senderLevel}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-white/50 mt-1">Wants to be friends</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => handleAcceptRequest(sender.id)}
+                                className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => handleRemoveFriend(sender.id)}
+                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </>
+              )}
+              
+              {activeTab === 'sent' && (
+                <>
+                  {loading && pendingSent.length === 0 ? (
+                    <div className="text-center py-12 text-white/50">Loading sent requests...</div>
+                  ) : pendingSent.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-white/50 text-sm">No pending sent requests</p>
+                    </div>
+                  ) : (
+                    pendingSent.map((request) => {
+                      const friend = request.friend;
+                      if (!friend) return null;
+                      const friendLevel = calculateLevel(friend.xp || 0);
+                      
+                      return (
+                        <div
+                          key={request.id}
+                          className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                                {friend.avatar_url ? (
+                                  <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
+                                ) : (
+                                  <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <CopyUsername username={friend.username} className="text-base sm:text-lg" />
+                                  <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
+                                    Lv {friendLevel}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-yellow-400/70 mt-1">Request pending...</p>
+                              </div>
+                            </div>
+                            <div className="px-3 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-bold uppercase tracking-wide">
+                              Pending
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </>
               )}
             </div>
           )}
         </div>
       </div>
+      
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };
