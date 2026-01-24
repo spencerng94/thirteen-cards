@@ -2099,20 +2099,23 @@ export interface Friendship {
 export const getFriends = async (userId: string): Promise<Friendship[]> => {
   if (!supabaseAnonKey || userId === 'guest') return [];
   try {
-    // Get only accepted friendships
+    // Get accepted friendships where user is either sender or receiver
     const { data: friendships, error: friendshipsError } = await supabase
       .from('friendships')
       .select('*')
-      .eq('user_id', userId)
       .eq('status', 'accepted')
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .order('created_at', { ascending: false });
     
     if (friendshipsError) throw friendshipsError;
     if (!friendships || friendships.length === 0) return [];
     
-    // Then fetch the friend profiles
-    // Note: Uses 'username' column (not full_name), and includes 'avatar_url' which may be null
-    const friendIds = friendships.map(f => f.friend_id);
+    // Determine friend IDs: if user is sender, friend is receiver; if user is receiver, friend is sender
+    const friendIds = friendships.map((f: any) => {
+      return f.sender_id === userId ? f.receiver_id : f.sender_id;
+    });
+    
+    // Fetch the friend profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('*')
@@ -2123,9 +2126,11 @@ export const getFriends = async (userId: string): Promise<Friendship[]> => {
     // Map friendships with their friend profiles
     const profileMap = new Map((profiles || []).map(p => [p.id, p]));
     return friendships.map((f: any) => {
-      const friendProfile = profileMap.get(f.friend_id);
+      const friendId = f.sender_id === userId ? f.receiver_id : f.sender_id;
+      const friendProfile = profileMap.get(friendId);
       return {
         ...f,
+        friend_id: friendId, // Add friend_id for backward compatibility
         friend: friendProfile ? { ...friendProfile, gems: friendProfile.gems ?? 0, turn_timer_setting: friendProfile.turn_timer_setting ?? 0 } as UserProfile : undefined
       };
     }) as Friendship[];
