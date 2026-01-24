@@ -1256,7 +1256,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   ) : pendingSent.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-white/50 text-sm">No pending sent requests</p>
-            </div>
+                    </div>
                   ) : (
                     pendingSent.map((request) => {
                       const friend = request.friend;
@@ -1269,31 +1269,31 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                           className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
                         >
                           <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
-                            {friend.avatar_url ? (
-                              <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
-                            ) : (
-                              <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-          )}
-        </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <CopyUsername username={friend.username} className="text-base sm:text-lg" />
-                              <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
-                                Lv {friendLevel}
-                              </span>
-      </div>
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                                {friend.avatar_url ? (
+                                  <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
+                                ) : (
+                                  <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <CopyUsername username={friend.username} discriminator={friend.discriminator} className="text-base sm:text-lg" />
+                                  <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
+                                    Lv {friendLevel}
+                                  </span>
+                                </div>
                                 <p className="text-xs text-yellow-400/70 mt-1">Request pending...</p>
                               </div>
                             </div>
                             <div className="px-3 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-bold uppercase tracking-wide">
                               Pending
                             </div>
-                      </div>
-                    </div>
-                  );
-                })
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </>
               )}
