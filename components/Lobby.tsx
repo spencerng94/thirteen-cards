@@ -369,9 +369,14 @@ const PublicTabContent = memo(PublicTabContentComponent, (prevProps, nextProps) 
   // - publicRooms.length changes
   // - socketConnected changes
   // - roomIdInput changes
+  // - hasLoadedOnce changes (CRITICAL: must re-render when first load completes)
   // - publicRooms array reference changes (deep comparison)
   if (prevProps.isRefreshing !== nextProps.isRefreshing) {
     console.log('🔄 PublicTabContent: isRefreshing changed', { prev: prevProps.isRefreshing, next: nextProps.isRefreshing });
+    return false;
+  }
+  if (prevProps.hasLoadedOnce !== nextProps.hasLoadedOnce) {
+    console.log('🔄 PublicTabContent: hasLoadedOnce changed', { prev: prevProps.hasLoadedOnce, next: nextProps.hasLoadedOnce });
     return false;
   }
   if (prevProps.publicRooms.length !== nextProps.publicRooms.length) {
