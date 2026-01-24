@@ -275,7 +275,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     
     // Check if already friends or request pending
     const isAlreadyFriend = friends.some(f => f.friend_id === friendId);
-    const isPendingSent = pendingSent.some(f => f.friend_id === friendId);
+    const isPendingSent = pendingSent.some(f => (f.receiver_id || f.friend_id) === friendId);
     const isPendingReceived = pendingReceived.some(f => (f.sender_id || f.user_id) === friendId);
     
     if (isAlreadyFriend) {
@@ -998,7 +998,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                             </svg>
                             Loading...
                           </div>
-                        ) : pendingRequests.has(user.id) || pendingSent.some(f => f.friend_id === user.id) ? (
+                        ) : pendingRequests.has(user.id) || pendingSent.some(f => (f.receiver_id || f.friend_id) === user.id) ? (
                           <div className="px-4 py-2 bg-green-500/20 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide">
                             Sent!
                           </div>
@@ -1138,7 +1138,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                               {/* Online indicator */}
                               {isOnline && (
                                 <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-[#0a0a0a] rounded-full"></div>
-                              )}
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -1243,8 +1243,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                                 Decline
                               </button>
                             </div>
-                          </div>
-                        </div>
+                      </div>
+                    </div>
                   );
                 })
               )}
@@ -1258,7 +1258,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   ) : pendingSent.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-white/50 text-sm">No pending sent requests</p>
-                    </div>
+            </div>
                   ) : (
                     pendingSent.map((request) => {
                       const friend = request.friend;
@@ -1277,15 +1277,15 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                                   <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
                                 ) : (
                                   <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-                                )}
-                              </div>
+          )}
+        </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <CopyUsername username={friend.username} discriminator={friend.discriminator} className="text-base sm:text-lg" />
                                   <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
                                     Lv {friendLevel}
                                   </span>
-                                </div>
+      </div>
                                 <p className="text-xs text-yellow-400/70 mt-1">Request pending...</p>
                               </div>
                             </div>

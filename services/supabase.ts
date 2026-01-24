@@ -2044,18 +2044,20 @@ export const getPendingRequests = async (userId: string): Promise<{ sent: Friend
     
     const receivedProfileMap = new Map((receivedProfiles || []).map(p => [p.id, p]));
     
-    // Fetch profiles for sent requests
-    const sentFriendIds = (sentRequests || []).map(f => f.friend_id);
-    const { data: sentProfiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', sentFriendIds);
+    // Fetch profiles for sent requests (use receiver_id since we are the sender)
+    const sentReceiverIds = (sentRequests || []).map(f => f.receiver_id).filter(Boolean);
+    const { data: sentProfiles } = sentReceiverIds.length > 0
+      ? await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', sentReceiverIds)
+      : { data: [] };
     
     const sentProfileMap = new Map((sentProfiles || []).map(p => [p.id, p]));
     
     return {
       sent: (sentRequests || []).map((f: any) => {
-        const friendProfile = sentProfileMap.get(f.friend_id);
+        const friendProfile = sentProfileMap.get(f.receiver_id);
         return {
           ...f,
           friend: friendProfile ? { ...friendProfile, gems: friendProfile.gems ?? 0, turn_timer_setting: friendProfile.turn_timer_setting ?? 0 } as UserProfile : undefined
