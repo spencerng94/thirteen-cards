@@ -364,6 +364,9 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
       </div>
     </div>
   );
+  
+  // INVARIANT: If we reach here, render fell through - this should never happen
+  throw new Error('❌ PUBLIC ROOMS RENDER FELL THROUGH');
 };
 
 // REMOVED React.memo - PublicTabContent must always re-render when props change
