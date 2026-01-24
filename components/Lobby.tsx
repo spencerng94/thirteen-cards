@@ -891,6 +891,15 @@ function LobbyComponent({
   };
 
   const refreshRooms = useCallback(() => {
+    // GUARANTEED RESET: Safety timeout at the very beginning to ensure UI unlocks even if server never responds
+    setTimeout(() => {
+      if (isMounted.current) {
+        console.warn('⚠️ Lobby: Guaranteed reset timeout - clearing isRefreshing after 5 seconds');
+        setIsRefreshing(false);
+        isFetchingRef.current = false;
+      }
+    }, 5000);
+    
     // CRITICAL: Check socket.connected directly as fallback if local state is false
     // This prevents race condition where state hasn't updated yet
     const isConnected = socket?.connected || socketConnected;
@@ -917,28 +926,6 @@ function LobbyComponent({
     console.log('📡 Lobby: Manually requesting room list...');
     console.log('📡 Lobby: Emitting GET_PUBLIC_ROOMS event');
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-    
-    // Fail-safe timeout: If server doesn't respond within 5 seconds, clear loading state
-    setTimeout(() => {
-      if (isFetchingRef.current && isMounted.current) {
-        console.warn('⚠️ Lobby: Fail-safe timeout - server did not respond within 5 seconds, clearing loading state');
-        isFetchingRef.current = false;
-        setIsRefreshing(false);
-      }
-    }, 5000);
-    
-    // Additional safety net: Ensure UI doesn't stay stuck in "Searching..." state forever
-    // Use a ref to track the timeout so we can check if it's still needed
-    const safetyTimeoutId = setTimeout(() => {
-      if (isMounted.current && isFetchingRef.current) {
-        console.warn('⚠️ Lobby: Safety net timeout - clearing isRefreshing after 3 seconds');
-        isFetchingRef.current = false;
-        setIsRefreshing(false);
-      }
-    }, 3000);
-    
-    // Store timeout ID for potential cleanup (though it's fine to let it run)
-    (window as any).__refreshRoomsSafetyTimeout = safetyTimeoutId;
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Force Refresh function - bypasses all guards for testing
@@ -975,6 +962,11 @@ function LobbyComponent({
     if (!socket) return;
     
     const handleRoomsList = (data: any) => {
+      // LISTENER RESET: setIsRefreshing(false) is the VERY FIRST line executed
+      // This ensures the UI unlocks immediately when data arrives
+      setIsRefreshing(false);
+      isFetchingRef.current = false;
+      
       console.log('📋 Lobby: handleRoomsList received data:', {
         socketId: socket.id,
         type: typeof data,
@@ -1016,18 +1008,12 @@ function LobbyComponent({
       const uniqueRooms = deduplicateRooms(roomsArray);
       console.log('📋 Lobby: Received public rooms list', uniqueRooms.length, 'rooms', uniqueRooms.map((r: any) => r.id || r.roomId || 'NO_ID'));
       
-      // CRITICAL: Ensure setIsRefreshing(false) is called regardless of rooms.length
-      // Wrap state updates to ensure correct order: setPublicRooms first, then setIsRefreshing(false)
+      // Update state with room data
+      // Note: setIsRefreshing(false) was already called at the very beginning of this function
       setPublicRooms(uniqueRooms);
       setHasLoaded(true);
-      isFetchingRef.current = false;
       
-      // CRITICAL: setIsRefreshing(false) must ALWAYS be called, regardless of whether rooms.length is 0 or more
-      // Set it immediately (not in setTimeout) to ensure UI updates
-      if (isMounted.current) {
-      setIsRefreshing(false);
-        console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
-      }
+      console.log("📋 Lobby: Fetch complete", { roomCount: uniqueRooms.length, hasLoaded: true });
     };
     
     // Remove any existing listeners first to prevent duplicates
