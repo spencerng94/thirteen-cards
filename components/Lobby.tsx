@@ -302,13 +302,13 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {publicRooms && publicRooms.length > 0 && publicRooms.map((room, index) => {
-                  // CRITICAL: Ensure stable and unique key for room list items
-                  // Use room.id if available, fallback to room.roomId, then combination of name and hostName
-                  const roomKey = room.id || (room as any).roomId || `room-${room.name}-${room.hostName}-${index}`;
-                  const roomId = room.id || (room as any).roomId;
-                  
-                  return (
+              {publicRooms && publicRooms.length > 0 && publicRooms.map((room, index) => {
+                // CRITICAL: Ensure stable and unique key for room list items
+                // Use room.id if available, fallback to room.roomId, then combination of name and hostName
+                const roomKey = room.id || (room as any).roomId || `room-${room.name}-${room.hostName}-${index}`;
+                const roomId = room.id || (room as any).roomId;
+                
+                return (
                   <div 
                     key={roomKey}
                     onClick={() => joinRoom(roomId)}
