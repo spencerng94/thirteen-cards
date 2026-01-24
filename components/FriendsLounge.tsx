@@ -168,11 +168,22 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
           filter: `receiver_id=eq.${profile.id}`
         },
         async (payload) => {
-          // Friend request was accepted
-          if (payload.new.status === 'accepted') {
-            await loadFriends();
-            await loadPendingRequests();
-          }
+          // Friend request was accepted or updated
+          await loadFriends();
+          await loadPendingRequests(); // This updates pendingCount
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'friendships',
+          filter: `receiver_id=eq.${profile.id}`
+        },
+        async (payload) => {
+          // Friend request was deleted (declined)
+          await loadPendingRequests(); // This updates pendingCount
         }
       )
       .subscribe();
