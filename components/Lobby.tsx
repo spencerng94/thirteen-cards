@@ -586,7 +586,7 @@ function LobbyComponent({
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false); // Track if we've received at least one response
   const isFetchingRef = useRef(false); // Prevent multiple simultaneous fetches
-  const hasInitialFetchRef = useRef(false); // Track if initial fetch has been called
+  const hasInitialFetched = useRef(false); // Track if initial fetch has been called - prevents duplicate mount fetches
   
   // Single source of truth for tab navigation - use initialTab prop if provided
   const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>(initialTab);
@@ -622,10 +622,10 @@ function LobbyComponent({
       // CRITICAL: If socket is already connected and we're on PUBLIC tab, emit immediately
       // This prevents race condition where state hasn't updated yet
       // Note: Listener registration happens in separate useEffect, so we use a small delay
-      // CRITICAL: Only run once using hasInitialFetchRef to prevent duplicate requests
-      if (activeTab === 'PUBLIC' && !isFetchingRef.current && !hasInitialFetchRef.current) {
+      // CRITICAL: Only run once using hasInitialFetched to prevent duplicate requests
+      if (activeTab === 'PUBLIC' && !isFetchingRef.current && !hasInitialFetched.current) {
         console.log('📡 Lobby: Socket connected on mount, immediately fetching public rooms');
-        hasInitialFetchRef.current = true;
+        hasInitialFetched.current = true;
         isFetchingRef.current = true;
         setIsRefreshing(true);
         // Small delay to ensure listener is registered (listener useEffect runs first)
@@ -902,58 +902,33 @@ function LobbyComponent({
   useEffect(() => {
     if (!socket) return;
     
-    const handleRoomsList = (list: any) => {
-      // CRITICAL: Defensive check - ensure data is actually an array before mapping
-      if (!Array.isArray(list)) {
-        console.error("❌ Lobby: Received invalid room list format:", list, typeof list);
-        
-        // CRITICAL: If it's an object {}, manually convert it to an array
-        if (list && typeof list === 'object' && list.constructor === Object) {
-          console.warn("⚠️ Lobby: Converting object to array using Object.values");
-          const convertedArray = Object.values(list);
-          if (Array.isArray(convertedArray)) {
-            // Recursively call with converted array
-            handleRoomsList(convertedArray);
-            return;
-          }
-        }
-        
-        // If conversion failed or it's not an object, set empty array and stop loading
-        setPublicRooms([]);
-        setIsRefreshing(false);
-        setHasLoaded(true);
-        isFetchingRef.current = false;
-        return;
+    const handleRoomsList = useCallback((data: any) => {
+      let roomsArray: any[] = [];
+      
+      if (Array.isArray(data)) {
+        roomsArray = data;
+      } else if (data && typeof data === 'object') {
+        // Handle the {} case explicitly to clear the loading state
+        roomsArray = Object.values(data).filter(item => item && typeof item === 'object');
+        console.warn("⚠️ Lobby: Converted object to array using Object.values:", roomsArray.length, 'items');
+      } else {
+        // Invalid data - use empty array
+        console.error("❌ Lobby: Received invalid room list format:", data, typeof data);
+        roomsArray = [];
       }
       
-      console.log('📋 Lobby: Received public rooms list', list.length, 'rooms', list.map((r: any) => r.id));
-      // DEBUG: Log exactly what the server is returning
-      console.log('📋 Lobby: [DEBUG] Server returned:', JSON.stringify(list, null, 2));
-      // Deduplicate before setting state to prevent infinite duplicates
-      const uniqueRooms = deduplicateRooms(list || []); // Ensure list is always an array
-      console.log('📋 Lobby: After deduplication', uniqueRooms.length, 'unique rooms', uniqueRooms.map(r => r.id));
-      // Set the rooms directly - deduplication should handle it
-      // Use functional update to ensure we're using the latest state
-      setPublicRooms(prevRooms => {
-        console.log('📋 Lobby: setPublicRooms functional update', {
-          prevRoomsLength: prevRooms.length,
-          newRoomsLength: uniqueRooms.length,
-          prevRoomIds: prevRooms.map(r => r.id),
-          newRoomIds: uniqueRooms.map(r => r.id)
-        });
-        return uniqueRooms;
-      });
-      // CRITICAL: Add small delay before setting isRefreshing to false
-      // This prevents "No matches found" flicker if server responds too instantly with empty list
-      setTimeout(() => {
-        setIsRefreshing(false);
-        // CRITICAL: Mark as loaded when we receive data (even if empty array)
-        setHasLoaded(true);
-        // Clear the fetching flag to allow future fetches
-        isFetchingRef.current = false;
-        console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
-      }, 500);
-    };
+      // Deduplicate before setting state
+      const uniqueRooms = deduplicateRooms(roomsArray);
+      console.log('📋 Lobby: Received public rooms list', uniqueRooms.length, 'rooms', uniqueRooms.map((r: any) => r.id));
+      
+      // Always ensure we reach these lines to kill the loading spinner
+      setPublicRooms(uniqueRooms);
+      setIsRefreshing(false);
+      setHasLoaded(true);
+      isFetchingRef.current = false;
+      
+      console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
+    }, []);
     
     // Remove any existing listeners first to prevent duplicates
     socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
@@ -965,27 +940,25 @@ function LobbyComponent({
     };
   }, [socket]); // Re-register when socket changes
 
-  // CRITICAL: Fetch rooms when socket connects AND when switching to PUBLIC tab
-  // This handles both initial load (when socket connects while on PUBLIC tab) and tab switching
-  // Use socket.connected as direct fallback to ensure emit fires even if state hasn't flipped yet
+  // CRITICAL: Fetch rooms when switching to PUBLIC tab
+  // Only fetch if we don't already have rooms data (prevents redundant network traffic)
   useEffect(() => {
     // CRITICAL: Check socket.connected directly as fallback
     const isSocketReady = socket?.connected || socketConnected;
-    if (activeTab === 'PUBLIC' && isSocketReady) {
-      // Prevent multiple simultaneous fetches
-      if (isFetchingRef.current) {
-        console.log('📋 Lobby: Already fetching rooms, skipping duplicate request');
-        return;
-      }
-      console.log('📋 Lobby: PUBLIC tab active and socket connected, fetching rooms', {
+    
+    // Only fetch if:
+    // 1. We're on PUBLIC tab
+    // 2. Socket is ready
+    // 3. We don't have rooms data yet (prevents flash and redundant fetches)
+    // 4. We're not already fetching
+    if (activeTab === 'PUBLIC' && isSocketReady && publicRooms.length === 0 && !isFetchingRef.current) {
+      console.log('📋 Lobby: PUBLIC tab active, socket connected, no rooms - fetching', {
         activeTab,
         socketConnected,
         socketReady: socket?.connected,
-        isSocketReady
+        publicRoomsLength: publicRooms.length
       });
-      // CRITICAL: Ensure listener is registered before emitting
-      // The listener registration happens in the separate useEffect above
-      // Emit directly using socket.connected as fallback to ensure it fires
+      
       if (socket?.connected) {
         isFetchingRef.current = true;
         setIsRefreshing(true);
@@ -997,28 +970,28 @@ function LobbyComponent({
         }, 0);
       }
     }
-  }, [activeTab, socketConnected, socket]);
+  }, [activeTab, socketConnected, socket, publicRooms.length]);
 
   // Auto-sync: Trigger refreshRooms() once if socket.connected is true but publicRooms.length is 0
-  // CRITICAL: Only run once on mount using hasInitialFetchRef
+  // CRITICAL: Only run once on mount using hasInitialFetched
   useEffect(() => {
-    if (socket?.connected && publicRooms.length === 0 && !isFetchingRef.current && activeTab === 'PUBLIC' && !hasInitialFetchRef.current) {
+    if (socket?.connected && publicRooms.length === 0 && !isFetchingRef.current && activeTab === 'PUBLIC' && !hasInitialFetched.current) {
       console.log('📋 Lobby: Auto-syncing public rooms (socket connected but no rooms) - initial fetch');
-      hasInitialFetchRef.current = true;
+      hasInitialFetched.current = true;
       refreshRooms();
     }
   }, [socket?.connected, publicRooms.length, activeTab, refreshRooms]);
 
   // Force refresh on mount if socket is already connected and we're on PUBLIC tab
   // This catches the case where the socket connected before the component mounted
-  // CRITICAL: Only run once using hasInitialFetchRef to prevent duplicate requests
+  // CRITICAL: Only run once using hasInitialFetched to prevent duplicate requests
   useEffect(() => {
-    if (activeTab === 'PUBLIC' && socket?.connected && !socketConnected && !hasInitialFetchRef.current) {
+    if (activeTab === 'PUBLIC' && socket?.connected && !socketConnected && !hasInitialFetched.current) {
       // Small delay to ensure state is settled and avoid race conditions
       const timeoutId = setTimeout(() => {
         console.log('📋 Lobby: Force refresh on mount - socket already connected but state not synced');
-        if (socket?.connected && !hasInitialFetchRef.current) {
-          hasInitialFetchRef.current = true;
+        if (socket?.connected && !hasInitialFetched.current) {
+          hasInitialFetched.current = true;
           socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
         }
       }, 100);

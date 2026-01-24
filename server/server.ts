@@ -2365,7 +2365,8 @@ io.on('connection', (socket: Socket) => {
       
       // CRITICAL: Always emit an array, never an object or Map
       // Use Object.values() as final safety net if somehow still an object
-      const finalArray = Array.isArray(safeRoomsList) ? safeRoomsList : Object.values(safeRoomsList || {});
+      // Ensure empty case returns [] not {} or null
+      const finalArray = Array.isArray(safeRoomsList) ? safeRoomsList : (Object.values(safeRoomsList || {}) || []);
       socket.emit('public_rooms_list', finalArray);
     } catch (error) {
       console.error('❌ get_public_rooms: Error fetching public rooms:', error);
