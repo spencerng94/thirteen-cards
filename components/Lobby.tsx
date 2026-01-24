@@ -296,25 +296,30 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          {/* SIMPLIFIED: Show spinner only when refreshing, show "No matches" only after first load completes */}
-          {isRefreshing ? (
-            <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
-              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
-            </div>
-          ) : (
-            /* EXACTLY THREE STATES: LOADING, EMPTY, ROOMS */
-            publicRooms.length === 0 ? (
-              /* STATE 2: FETCHED + EMPTY */
-              <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
-                  <span className="text-3xl sm:text-4xl">🃏</span>
+          {/* EXACTLY THREE STATES: LOADING, EMPTY, ROOMS - NO GUARDS, NO NULL RETURNS */}
+          {(() => {
+            if (isRefreshing) {
+              return (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
+                  <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
                 </div>
-                <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
-                <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
-              </div>
-            ) : (
-              /* STATE 3: FETCHED + ROOMS */
+              );
+            }
+            
+            if (publicRooms.length === 0) {
+              return (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
+                    <span className="text-3xl sm:text-4xl">🃏</span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
+                  <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
+                </div>
+              );
+            }
+            
+            return (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {publicRooms.map((room, index) => {
                 // CRITICAL: Ensure stable and unique key for room list items
@@ -352,9 +357,9 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
                 </div>
                 );
               })}
-            </div>
-            )
-          )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
