@@ -214,7 +214,6 @@ interface PublicTabProps {
   refreshRooms: () => void;
   socketConnected: boolean;
   forceRefresh: () => void; // Add forceRefresh function prop
-  hasLoadedOnce: boolean; // Track if we've loaded at least once
 }
 
 const PublicTabContentComponent: React.FC<PublicTabProps> = ({ 
