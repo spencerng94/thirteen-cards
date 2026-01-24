@@ -1792,6 +1792,7 @@ const AppContent: React.FC = () => {
       {/* DETERMINISTIC RENDER: Single source of truth based on gameState.status */}
       {/* Lobby is mounted once when in MULTI_PLAYER mode and stays mounted */}
       {gameMode === 'MULTI_PLAYER' && (() => {
+        console.error('🧭 RENDERED: App.tsx MULTI_PLAYER render block');
         const roomId = currentGameState?.roomId || urlRoomCode;
         
         // 1. No roomId: Show LobbyBrowser (Create Room screen)

@@ -227,18 +227,18 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   socketConnected,
   forceRefresh
 }) => {
+  console.error('🧭 RENDERED: PublicTabContentComponent');
+  
+  // INVARIANT: Log render state
+  console.warn('🧠 PUBLIC ROOMS RENDER', {
+    isRefreshing,
+    roomCount: publicRooms.length,
+  });
+  
   // Debug: Log when publicRooms or isRefreshing changes
   useEffect(() => {
     console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms.map(r => r.id), 'isRefreshing:', isRefreshing);
   }, [publicRooms, isRefreshing]);
-
-  // CRITICAL DEBUG: Log on every render to confirm props are being received
-  console.log("DEBUG: PublicTabContent received rooms:", publicRooms.length, {
-    rooms: publicRooms,
-    roomIds: publicRooms.map(r => r.id),
-    isRefreshing,
-    socketConnected
-  });
 
   return (
     <div className="h-full flex flex-col space-y-6 sm:space-y-8">
@@ -557,6 +557,7 @@ function LobbyComponent({
   turnTimerSetting,
   initialTab = 'PUBLIC'
 }: LobbyProps) {
+  console.error('🧭 RENDERED: LobbyComponent');
   // Initialize hook at the very top to bypass closure issues
   const initialTimer = turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30;
   const { timer: hookedTimer, setTimer: setHookedTimer, isPublic, setIsPublic } = useLobbySettings(initialTimer, true);
