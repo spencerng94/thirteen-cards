@@ -226,8 +226,7 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   isRefreshing,
   refreshRooms,
   socketConnected,
-  forceRefresh,
-  hasLoadedOnce
+  forceRefresh
 }) => {
   // Debug: Log when publicRooms or isRefreshing changes
   useEffect(() => {
@@ -305,18 +304,20 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
               <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
             </div>
           ) : (
-            /* Show room list or "No matches" only if we've loaded at least once */
-            (!hasLoadedOnce || publicRooms.length === 0) ? (
-            <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
-                <span className="text-3xl sm:text-4xl">🃏</span>
+            /* EXACTLY THREE STATES: LOADING, EMPTY, ROOMS */
+            publicRooms.length === 0 ? (
+              /* STATE 2: FETCHED + EMPTY */
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
+                  <span className="text-3xl sm:text-4xl">🃏</span>
+                </div>
+                <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
+                <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
               </div>
-              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
-              <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {publicRooms && publicRooms.length > 0 && publicRooms.map((room, index) => {
+            ) : (
+              /* STATE 3: FETCHED + ROOMS */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {publicRooms.map((room, index) => {
                 // CRITICAL: Ensure stable and unique key for room list items
                 // Use room.id if available, fallback to room.roomId, then combination of name and hostName
                 const roomKey = room.id || (room as any).roomId || `room-${room.name}-${room.hostName}-${index}`;
@@ -1622,7 +1623,6 @@ function LobbyComponent({
                       refreshRooms={refreshRooms}
                       socketConnected={socketConnected}
                       forceRefresh={forceRefresh}
-                      hasLoadedOnce={hasLoadedOnce.current}
                                 />
                       )
                     )}
