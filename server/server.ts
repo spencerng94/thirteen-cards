@@ -566,11 +566,12 @@ const getPublicRoomsList = async (): Promise<Array<{ id: string; name: string; p
       safePublicRooms = publicRooms;
     } else if (publicRooms && typeof publicRooms === 'object') {
       // If it's an object (not array), try to convert it
-      if (publicRooms instanceof Map) {
-        safePublicRooms = Array.from(publicRooms.values());
-      } else if (publicRooms.constructor === Object) {
+      const publicRoomsAny = publicRooms as any;
+      if (publicRoomsAny instanceof Map) {
+        safePublicRooms = Array.from(publicRoomsAny.values());
+      } else if (publicRoomsAny.constructor === Object) {
         // Plain object - convert to array
-        safePublicRooms = Object.values(publicRooms);
+        safePublicRooms = Object.values(publicRoomsAny);
       } else {
         console.error('❌ getPublicRoomsList: getPublicRooms returned non-array object:', typeof publicRooms, publicRooms);
         return [];
@@ -636,10 +637,11 @@ const broadcastPublicLobbies = async () => {
   if (Array.isArray(roomsList)) {
     safeRoomsList = roomsList;
   } else if (roomsList && typeof roomsList === 'object') {
-    if (roomsList instanceof Map) {
-      safeRoomsList = Array.from(roomsList.values());
-    } else if (roomsList.constructor === Object) {
-      safeRoomsList = Object.values(roomsList);
+    const roomsListAny = roomsList as any;
+    if (roomsListAny instanceof Map) {
+      safeRoomsList = Array.from(roomsListAny.values());
+    } else if (roomsListAny.constructor === Object) {
+      safeRoomsList = Object.values(roomsListAny);
     } else {
       console.error('❌ broadcastPublicLobbies: roomsList is an object but not a Map or plain object:', roomsList);
       safeRoomsList = [];
@@ -1212,10 +1214,11 @@ io.on('connection', (socket: Socket) => {
     if (Array.isArray(roomsList)) {
       safeRoomsList = roomsList;
     } else if (roomsList && typeof roomsList === 'object') {
-      if (roomsList instanceof Map) {
-        safeRoomsList = Array.from(roomsList.values());
-      } else if (roomsList.constructor === Object) {
-        safeRoomsList = Object.values(roomsList);
+      const roomsListAny = roomsList as any;
+      if (roomsListAny instanceof Map) {
+        safeRoomsList = Array.from(roomsListAny.values());
+      } else if (roomsListAny.constructor === Object) {
+        safeRoomsList = Object.values(roomsListAny);
       } else {
         console.error('❌ Connection handler: roomsList is an object but not a Map or plain object:', roomsList);
         safeRoomsList = [];
@@ -2329,11 +2332,12 @@ io.on('connection', (socket: Socket) => {
         safeRoomsList = roomsList;
       } else if (roomsList && typeof roomsList === 'object') {
         // If it's an object (not array), try to convert it
-        if (roomsList instanceof Map) {
-          safeRoomsList = Array.from(roomsList.values());
-        } else if (roomsList.constructor === Object) {
+        const roomsListAny = roomsList as any;
+        if (roomsListAny instanceof Map) {
+          safeRoomsList = Array.from(roomsListAny.values());
+        } else if (roomsListAny.constructor === Object) {
           // Plain object - convert to array
-          safeRoomsList = Object.values(roomsList);
+          safeRoomsList = Object.values(roomsListAny);
         } else {
           // Unknown object type - log and use empty array
           console.error('❌ get_public_rooms: roomsList is an object but not a Map or plain object:', roomsList);
