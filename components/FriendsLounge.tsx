@@ -62,6 +62,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
   const [activeTab, setActiveTab] = useState<'friends' | 'sent' | 'received'>('friends');
   const [newRequestNotification, setNewRequestNotification] = useState<{ id: string; senderName: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
   const subscriptionRef = useRef<any>(null);
   
   // Track pending count for badge
