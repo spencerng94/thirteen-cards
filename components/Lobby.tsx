@@ -928,12 +928,17 @@ function LobbyComponent({
     }, 5000);
     
     // Additional safety net: Ensure UI doesn't stay stuck in "Searching..." state forever
-    setTimeout(() => {
-      if (isMounted.current && isRefreshing) {
+    // Use a ref to track the timeout so we can check if it's still needed
+    const safetyTimeoutId = setTimeout(() => {
+      if (isMounted.current && isFetchingRef.current) {
         console.warn('⚠️ Lobby: Safety net timeout - clearing isRefreshing after 3 seconds');
+        isFetchingRef.current = false;
         setIsRefreshing(false);
       }
     }, 3000);
+    
+    // Store timeout ID for potential cleanup (though it's fine to let it run)
+    (window as any).__refreshRoomsSafetyTimeout = safetyTimeoutId;
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Force Refresh function - bypasses all guards for testing
