@@ -986,9 +986,9 @@ function LobbyComponent({
       const uniqueRooms = deduplicateRooms(roomsArray);
       console.log('📋 Lobby: Received public rooms list', uniqueRooms.length, 'rooms', uniqueRooms.map((r: any) => r.id || r.roomId || 'NO_ID'));
       
-      // Update state with room data
+      // Update state with room data - ALWAYS create new array reference
       // Note: setIsRefreshing(false) was already called at the very beginning of this function
-      setPublicRooms(uniqueRooms);
+      setPublicRooms([...uniqueRooms]); // Create new array reference to ensure re-render
       setHasLoaded(true);
       hasLoadedOnce.current = true; // Mark that we've received at least one response
       
