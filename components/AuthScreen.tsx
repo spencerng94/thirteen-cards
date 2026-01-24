@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { supabase, supabaseUrl, supabaseAnonKey } from '../src/lib/supabase';
 import { BrandLogo } from './BrandLogo';
 import { useSession } from './SessionProvider';
+import { BoardSurface } from './UserHub';
 
 interface AuthScreenProps {
   onPlayAsGuest: () => void;
@@ -231,16 +232,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onPlayAsGuest }) => {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full bg-[#09090b] relative overflow-hidden flex flex-col items-center justify-center p-6" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#092b15_0%,_#000000_100%)]" style={{ top: '-env(safe-area-inset-top, 0px)', height: 'calc(100% + env(safe-area-inset-top, 0px))' }}></div>
+    <div className="min-h-[100dvh] w-full relative overflow-hidden flex flex-col items-center justify-center p-6" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <BoardSurface themeId="EMERALD" />
       
       <div className="max-w-md w-full z-10 flex flex-col items-center gap-8">
         
-        {/* COMPLETELY STATIC LOGO ASSEMBLY - Removed all overlay/wrapper animations */}
-        <div className="relative animate-in fade-in duration-1000">
-            <div className="drop-shadow-[0_30px_60px_rgba(0,0,0,0.9)]">
-               <BrandLogo size="lg" />
+        {/* Premium Logo Section - Matching WelcomeScreen styling */}
+        <div className="relative animate-in fade-in duration-1000 mb-2">
+          <div className="relative">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(234,179,8,0.2)_0%,transparent_70%)] blur-3xl opacity-50"></div>
+            <div className="drop-shadow-[0_40px_100px_rgba(0,0,0,0.95)] relative z-10">
+              <BrandLogo size="lg" />
             </div>
+          </div>
         </div>
         
         <div className="relative w-full bg-black/50 backdrop-blur-[40px] border border-white/10 p-8 md:p-10 rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.8)]">
