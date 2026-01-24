@@ -284,51 +284,54 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          {/* CRITICAL: Explicitly check isRefreshing first - if true, show spinner */}
           {isRefreshing ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
               <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
             </div>
-          ) : publicRooms.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
-                <span className="text-3xl sm:text-4xl">🃏</span>
-              </div>
-              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
-              <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
-            </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {publicRooms && publicRooms.length > 0 && publicRooms.map(room => (
-                <div 
-                  key={room.id || room.roomId || `room-${room.name}-${room.hostName}`} 
-                  onClick={() => joinRoom(room.id)}
-                  className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="relative">
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
-                      </div>
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
-                    </div>
-                    <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
-                      <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
-                    <div className="flex items-center gap-2">
-                    <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
-                      <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{room.id}</span>
-                    </div>
-                  </div>
-                  <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
-                  </div>
+            /* Only show room list or "No matches" if NOT refreshing */
+            publicRooms.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
+                  <span className="text-3xl sm:text-4xl">🃏</span>
                 </div>
-              ))}
-            </div>
+                <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
+                <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {publicRooms && publicRooms.length > 0 && publicRooms.map(room => (
+                  <div 
+                    key={room.id || room.roomId || `room-${room.name}-${room.hostName}`} 
+                    onClick={() => joinRoom(room.id)}
+                    className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="relative">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                          <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
+                        </div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
+                      </div>
+                      <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
+                        <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
+                      <div className="flex items-center gap-2">
+                      <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
+                        <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{room.id}</span>
+                      </div>
+                    </div>
+                    <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )
           )}
         </div>
