@@ -123,6 +123,9 @@ const AppContent: React.FC = () => {
   // Memoize initialization check - only log once per session change
   const initializationLogged = useRef<string | undefined>(undefined);
   useEffect(() => {
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
+      console.log('📱 App started on iOS');
+    }
     if (sessionUserId !== initializationLogged.current) {
       initializationLogged.current = sessionUserId;
     }
@@ -1638,6 +1641,76 @@ const AppContent: React.FC = () => {
       }
     };
   }, [isAppReady]);
+
+  // CRITICAL: Hide splash screen only after content is fully loaded
+  // This prevents black screen if WebView fails to load
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+    let checkInterval: ReturnType<typeof setInterval> | null = null;
+    let hasHidden = false;
+
+    const hideSplash = async () => {
+      if (hasHidden) return;
+      hasHidden = true;
+
+      if (checkInterval) {
+        clearInterval(checkInterval);
+        checkInterval = null;
+      }
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+
+      try {
+        // Wait a bit to ensure content is rendered
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await SplashScreen.hide();
+        if (import.meta.env.DEV) {
+          console.log('📱 Splash screen hidden');
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn('Failed to hide splash screen:', error);
+        }
+      }
+    };
+
+    // Check if content has loaded
+    const checkContent = () => {
+      const isReady = document.readyState === 'complete' || document.readyState === 'interactive';
+      const hasRoot = document.getElementById('root')?.children.length > 0;
+      
+      if (isReady && hasRoot) {
+        // Content is loaded, hide splash after a short delay
+        if (!hideTimeout) {
+          hideTimeout = setTimeout(hideSplash, 1000);
+        }
+        if (checkInterval) {
+          clearInterval(checkInterval);
+          checkInterval = null;
+        }
+      }
+    };
+
+    // Check immediately
+    checkContent();
+
+    // Poll every 500ms
+    checkInterval = setInterval(checkContent, 500);
+
+    // Fallback: Force hide after 15 seconds to prevent infinite splash
+    hideTimeout = setTimeout(hideSplash, 15000);
+
+    return () => {
+      if (hideTimeout) clearTimeout(hideTimeout);
+      if (checkInterval) clearInterval(checkInterval);
+    };
+  }, []); // Empty dependency array - runs once on mount
   
   // CRITICAL: Early return for missing environment variables - must be AFTER all hooks
   if (!envCheck.isValid) {
@@ -1800,7 +1873,7 @@ const AppContent: React.FC = () => {
       {/* DETERMINISTIC RENDER: Single source of truth based on gameState.status */}
       {/* Lobby is mounted once when in MULTI_PLAYER mode and stays mounted */}
       {gameMode === 'MULTI_PLAYER' && (() => {
-        console.error('🧭 RENDERED: App.tsx MULTI_PLAYER render block');
+        // Removed excessive render logging
         const roomId = currentGameState?.roomId || urlRoomCode;
         
         // 1. BYPASS GATE: If view is LOBBY, show Lobby immediately regardless of other conditions

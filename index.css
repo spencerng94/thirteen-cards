@@ -10,10 +10,86 @@
   --safe-area-inset-left: env(safe-area-inset-left, 0px);
 }
 
-/* Apply safe area padding to body to prevent content from being cut off */
+/* Prevent iOS overscroll bounce and white space while allowing normal scrolling */
+html {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #000000;
+  /* Prevent iOS rubber-band scrolling - KEY FIX for white space */
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent white space on overscroll */
+  -webkit-touch-callout: none;
+}
+
+/* Body styles to prevent white space on overscroll but allow scrolling */
 body {
+  min-height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #000000;
+  /* Apply safe area padding to prevent content from being cut off */
   padding-top: var(--safe-area-inset-top);
   padding-right: var(--safe-area-inset-right);
   padding-bottom: var(--safe-area-inset-bottom);
   padding-left: var(--safe-area-inset-left);
+  /* Prevent iOS rubber-band scrolling - KEY FIX for white space */
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent text selection bounce on iOS */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y;
+  /* Prevent white space on overscroll */
+  -webkit-touch-callout: none;
+  /* Prevent pull-to-refresh on iOS */
+  overscroll-behavior-block: none;
+  /* Allow scrolling */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Root container should allow scrolling */
+#root {
+  min-height: 100%;
+  width: 100%;
+  background-color: #000000;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent overscroll bounce - this is key for iOS */
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  /* Ensure black background during overscroll */
+  position: relative;
+}
+
+/* Prevent white space on overscroll for all elements, but allow normal scrolling */
+* {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+}
+
+/* Allow scrolling on specific containers that need it */
+[data-scrollable] {
+  overscroll-behavior: auto;
+  overscroll-behavior-y: auto;
+}
+
+/* Ensure scrollable containers work properly */
+.overflow-y-auto,
+.overflow-auto,
+[class*="overflow"] {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
 }

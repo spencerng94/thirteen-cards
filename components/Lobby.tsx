@@ -43,14 +43,19 @@ const MAX_PLAYERS = 4;
 
 const BackgroundWrapperComponent: React.FC<{ children: React.ReactNode; theme: BackgroundTheme }> = ({ children, theme }) => {
   return (
-    <div className="min-h-[100dvh] w-full relative overflow-hidden flex flex-col items-center justify-center p-4 sm:p-8" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <BoardSurface themeId={theme} />
-        <div className="absolute inset-0 opacity-[0.04] pointer-events-none z-10" style={{ 
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.1) 1.5px, transparent 1.5px)`, 
-            backgroundSize: '80px 80px' 
-        }}></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,_rgba(0,0,0,0.6)_100%)] pointer-events-none z-[11]"></div>
+    <div className="min-h-[100dvh] w-full relative flex flex-col items-center justify-start p-4 sm:p-8" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        {/* Fixed background that extends beyond viewport to prevent black space on overscroll */}
+        <div className="fixed top-[-200px] left-0 right-0 bottom-[-200px] w-full">
+          <BoardSurface themeId={theme} />
+          <div className="absolute inset-0 opacity-[0.04] pointer-events-none z-10" style={{ 
+              backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.1) 1.5px, transparent 1.5px)`, 
+              backgroundSize: '80px 80px' 
+          }}></div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,_rgba(0,0,0,0.6)_100%)] pointer-events-none z-[11]"></div>
+        </div>
+        <div className="relative z-20 w-full flex flex-col items-center">
         {children}
+        </div>
     </div>
   );
 };
@@ -236,18 +241,7 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   forceRefresh,
   hasLoadedOnce
 }) => {
-  console.error('🧭 RENDERED: PublicTabContentComponent');
-  
-  // INVARIANT: Log render state
-  console.warn('🧠 PUBLIC ROOMS RENDER', {
-    isRefreshing,
-    roomCount: publicRooms.length,
-  });
-  
-  // Debug: Log when publicRooms or isRefreshing changes
-  useEffect(() => {
-    console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms.map(r => r.id), 'isRefreshing:', isRefreshing);
-  }, [publicRooms, isRefreshing]);
+  // Removed excessive render logging
 
   return (
     <div className="h-full flex flex-col space-y-6 sm:space-y-8">
@@ -299,8 +293,6 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           {/* EXACTLY THREE STATES: LOADING, EMPTY, ROOMS - NO GUARDS, NO NULL RETURNS */}
           {(() => {
-            console.log("✅ FINAL RENDER PATH HIT - PublicTabContent render", { isRefreshing, roomCount: publicRooms.length, socketConnected, hasLoadedOnce });
-            
             // REFRESH STATE: If isRefreshing is true but we've already loaded once (even with 0 rooms),
             // show "No rooms found" instead of a full-screen spinner
             // Only show loading spinner if we're refreshing AND haven't loaded once yet
@@ -587,7 +579,6 @@ function LobbyComponent({
   isGuest,
   remoteEmotes
 }: LobbyProps) {
-  console.error('🧭 RENDERED: LobbyComponent');
   // Initialize hook at the very top to bypass closure issues
   const initialTimer = turnTimerSetting !== undefined && turnTimerSetting !== null ? turnTimerSetting : 30;
   const { timer: hookedTimer, setTimer: setHookedTimer, isPublic, setIsPublic } = useLobbySettings(initialTimer, true);
@@ -1562,14 +1553,6 @@ function LobbyComponent({
   // CRITICAL: Only render lobby interface when status is LOBBY
   // If status is PLAYING, App.tsx should handle switching to GAME_TABLE view
   // REMOVED early return - always render lobby UI, let App.tsx handle view switching
-  
-  console.log("✅ FINAL RENDER PATH HIT", { 
-    hasGameState: !!gameState, 
-    gameStateStatus: gameState?.status,
-    activeTab,
-    publicRoomsCount: publicRooms.length,
-    isRefreshing
-  });
 
   return (
     <React.Fragment key={activeTab}>

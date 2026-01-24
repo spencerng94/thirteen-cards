@@ -70,8 +70,9 @@ export default defineConfig({
   publicDir: 'public',
   // Server configuration for development
   server: {
+    host: true,
     port: 3000,
-    host: true, // Allow external connections for mobile devices
+    strictPort: true,
   },
   // Optimize dependencies
   optimizeDeps: {

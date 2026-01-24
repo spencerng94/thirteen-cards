@@ -66,34 +66,69 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Connection event logging
-socket.on('connect', () => {
-  console.log('✅ Socket connected to:', SOCKET_URL);
-});
+// Connection event logging (only in development)
+if (import.meta.env.DEV) {
+  socket.on('connect', () => {
+    console.log('✅ Socket connected to:', SOCKET_URL);
+    isConnecting = false;
+  });
 
-socket.on('connect_error', (error) => {
-  console.error('❌ Socket connection error:', error.message);
-  console.error('Attempted to connect to:', SOCKET_URL);
-});
+  socket.on('connect_error', (error) => {
+    console.error('❌ Socket connection error:', error.message);
+    console.error('Attempted to connect to:', SOCKET_URL);
+    isConnecting = false;
+  });
 
-socket.on('disconnect', (reason) => {
-  console.warn('⚠️ Socket disconnected:', reason);
-});
+  socket.on('disconnect', (reason) => {
+    console.warn('⚠️ Socket disconnected:', reason);
+    isConnecting = false;
+  });
+} else {
+  // In production, only log critical errors
+  socket.on('connect_error', (error) => {
+    console.error('Socket connection failed');
+    isConnecting = false;
+  });
+  
+  socket.on('connect', () => {
+    isConnecting = false;
+  });
+  
+  socket.on('disconnect', () => {
+    isConnecting = false;
+  });
+}
+
+let isConnecting = false;
 
 export const connectSocket = () => {
-  // Only connect if not already connected
-  if (!socket.connected) {
-    try {
-      console.log('connectSocket: Attempting to connect to', SERVER_URL);
-      socket.connect();
-    } catch (error) {
-      // Silently fail - UI should continue to work
-      if (import.meta.env.DEV) {
-        console.warn('Socket connect attempt failed:', error);
-      }
+  // Prevent duplicate connection attempts
+  if (socket.connected) {
+    return; // Already connected, no action needed
+  }
+  
+  if (isConnecting) {
+    return; // Connection already in progress
+  }
+  
+  isConnecting = true;
+  
+  try {
+    if (import.meta.env.DEV) {
+      console.log('🔌 Connecting to socket server:', SERVER_URL);
     }
-  } else {
-    console.log('connectSocket: Socket already connected');
+    socket.connect();
+    
+    // Reset connecting flag after a short delay
+    setTimeout(() => {
+      isConnecting = false;
+    }, 1000);
+  } catch (error) {
+    isConnecting = false;
+    // Silently fail - UI should continue to work
+    if (import.meta.env.DEV) {
+      console.warn('Socket connect attempt failed:', error);
+    }
   }
 };
 

@@ -47,6 +47,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-2492802068591531~3275870689</string>
 	<key>SKAdNetworkItems</key>
@@ -246,5 +251,44 @@
 	</array>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>We use your data to deliver personalized ads and rewards that enhance your gaming experience.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	<key>NSExceptionDomains</key>
+	<dict>
+		<key>10.0.0.131</key>
+		<dict>
+			<key>NSExceptionAllowsInsecureHTTPLoads</key>
+			<true/>
+			<key>NSIncludesSubdomains</key>
+			<true/>
+			<key>NSExceptionRequiresForwardSecrecy</key>
+			<false/>
+			<key>NSExceptionMinimumTLSVersion</key>
+			<string>TLSv1.0</string>
+		</dict>
+		<key>localhost</key>
+		<dict>
+			<key>NSExceptionAllowsInsecureHTTPLoads</key>
+			<true/>
+			<key>NSIncludesSubdomains</key>
+			<true/>
+		</dict>
+		<key>192.168.86.248</key>
+		<dict>
+			<key>NSExceptionAllowsInsecureHTTPLoads</key>
+			<true/>
+			<key>NSIncludesSubdomains</key>
+			<true/>
+			<key>NSExceptionRequiresForwardSecrecy</key>
+			<false/>
+		</dict>
+	</dict>
+	</dict>
 </dict>
 </plist>

@@ -4,17 +4,26 @@
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
-    "url": "http://10.0.0.131:3000",
-    "cleartext": true
+    "url": "http://192.168.86.248:3000",
+    "cleartext": true,
+    "androidScheme": "http",
+    "allowNavigation": [
+      "http://192.168.86.248:3000",
+      "http://192.168.86.248:*",
+      "192.168.86.248",
+      "http://10.0.0.131:3000",
+      "http://10.0.0.131:*",
+      "10.0.0.131"
+    ]
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 3000,
-      "launchAutoHide": true,
+      "launchShowDuration": 0,
+      "launchAutoHide": false,
       "backgroundColor": "#000000",
       "androidSplashResourceName": "splash",
       "androidScaleType": "CENTER_CROP",
-      "showSpinner": false,
+      "showSpinner": true,
       "androidSpinnerStyle": "large",
       "iosSpinnerStyle": "small",
       "spinnerColor": "#FFFFFF",
