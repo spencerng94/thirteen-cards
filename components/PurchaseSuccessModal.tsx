@@ -135,28 +135,28 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
           phase === 'entrance' 
             ? 'scale-0 opacity-0' 
             : phase === 'celebration'
-            ? 'scale-110 opacity-100 animate-pulse'
+            ? 'scale-105 opacity-100'
             : 'scale-100 opacity-100'
         } transition-all duration-500`}
         onClick={e => e.stopPropagation()}
       >
         {/* Background Glow Effects */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.15)_0%,transparent_70%)]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.15)_0%,transparent_70%)] animate-gentle-glow"></div>
         <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-transparent to-pink-500/10"></div>
         
-        {/* Animated Border Glow */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 rounded-3xl sm:rounded-[3rem] opacity-50 blur-xl animate-pulse"></div>
+        {/* Animated Border Glow - Smooth shimmer instead of pulse */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 rounded-3xl sm:rounded-[3rem] opacity-30 blur-xl animate-golden-shimmer"></div>
 
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center text-center gap-4 sm:gap-6">
           {/* Success Icon */}
           <div className={`relative ${
             phase === 'celebration' 
-              ? 'scale-150 rotate-12' 
+              ? 'scale-125 rotate-6' 
               : 'scale-100 rotate-0'
-          } transition-all duration-500`}>
-            <div className="absolute inset-0 bg-yellow-500/30 blur-2xl rounded-full animate-pulse"></div>
-            <div className="relative w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center border-4 border-yellow-300 shadow-[0_0_40px_rgba(251,191,36,0.8)]">
+          } transition-all duration-700 ease-out`}>
+            <div className="absolute inset-0 bg-yellow-500/20 blur-2xl rounded-full animate-soft-glow"></div>
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center border-4 border-yellow-300 shadow-[0_0_40px_rgba(251,191,36,0.8)] animate-gentle-bounce">
               <svg 
                 className="w-12 h-12 sm:w-14 sm:h-14 text-black" 
                 fill="none" 
@@ -233,6 +233,59 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
         }
         .animate-confetti-burst {
           animation: confettiBurst 1.5s ease-out forwards;
+        }
+        @keyframes gentle-glow {
+          0%, 100% {
+            opacity: 0.3;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.5;
+            transform: scale(1.02);
+          }
+        }
+        .animate-gentle-glow {
+          animation: gentle-glow 3s ease-in-out infinite;
+        }
+        @keyframes golden-shimmer {
+          0% {
+            opacity: 0.2;
+            transform: translateX(-100%) translateY(-100%);
+          }
+          50% {
+            opacity: 0.4;
+          }
+          100% {
+            opacity: 0.2;
+            transform: translateX(100%) translateY(100%);
+          }
+        }
+        .animate-golden-shimmer {
+          animation: golden-shimmer 4s ease-in-out infinite;
+        }
+        @keyframes soft-glow {
+          0%, 100% {
+            opacity: 0.2;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.35;
+            transform: scale(1.1);
+          }
+        }
+        .animate-soft-glow {
+          animation: soft-glow 2.5s ease-in-out infinite;
+        }
+        @keyframes gentle-bounce {
+          0%, 100% {
+            transform: translateY(0) scale(1);
+          }
+          50% {
+            transform: translateY(-4px) scale(1.02);
+          }
+        }
+        .animate-gentle-bounce {
+          animation: gentle-bounce 2s ease-in-out infinite;
         }
       `}} />
     </div>
