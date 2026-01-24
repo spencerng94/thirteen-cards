@@ -214,6 +214,7 @@ interface PublicTabProps {
   refreshRooms: () => void;
   socketConnected: boolean;
   forceRefresh: () => void; // Add forceRefresh function prop
+  hasLoadedOnce: boolean; // Track if we've loaded at least once
 }
 
 const PublicTabContentComponent: React.FC<PublicTabProps> = ({ 
@@ -225,7 +226,8 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   isRefreshing,
   refreshRooms,
   socketConnected,
-  forceRefresh
+  forceRefresh,
+  hasLoadedOnce
 }) => {
   // Debug: Log when publicRooms or isRefreshing changes
   useEffect(() => {
@@ -296,14 +298,14 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          {/* CRITICAL: Explicitly check isRefreshing first - if true, show spinner */}
-          {isRefreshing ? (
+          {/* RE-RENDER TRIGGER: Use hasLoadedOnce to ensure "No matches" shows after first fetch */}
+          {(isRefreshing && !hasLoadedOnce) ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
               <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
             </div>
           ) : (
-            /* Only show room list or "No matches" if NOT refreshing */
+            /* Only show room list or "No matches" if NOT refreshing OR if we've loaded at least once */
             publicRooms.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
@@ -619,6 +621,8 @@ function LobbyComponent({
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false); // Track if we've received at least one response
+  const [isInitialLoading, setIsInitialLoading] = useState(true); // Track initial loading state for App.tsx sync
+  const hasLoadedOnce = useRef(false); // Track if we've received at least one response (even if empty)
   const isFetchingRef = useRef(false); // Prevent multiple simultaneous fetches
   const isMounted = useRef(true); // Track if component is mounted
   const initialFetchDone = useRef(false); // Consolidated flag to ensure refreshRooms() is only called once on mount
@@ -1012,9 +1016,21 @@ function LobbyComponent({
       // Note: setIsRefreshing(false) was already called at the very beginning of this function
       setPublicRooms(uniqueRooms);
       setHasLoaded(true);
+      hasLoadedOnce.current = true; // Mark that we've received at least one response
       
-      console.log("📋 Lobby: Fetch complete", { roomCount: uniqueRooms.length, hasLoaded: true });
+      // COMPONENT READINESS: Signal completion to App.tsx
+      setIsInitialLoading(false);
+      
+      console.log("📋 Lobby: Fetch complete", { roomCount: uniqueRooms.length, hasLoaded: true, isInitialLoading: false });
     };
+    
+    // REMOVE DUPLICATE INITIALIZATION: Prevent multiple listeners from stacking
+    // Check if listener already exists before adding
+    const existingListeners = socket.listeners(SocketEvents.PUBLIC_ROOMS_LIST);
+    if (existingListeners.length > 0) {
+      console.warn('⚠️ Lobby: Duplicate PUBLIC_ROOMS_LIST listener detected, removing existing listeners');
+      socket.off(SocketEvents.PUBLIC_ROOMS_LIST);
+    }
     
     // Remove any existing listeners first to prevent duplicates
     socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
