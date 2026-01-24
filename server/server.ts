@@ -1147,8 +1147,16 @@ const performCleanup = async (roomId: string, playerId: string) => {
     // For LOBBY rooms, give a grace period before deletion
     // This prevents rooms from being deleted immediately after creation
     if (room.status === 'LOBBY') {
-      // Schedule deletion after 30 seconds
-      setTimeout(async () => {
+      // Check if a cleanup timeout is already scheduled
+      const existingTimeout = (room as any).__cleanupTimeout;
+      if (existingTimeout) {
+        // Cleanup already scheduled, don't schedule another one
+        console.log(`⏳ performCleanup: Cleanup timeout already scheduled for ${roomId}, skipping`);
+        return;
+      }
+      
+      // Schedule deletion after 30 seconds and store the timeout ID
+      const gracePeriodTimeout = setTimeout(async () => {
         const finalRoom = await fetchRoom(roomId);
         if (finalRoom) {
           const finalHumans = finalRoom.players.filter(p => !p.isBot);
@@ -1158,7 +1166,15 @@ const performCleanup = async (roomId: string, playerId: string) => {
             broadcastPublicLobbies();
           }
         }
+        // Clear the timeout ID after execution
+        if ((finalRoom as any)) {
+          delete (finalRoom as any).__cleanupTimeout;
+        }
       }, 30000); // 30 second grace period
+      
+      // Store the timeout ID so periodic cleanup knows not to delete immediately
+      (room as any).__cleanupTimeout = gracePeriodTimeout;
+      console.log(`⏳ performCleanup: Scheduled 30s grace period deletion for ${roomId}`);
       return;
     }
     
@@ -1467,6 +1483,14 @@ io.on('connection', (socket: Socket) => {
       // Use joinRoom function to join the room (checks Map first, then Supabase)
       // CRITICAL: await the join operation (may rehydrate from Supabase if not in Map)
       const room = await joinRoom(player, requestedId);
+      
+      // Cancel any scheduled cleanup timeout since a player is joining
+      const cleanupTimeout = (room as any).__cleanupTimeout;
+      if (cleanupTimeout) {
+        clearTimeout(cleanupTimeout);
+        delete (room as any).__cleanupTimeout;
+        console.log(`✅ join_room: Cancelled cleanup timeout for ${requestedId} - player joined`);
+      }
       
       // HOST RESCUE LOGIC: If room has 0 or 1 players, the joining player MUST be the host
       const humanPlayerCount = room.players.filter(p => !p.isBot).length;
@@ -2442,30 +2466,8 @@ io.on('connection', (socket: Socket) => {
       // For LOBBY rooms, remove the player immediately
       await performCleanup(roomId, playerId);
       
-      // Check if room is now empty (0 human players)
-      const updatedRoom = await fetchRoom(roomId);
-      if (updatedRoom) {
-        const humanPlayers = updatedRoom.players.filter(p => !p.isBot);
-        if (humanPlayers.length === 0) {
-          // Give LOBBY rooms a 30-second grace period before deletion
-          // This prevents rooms from being deleted immediately after creation if player disconnects/reconnects
-          const gracePeriodTimeout = setTimeout(async () => {
-            const finalCheckRoom = await fetchRoom(roomId);
-            if (finalCheckRoom) {
-              const finalHumanPlayers = finalCheckRoom.players.filter(p => !p.isBot);
-              if (finalHumanPlayers.length === 0) {
-                // Room is still empty after grace period, delete it
-                console.log(`🧹 Cleaning up empty LOBBY room after grace period: ${roomId}`);
-                await deleteRoom(roomId);
-                await broadcastPublicLobbies();
-              }
-            }
-          }, 30000); // 30 second grace period for LOBBY rooms
-          
-          // Store timeout ID for potential cancellation if player rejoins
-          (updatedRoom as any).__cleanupTimeout = gracePeriodTimeout;
-        }
-      }
+      // Note: performCleanup already schedules a cleanup timeout if the room becomes empty
+      // No need to schedule another one here - it would be redundant
     } else if (room.status === 'PLAYING') {
       // For PLAYING rooms, mark as offline and allow 5 minutes for reconnection
         player.isOffline = true;
@@ -2568,15 +2570,34 @@ setInterval(async () => {
   await pruneStaleRooms();
   
   // Also check all rooms in memory for empty LOBBY rooms
+  // BUT: Respect grace period timeouts that are already scheduled
   const allRoomIds = Array.from(rooms.keys());
   for (const roomId of allRoomIds) {
     const room = rooms.get(roomId);
     if (room && room.status === 'LOBBY') {
       const humanPlayers = room.players.filter(p => !p.isBot);
       if (humanPlayers.length === 0) {
-        console.log(`🧹 Periodic cleanup: Deleting empty LOBBY room ${roomId}`);
-        await deleteRoom(roomId);
-        await broadcastPublicLobbies();
+        // Check if a cleanup timeout is already scheduled for this room
+        const cleanupTimeout = (room as any).__cleanupTimeout;
+        if (cleanupTimeout) {
+          // A grace period timeout is already scheduled, skip deletion
+          console.log(`⏳ Periodic cleanup: Skipping ${roomId} - grace period timeout already scheduled`);
+          continue;
+        }
+        // No timeout scheduled, but room is empty - schedule deletion with grace period
+        console.log(`🧹 Periodic cleanup: Scheduling deletion for empty LOBBY room ${roomId} (30s grace period)`);
+        const gracePeriodTimeout = setTimeout(async () => {
+          const finalRoom = await fetchRoom(roomId);
+          if (finalRoom) {
+            const finalHumans = finalRoom.players.filter(p => !p.isBot);
+            if (finalHumans.length === 0 && finalRoom.status === 'LOBBY') {
+              console.log(`🧹 Periodic cleanup: Deleting empty LOBBY room ${roomId} after grace period`);
+              await deleteRoom(roomId);
+              await broadcastPublicLobbies();
+            }
+          }
+        }, 30000); // 30 second grace period
+        (room as any).__cleanupTimeout = gracePeriodTimeout;
       }
     }
   }

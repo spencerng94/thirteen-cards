@@ -130,37 +130,9 @@ const AppContent: React.FC = () => {
   
   // Check Supabase environment variables early
   const envCheck = useMemo(() => checkSupabaseEnv(), []);
-  if (!envCheck.isValid) {
-    console.error('App: ERROR - Missing environment variables:', envCheck.missing);
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-        backgroundColor: '#000',
-        color: '#ff4444',
-        fontFamily: 'monospace',
-        textAlign: 'center',
-      }}>
-        <h1 style={{ fontSize: '32px', marginBottom: '20px' }}>⚠️ Missing Environment Variables</h1>
-        <p style={{ fontSize: '18px', marginBottom: '10px' }}>
-          The following required environment variables are missing:
-        </p>
-        <ul style={{ listStyle: 'none', padding: 0, fontSize: '16px' }}>
-          {envCheck.missing.map(key => (
-            <li key={key} style={{ margin: '10px 0', color: '#ffaa00' }}>{key}</li>
-          ))}
-        </ul>
-        <p style={{ marginTop: '20px', fontSize: '14px', color: '#aaa' }}>
-          Please configure these in your Vercel environment variables or .env file.
-        </p>
-      </div>
-    );
-  }
   
+  // CRITICAL: All hooks must be declared BEFORE any early returns to avoid "Rendered more hooks" error
+  // Declare ALL hooks first, then handle early returns after
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
 
@@ -188,6 +160,10 @@ const AppContent: React.FC = () => {
     if (prevViewRef.current !== view) {
       console.log('🔄 App.tsx: View changed', { from: prevViewRef.current, to: view });
       prevViewRef.current = view;
+    }
+    // CLEANUP: Reset isLobbyInitialized when leaving LOBBY view
+    if (view !== 'LOBBY') {
+      setIsLobbyInitialized(false);
     }
   }, [view]);
   const [hubState, setHubState] = useState<{ open: boolean, tab: HubTab }>({ open: false, tab: 'PROFILE' });
@@ -232,6 +208,16 @@ const AppContent: React.FC = () => {
   
   const [mpGameState, setMpGameState] = useState<GameState | null>(null);
   const [mpMyHand, setMpMyHand] = useState<Card[]>([]);
+  const [isLobbyReady, setIsLobbyReady] = useState(false); // Track when Lobby has finished initial fetch
+  const [isLobbyInitialized, setIsLobbyInitialized] = useState(false); // Track when Lobby has initialized and is ready to show
+  
+  // Reset isLobbyReady when switching away from LOBBY view
+  useEffect(() => {
+    if (view !== 'LOBBY' && gameMode !== 'MULTI_PLAYER') {
+      setIsLobbyReady(false);
+      setIsLobbyInitialized(false);
+    }
+  }, [view, gameMode]);
   
   const [spGameState, setSpGameState] = useState<GameState | null>(null);
   const [spMyHand, setSpMyHand] = useState<Card[]>([]);
@@ -1041,7 +1027,7 @@ const AppContent: React.FC = () => {
         // Only transition to GAME_TABLE if we're not already there
         if (view !== 'GAME_TABLE') {
           console.log('📡 App.tsx: Status is PLAYING, transitioning view to GAME_TABLE', { from: view });
-          setView('GAME_TABLE');
+        setView('GAME_TABLE');
         }
       } else if (state.status === GameStatus.FINISHED) {
         // Check if we were just playing or already on game table
@@ -1653,17 +1639,34 @@ const AppContent: React.FC = () => {
     };
   }, [isAppReady]);
   
-  // Refactor the Loading Gate: Use isAppReady instead of just !isInitialized
-  // Prevent Partial Renders: Don't mount any components until isAppReady is true
-  if (!isAppReady) {
-    const message = isRedirecting ? "Connecting to provider..." : "Verifying session...";
+  // CRITICAL: Early return for missing environment variables - must be AFTER all hooks
+  if (!envCheck.isValid) {
+    console.error('App: ERROR - Missing environment variables:', envCheck.missing);
     return (
-      <div className="relative">
-        <LoadingScreen
-          status={message}
-          showGuestButton={!isRedirecting} // Show guest button if not redirecting (allows user to escape stuck state)
-          onEnterGuest={handlePlayAsGuest}
-        />
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        backgroundColor: '#000',
+        color: '#ff4444',
+        fontFamily: 'monospace',
+        textAlign: 'center',
+      }}>
+        <h1 style={{ fontSize: '32px', marginBottom: '20px' }}>⚠️ Missing Environment Variables</h1>
+        <p style={{ fontSize: '18px', marginBottom: '10px' }}>
+          The following required environment variables are missing:
+        </p>
+        <ul style={{ listStyle: 'none', padding: 0, fontSize: '16px' }}>
+          {envCheck.missing.map(key => (
+            <li key={key} style={{ margin: '10px 0', color: '#ffaa00' }}>{key}</li>
+          ))}
+        </ul>
+        <p style={{ marginTop: '20px', fontSize: '14px', color: '#aaa' }}>
+          Please configure these in your Vercel environment variables or .env file.
+        </p>
       </div>
     );
   }
@@ -1682,38 +1685,8 @@ const AppContent: React.FC = () => {
   // Only bypass auth on localhost if user hasn't explicitly signed out
   const isAuthenticated = hasValidSession || (isLocalhost && !justSignedOut);
   
-  // Prevent Partial Renders: Only render AuthScreen if no session and not a guest
-  if (!isAuthenticated && !isGuest) {
-    // Step C: Only if app is ready AND there is no user, show Landing
-    
-    // Check if we just came back from auth/callback (browser might be blocking cookies)
-    const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
-    
-    return (
-      <div className="relative">
-        <AuthScreen onPlayAsGuest={handlePlayAsGuest} />
-        {cameFromAuthCallback && (
-          <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20">
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={forceSession}
-                className="px-6 py-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm transition-colors shadow-lg"
-              >
-                Complete Sign In
-              </button>
-              <p className="text-amber-300/70 text-xs text-center max-w-xs">
-                If sign-in seems stuck, click to manually complete the process
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-  
-  // 3. If session || isGuest, show Main Game App (only rendered when isAppReady is true)
-
-  // CRITICAL: Get current gameState and roomId for render decision
+  // CRITICAL: All hooks must be declared BEFORE any early returns
+  // Get current gameState and roomId for render decision (needed for hooks below)
   const currentGameState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
   const currentRoomId = currentGameState?.roomId;
   
@@ -1755,6 +1728,41 @@ const AppContent: React.FC = () => {
       renderDecisionRef.current = current;
     }
   }, [currentGameState?.status, view, currentRoomId, gameMode, currentGameState]);
+  
+  // Prevent Partial Renders: Only render AuthScreen if no session and not a guest
+  // CRITICAL: This early return must be AFTER all hooks are declared
+  if (!isAuthenticated && !isGuest) {
+    // Step C: Only if app is ready AND there is no user, show Landing
+    
+    // Check if we just came back from auth/callback (browser might be blocking cookies)
+    const cameFromAuthCallback = typeof document !== 'undefined' && document.referrer.includes('auth/callback');
+    
+    return (
+      <div className="relative">
+        <AuthScreen onPlayAsGuest={handlePlayAsGuest} />
+        {cameFromAuthCallback && (
+          <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20">
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={forceSession}
+                className="px-6 py-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm transition-colors shadow-lg"
+              >
+                Complete Sign In
+              </button>
+              <p className="text-amber-300/70 text-xs text-center max-w-xs">
+                If sign-in seems stuck, click to manually complete the process
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // 3. If session || isGuest, show Main Game App (only rendered when isAppReady is true)
+
+  // RENDER LOGIC BYPASS: Allow Lobby to render even if other loading conditions are true
+  // We'll show loading as an overlay instead of blocking the entire render
 
   return (
     <BillingProvider 
@@ -1795,7 +1803,42 @@ const AppContent: React.FC = () => {
         console.error('🧭 RENDERED: App.tsx MULTI_PLAYER render block');
         const roomId = currentGameState?.roomId || urlRoomCode;
         
-        // 1. No roomId: Show LobbyBrowser (Create Room screen)
+        // 1. BYPASS GATE: If view is LOBBY, show Lobby immediately regardless of other conditions
+        if (view === 'LOBBY' && gameMode === 'MULTI_PLAYER') {
+          return (
+            <div id="LobbyContainer" className="w-full h-full min-h-screen">
+              <Lobby 
+                key="lobby-browser-persistent" 
+                playerName={playerName} 
+                gameState={mpGameState} 
+                error={error} 
+                playerAvatar={playerAvatar} 
+                initialRoomCode={roomId || null} 
+                backgroundTheme={backgroundTheme} 
+                onBack={handleExit} 
+                onSignOut={handleSignOut} 
+                myId={myPlayerId} 
+                turnTimerSetting={turnTimerSetting} 
+                selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve}
+                initialTab={localTabRequested ? 'LOCAL' : undefined}
+                onReady={() => {
+                  setIsLobbyReady(true);
+                  setIsLobbyInitialized(true);
+                }}
+                onInitialized={() => setIsLobbyInitialized(true)}
+                onOpenHub={(tab) => {
+                  if (tab === 'INVENTORY') setInventoryOpen(true);
+                  else setHubState({ open: true, tab });
+                }}
+                profile={profile}
+                isGuest={isGuest}
+                remoteEmotes={[]}
+              />
+            </div>
+          );
+        }
+        
+        // 2. No roomId: Show LobbyBrowser (Create Room screen)
         if (!roomId) {
           return (
             <div id="LobbyContainer" className="w-full h-full min-h-screen">
@@ -1813,23 +1856,71 @@ const AppContent: React.FC = () => {
                 turnTimerSetting={turnTimerSetting} 
                 selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve}
                 initialTab={localTabRequested ? 'LOCAL' : undefined}
+                onReady={() => {
+                  setIsLobbyReady(true);
+                  setIsLobbyInitialized(true);
+                }}
+                onInitialized={() => setIsLobbyInitialized(true)}
+                onOpenHub={(tab) => {
+                  if (tab === 'INVENTORY') setInventoryOpen(true);
+                  else setHubState({ open: true, tab });
+                }}
+                profile={profile}
+                isGuest={isGuest}
+                remoteEmotes={[]}
               />
             </div>
           );
         }
         
-        // 2. roomId exists but no gameState: Show loading
+        // 2. roomId exists but no gameState: Show Lobby if view is LOBBY, otherwise show loading
+        // REMOVE RENDER GATE: Don't block Lobby from showing when view is already LOBBY
+        // FIX THE 'status: undefined' GATE: Allow Lobby to render even if status is undefined
         if (!currentGameState) {
-          return (
-            <div className="flex items-center justify-center min-h-screen">
-              <div className="text-yellow-400 text-lg">Loading game...</div>
-            </div>
-          );
+          if (view === 'LOBBY' && gameMode === 'MULTI_PLAYER') {
+            // Show Lobby immediately even without gameState if view is LOBBY
+            return (
+              <div id="LobbyContainer" className="w-full h-full min-h-screen">
+                <Lobby 
+                  key="lobby-persistent" 
+                  playerName={playerName} 
+                  gameState={null} 
+                  error={error} 
+                  playerAvatar={playerAvatar} 
+                  initialRoomCode={urlRoomCode} 
+                  backgroundTheme={backgroundTheme} 
+                  onBack={handleExit} 
+                  onSignOut={handleSignOut} 
+                  myId={myPlayerId} 
+                  turnTimerSetting={turnTimerSetting} 
+                  selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve}
+                  onReady={() => {
+                    setIsLobbyReady(true);
+                    setIsLobbyInitialized(true);
+                  }}
+                  onInitialized={() => setIsLobbyInitialized(true)}
+                />
+              </div>
+            );
+          }
+          // If we have a roomId but no gameState and view is not LOBBY, show loading
+          // But if view is LOBBY, we already handled it above, so fall through
+          if (view !== 'LOBBY') {
+            return (
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="text-yellow-400 text-lg">Loading game...</div>
+              </div>
+            );
+          }
+          // If view is LOBBY, fall through to render Lobby below
         }
         
         // 3. Status-based rendering: Use gameState.status as single source of truth
         // Lobby is always rendered for LOBBY status (no conditional key changes)
-        if (currentGameState.status === GameStatus.LOBBY) {
+        // BYPASS GATE: Also show Lobby if view is LOBBY, even if status doesn't match yet
+        // FIX THE 'status: undefined' GATE: Allow Lobby to render even if status is undefined
+        // Verify that the RENDER DECISION logic doesn't use status variables that might be undefined to block LOBBY view
+        if ((currentGameState?.status === GameStatus.LOBBY) || (view === 'LOBBY' && gameMode === 'MULTI_PLAYER') || (!currentGameState?.status && view === 'LOBBY')) {
           return (
             <div id="LobbyContainer" className="w-full h-full min-h-screen">
               <Lobby 
@@ -1844,16 +1935,21 @@ const AppContent: React.FC = () => {
                 onSignOut={handleSignOut} 
                 myId={myPlayerId} 
                 turnTimerSetting={turnTimerSetting} 
-                selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve} 
+                selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve}
+                onReady={() => {
+                  setIsLobbyReady(true);
+                  setIsLobbyInitialized(true);
+                }}
+                onInitialized={() => setIsLobbyInitialized(true)}
               />
             </div>
           );
         }
         
         // 4. PLAYING status: Show GameTable
-        if (currentGameState.status === GameStatus.PLAYING) {
+        if (currentGameState?.status === GameStatus.PLAYING) {
           return (
-            <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
               <GameTable 
                 gameState={currentGameState} 
                 myId={myPlayerId} 
@@ -1870,7 +1966,7 @@ const AppContent: React.FC = () => {
                 sessionMuted={sessionMuted} 
                 setSessionMuted={setSessionMuted} 
               />
-            </Suspense>
+        </Suspense>
           );
         }
         
@@ -1894,6 +1990,27 @@ const AppContent: React.FC = () => {
           </div>
         );
       })()}
+      {/* SINGLE_PLAYER mode: Render GameTable when view is GAME_TABLE */}
+      {gameMode === 'SINGLE_PLAYER' && view === 'GAME_TABLE' && spGameState && (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
+          <GameTable 
+            gameState={spGameState} 
+            myId="me" 
+            myHand={spMyHand} 
+            onPlayCards={(cards) => handleLocalPlay('me', cards)} 
+            onPassTurn={() => handleLocalPass('me')} 
+            cardCoverStyle={cardCoverStyle} 
+            backgroundTheme={backgroundTheme} 
+            profile={profile} 
+            playAnimationsEnabled={playAnimationsEnabled} 
+            autoPassEnabled={autoPassEnabled} 
+            onOpenSettings={() => setGameSettingsOpen(true)} 
+            socialFilter={socialFilter} 
+            sessionMuted={sessionMuted} 
+            setSessionMuted={setSessionMuted} 
+          />
+        </Suspense>
+      )}
       {view === 'VICTORY' && (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading results...</div></div>}>
           <VictoryScreen 
@@ -1987,6 +2104,24 @@ const AppContent: React.FC = () => {
             }
           }}
         />
+      )}
+      
+      {/* OVERLAY PATTERN: LoadingScreen as conditional overlay instead of early return */}
+      {/* Show loading overlay if: session loading, syncing data, or LOBBY not initialized */}
+      {((!isAppReady && view !== 'LOBBY') || (view === 'LOBBY' && !isLobbyInitialized && gameMode === 'MULTI_PLAYER') || isSyncingData) && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex items-center justify-center">
+          <LoadingScreen
+            status={
+              view === 'LOBBY' && !isLobbyInitialized 
+                ? "Synchronizing Lobby..." 
+                : isRedirecting 
+                  ? "Connecting to provider..." 
+                  : "Verifying session..."
+            }
+            showGuestButton={!isRedirecting && view !== 'LOBBY'}
+            onEnterGuest={handlePlayAsGuest}
+          />
+        </div>
       )}
     </div>
     </BillingProvider>

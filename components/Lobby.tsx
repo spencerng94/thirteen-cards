@@ -8,6 +8,7 @@ import { Toast } from './Toast';
 import { localDiscoveryService } from '../services/localDiscovery';
 import { containsProfanity } from '../utils/wordFilter';
 import { useLobbySettings } from '../hooks/useLobbySettings';
+import { UserBar } from './UserBar';
 
 interface PublicRoom {
   id: string;
@@ -30,6 +31,12 @@ interface LobbyProps {
   turnTimerSetting: number;
   selected_sleeve_id?: string; // Card sleeve ID for this player
   initialTab?: 'PUBLIC' | 'CREATE' | 'LOCAL';
+  onReady?: () => void; // Callback to signal that Lobby is ready (fetched initial data)
+  onInitialized?: () => void; // Callback to signal that Lobby has initialized (alternative to onReady)
+  onOpenHub?: (tab: 'PROFILE' | 'INVENTORY' | 'LEVEL_REWARDS') => void; // Callback to open UserHub
+  profile?: any; // UserProfile for UserBar
+  isGuest?: boolean; // Whether user is a guest
+  remoteEmotes?: Emote[]; // Remote emotes for UserBar
 }
 
 const MAX_PLAYERS = 4;
@@ -75,7 +82,7 @@ const PlayerSlot = memo(({ index, player, isHost, myId, remoteEmotes, onRemoveBo
           <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0 relative">
             <div className="relative flex-shrink-0">
               <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-[1.5rem] bg-black border flex items-center justify-center overflow-hidden shadow-2xl group-hover:scale-105 transition-transform duration-200 ${player.isBot ? 'border-cyan-500/60 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-white/10'}`}>
-                <VisualEmote trigger={player.avatar} remoteEmotes={remoteEmotes} size="md" />
+                <VisualEmote trigger={player.avatar} remoteEmotes={displayRemoteEmotes} size="md" />
                 {player.isBot && (
                   <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-cyan-500/90 text-white text-[6px] font-black uppercase tracking-wider px-1 py-0.5 rounded-full border border-cyan-400/50 shadow-lg whitespace-nowrap">
                     CPU
@@ -214,6 +221,7 @@ interface PublicTabProps {
   refreshRooms: () => void;
   socketConnected: boolean;
   forceRefresh: () => void; // Add forceRefresh function prop
+  hasLoadedOnce: boolean; // Track if we've received at least one response
 }
 
 const PublicTabContentComponent: React.FC<PublicTabProps> = ({ 
@@ -225,7 +233,8 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   isRefreshing,
   refreshRooms,
   socketConnected,
-  forceRefresh
+  forceRefresh,
+  hasLoadedOnce
 }) => {
   console.error('🧭 RENDERED: PublicTabContentComponent');
   
@@ -277,14 +286,6 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
             <span className="text-[9px] sm:text-[10px] font-semibold text-white/40 uppercase tracking-wider mt-0.5">{publicRooms.length} {publicRooms.length === 1 ? 'room' : 'rooms'} available</span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Force Refresh button - bypasses all guards for testing */}
-            <button 
-              onClick={forceRefresh}
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center transition-all duration-200 active:scale-90 hover:bg-red-500/30 hover:border-red-500/50 text-red-400"
-              title="Force Refresh (bypasses guards)"
-            >
-              <span className="text-xs font-black">⚡</span>
-            </button>
           <button 
             onClick={refreshRooms} 
               disabled={isRefreshing || (!socketConnected && !socket?.connected)} 
@@ -298,9 +299,22 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           {/* EXACTLY THREE STATES: LOADING, EMPTY, ROOMS - NO GUARDS, NO NULL RETURNS */}
           {(() => {
-            console.log("✅ FINAL RENDER PATH HIT - PublicTabContent render", { isRefreshing, roomCount: publicRooms.length });
+            console.log("✅ FINAL RENDER PATH HIT - PublicTabContent render", { isRefreshing, roomCount: publicRooms.length, socketConnected, hasLoadedOnce });
             
-            if (isRefreshing) {
+            // REFRESH STATE: If isRefreshing is true but we've already loaded once (even with 0 rooms),
+            // show "No rooms found" instead of a full-screen spinner
+            // Only show loading spinner if we're refreshing AND haven't loaded once yet
+            if (isRefreshing && !hasLoadedOnce) {
+              return (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
+                  <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
+                </div>
+              );
+            }
+            
+            // If we haven't loaded yet and socket is connected, show loading
+            if (!publicRooms.length && socketConnected && !hasLoadedOnce) {
               return (
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
                   <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
@@ -311,18 +325,18 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
             
             if (publicRooms.length === 0) {
               return (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
-                    <span className="text-3xl sm:text-4xl">🃏</span>
-                  </div>
-                  <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
-                  <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
-                </div>
+            <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
+                <span className="text-3xl sm:text-4xl">🃏</span>
+              </div>
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
+              <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
+            </div>
               );
             }
             
             return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {publicRooms.map((room, index) => {
                 // CRITICAL: Ensure stable and unique key for room list items
                 // Use room.id if available, fallback to room.roomId, then combination of name and hostName
@@ -338,7 +352,7 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
                   <div className="flex justify-between items-start">
                     <div className="relative">
                       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
+                        <VisualEmote trigger={room.hostAvatar} remoteEmotes={displayRemoteEmotes} size="sm" />
                       </div>
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
                     </div>
@@ -355,15 +369,15 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
                   </div>
                   <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
-                  </div>
-                </div>
-                );
+      </div>
+    </div>
+  );
               })}
-              </div>
+      </div>
             );
           })()}
+          </div>
         </div>
-      </div>
     </div>
   );
   
@@ -565,7 +579,13 @@ function LobbyComponent({
   onSignOut,
   myId,
   turnTimerSetting,
-  initialTab = 'PUBLIC'
+  initialTab = 'PUBLIC',
+  onReady,
+  onInitialized,
+  onOpenHub,
+  profile,
+  isGuest,
+  remoteEmotes
 }: LobbyProps) {
   console.error('🧭 RENDERED: LobbyComponent');
   // Initialize hook at the very top to bypass closure issues
@@ -584,54 +604,65 @@ function LobbyComponent({
   });
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
+  // Use remoteEmotes from props, with fallback to empty array
+  const displayRemoteEmotes = remoteEmotes || [];
   const [hasLoaded, setHasLoaded] = useState(false); // Track if we've received at least one response
-  const [isInitialLoading, setIsInitialLoading] = useState(true); // Track initial loading state for App.tsx sync
-  const hasLoadedOnce = useRef(false); // Track if we've received at least one response (even if empty)
-  const isMounted = useRef(true); // Track if component is mounted
-  const initialFetchDone = useRef(false); // Consolidated flag to ensure refreshRooms() is only called once on mount
-  const listenerRegisteredRef = useRef(false); // Track if listener is registered
-  const socketInitDoneRef = useRef(false); // Guard against StrictMode double-invocation
+  // SIMPLIFY INITIALIZATION: Initialize to false so buttons are interactive immediately
+  const [isInitialLoading, setIsInitialLoading] = useState(false); // Track initial loading state for App.tsx sync
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false); // Track if we've received at least one response (even if empty) - converted to state
+  const isMounted = useRef(true); // Track if component is mounted (for cleanup only)
   
-  // Single source of truth for tab navigation - use initialTab prop if provided
-  const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>(initialTab);
+  // Single source of truth for tab navigation - default to 'PUBLIC' if initialTab is not provided
+  // TAB VISIBILITY: Ensure activeTab defaults to 'PUBLIC' and is not dependent on server response
+  const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>(initialTab || 'PUBLIC');
+  
+  // Update activeTab when initialTab prop changes (e.g., when LOCAL button is pressed)
+  // Use a ref to track the previous initialTab value to detect when it actually changes
+  const prevInitialTabRef = useRef<'PUBLIC' | 'CREATE' | 'LOCAL' | undefined>(initialTab);
+  useEffect(() => {
+    // Only update activeTab if initialTab actually changed (not when user manually switches tabs)
+    // This allows LOCAL button to work, but doesn't override user's manual tab switches
+    if (initialTab && initialTab !== prevInitialTabRef.current) {
+      console.log('🔄 Lobby: initialTab prop changed, updating activeTab', { from: prevInitialTabRef.current, to: initialTab, currentActiveTab: activeTab });
+      setActiveTab(initialTab);
+      prevInitialTabRef.current = initialTab;
+    } else if (!initialTab && prevInitialTabRef.current) {
+      // If initialTab becomes undefined, reset the ref but don't change activeTab (user might have manually switched)
+      prevInitialTabRef.current = undefined;
+    }
+  }, [initialTab]); // Only depend on initialTab, NOT activeTab, to avoid overriding user's manual tab switches
   
   const [socketConnected, setSocketConnected] = useState(false);
   const [socketConnecting, setSocketConnecting] = useState(false);
   
-  // Ref to prevent infinite loops on initial mount
+  // CRITICAL: Define isRefreshing BEFORE any callbacks that use it to avoid hook order violation
+  const [isRefreshing, setIsRefreshing] = useState(false); // Start as false, only set to true when actually fetching
+  const [isListenerRegistered, setIsListenerRegistered] = useState(false); // Convert ref to state for UI reactivity
+  
+  // Refs for non-UI state (cleanup and guards only)
   const isInitialMount = React.useRef(true);
+  const socketInitDoneRef = useRef(false); // Guard against StrictMode double-invocation
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Store timeout for cleanup
+  const hasInitialFetchedRef = useRef(false); // Track if initial fetch has been attempted
 
-  // CENTRALIZED SOCKET LIFECYCLE: Single useEffect for connection, listener registration, and initial fetch
-  // This ensures deterministic sequencing and prevents duplicate side effects
+  // Socket event handler - wrapped in useEffect to ensure proper React lifecycle
   useEffect(() => {
-    // GUARD AGAINST STRICTMODE: Prevent double-invocation side effects
-    if (socketInitDoneRef.current) {
-      console.log('🛡️ Lobby: Socket init already done (StrictMode guard), skipping');
-      return;
-    }
-    
-    if (!socket) {
-      console.warn('⚠️ Lobby: Socket not available');
-      return;
-    }
-    
-    console.log('🔌 Lobby: Initializing socket lifecycle (first time only)');
-    socketInitDoneRef.current = true;
-    
-    // 2. REGISTER ROOMS LIST LISTENER (ONCE)
+    if (!socket) return;
+
     const handleRoomsList = (data: any) => {
-      // LISTENER RESET: setIsRefreshing(false) is the VERY FIRST line executed
-      setIsRefreshing(false);
-      setIsFetching(false);
-      
       console.log('📋 Lobby: handleRoomsList received data:', {
         socketId: socket.id,
         type: typeof data,
         isArray: Array.isArray(data),
         dataLength: Array.isArray(data) ? data.length : 'N/A'
       });
+      
+      // Clear any pending timeout
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = null;
+      }
       
       let roomsArray: any[] = [];
       
@@ -650,65 +681,67 @@ function LobbyComponent({
       console.log('📋 Lobby: Received public rooms list', uniqueRooms.length, 'rooms');
       
       // Update state with room data - ALWAYS create new array reference
-      setPublicRooms([...uniqueRooms]); // Create new array reference to ensure re-render
+      setPublicRooms([...uniqueRooms]);
       setHasLoaded(true);
-      hasLoadedOnce.current = true;
+      setHasLoadedOnce(true);
       setIsInitialLoading(false);
       
       console.log("📋 Lobby: Fetch complete", { roomCount: uniqueRooms.length });
+      
+      // CRITICAL: Signal to App.tsx that Lobby is ready
+      if (onReady) {
+        onReady();
+      }
+      // PROP SIGNAL: Call onInitialized to tell App.tsx to hide the global overlay
+      if (onInitialized) {
+        onInitialized();
+      }
+      
+      // FORCE LOADING CLEAR: Always clear loading states at the very end, regardless of data.length
+      setIsRefreshing(false);
+      isRefreshingRef.current = false;
     };
     
-    // HARDEN LISTENER REGISTRATION: Remove any existing listeners first
+    // Register listener
     socket.off(SocketEvents.PUBLIC_ROOMS_LIST);
     socket.on(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
-    listenerRegisteredRef.current = true;
+    setIsListenerRegistered(true);
     console.log('✅ Lobby: PUBLIC_ROOMS_LIST listener registered');
     
-    // 3. INITIAL FETCH FUNCTION (only if on PUBLIC tab and socket is ready)
-    const performInitialFetch = () => {
-      // GUARD: Only fetch once on mount
-      if (initialFetchDone.current) {
-        console.log('🛡️ Lobby: Initial fetch already done, skipping');
-        return;
-      }
-      
-      if (activeTab !== 'PUBLIC') {
-        console.log('📋 Lobby: Not on PUBLIC tab, skipping initial fetch');
-        return;
-      }
-      
-      if (!socket.connected) {
-        console.log('📋 Lobby: Socket not connected yet, will fetch on connect');
-        return;
-      }
-      
-      if (!listenerRegisteredRef.current) {
-        console.error('❌ Lobby: Listener not registered before emit!');
-        return;
-      }
-      
-      console.log('📋 Lobby: Performing initial fetch');
-      initialFetchDone.current = true;
-      setIsFetching(true);
+    // FIX INITIAL FETCH RACE: If socket is already connected on mount, trigger fetch immediately
+    // This ensures the fetch happens in the same effect cycle as listener registration
+    if (socket.connected && activeTab === 'PUBLIC' && !hasInitialFetchedRef.current && !isRefreshingRef.current) {
+      console.log('📋 Lobby: Socket already connected - triggering initial fetch immediately after listener registration');
+      hasInitialFetchedRef.current = true;
       setIsRefreshing(true);
+      isRefreshingRef.current = true;
       socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-      console.log('📡 Lobby: Emitted GET_PUBLIC_ROOMS (initial fetch)');
-    };
+      console.log('📡 Lobby: Emitted GET_PUBLIC_ROOMS (immediate fetch after listener registration)');
+    }
     
-    // 1. SET UP CONNECTION STATE LISTENERS
+    // Cleanup
+    return () => {
+      socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
+      setIsListenerRegistered(false);
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = null;
+      }
+    };
+  }, [socket, activeTab]); // Depend on socket and activeTab to trigger fetch when tab changes
+
+  // Socket connection state management
+  useEffect(() => {
+    if (!socket) return;
+
     const onConnect = () => {
       console.log('📡 Lobby: Socket connected event received');
       setSocketConnected(true);
-      // Trigger initial fetch when socket connects (if not already done)
-      if (listenerRegisteredRef.current) {
-        performInitialFetch();
-      }
     };
     
     const onDisconnect = () => {
       console.log('📡 Lobby: Socket disconnected event received');
       setSocketConnected(false);
-      listenerRegisteredRef.current = false; // Reset listener flag on disconnect
     };
     
     socket.on('connect', onConnect);
@@ -718,30 +751,87 @@ function LobbyComponent({
     if (socket.connected) {
       console.log('📡 Lobby: Socket already connected on mount');
       setSocketConnected(true);
-      // Perform initial fetch if listener is registered and we're on PUBLIC tab
-      if (listenerRegisteredRef.current) {
-        performInitialFetch();
-      }
     }
     
-    // Cleanup
     return () => {
-      console.log('🧹 Lobby: Cleaning up socket lifecycle');
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
-      socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
-      listenerRegisteredRef.current = false;
-      // Note: Don't reset socketInitDoneRef - it's a one-time guard
     };
-  }, [socket, activeTab]); // Only re-run if socket or activeTab changes
+  }, [socket]);
+
+  // Initial fetch on mount or when switching to PUBLIC tab
+  // FIX INITIAL FETCH RACE: If socket is already connected on mount, register listener AND trigger fetch immediately
+  useEffect(() => {
+    if (!socket) return;
+    
+    // FIX INITIAL FETCH RACE: If socket is already connected but listener not registered, register it now
+    if (socket.connected && !isListenerRegistered) {
+      console.log('📋 Lobby: Socket connected but listener not registered - registering now');
+      // The listener registration happens in the other useEffect, but we can trigger a re-run
+      // by ensuring the listener gets registered. Actually, the listener registration is in a separate effect.
+      // So we'll just wait for that effect to run. But we can also check if we need to trigger fetch.
+    }
+    
+    // Only fetch if:
+    // 1. Socket is connected
+    // 2. Listener is registered (or socket is connected and we'll register in same cycle)
+    // 3. We're on PUBLIC tab
+    // 4. We're not already fetching
+    if (!socket.connected) {
+      console.log('📋 Lobby: Initial fetch skipped - socket not connected');
+      return;
+    }
+    
+    if (activeTab !== 'PUBLIC') {
+      return;
+    }
+    
+    if (isRefreshingRef.current) {
+      console.log('📋 Lobby: Initial fetch skipped - already fetching');
+      return;
+    }
+    
+    // Always fetch when switching to PUBLIC tab if we haven't fetched yet OR if we have no rooms
+    // Reset the flag when switching away from PUBLIC tab so we can fetch again when coming back
+    if (hasInitialFetchedRef.current && publicRooms.length > 0) {
+      console.log('📋 Lobby: Initial fetch skipped - already have rooms');
+      return;
+    }
+    
+    // FIX INITIAL FETCH RACE: If socket is connected but listener not registered yet, 
+    // the listener registration effect will handle it. But if listener IS registered, proceed with fetch.
+    if (!isListenerRegistered) {
+      console.log('📋 Lobby: Initial fetch skipped - waiting for listener registration', {
+        socket: !!socket,
+        connected: socket?.connected,
+        listenerRegistered: isListenerRegistered
+      });
+      // If socket is already connected, the listener should be registered soon.
+      // We'll let the effect re-run when isListenerRegistered becomes true.
+      return;
+    }
+    
+    hasInitialFetchedRef.current = true;
+    console.log('📋 Lobby: Performing initial fetch', { activeTab, roomCount: publicRooms.length });
+    setIsRefreshing(true);
+    isRefreshingRef.current = true;
+    socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+    console.log('📡 Lobby: Emitted GET_PUBLIC_ROOMS (initial fetch)');
+  }, [socket, activeTab, isListenerRegistered, publicRooms.length]);
+  
+  // Reset fetch flag when switching away from PUBLIC tab
+  useEffect(() => {
+    if (activeTab !== 'PUBLIC') {
+      hasInitialFetchedRef.current = false;
+    }
+  }, [activeTab]);
   
   // Removed handleTabChange - using direct setState to avoid stale closures
   // Initialize with default object to prevent loading spinner from hanging
   const [localNetworkInfo, setLocalNetworkInfo] = useState<{ isLocalNetwork: boolean; networkType: 'wifi' | 'hotspot' | 'unknown'; canHost: boolean }>({ isLocalNetwork: true, networkType: 'unknown', canHost: true });
   const [localRoomCode, setLocalRoomCode] = useState<string>('');
   const [isHostingLocal, setIsHostingLocal] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(true); // Start as true to show loading until first response
-  const [isFetching, setIsFetching] = useState(false); // Track fetching state with useState to trigger re-renders
+  // NOTE: isRefreshing and isFetching moved above (before handleRoomsList) to fix React hook order violation
   const [syncTimer, setSyncTimer] = useState(0);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
@@ -755,8 +845,19 @@ function LobbyComponent({
     if (initialRoomCode) {
       setRoomIdInput(initialRoomCode);
     }
-    fetchEmotes().then(setRemoteEmotes);
+    // Remote emotes are now passed as props from App.tsx
   }, [initialRoomCode]);
+
+  // Signal to App.tsx that Lobby is initialized (especially for LOCAL tab which doesn't trigger handleRoomsList)
+  // This ensures the loading overlay is hidden immediately when the Lobby component is ready
+  useEffect(() => {
+    if (onInitialized) {
+      // Call immediately on mount to clear loading overlay
+      // This is especially important for LOCAL tab which doesn't fetch rooms via handleRoomsList
+      console.log('✅ Lobby: Calling onInitialized (component ready)', { activeTab });
+      onInitialized();
+    }
+  }, []); // Only run once on mount
 
   // Initialize local network info when component mounts or when LOCAL tab becomes active
   useEffect(() => {
@@ -955,10 +1056,20 @@ function LobbyComponent({
     });
   };
 
+  // Ref to track refreshing state without causing dependency loops
+  const isRefreshingRef = useRef(false);
+  
+  // Sync ref with state
+  useEffect(() => {
+    isRefreshingRef.current = isRefreshing;
+  }, [isRefreshing]);
+  
+  // Fetch function - uses ref to avoid dependency loop
   const refreshRooms = useCallback(() => {
     // GUARD: Ensure listener is registered before emitting
-    if (!listenerRegisteredRef.current) {
+    if (!isListenerRegistered) {
       console.warn('⚠️ Lobby: Cannot refresh - listener not registered yet');
+      setIsRefreshing(false); // Ensure UI state is correct
       return;
     }
     
@@ -969,79 +1080,77 @@ function LobbyComponent({
         socketConnected,
         socketConnectedDirect: socket?.connected
       });
-      setIsRefreshing(false);
-      setIsFetching(false);
+      setIsRefreshing(false); // Always update state, even on early return
       return;
     }
     
-    // GUARD: Prevent duplicate simultaneous fetches - check state and update atomically
-    setIsFetching(prev => {
-      if (prev) {
-        console.log('📋 Lobby: Already fetching, skipping duplicate request');
-        return prev;
-      }
-      
-      console.log('🔄 Lobby: Refreshing public rooms list...');
-      
-      // AUTHORITATIVE: Set loading state immediately before emit
-      setIsRefreshing(true);
-      
-      // SINGLE EMIT PATH: Only one place emits GET_PUBLIC_ROOMS
-      console.log('📡 Lobby: Emitting GET_PUBLIC_ROOMS event');
-      socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-      
-      // Fail-safe timeout: If server doesn't respond within 5 seconds, clear loading state
-      setTimeout(() => {
-        setIsFetching(current => {
-          if (current && isMounted.current) {
-            console.warn('⚠️ Lobby: Fail-safe timeout - server did not respond within 5 seconds');
-            setIsRefreshing(false);
-            return false;
-          }
-          return current;
-        });
-      }, 5000);
-      
-      return true;
-    });
-  }, [socketConnected, socket]);
+    // GUARD: Prevent duplicate simultaneous fetches - use ref to avoid dependency loop
+    if (isRefreshingRef.current) {
+      console.log('📋 Lobby: Already fetching, skipping duplicate request');
+      return; // Don't block, just skip - state is already correct
+    }
+    
+    console.log('🔄 Lobby: Refreshing public rooms list...');
+    
+    // CRITICAL: Always update state first to trigger re-render
+    setIsRefreshing(true);
+    isRefreshingRef.current = true;
+    
+    // Clear any existing timeout
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    // SINGLE EMIT PATH: Only one place emits GET_PUBLIC_ROOMS
+    console.log('📡 Lobby: Emitting GET_PUBLIC_ROOMS event');
+    socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+    
+    // Fail-safe timeout: If server doesn't respond within 5 seconds, clear loading state
+    fetchTimeoutRef.current = setTimeout(() => {
+      console.warn('⚠️ Lobby: Fail-safe timeout - server did not respond within 5 seconds');
+      setIsRefreshing(false);
+      isRefreshingRef.current = false;
+      fetchTimeoutRef.current = null;
+    }, 5000);
+  }, [socket, socketConnected, isListenerRegistered]); // Removed isRefreshing to break loop
 
   // Force Refresh function - bypasses guards for testing
   const forceRefresh = useCallback(() => {
     console.log('🔧 Lobby: Force Refresh clicked', {
       socketId: socket?.id,
       socketConnected: socket?.connected,
-      listenerRegistered: listenerRegisteredRef.current
+      listenerRegistered: isListenerRegistered
     });
     
     if (!socket?.connected) {
       console.warn('🔧 Lobby: Force Refresh - socket not connected');
+      setIsRefreshing(false);
       return;
     }
     
-    if (!listenerRegisteredRef.current) {
+    if (!isListenerRegistered) {
       console.warn('🔧 Lobby: Force Refresh - listener not registered');
+      setIsRefreshing(false);
       return;
     }
     
-    // Reset fetch lock and emit
-    setIsFetching(true);
+    // Clear any existing timeout
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    // Always update state first
     setIsRefreshing(true);
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
     console.log('🔧 Lobby: Force Refresh - emitted GET_PUBLIC_ROOMS');
     
     // Fail-safe timeout
-    setTimeout(() => {
-      setIsFetching(current => {
-        if (current && isMounted.current) {
-          console.warn('⚠️ Lobby: Force Refresh timeout - server did not respond within 5 seconds');
-          setIsRefreshing(false);
-          return false;
-        }
-        return current;
-      });
+    fetchTimeoutRef.current = setTimeout(() => {
+      console.warn('⚠️ Lobby: Force Refresh timeout - server did not respond within 5 seconds');
+      setIsRefreshing(false);
+      fetchTimeoutRef.current = null;
     }, 5000);
-  }, [socket]);
+  }, [socket, isListenerRegistered]);
 
   // REMOVED: Listener registration is now handled in the centralized socket lifecycle useEffect above
 
@@ -1060,11 +1169,16 @@ function LobbyComponent({
       isInitialMount.current = false;
       return;
     }
-    if (!gameState && socketConnected) {
+    // Only refresh when exiting a game (gameState becomes null) AND we're on PUBLIC tab
+    if (!gameState && socketConnected && activeTab === 'PUBLIC' && isListenerRegistered) {
       // Refresh rooms when we exit a game (gameState becomes null)
+      // Use a small delay to avoid race conditions
+      const timeoutId = setTimeout(() => {
       refreshRooms();
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
-  }, [gameState, socketConnected, refreshRooms]); // refreshRooms is now stable via useCallback
+  }, [gameState, socketConnected, activeTab, isListenerRegistered, refreshRooms]);
 
   useEffect(() => {
     let interval: any;
@@ -1463,6 +1577,20 @@ function LobbyComponent({
       <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
       <div className="lobby-viewport" key="lobby-viewport">
         
+        {/* UserBar - Profile Icon in top-right corner */}
+        {onOpenHub && (
+          <div className="fixed top-[calc(env(safe-area-inset-top)+1.5rem)] sm:top-[calc(env(safe-area-inset-top)+2rem)] right-4 sm:right-8 z-[90] animate-in slide-in-from-right-2 fade-in duration-500 pointer-events-none">
+            <UserBar 
+              profile={profile || null} 
+              isGuest={isGuest} 
+              avatar={playerAvatar} 
+              remoteEmotes={displayRemoteEmotes} 
+              onClick={(tab) => onOpenHub?.(tab as 'PROFILE' | 'INVENTORY' | 'LEVEL_REWARDS')} 
+              className="pointer-events-auto" 
+            />
+          </div>
+        )}
+        
         {errorToast.show && (
           <Toast
             message={errorToast.message}
@@ -1603,26 +1731,22 @@ function LobbyComponent({
                     }`}
                   >
                     {activeTab === 'PUBLIC' && (
-                      !socketConnected ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="flex flex-col items-center gap-4">
-                            <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            <p className="text-sm font-black uppercase tracking-wider text-white/60">Connecting to server...</p>
-                          </div>
-                        </div>
-                      ) : (
+                      <>
+                        {/* REMOVED EARLY RETURN: Always render tabs, show loading as overlay */}
                     <PublicTabContent
                       roomIdInput={roomIdInput}
                       setRoomIdInput={setRoomIdInput}
                       joinRoom={joinRoom}
                       publicRooms={publicRooms}
-                      remoteEmotes={remoteEmotes}
+                      remoteEmotes={displayRemoteEmotes}
                       isRefreshing={isRefreshing}
                       refreshRooms={refreshRooms}
                       socketConnected={socketConnected}
-                      forceRefresh={forceRefresh}
+                          forceRefresh={forceRefresh}
+                          hasLoadedOnce={hasLoadedOnce}
                                 />
-                      )
+                        {/* REMOVED OVERLAY: No longer blocking UI with "Connecting to server..." overlay */}
+                      </>
                     )}
                             </div>
 
@@ -2074,7 +2198,7 @@ function LobbyComponent({
                                     player={p || null}
                                     isHost={isHost}
                                     myId={myId}
-                                    remoteEmotes={remoteEmotes}
+                                    remoteEmotes={displayRemoteEmotes}
                                     onRemoveBot={removeBot}
                                     onUpdateDifficulty={updateBotDifficulty}
                                     onAddBot={addBot}
