@@ -2132,20 +2132,24 @@ export const getUserByHandle = async (handle: string): Promise<UserProfile | nul
   if (!supabaseAnonKey || !handle.trim()) return null;
   
   try {
+    // Normalize handle: trim and handle both combined and separate formats
+    const trimmedHandle = handle.trim();
+    
     // Check if handle contains a discriminator (Name#0000 format)
-    const hasDiscriminator = handle.includes('#');
+    const hasDiscriminator = trimmedHandle.includes('#');
     
     if (!hasDiscriminator) {
       // Without discriminator, we can't do an exact match
       return null;
     }
     
-    const parts = handle.split('#');
+    const parts = trimmedHandle.split('#');
     if (parts.length !== 2) {
       return null;
     }
     
-    const namePart = parts[0].trim();
+    // Normalize name part: trim and convert to uppercase to match database format
+    const namePart = parts[0].trim().toUpperCase();
     const discriminatorPart = parts[1].trim();
     
     // Validate discriminator format (4 digits)
@@ -2153,16 +2157,29 @@ export const getUserByHandle = async (handle: string): Promise<UserProfile | nul
       return null;
     }
     
+    // Construct the full handle in the format stored in database: "NAME#1234"
+    const fullHandle = `${namePart}#${discriminatorPart}`;
+    
     // Use case-insensitive search with ilike for exact match
+    // Database stores usernames as "NAME#1234" format
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .ilike('username', `${namePart}#${discriminatorPart}`)
+      .ilike('username', fullHandle)
       .maybeSingle();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error in getUserByHandle query:', error);
+      throw error;
+    }
     
-    if (!data) return null;
+    if (!data) {
+      // Log for debugging - handle not found
+      if (import.meta.env.DEV) {
+        console.log(`getUserByHandle: No user found for handle: ${fullHandle}`);
+      }
+      return null;
+    }
     
     return { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
   } catch (e) {

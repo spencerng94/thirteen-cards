@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship } from '../services/supabase';
 import { calculateLevel } from '../services/supabase';
 import { CopyUsername } from './CopyUsername';
+import { parseUsername } from '../utils/username';
 
 // Default avatar icon component for when avatar_url is null
 const DefaultAvatarIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -85,10 +86,28 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
     const params = new URLSearchParams(window.location.search);
     const friendParam = params.get('friend');
     if (friendParam && !isGuest && profile) {
-      setSearchQuery(friendParam);
-      // Trigger search after a short delay to ensure friends list is loaded
+      // Normalize the handle from URL (decode and trim)
+      const normalizedHandle = decodeURIComponent(friendParam).trim();
+      setSearchQuery(normalizedHandle);
+      
+      // If it looks like a valid handle (has # and 4-digit discriminator), try to add by handle
+      if (normalizedHandle.includes('#')) {
+        const parts = normalizedHandle.split('#');
+        if (parts.length === 2 && /^\d{4}$/.test(parts[1].trim())) {
+          // Valid handle format - try to add by handle after a delay
+          const addTimeout = setTimeout(() => {
+            handleAddByHandle();
+          }, 300);
+          // Clean up URL
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+          return () => clearTimeout(addTimeout);
+        }
+      }
+      
+      // Otherwise, trigger regular search
       const searchTimeout = setTimeout(() => {
-        handleSearch(friendParam);
+        handleSearch(normalizedHandle);
       }, 200);
       // Clean up URL
       const newUrl = window.location.pathname;
@@ -159,22 +178,38 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
     setError(null);
     
     try {
+      // Normalize the search query: trim and handle potential formatting issues
+      const normalizedQuery = searchQuery.trim().replace(/\s+/g, ' ');
+      
       // Check if the query looks like a valid handle (contains #)
-      if (!searchQuery.includes('#')) {
+      if (!normalizedQuery.includes('#')) {
         setError('Please enter a handle in the format: Name#1234');
         setLoading(false);
         return;
       }
       
-      const parts = searchQuery.split('#');
-      if (parts.length !== 2 || !/^\d{4}$/.test(parts[1].trim())) {
+      const parts = normalizedQuery.split('#');
+      if (parts.length !== 2) {
         setError('Invalid handle format. Use: Name#1234');
         setLoading(false);
         return;
       }
       
+      // Validate and normalize parts
+      const namePart = parts[0].trim();
+      const discriminatorPart = parts[1].trim();
+      
+      if (!namePart || !/^\d{4}$/.test(discriminatorPart)) {
+        setError('Invalid handle format. Use: Name#1234 (discriminator must be 4 digits)');
+        setLoading(false);
+        return;
+      }
+      
+      // Reconstruct handle with normalized format
+      const fullHandle = `${namePart}#${discriminatorPart}`;
+      
       // Look up user by exact handle
-      const user = await getUserByHandle(searchQuery.trim());
+      const user = await getUserByHandle(fullHandle);
       
       if (!user) {
         setError('User not found. Please check the handle and try again.');
@@ -243,20 +278,36 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ onClose, profile, 
                     <span className="text-xs text-white/40 uppercase tracking-wide">Your ID:</span>
                     <CopyUsername username={profile.username} discriminator={profile.discriminator} className="text-sm" />
                     <button
-                      onClick={() => {
-                        const shareUrl = `${window.location.origin}${window.location.pathname}?friend=${encodeURIComponent(profile.username || '')}`;
+                      onClick={async () => {
+                        // Get full handle with discriminator
+                        const parsed = parseUsername(profile.username || '', profile.discriminator);
+                        const fullHandle = parsed.full;
+                        const shareUrl = `${window.location.origin}${window.location.pathname}?friend=${encodeURIComponent(fullHandle)}`;
+                        
                         if (navigator.share) {
                           navigator.share({
                             title: 'Add me on XIII Cards!',
-                            text: `Add me as a friend: ${profile.username}`,
+                            text: `Add me as a friend: ${fullHandle}`,
                             url: shareUrl
                           }).catch(() => {
                             // Fallback to clipboard if share fails
-                            navigator.clipboard.writeText(shareUrl);
+                            navigator.clipboard.writeText(fullHandle);
                           });
                         } else {
-                          // Fallback to clipboard
-                          navigator.clipboard.writeText(shareUrl);
+                          // Fallback to clipboard - copy the full handle
+                          try {
+                            await navigator.clipboard.writeText(fullHandle);
+                          } catch (err) {
+                            // Final fallback
+                            const textArea = document.createElement('textarea');
+                            textArea.value = fullHandle;
+                            textArea.style.position = 'fixed';
+                            textArea.style.opacity = '0';
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textArea);
+                          }
                         }
                       }}
                       className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg text-blue-300 text-[10px] font-bold uppercase tracking-wide transition-all"
