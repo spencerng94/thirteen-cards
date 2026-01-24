@@ -10,6 +10,7 @@ import { CopyUsername } from './CopyUsername';
 import { CurrencyIcon } from './CurrencyIcon';
 import { DeleteAccountButton } from './DeleteAccountButton';
 import { sanitizePath } from '../utils/svgSanitizer';
+import { formatUsername, parseUsername } from '../utils/username';
 
 export interface ThemeConfig {
   id: string;
@@ -4000,10 +4001,11 @@ interface UserHubProps {
   isGuest?: boolean;
   onLinkAccount?: () => void;
   initialTab?: HubTab;
+  session?: any; // Add session prop for profile initialization
 }
 
 export const UserHub: React.FC<UserHubProps> = ({ 
-    profile, onClose, playerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, onLinkAccount, initialTab = 'PROFILE'
+    profile, onClose, playerName, playerAvatar, setPlayerAvatar, onSignOut, onRefreshProfile, isGuest, onLinkAccount, initialTab = 'PROFILE', session
 }) => {
     const [activeTab, setActiveTab] = useState<HubTab>(initialTab || 'PROFILE');
     const [showLevelRewards, setShowLevelRewards] = useState(false);
@@ -4243,11 +4245,35 @@ export const UserHub: React.FC<UserHubProps> = ({
                                             <div className="flex flex-col items-center gap-3">
                                                 <div className="flex items-center justify-center">
                                                     {profile && !isGuest && profile.username ? (
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex flex-col items-center gap-2">
                                                             <CopyUsername 
                                                                 username={profile.username} 
+                                                                discriminator={profile.discriminator}
                                                                 className="[&>span]:text-3xl [&>span]:sm:text-4xl [&>span]:font-bold [&>span]:tracking-tight" 
                                                             />
+                                                            {/* Display username#discriminator for friend requests */}
+                                                            {profile.discriminator && (
+                                                                <div className="flex items-center gap-2 px-3 py-1 bg-white/[0.05] border border-white/10 rounded-lg">
+                                                                    <span className="text-xs font-mono text-white/70">
+                                                                        {formatUsername(profile.username, profile.discriminator)}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const fullHandle = formatUsername(profile.username, profile.discriminator);
+                                                                            navigator.clipboard.writeText(fullHandle).then(() => {
+                                                                                // Show toast or feedback
+                                                                            }).catch(() => {});
+                                                                        }}
+                                                                        className="text-white/50 hover:text-white/80 transition-colors"
+                                                                        title="Copy handle"
+                                                                    >
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                                                        </svg>
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ) : (
                                                         <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight text-center">
@@ -4294,6 +4320,57 @@ export const UserHub: React.FC<UserHubProps> = ({
                                     </div>
                                 </div>
                             </div>
+                            
+                            {/* Initialize Profile Section - If profile is missing */}
+                            {!isGuest && !profile && session?.user?.id && (
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-gradient-to-br from-red-900/20 via-red-800/10 to-red-900/20 rounded-3xl blur-2xl"></div>
+                                    
+                                    <div className="relative bg-gradient-to-br from-red-900/30 via-red-800/20 to-red-900/30 backdrop-blur-xl border-2 border-red-500/40 rounded-3xl p-6 sm:p-8 overflow-hidden">
+                                        {/* Decorative glow */}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-500/20 to-transparent rounded-full blur-3xl"></div>
+                                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-red-600/20 to-transparent rounded-full blur-2xl"></div>
+                                        
+                                        <div className="relative flex flex-col gap-4">
+                                            {/* Header */}
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                                                <h3 className="text-base sm:text-lg font-black text-red-300 uppercase tracking-wider">
+                                                    Profile Missing
+                                                </h3>
+                                            </div>
+                                            
+                                            {/* Description */}
+                                            <p className="text-xs sm:text-sm text-red-200/80 leading-relaxed">
+                                                Your profile is missing from the database. Click the button below to initialize your profile and start playing.
+                                            </p>
+                                            
+                                            {/* Initialize Profile Button */}
+                                            <button
+                                                onClick={async () => {
+                                                    if (!session?.user?.id) return;
+                                                    try {
+                                                        // Call fetchProfile which will create the profile if missing
+                                                        const { fetchProfile } = await import('../services/supabase');
+                                                        const newProfile = await fetchProfile(session.user.id, playerAvatar || ':cool:', 'AGENT');
+                                                        if (newProfile) {
+                                                            onRefreshProfile();
+                                                        } else {
+                                                            alert('Failed to initialize profile. Please try again.');
+                                                        }
+                                                    } catch (error: any) {
+                                                        console.error('Failed to initialize profile:', error);
+                                                        alert(`Failed to initialize profile: ${error.message || 'Unknown error'}. Please try again.`);
+                                                    }
+                                                }}
+                                                className="group relative mt-2 w-full px-6 py-3.5 bg-gradient-to-br from-red-600 via-red-500 to-red-600 hover:from-red-500 hover:via-red-400 hover:to-red-500 border-2 border-red-400/50 rounded-2xl text-white font-black text-sm uppercase tracking-wider transition-all duration-300 hover:scale-105 hover:border-red-300/70 active:scale-95 shadow-[0_8px_30px_rgba(239,68,68,0.4)] hover:shadow-[0_12px_40px_rgba(239,68,68,0.6)]"
+                                            >
+                                                Initialize Profile
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             
                             {/* Save Progress Section - Only for Guests */}
                             {isGuest && onLinkAccount && (

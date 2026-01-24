@@ -265,8 +265,84 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     setError(null);
     
     try {
-      const result = await addFriend(profile.id, friendId);
-      if (result.success) {
+      // STEP 1: Use profile.id as sender_id (profile must exist in profiles table)
+      if (!profile || !profile.id) {
+        const errorMsg = 'Profile not found. Please initialize your profile first.';
+        console.error('❌ Profile missing:', { profile });
+        setError(errorMsg);
+        if (typeof alert !== 'undefined') {
+          alert(`PROFILE ERROR: ${errorMsg}\n\nYour profile must exist in the profiles table to add friends.`);
+        }
+        setSendingRequests(prev => {
+          const next = new Set(prev);
+          next.delete(friendId);
+          return next;
+        });
+        return;
+      }
+      
+      const myUuid = profile.id;
+      
+      // STEP 2: Validate UUIDs
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(myUuid) || !uuidRegex.test(friendId)) {
+        const errorMsg = 'Invalid user ID format.';
+        setError(errorMsg);
+        setSendingRequests(prev => {
+          const next = new Set(prev);
+          next.delete(friendId);
+          return next;
+        });
+        return;
+      }
+      
+      console.log(`📝 Attempting Friend Request: [${myUuid}] -> [${friendId}]`);
+      
+      // STEP 3: Perform insert
+      const { error: insertError } = await supabase
+        .from('friendships')
+        .insert({ 
+          sender_id: myUuid, 
+          receiver_id: friendId, 
+          status: 'pending' 
+        });
+      
+      console.log('📝 Insert Result:', { error: insertError });
+      
+      if (insertError) {
+        // Detailed error logging
+        console.error('❌ INSERT ERROR DETAILS:', {
+          code: insertError.code,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          fullError: insertError
+        });
+        
+        let errorMsg = 'Failed to send friend request.';
+        
+        if (insertError.code === '23505') {
+          errorMsg = 'Friend request already pending or accepted.';
+          console.warn('⚠️ Duplicate key error (23505): Request already exists');
+        } else if (insertError.code === '42501') {
+          errorMsg = 'RLS Policy Violation: The RLS policy is blocking this insert.';
+          console.error('🚫 RLS POLICY VIOLATION (42501): Check Supabase Inbound/Insert policies for friendships table.');
+        } else if (insertError.code === '23503') {
+          errorMsg = 'Foreign Key Violation: The friend UUID does not exist.';
+          console.error('🔗 FOREIGN KEY VIOLATION (23503): Receiver UUID not found in profiles');
+        }
+        
+        setError(errorMsg);
+        setToast({ message: errorMsg, type: 'error' });
+        setTimeout(() => setToast(null), 3000);
+        
+        if (typeof alert !== 'undefined') {
+          alert(`INSERT ERROR (${insertError.code}): ${errorMsg}\n\nCode: ${insertError.code}\nMessage: ${insertError.message}\nDetails: ${insertError.details || 'N/A'}`);
+        }
+      } else {
+        // SUCCESS: No error from Supabase
+        console.log('✅ Friend request inserted successfully!');
+        
         await loadPendingRequests();
         // Remove from search results
         setSearchResults(prev => prev.filter(u => u.id !== friendId));
@@ -278,20 +354,17 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         // Show success toast
         setToast({ message: 'Friend request sent!', type: 'success' });
         setTimeout(() => setToast(null), 3000);
-      } else {
-        // Request failed - show specific error message
-        const errorMsg = result.error || 'Unable to add friend. You may already be friends.';
-        setError(errorMsg);
-        
-        // Show toast for specific error codes
-        if (result.error?.includes('already pending') || result.error?.includes('already accepted')) {
-          setToast({ message: 'Friend request already pending or accepted.', type: 'error' });
-          setTimeout(() => setToast(null), 3000);
-        }
       }
     } catch (e: any) {
-      console.error('❌ handleAddFriend error:', e);
-      setError(e.message || 'Failed to add friend');
+      console.error('❌ handleAddFriend - Unexpected error:', e);
+      const errorMsg = e.message || 'An unexpected error occurred.';
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      
+      if (typeof alert !== 'undefined') {
+        alert(`UNEXPECTED ERROR: ${errorMsg}\n\n${e.stack || 'No stack trace'}`);
+      }
     } finally {
       // Remove from sending state
       setSendingRequests(prev => {
@@ -350,92 +423,243 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     }
   };
 
-  const handleAddByHandle = async () => {
-    if (!profile || isGuest || !searchQuery.trim()) return;
+  /**
+   * Search for a user by discriminator (USERNAME#1234 format)
+   * Returns the user profile if found, null otherwise
+   */
+  const searchByDiscriminator = async (handle: string): Promise<UserProfile | null> => {
+    try {
+      // Split handle into username and discriminator
+      const parts = handle.split('#');
+      if (parts.length !== 2) {
+        return null;
+      }
+      
+      const username = parts[0].trim();
+      const discriminator = parts[1].trim();
+      
+      // Validate discriminator is 4 digits
+      if (!/^\d{4}$/.test(discriminator)) {
+        return null;
+      }
+      
+      // Query profiles table for BOTH username and discriminator
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('username', username) // Case-insensitive username match
+        .eq('discriminator', discriminator) // Exact discriminator match
+        .maybeSingle();
+      
+      if (error) {
+        console.error('❌ Error searching profiles:', error);
+        return null;
+      }
+      
+      if (!data) {
+        return null;
+      }
+      
+      return { ...data, gems: data.gems ?? 0, turn_timer_setting: data.turn_timer_setting ?? 0 } as UserProfile;
+    } catch (e) {
+      console.error('❌ searchByDiscriminator error:', e);
+      return null;
+    }
+  };
+
+  /**
+   * Robust handle search and add function
+   * Handles authentication, search, validation, and insert with detailed error logging
+   */
+  const handleSearchAndAdd = async () => {
+    if (!searchQuery.trim()) {
+      setError('Please enter a handle in the format: Name#1234');
+      return;
+    }
     
+    // Set loading state immediately
     setLoading(true);
     setError(null);
     
+    // Track which user we're adding (for button state)
+    let targetUserId: string | null = null;
+    
     try {
-      // Normalize the search query: trim and handle potential formatting issues
+      // STEP 1: PROFILE CHECK - Use profile.id as sender_id (profile must exist in profiles table)
+      console.log('🔐 Step 1: Checking profile...');
+      
+      if (!profile || !profile.id) {
+        console.error('❌ Profile missing:', { profile });
+        const errorMsg = 'Profile not found. Please initialize your profile first.';
+        setError(errorMsg);
+        if (typeof alert !== 'undefined') {
+          alert(`PROFILE ERROR: ${errorMsg}\n\nYour profile must exist in the profiles table to add friends.`);
+        }
+        setLoading(false);
+        return;
+      }
+      
+      const myUuid = profile.id;
+      console.log('✅ Profile UUID:', myUuid);
+      
+      // STEP 2: SEARCH BY DISCRIMINATOR
+      console.log('🔍 Step 2: Searching for user by handle...');
       const normalizedQuery = searchQuery.trim().replace(/\s+/g, ' ');
       
-      // Check if the query looks like a valid handle (contains #)
+      // Validate handle format
       if (!normalizedQuery.includes('#')) {
-        setError('Please enter a handle in the format: Name#1234');
+        const errorMsg = 'Please enter a handle in the format: Name#1234';
+        setError(errorMsg);
         setLoading(false);
         return;
       }
       
-      const parts = normalizedQuery.split('#');
-      if (parts.length !== 2) {
-        setError('Invalid handle format. Use: Name#1234');
-        setLoading(false);
-        return;
-      }
-      
-      // Validate and normalize parts
-      const namePart = parts[0].trim();
-      const discriminatorPart = parts[1].trim();
-      
-      if (!namePart || !/^\d{4}$/.test(discriminatorPart)) {
-        setError('Invalid handle format. Use: Name#1234 (discriminator must be 4 digits)');
-        setLoading(false);
-        return;
-      }
-      
-      // Reconstruct handle with normalized format
-      const fullHandle = `${namePart}#${discriminatorPart}`;
-      
-      // STEP 1: Resolve username to UUID by querying profiles table
-      console.log('🔍 Resolving handle to UUID:', fullHandle);
-      const user = await getUserByHandle(fullHandle);
+      const user = await searchByDiscriminator(normalizedQuery);
       
       if (!user || !user.id) {
-        setError('User not found. Please check the handle and try again.');
+        const errorMsg = 'User not found. Check the spelling and #0000.';
+        setError(errorMsg);
+        setToast({ message: errorMsg, type: 'error' });
+        setTimeout(() => setToast(null), 3000);
         setLoading(false);
         return;
       }
       
-      // Validate that we got a UUID
+      targetUserId = user.id;
+      console.log('✅ Found user:', { id: user.id, username: user.username, discriminator: user.discriminator });
+      
+      // STEP 3: VALIDATE UUIDS
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(user.id)) {
-        console.error('❌ Invalid UUID resolved from handle:', user.id);
-        setError('Invalid user ID resolved. Please try again.');
+      
+      if (!uuidRegex.test(myUuid)) {
+        const errorMsg = 'Invalid sender UUID format.';
+        console.error('❌ Invalid sender UUID:', myUuid);
+        setError(errorMsg);
+        if (typeof alert !== 'undefined') {
+          alert(`UUID VALIDATION ERROR: ${errorMsg}\n\nSender UUID: ${myUuid}`);
+        }
         setLoading(false);
         return;
       }
       
-      console.log('✅ Resolved handle to UUID:', user.id);
+      if (!uuidRegex.test(targetUserId)) {
+        const errorMsg = 'Invalid receiver UUID format.';
+        console.error('❌ Invalid receiver UUID:', targetUserId);
+        setError(errorMsg);
+        if (typeof alert !== 'undefined') {
+          alert(`UUID VALIDATION ERROR: ${errorMsg}\n\nReceiver UUID: ${targetUserId}`);
+        }
+        setLoading(false);
+        return;
+      }
+      
+      console.log(`📝 Attempting Friend Request: [${myUuid}] -> [${targetUserId}]`);
+      
+      // Check if trying to add self
+      if (myUuid === targetUserId) {
+        const errorMsg = 'You cannot add yourself as a friend.';
+        setError(errorMsg);
+        setLoading(false);
+        return;
+      }
       
       // Check if already friends
       const friendIds = new Set(friends.map(f => f.friend_id));
-      if (friendIds.has(user.id)) {
-        setError('You are already friends with this user.');
+      if (friendIds.has(targetUserId)) {
+        const errorMsg = 'You are already friends with this user.';
+        setError(errorMsg);
         setLoading(false);
         return;
       }
       
-      // Check if trying to add self
-      if (user.id === profile.id) {
-        setError('You cannot add yourself as a friend.');
+      // STEP 4: PERFORM THE INSERT WITH DETAILED ERROR LOGGING
+      console.log('💾 Step 4: Inserting friend request...');
+      
+      const { error: insertError } = await supabase
+        .from('friendships')
+        .insert({ 
+          sender_id: myUuid, 
+          receiver_id: targetUserId, 
+          status: 'pending' 
+        });
+      
+      // Log insert result
+      console.log('📝 Insert Result:', { error: insertError });
+      
+      if (insertError) {
+        // Detailed error logging
+        console.error('❌ INSERT ERROR DETAILS:', {
+          code: insertError.code,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          fullError: insertError
+        });
+        
+        let errorMsg = 'Failed to send friend request.';
+        
+        // Handle specific error codes
+        if (insertError.code === '23505') {
+          errorMsg = 'Friend request already pending or accepted.';
+          console.warn('⚠️ Duplicate key error (23505): Request already exists');
+        } else if (insertError.code === '42501') {
+          errorMsg = 'RLS Policy Violation: The RLS policy is blocking this insert. Check Supabase policies.';
+          console.error('🚫 RLS POLICY VIOLATION (42501): Check Supabase Inbound/Insert policies for friendships table.');
+        } else if (insertError.code === '23503') {
+          errorMsg = 'Foreign Key Violation: The friend UUID does not exist in the profiles table.';
+          console.error('🔗 FOREIGN KEY VIOLATION (23503): Receiver UUID not found in profiles');
+        }
+        
+        // Show error to user
+        setError(errorMsg);
+        setToast({ message: errorMsg, type: 'error' });
+        setTimeout(() => setToast(null), 3000);
+        
+        // Show alert on iOS for debugging
+        if (typeof alert !== 'undefined') {
+          alert(`INSERT ERROR (${insertError.code}): ${errorMsg}\n\nCode: ${insertError.code}\nMessage: ${insertError.message}\nDetails: ${insertError.details || 'N/A'}`);
+        }
+        
         setLoading(false);
         return;
       }
       
-      // STEP 2: Add the friend using the resolved UUID
-      await handleAddFriend(user.id);
+      // SUCCESS: No error from Supabase
+      console.log('✅ Friend request inserted successfully!');
       
-      // Add to search results so it shows up
+      // Update UI state
+      setPendingRequests(prev => new Set(prev).add(targetUserId));
+      await loadPendingRequests();
+      
+      // Add to search results
       setSearchResults([user]);
       
+      // Clear search input
+      setSearchQuery('');
+      
+      // Show success message
+      setError(null);
+      setToast({ message: 'Friend request sent!', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+      
     } catch (e: any) {
-      console.error('❌ handleAddByHandle error:', e);
-      setError(e.message || 'Failed to add friend by handle');
+      console.error('❌ handleSearchAndAdd - Unexpected error:', e);
+      const errorMsg = e.message || 'An unexpected error occurred.';
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      
+      if (typeof alert !== 'undefined') {
+        alert(`UNEXPECTED ERROR: ${errorMsg}\n\n${e.stack || 'No stack trace'}`);
+      }
     } finally {
+      // Always clear loading state
       setLoading(false);
     }
   };
+
+  // Keep handleAddByHandle for backward compatibility, but use handleSearchAndAdd
+  const handleAddByHandle = handleSearchAndAdd;
 
   // Check if the search query looks like a valid handle
   const isValidHandle = useMemo(() => {
@@ -583,11 +807,21 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   <p className="text-white/50">No users found</p>
                   {isValidHandle && (
                     <button
-                      onClick={handleAddByHandle}
+                      onClick={handleSearchAndAdd}
                       disabled={loading}
-                      className="px-6 py-3 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-xl text-blue-300 text-sm font-bold uppercase tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 py-3 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-xl text-blue-300 text-sm font-bold uppercase tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center"
                     >
-                      Add by Handle
+                      {loading ? (
+                        <>
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Searching...
+                        </>
+                      ) : (
+                        'Add by Handle'
+                      )}
                     </button>
                   )}
                 </div>
@@ -634,11 +868,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            Sending...
+                            Loading...
                           </div>
                         ) : pendingRequests.has(user.id) || pendingSent.some(f => f.friend_id === user.id) ? (
-                          <div className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-bold uppercase tracking-wide">
-                            Request Sent
+                          <div className="px-4 py-2 bg-green-500/20 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide">
+                            Sent!
                           </div>
                         ) : (
                           <button
