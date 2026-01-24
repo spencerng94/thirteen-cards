@@ -629,27 +629,6 @@ function LobbyComponent({
     console.log('🔌 Lobby: Initializing socket lifecycle (first time only)');
     socketInitDoneRef.current = true;
     
-    // 1. SET UP CONNECTION STATE LISTENERS
-    const onConnect = () => {
-      console.log('📡 Lobby: Socket connected event received');
-      setSocketConnected(true);
-    };
-    
-    const onDisconnect = () => {
-      console.log('📡 Lobby: Socket disconnected event received');
-      setSocketConnected(false);
-      listenerRegisteredRef.current = false; // Reset listener flag on disconnect
-    };
-    
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    
-    // Sync immediately if already connected
-    if (socket.connected) {
-      console.log('📡 Lobby: Socket already connected on mount');
-      setSocketConnected(true);
-    }
-    
     // 2. REGISTER ROOMS LIST LISTENER (ONCE)
     const handleRoomsList = (data: any) => {
       // LISTENER RESET: setIsRefreshing(false) is the VERY FIRST line executed
@@ -694,7 +673,7 @@ function LobbyComponent({
     listenerRegisteredRef.current = true;
     console.log('✅ Lobby: PUBLIC_ROOMS_LIST listener registered');
     
-    // 3. INITIAL FETCH (only if on PUBLIC tab and socket is ready)
+    // 3. INITIAL FETCH FUNCTION (only if on PUBLIC tab and socket is ready)
     const performInitialFetch = () => {
       // GUARD: Only fetch once on mount
       if (initialFetchDone.current) {
@@ -709,7 +688,6 @@ function LobbyComponent({
       
       if (!socket.connected) {
         console.log('📋 Lobby: Socket not connected yet, will fetch on connect');
-        // Will be triggered by onConnect handler
         return;
       }
       
@@ -726,12 +704,33 @@ function LobbyComponent({
       console.log('📡 Lobby: Emitted GET_PUBLIC_ROOMS (initial fetch)');
     };
     
-    // Perform initial fetch if socket is already connected
-    if (socket.connected && listenerRegisteredRef.current) {
-      performInitialFetch();
-    } else if (socket.connected) {
-      // Socket connected but listener just registered - small delay to ensure sequencing
-      setTimeout(performInitialFetch, 0);
+    // 1. SET UP CONNECTION STATE LISTENERS
+    const onConnect = () => {
+      console.log('📡 Lobby: Socket connected event received');
+      setSocketConnected(true);
+      // Trigger initial fetch when socket connects (if not already done)
+      if (listenerRegisteredRef.current) {
+        performInitialFetch();
+      }
+    };
+    
+    const onDisconnect = () => {
+      console.log('📡 Lobby: Socket disconnected event received');
+      setSocketConnected(false);
+      listenerRegisteredRef.current = false; // Reset listener flag on disconnect
+    };
+    
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    
+    // Sync immediately if already connected
+    if (socket.connected) {
+      console.log('📡 Lobby: Socket already connected on mount');
+      setSocketConnected(true);
+      // Perform initial fetch if listener is registered and we're on PUBLIC tab
+      if (listenerRegisteredRef.current) {
+        performInitialFetch();
+      }
     }
     
     // Cleanup
