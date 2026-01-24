@@ -1180,6 +1180,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   })}
                 </>
               ) : null}
+                </>
+              )}
               
               {activeTab === 'received' && (
                 <>
