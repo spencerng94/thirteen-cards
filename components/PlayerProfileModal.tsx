@@ -71,10 +71,11 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
           try {
             const friends = await getFriends(currentUserId);
             const friendIds = friends.map(f => f.friend_id);
-            setIsFriend(friendIds.includes(playerId));
+            const isAlreadyFriend = friendIds.includes(playerId);
+            setIsFriend(isAlreadyFriend);
             
-            // Check for pending requests
-            if (!isFriend) {
+            // Check for pending requests only if not already friends
+            if (!isAlreadyFriend) {
               const { sent, received } = await getPendingRequests(currentUserId);
               // Check if we sent a request to this player
               const sentToPlayer = sent.some(f => (f.receiver_id || f.friend_id) === playerId);
@@ -83,6 +84,10 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
               // Check if they sent a request to us
               const receivedFromPlayer = received.some(f => (f.sender_id || f.user_id) === playerId);
               setPendingReceived(receivedFromPlayer);
+            } else {
+              // Clear pending states if already friends
+              setPendingSent(false);
+              setPendingReceived(false);
             }
           } catch (friendError) {
             console.warn('Error checking friends list:', friendError);
