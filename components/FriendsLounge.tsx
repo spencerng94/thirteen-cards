@@ -145,7 +145,21 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                 setToast({ message: `New friend request from ${senderName}!`, type: 'info' });
                 setTimeout(() => setToast(null), 5000);
                 
-                // Reload pending requests
+                // Auto-switch to "Requests" tab if not already there
+                if (activeTab !== 'received') {
+                  setActiveTab('received');
+                }
+                
+                // Trigger haptic feedback on iOS
+                if (Capacitor.isNativePlatform()) {
+                  try {
+                    await Haptics.impact({ style: ImpactStyle.Medium });
+                  } catch (e) {
+                    // Haptics not available, ignore
+                  }
+                }
+                
+                // Reload pending requests (this will update pendingCount and trigger onPendingCountChange)
                 await loadPendingRequests();
                 
                 // Auto-dismiss notification after 5 seconds
