@@ -1227,7 +1227,8 @@ function LobbyComponent({
         
         console.log('🚀 Lobby: EMITTING create_room with settings:', { 
           timer: hookedTimer, 
-          isPublic, 
+          isPublic: roomSettings.isPublic, // CRITICAL: Must be true for public visibility
+          turnTimer: roomSettings.turnTimer, // CRITICAL: Uses hookedTimer from hook
           roomName: roomSettings.roomName,
           playerName: roomSettings.name,
           playerId: roomSettings.playerId,
