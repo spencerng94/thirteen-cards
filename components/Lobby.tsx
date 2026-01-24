@@ -899,10 +899,8 @@ function LobbyComponent({
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Register socket listener - always register when socket exists
-  useEffect(() => {
-    if (!socket) return;
-    
-    const handleRoomsList = useCallback((data: any) => {
+  // CRITICAL: Define handleRoomsList outside useEffect so it can be used in useCallback
+  const handleRoomsList = useCallback((data: any) => {
       let roomsArray: any[] = [];
       
       if (Array.isArray(data)) {
