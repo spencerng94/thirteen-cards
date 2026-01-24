@@ -66,6 +66,101 @@ interface PlayerSpeedData {
 // Import socket mappings from roomStore
 import { socketToRoom, socketToPlayerId } from './roomStore';
 
+// ============================================================================
+// GLOBAL TYPE DECLARATIONS
+// ============================================================================
+declare global {
+  // eslint-disable-next-line no-var
+  var __PENDING_PRESENCE_BROADCAST__: NodeJS.Timeout | null | undefined;
+  // eslint-disable-next-line no-var
+  var __SOCKET_IO_SERVER__: Server | undefined;
+  // eslint-disable-next-line no-var
+  var __SOCKET_HANDLERS_REGISTERED__: boolean | undefined;
+}
+
+// ============================================================================
+// PRESENCE TRACKING - Real-time online user status
+// ============================================================================
+interface UserPresence {
+  socketId: string;
+  status: 'online' | 'in_game';
+  roomId?: string;
+  lastUpdate: number;
+}
+
+// Map of userId -> UserPresence
+const onlineUsers = new Map<string, UserPresence>();
+
+// Throttle broadcasts to avoid excessive network traffic
+let lastBroadcastTime = 0;
+const BROADCAST_THROTTLE_MS = 5000; // Broadcast every 5 seconds max
+let pendingBroadcastTimeout: NodeJS.Timeout | null = null;
+
+// Broadcast online users update to all connected clients (throttled)
+const broadcastOnlineUsersUpdate = () => {
+  const now = Date.now();
+  if (now - lastBroadcastTime < BROADCAST_THROTTLE_MS) {
+    // Schedule a delayed broadcast if one is already pending
+    if (!pendingBroadcastTimeout) {
+      pendingBroadcastTimeout = setTimeout(() => {
+        pendingBroadcastTimeout = null;
+        lastBroadcastTime = Date.now();
+        doBroadcast();
+      }, BROADCAST_THROTTLE_MS - (now - lastBroadcastTime));
+    }
+    return;
+  }
+  
+  lastBroadcastTime = now;
+  if (pendingBroadcastTimeout) {
+    clearTimeout(pendingBroadcastTimeout);
+    pendingBroadcastTimeout = null;
+  }
+  
+  doBroadcast();
+};
+
+// Actual broadcast function
+const doBroadcast = () => {
+  const onlineUserIds = Array.from(onlineUsers.keys());
+  const presenceData = Array.from(onlineUsers.entries()).map(([userId, presence]) => ({
+    userId,
+    status: presence.status,
+    roomId: presence.roomId
+  }));
+  
+  io.emit('ONLINE_USERS_UPDATE', {
+    onlineUserIds,
+    presence: presenceData
+  });
+  
+  console.log(`📡 Broadcasted online users update: ${onlineUserIds.length} users online`);
+};
+
+// Update user presence
+const updateUserPresence = (userId: string, socketId: string, status: 'online' | 'in_game', roomId?: string) => {
+  if (!userId || userId === 'guest') return;
+  
+  onlineUsers.set(userId, {
+    socketId,
+    status,
+    roomId,
+    lastUpdate: Date.now()
+  });
+  
+  broadcastOnlineUsersUpdate();
+};
+
+// Remove user from presence
+const removeUserPresence = (userId: string) => {
+  if (!userId || userId === 'guest') return;
+  
+  onlineUsers.delete(userId);
+  broadcastOnlineUsersUpdate();
+  
+  console.log(`👋 User ${userId} removed from presence tracking`);
+};
+
 // Import room functions, Map, and types from rooms.ts (hybrid: Map + Supabase)
 import { rooms, createRoom, joinRoom, getRoom, fetchRoom, getPublicRooms, getAllRoomIds, deleteRoom, type SimplePlayer, type GameRoom } from './rooms';
 
@@ -1192,6 +1287,14 @@ const performCleanup = async (roomId: string, playerId: string) => {
 const mapIdentity = (socket: Socket, roomId: string, playerId: string) => {
   socketToRoom[socket.id] = roomId;
   socketToPlayerId[socket.id] = playerId;
+  
+  // Update presence: user is online and in a room
+  if (playerId && playerId !== 'guest') {
+    // Check if room is in PLAYING status to set 'in_game'
+    const room = rooms.get(roomId);
+    const status = room && room.status === 'PLAYING' ? 'in_game' : 'online';
+    updateUserPresence(playerId, socket.id, status, roomId);
+  }
 };
 
 // ============================================================================
@@ -2300,7 +2403,14 @@ io.on('connection', (socket: Socket) => {
     // 5. Find the starting player (holder of 3 of Spades)
     const startingPlayerIndex = findStartingPlayer(room);
     
-    // 6. Update room state: status to PLAYING, set currentPlayerIndex, isFirstTurnOfGame
+    // 6. Update presence for all players in room to 'in_game'
+    room.players.forEach(p => {
+      if (!p.isBot && p.id && p.id !== 'guest') {
+        updateUserPresence(p.id, p.socketId || socket.id, 'in_game', roomId);
+      }
+    });
+    
+    // 7. Update room state: status to PLAYING, set currentPlayerIndex, isFirstTurnOfGame
     room.status = 'PLAYING';
     room.currentPlayerIndex = startingPlayerIndex;
     room.isFirstTurnOfGame = room.players[startingPlayerIndex].hand.some(
@@ -2409,7 +2519,7 @@ io.on('connection', (socket: Socket) => {
       const lobbyRooms = allRoomsInMemory.filter(r => r.status === 'LOBBY');
       const publicLobbyRooms = lobbyRooms.filter(r => {
         // Check both boolean true and string "true" for isPublic
-        const isPublic = r.isPublic === true || r.isPublic === 'true' || String(r.isPublic) === 'true';
+        const isPublic = r.isPublic === true || (typeof r.isPublic === 'string' && (r.isPublic === 'true' || String(r.isPublic).toLowerCase() === 'true'));
         return isPublic;
       });
       console.log(`📋 DEBUG: Total rooms in memory: ${allRoomsInMemory.length}`);
@@ -2518,6 +2628,11 @@ io.on('connection', (socket: Socket) => {
   socket.on('disconnect', async () => {
     const roomId = socketToRoom[socket.id];
     const playerId = socketToPlayerId[socket.id];
+    
+    // Remove user from presence tracking
+    if (playerId && playerId !== 'guest') {
+      removeUserPresence(playerId);
+    }
     
     // Clean up rate limit data for this socket
     clearRateLimit(socket.id);

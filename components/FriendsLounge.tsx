@@ -63,9 +63,10 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
   const [pendingRequests, setPendingRequests] = useState<Set<string>>(new Set());
   const [sendingRequests, setSendingRequests] = useState<Set<string>>(new Set()); // Track requests being sent
   const [onlineFriends, setOnlineFriends] = useState<Set<string>>(new Set());
+  const [friendPresence, setFriendPresence] = useState<Map<string, { status: 'online' | 'in_game'; roomId?: string }>>(new Map());
   const [activeTab, setActiveTab] = useState<'friends' | 'sent' | 'received'>('friends');
   const [newRequestNotification, setNewRequestNotification] = useState<{ id: string; senderName: string } | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const subscriptionRef = useRef<any>(null);
@@ -90,6 +91,31 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       }
     };
   }, [profile, isGuest]);
+
+  // Listen for real-time presence updates
+  useEffect(() => {
+    if (!socket || isGuest) return;
+
+    const handlePresenceUpdate = (data: { onlineUserIds: string[]; presence: Array<{ userId: string; status: 'online' | 'in_game'; roomId?: string }> }) => {
+      const { onlineUserIds, presence } = data;
+      
+      // Update online friends set
+      setOnlineFriends(new Set(onlineUserIds));
+      
+      // Update presence map with status and room info
+      const presenceMap = new Map<string, { status: 'online' | 'in_game'; roomId?: string }>();
+      presence.forEach(p => {
+        presenceMap.set(p.userId, { status: p.status, roomId: p.roomId });
+      });
+      setFriendPresence(presenceMap);
+    };
+
+    socket.on('ONLINE_USERS_UPDATE', handlePresenceUpdate);
+
+    return () => {
+      socket.off('ONLINE_USERS_UPDATE', handlePresenceUpdate);
+    };
+  }, [socket, isGuest]);
 
   const loadFriends = async () => {
     if (!profile || isGuest) return;
@@ -129,7 +155,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
           table: 'friendships',
           filter: `receiver_id=eq.${profile.id}`
         },
-        async (payload) => {
+        async (payload: any) => {
           // New friend request received
           console.log('📨 New friend request received:', payload);
           
@@ -187,7 +213,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
           table: 'friendships',
           filter: `receiver_id=eq.${profile.id}`
         },
-        async (payload) => {
+        async (payload: any) => {
           // Friend request was accepted or updated
           await loadFriends();
           await loadPendingRequests(); // This updates pendingCount
@@ -201,7 +227,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
           table: 'friendships',
           filter: `receiver_id=eq.${profile.id}`
         },
-        async (payload) => {
+        async (payload: any) => {
           // Friend request was deleted (declined)
           await loadPendingRequests(); // This updates pendingCount
         }
@@ -719,7 +745,10 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       console.log('✅ Friend request inserted successfully!');
       
       // Update UI state
-      setPendingRequests(prev => new Set(prev).add(targetUserId));
+      if (targetUserId) {
+        const userId = targetUserId; // Store in const for type narrowing
+        setPendingRequests(prev => new Set(prev).add(userId));
+      }
       await loadPendingRequests();
       
       // Add to search results
@@ -1176,7 +1205,9 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   const friend = friendship.friend;
                   if (!friend) return null;
                   const friendLevel = calculateLevel(friend.xp || 0);
-                    const isOnline = onlineFriends.has(friend.id);
+                  const isOnline = onlineFriends.has(friend.id);
+                  const presence = friendPresence.get(friend.id);
+                  const isInGame = presence?.status === 'in_game';
                   
                   return (
                     <div
@@ -1208,7 +1239,9 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                             )}
                               {/* Online indicator */}
                               {isOnline && (
-                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-[#0a0a0a] rounded-full"></div>
+                                <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 border-2 border-[#0a0a0a] rounded-full ${
+                                  isInGame ? 'bg-yellow-500' : 'bg-green-500'
+                                }`}></div>
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1218,8 +1251,12 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                                 Lv {friendLevel}
                               </span>
                                 {isOnline && (
-                                  <span className="text-xs font-semibold text-green-400 bg-green-500/20 px-2 py-0.5 rounded-full">
-                                    Online
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                    isInGame 
+                                      ? 'text-yellow-400 bg-yellow-500/20' 
+                                      : 'text-green-400 bg-green-500/20'
+                                  }`}>
+                                    {isInGame ? 'Playing...' : 'Online'}
                                   </span>
                                 )}
                             </div>
@@ -1363,8 +1400,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                                   />
                                 ) : (
                                   <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-                                )}
-                              </div>
+          )}
+        </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <CopyUsername username={friend.username} discriminator={friend.discriminator} className="text-base sm:text-lg" />
