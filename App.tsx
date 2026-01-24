@@ -167,6 +167,44 @@ const AppContent: React.FC = () => {
   const [view, setView] = useState<ViewState>('WELCOME');
   const [gameMode, setGameMode] = useState<GameMode>(null);
   const [localTabRequested, setLocalTabRequested] = useState(false);
+  
+  // MOUNT TRACKING: Track component mounts for debugging
+  const appMountRef = useRef(false);
+  const lobbyMountRef = useRef(false);
+  const prevViewRef = useRef<ViewState>('WELCOME');
+  
+  // Track App.tsx mount/unmount
+  useEffect(() => {
+    appMountRef.current = true;
+    console.log('🏗️ App.tsx: MOUNTED');
+    return () => {
+      appMountRef.current = false;
+      console.log('🏗️ App.tsx: UNMOUNTED');
+    };
+  }, []);
+  
+  // Track view changes
+  useEffect(() => {
+    if (prevViewRef.current !== view) {
+      console.log('🔄 App.tsx: View changed', { from: prevViewRef.current, to: view });
+      prevViewRef.current = view;
+    }
+  }, [view]);
+  
+  // Track Lobby mount/unmount (only when in MULTI_PLAYER mode)
+  const roomId = currentGameState?.roomId || urlRoomCode;
+  useEffect(() => {
+    if (gameMode === 'MULTI_PLAYER') {
+      if (!lobbyMountRef.current) {
+        lobbyMountRef.current = true;
+        console.log('🏗️ Lobby: MOUNTED', { roomId, hasGameState: !!currentGameState });
+      }
+      return () => {
+        lobbyMountRef.current = false;
+        console.log('🏗️ Lobby: UNMOUNTED', { roomId });
+      };
+    }
+  }, [gameMode, roomId, !!currentGameState]);
   const [hubState, setHubState] = useState<{ open: boolean, tab: HubTab }>({ open: false, tab: 'PROFILE' });
   const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
@@ -1006,15 +1044,20 @@ const AppContent: React.FC = () => {
          localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: state.roomId, playerId: myPlayerId, timestamp: Date.now() }));
       }
       
-      // CRITICAL: Handle LOBBY status first - set view to LOBBY
+      // IDEMPOTENT VIEW TRANSITIONS: Only set view if it's actually changing
+      // Use gameState.status as the single source of truth, not view state
       if (state.status === GameStatus.LOBBY) {
-        console.log('📡 App.tsx: Status is LOBBY, setting view to LOBBY');
-        if (view !== 'LOBBY') {
+        // Only transition to LOBBY if we're not already there or in a compatible state
+        if (view !== 'LOBBY' && view !== 'WELCOME') {
+          console.log('📡 App.tsx: Status is LOBBY, transitioning view to LOBBY', { from: view });
           setView('LOBBY');
         }
       } else if (state.status === GameStatus.PLAYING) {
-        console.log('📡 App.tsx: Status is PLAYING, setting view to GAME_TABLE');
-        setView('GAME_TABLE');
+        // Only transition to GAME_TABLE if we're not already there
+        if (view !== 'GAME_TABLE') {
+          console.log('📡 App.tsx: Status is PLAYING, transitioning view to GAME_TABLE', { from: view });
+          setView('GAME_TABLE');
+        }
       } else if (state.status === GameStatus.FINISHED) {
         // Check if we were just playing or already on game table
         // Also prevent duplicate processing if we already processed this finished state
@@ -1689,14 +1732,28 @@ const AppContent: React.FC = () => {
   const currentGameState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
   const currentRoomId = currentGameState?.roomId;
   
-  // CRITICAL: Log render decision at the top
-  console.log("🎯 RENDER DECISION:", { 
-    status: currentGameState?.status, 
-    currentView: view,
-    hasGameState: !!currentGameState,
-    roomId: currentRoomId,
-    gameMode
-  });
+  // DETERMINISTIC RENDER DECISION: Use gameState.status as single source of truth
+  // Only log when state actually changes (not on every render)
+  const renderDecisionRef = useRef({ status: currentGameState?.status, view, roomId: currentRoomId });
+  useEffect(() => {
+    const current = { status: currentGameState?.status, view, roomId: currentRoomId };
+    const prev = renderDecisionRef.current;
+    if (prev.status !== current.status || prev.view !== current.view || prev.roomId !== current.roomId) {
+      console.log("🎯 RENDER DECISION:", { 
+        status: current.status, 
+        currentView: current.view,
+        hasGameState: !!currentGameState,
+        roomId: current.roomId,
+        gameMode,
+        changed: {
+          status: prev.status !== current.status,
+          view: prev.view !== current.view,
+          roomId: prev.roomId !== current.roomId
+        }
+      });
+      renderDecisionRef.current = current;
+    }
+  }, [currentGameState?.status, view, currentRoomId, gameMode, currentGameState]);
 
   return (
     <BillingProvider 
@@ -1731,72 +1788,50 @@ const AppContent: React.FC = () => {
           isModalOpen={isModalOpen}
         />
       )}
-      {/* CRITICAL: Strict render hierarchy based on roomId and gameState.status */}
-      {(() => {
-        // Get roomId from gameState or URL
+      {/* DETERMINISTIC RENDER: Single source of truth based on gameState.status */}
+      {/* Lobby is mounted once when in MULTI_PLAYER mode and stays mounted */}
+      {gameMode === 'MULTI_PLAYER' && (() => {
         const roomId = currentGameState?.roomId || urlRoomCode;
         
-        // STRICT HIERARCHY:
-        // 1. IF !roomId: Show LobbyBrowser/LobbyMenu (Lobby component handles this when gameState is null)
-        // 2. IF roomId EXISTS but !gameState: Show "Loading game..."
-        // 3. IF roomId EXISTS and gameState.status === "LOBBY": Force LobbyContainer
-        // 4. IF roomId EXISTS and gameState.status === "PLAYING": Show GameTable
-        // 5. ELSE: Fallback to LobbyContainer
-        
-        // 1. IF !roomId: Show LobbyBrowser/LobbyMenu (Create Room screen)
-        // This shows the creation menu when user hasn't created/joined a room yet
+        // 1. No roomId: Show LobbyBrowser (Create Room screen)
         if (!roomId) {
-          if (gameMode === 'MULTI_PLAYER') {
-            console.log('📋 App.tsx: No roomId, showing LobbyBrowser/LobbyMenu (Create Room screen)');
-            return (
-              <div id="LobbyContainer" className="w-full h-full min-h-screen">
-                <Lobby 
-                  key="lobby-browser-instance" 
-                  playerName={playerName} 
-                  gameState={null} 
-                  error={error} 
-                  playerAvatar={playerAvatar} 
-                  initialRoomCode={null} 
-                  backgroundTheme={backgroundTheme} 
-                  onBack={handleExit} 
-                  onSignOut={handleSignOut} 
-                  myId={myPlayerId} 
-                  turnTimerSetting={turnTimerSetting} 
-                  selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve}
-                  initialTab={localTabRequested ? 'LOCAL' : undefined}
-                />
-              </div>
-            );
-          }
-          return null; // Let WELCOME view handle it for non-MULTI_PLAYER modes
-        }
-        
-        // 2. IF roomId EXISTS but !gameState: Show "Loading game..."
-        // This is the ONLY time we show "Loading game..." - when we have a roomId but are waiting for gameState
-        if (!currentGameState) {
-          if (gameMode === 'MULTI_PLAYER') {
-            console.log('📋 App.tsx: roomId exists but no gameState, showing Loading', { roomId });
-            return (
-              <div className="flex items-center justify-center min-h-screen">
-                <div className="text-yellow-400 text-lg">Loading game...</div>
-              </div>
-            );
-          }
-          return null; // Let WELCOME view handle it for non-MULTI_PLAYER modes
-        }
-        
-        // 3. IF gameState.status === "LOBBY": Force LobbyContainer
-        if (currentGameState.status === GameStatus.LOBBY) {
-          console.log('📋 App.tsx: FORCING LobbyContainer - status is LOBBY', {
-            roomId: currentGameState.roomId,
-            roomName: currentGameState.roomName,
-            playerCount: currentGameState.players?.length,
-            playerIds: currentGameState.players?.map(p => p.id)
-          });
           return (
             <div id="LobbyContainer" className="w-full h-full min-h-screen">
               <Lobby 
-                key={`lobby-${currentGameState.roomId}-${currentGameState.players.length}-${currentGameState.players.map(p => `${p.id}-${p.difficulty || 'MEDIUM'}`).join('-')}`}
+                key="lobby-browser-persistent" 
+                playerName={playerName} 
+                gameState={null} 
+                error={error} 
+                playerAvatar={playerAvatar} 
+                initialRoomCode={null} 
+                backgroundTheme={backgroundTheme} 
+                onBack={handleExit} 
+                onSignOut={handleSignOut} 
+                myId={myPlayerId} 
+                turnTimerSetting={turnTimerSetting} 
+                selected_sleeve_id={profile?.active_sleeve || profile?.equipped_sleeve}
+                initialTab={localTabRequested ? 'LOCAL' : undefined}
+              />
+            </div>
+          );
+        }
+        
+        // 2. roomId exists but no gameState: Show loading
+        if (!currentGameState) {
+          return (
+            <div className="flex items-center justify-center min-h-screen">
+              <div className="text-yellow-400 text-lg">Loading game...</div>
+            </div>
+          );
+        }
+        
+        // 3. Status-based rendering: Use gameState.status as single source of truth
+        // Lobby is always rendered for LOBBY status (no conditional key changes)
+        if (currentGameState.status === GameStatus.LOBBY) {
+          return (
+            <div id="LobbyContainer" className="w-full h-full min-h-screen">
+              <Lobby 
+                key="lobby-persistent" 
                 playerName={playerName} 
                 gameState={mpGameState} 
                 error={error} 
@@ -1813,20 +1848,16 @@ const AppContent: React.FC = () => {
           );
         }
         
-        // 4. IF gameState.status === "PLAYING": Show GameTable
+        // 4. PLAYING status: Show GameTable
         if (currentGameState.status === GameStatus.PLAYING) {
-          console.log('📋 App.tsx: Rendering GameTable - status is PLAYING', {
-            roomId: currentGameState.roomId,
-            playerCount: currentGameState.players?.length
-          });
           return (
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-yellow-400 text-lg">Loading game...</div></div>}>
               <GameTable 
                 gameState={currentGameState} 
-                myId={gameMode === 'MULTI_PLAYER' ? myPlayerId : 'me'} 
-                myHand={gameMode === 'MULTI_PLAYER' ? mpMyHand : spMyHand} 
-                onPlayCards={(cards) => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPlayerId }) : handleLocalPlay('me', cards)} 
-                onPassTurn={() => gameMode === 'MULTI_PLAYER' ? socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPlayerId }) : handleLocalPass('me')} 
+                myId={myPlayerId} 
+                myHand={mpMyHand} 
+                onPlayCards={(cards) => socket.emit(SocketEvents.PLAY_CARDS, { roomId: mpGameState!.roomId, cards, playerId: myPlayerId })} 
+                onPassTurn={() => socket.emit(SocketEvents.PASS_TURN, { roomId: mpGameState!.roomId, playerId: myPlayerId })} 
                 cardCoverStyle={cardCoverStyle} 
                 backgroundTheme={backgroundTheme} 
                 profile={profile} 
@@ -1841,16 +1872,11 @@ const AppContent: React.FC = () => {
           );
         }
         
-        // 5. ELSE: Fallback to LobbyContainer (for FINISHED, CELEBRATING, SYNCING, or unexpected statuses)
-        // Note: VICTORY screen is handled by view === 'VICTORY' check below
-        console.warn('📋 App.tsx: Unexpected gameState status, showing LobbyContainer as fallback', {
-          status: currentGameState.status,
-          roomId: currentGameState.roomId
-        });
+        // 5. Fallback: Other statuses (FINISHED, CELEBRATING, SYNCING) - show Lobby
         return (
           <div id="LobbyContainer" className="w-full h-full min-h-screen">
             <Lobby 
-              key={`lobby-fallback-${currentGameState?.roomId || 'no-room'}-${currentGameState?.players.length || 0}`}
+              key="lobby-persistent" 
               playerName={playerName} 
               gameState={mpGameState} 
               error={error} 
