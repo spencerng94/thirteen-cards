@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Capacitor } from '@capacitor/core';
 import { VisualEmote } from './VisualEmote';
+import { PlayerProfileModal } from './PlayerProfileModal';
 
 // Default avatar icon component for when avatar_url is null
 const DefaultAvatarIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -66,6 +67,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
   const [newRequestNotification, setNewRequestNotification] = useState<{ id: string; senderName: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showRequestsModal, setShowRequestsModal] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const subscriptionRef = useRef<any>(null);
   
   // Track pending count for badge
@@ -987,7 +989,17 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden">
+                          <div 
+                            className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400/70 transition-colors"
+                            onClick={() => {
+                              const parsedName = parseUsername(user.username, user.discriminator);
+                              setSelectedProfile({
+                                id: user.id,
+                                name: parsedName.full,
+                                avatar: user.avatar_url || ''
+                              });
+                            }}
+                          >
                             {user.avatar_url ? (
                               <VisualEmote 
                                 trigger={user.avatar_url} 
@@ -1082,7 +1094,17 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                               >
                               <div className="flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden">
+                                  <div 
+                                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400/70 transition-colors"
+                                    onClick={() => {
+                                      const parsedName = parseUsername(sender.username, sender.discriminator);
+                                      setSelectedProfile({
+                                        id: sender.id,
+                                        name: parsedName.full,
+                                        avatar: sender.avatar_url || ''
+                                      });
+                                    }}
+                                  >
                                     {sender.avatar_url ? (
                                       <VisualEmote 
                                         trigger={sender.avatar_url} 
@@ -1163,7 +1185,17 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                     >
                         <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden">
+                            <div 
+                              className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400/70 transition-colors"
+                              onClick={() => {
+                                const parsedName = parseUsername(friend.username, friend.discriminator);
+                                setSelectedProfile({
+                                  id: friend.id,
+                                  name: parsedName.full,
+                                  avatar: friend.avatar_url || ''
+                                });
+                              }}
+                            >
                             {friend.avatar_url ? (
                               <VisualEmote 
                                 trigger={friend.avatar_url} 
@@ -1311,7 +1343,17 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden">
+                              <div 
+                                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400/70 transition-colors"
+                                onClick={() => {
+                                  const parsedName = parseUsername(friend.username, friend.discriminator);
+                                  setSelectedProfile({
+                                    id: friend.id,
+                                    name: parsedName.full,
+                                    avatar: friend.avatar_url || ''
+                                  });
+                                }}
+                              >
                                 {friend.avatar_url ? (
                                   <VisualEmote 
                                     trigger={friend.avatar_url} 
@@ -1363,6 +1405,18 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Player Profile Modal */}
+      {selectedProfile && profile && (
+        <PlayerProfileModal
+          playerId={selectedProfile.id}
+          playerName={selectedProfile.name}
+          playerAvatar={selectedProfile.avatar}
+          currentUserId={profile.id}
+          onClose={() => setSelectedProfile(null)}
+          onRefreshProfile={onRefreshProfile}
         />
       )}
 
