@@ -914,6 +914,7 @@ function LobbyComponent({
     setIsRefreshing(true);
     
     // CRITICAL: Explicitly emit GET_PUBLIC_ROOMS
+    console.log('📡 Lobby: Manually requesting room list...');
     console.log('📡 Lobby: Emitting GET_PUBLIC_ROOMS event');
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
     
@@ -1011,7 +1012,7 @@ function LobbyComponent({
       // CRITICAL: setIsRefreshing(false) must ALWAYS be called, regardless of whether rooms.length is 0 or more
       // Set it immediately (not in setTimeout) to ensure UI updates
       if (isMounted.current) {
-        setIsRefreshing(false);
+      setIsRefreshing(false);
         console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
       }
     };
@@ -1218,9 +1219,9 @@ function LobbyComponent({
           name: playerName, 
           avatar: playerAvatar,
           playerId: myId,
-          isPublic: Boolean(isPublic), // CRITICAL: Explicitly set as boolean to ensure server receives correct value
+          isPublic: true, // CRITICAL: MUST BE TRUE for rooms to appear in Public Tab
           roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
-          turnTimer: hookedTimer,
+          turnTimer: hookedTimer, // CRITICAL: Uses hookedTimer from useLobbySettings hook
           selected_sleeve_id: selected_sleeve_id
         };
         
