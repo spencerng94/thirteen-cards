@@ -1746,7 +1746,35 @@ export const Store: React.FC<{
           throw new Error('Failed to unlock phrase');
         }
       } else {
-        await buyItem(profile.id, finalPrice, pendingPurchase.id, pendingPurchase.type, !!isGuest, pendingPurchase.currency);
+        // Call atomic purchase function
+        const result = await buyItem(profile.id, finalPrice, pendingPurchase.id, pendingPurchase.type, !!isGuest, pendingPurchase.currency);
+        
+        if (!result.success) {
+          // Handle purchase failure
+          const errorMessage = result.error || 'Purchase failed';
+          const errorCode = result.errorCode || 'UNKNOWN';
+          
+          console.error('❌ Purchase failed:', { errorMessage, errorCode, itemName: pendingPurchase.name });
+          
+          // Show user-friendly error message
+          if (result.errorCode === 'INSUFFICIENT_FUNDS') {
+            const currencyName = pendingPurchase.currency === 'GEMS' ? 'gems' : 'coins';
+            setToastMessage(`Not enough ${currencyName}!`);
+          } else {
+            setToastMessage(errorMessage);
+          }
+          setToastType('error');
+          setShowToast(true);
+          
+          // ROLLBACK optimistic update
+          if (optimisticProfile) {
+            // Profile will be refreshed from server, which will have the correct state
+            onRefreshProfile();
+          }
+          return;
+        }
+        
+        // Purchase succeeded
         audioService.playPurchase();
         
         // Show success modal with item details
@@ -1764,13 +1792,25 @@ export const Store: React.FC<{
         setPendingPurchase(null);
         setShowSuccessModal(true);
         
-        // Refresh profile to ensure inventory is updated
+        // Refresh profile from database to ensure UI matches source of truth
         // Add small delay to ensure database write has completed
         setTimeout(() => {
           onRefreshProfile();
         }, 300);
       }
-    } catch (err) { console.error(err); } finally { setBuying(null); }
+    } catch (err: any) {
+      console.error('❌ Purchase exception:', err);
+      setToastMessage(err.message || 'Purchase failed. Please try again.');
+      setToastType('error');
+      setShowToast(true);
+      
+      // ROLLBACK optimistic update
+      if (optimisticProfile) {
+        onRefreshProfile();
+      }
+    } finally { 
+      setBuying(null); 
+    }
   };
 
   const getItemIcon = (id: string | number, type: string) => {

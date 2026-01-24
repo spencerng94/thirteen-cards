@@ -209,7 +209,7 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({ profile, onRefresh
 
             return (
               <div 
-                key={id} 
+                key={`${id}-${qty}`}
                 className="group relative overflow-hidden bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] backdrop-blur-xl border-2 border-white/20 rounded-3xl p-6 sm:p-7 transition-all duration-500 hover:border-yellow-500/40 hover:bg-gradient-to-br hover:from-white/[0.12] hover:via-white/[0.06] hover:to-white/[0.12] hover:shadow-[0_0_40px_rgba(234,179,8,0.2)] hover:scale-[1.02] active:scale-[0.98]"
                 style={{ animationDelay: `${idx * 50}ms` }}
               >

@@ -1048,89 +1048,136 @@ export const buyItem = async (
   type: 'SLEEVE' | 'AVATAR' | 'BOARD' | 'ITEM', 
   isGuest: boolean = false,
   currency: 'GOLD' | 'GEMS' = 'GOLD'
-) => {
+): Promise<{ success: boolean; error?: string; errorCode?: string }> => {
   // SECURITY: Validate price is a positive number
   if (typeof price !== 'number' || price < 0 || !isFinite(price)) {
-    throw new Error("Invalid price");
+    return { success: false, error: 'Invalid price', errorCode: 'INVALID_PRICE' };
   }
   
   // SECURITY: Validate itemName is a non-empty string
   if (!itemName || typeof itemName !== 'string' || itemName.length > 100) {
-    throw new Error("Invalid item name");
+    return { success: false, error: 'Invalid item name', errorCode: 'INVALID_ITEM_NAME' };
   }
-  
-  const profile = isGuest ? fetchGuestProfile() : await fetchProfile(userId);
-  if (!profile) throw new Error("Profile not found");
 
-  // SECURITY: Server-side price validation
-  // For ITEM type, validate against ITEM_REGISTRY
+  // Handle guest users (local storage only)
+  if (isGuest) {
+    const profile = fetchGuestProfile();
+    if (!profile) {
+      return { success: false, error: 'Profile not found', errorCode: 'USER_NOT_FOUND' };
+    }
+
+    // Check funds
+    if (currency === 'GEMS' && (profile.gems || 0) < price) {
+      return { success: false, error: 'Insufficient gems', errorCode: 'INSUFFICIENT_FUNDS' };
+    }
+    if (currency === 'GOLD' && (profile.coins || 0) < price) {
+      return { success: false, error: 'Insufficient coins', errorCode: 'INSUFFICIENT_FUNDS' };
+    }
+
+    // Update guest profile locally
+    const updates: Partial<UserProfile> = {};
+    if (currency === 'GEMS') {
+      updates.gems = (profile.gems || 0) - price;
+    } else {
+      updates.coins = (profile.coins || 0) - price;
+    }
+
+    if (type === 'SLEEVE') updates.unlocked_sleeves = Array.from(new Set([...(profile.unlocked_sleeves || []), itemName]));
+    if (type === 'AVATAR') updates.unlocked_avatars = Array.from(new Set([...(profile.unlocked_avatars || []), itemName]));
+    if (type === 'BOARD') updates.unlocked_boards = Array.from(new Set([...(profile.unlocked_boards || []), itemName]));
+    
+    if (type === 'ITEM') {
+      const inv = profile.inventory || { items: {}, active_boosters: {} };
+      const itemDef = ITEM_REGISTRY[itemName];
+      
+      if (itemName === 'BOOSTER_PACK_XP') {
+        inv.items['XP_2X_30M'] = (inv.items['XP_2X_30M'] || 0) + 1;
+        inv.items['XP_2X_10M'] = (inv.items['XP_2X_10M'] || 0) + 2;
+      } else if (itemName === 'BOOSTER_PACK_GOLD') {
+        inv.items['GOLD_2X_30M'] = (inv.items['GOLD_2X_30M'] || 0) + 1;
+        inv.items['GOLD_2X_10M'] = (inv.items['GOLD_2X_10M'] || 0) + 2;
+      } else {
+        inv.items[itemName] = (inv.items[itemName] || 0) + 1;
+      }
+      updates.inventory = { ...inv };
+    }
+
+    await updateProfileSettings(userId, updates);
+    return { success: true };
+  }
+
+  // SECURITY: Server-side price validation for ITEM type
   if (type === 'ITEM') {
     const itemDef = ITEM_REGISTRY[itemName];
     if (!itemDef) {
-      throw new Error("Item not found in registry");
+      return { success: false, error: 'Item not found in registry', errorCode: 'ITEM_NOT_FOUND' };
     }
-    // Validate price matches registry (client should send correct price, but we verify)
     if (itemDef.price !== undefined && itemDef.price !== price) {
-      throw new Error("Price mismatch - item price does not match registry");
+      return { success: false, error: 'Price mismatch', errorCode: 'PRICE_MISMATCH' };
     }
-    // Validate currency matches registry
     if (itemDef.currency && itemDef.currency !== currency) {
-      throw new Error("Currency mismatch");
+      return { success: false, error: 'Currency mismatch', errorCode: 'CURRENCY_MISMATCH' };
     }
   }
-  
-  // Note: For SLEEVE, AVATAR, BOARD types, prices should be validated against server-side constants
-  // This is a client-side call, so we rely on Supabase RLS policies for additional security
-  // In production, consider moving purchase logic to a server-side API endpoint
 
-  if (currency === 'GEMS') {
-    if ((profile.gems || 0) < price) throw new Error("Insufficient gems");
-  } else {
-    if ((profile.coins || 0) < price) throw new Error("Insufficient coins");
+  // Use atomic RPC function for authenticated users
+  if (!supabaseAnonKey) {
+    return { success: false, error: 'Supabase not configured', errorCode: 'CONFIG_ERROR' };
   }
 
-  const updates: Partial<UserProfile> = {};
-  if (currency === 'GEMS') {
-    updates.gems = (profile.gems || 0) - price;
-    // Track gem purchase for new player event
-    const currentStats = profile.event_stats || { daily_games_played: 0, daily_wins: 0, new_player_login_days: 0, claimed_events: [] };
-    updates.event_stats = {
-      ...currentStats,
-      gems_purchased: (currentStats.gems_purchased || 0) + price,
-      ready_to_claim: [
-        ...checkEventMilestones({ ...currentStats, gems_purchased: (currentStats.gems_purchased || 0) + price }, 0, profile.last_daily_claim),
-        ...(currentStats.ready_to_claim || [])
-      ]
+  try {
+    const { data, error } = await supabase.rpc('handle_purchase', {
+      user_id: userId,
+      item_name: itemName,
+      item_type: type,
+      item_price: price,
+      currency_type: currency
+    });
+
+    if (error) {
+      console.error('❌ buyItem RPC error:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Purchase failed', 
+        errorCode: error.code || 'RPC_ERROR' 
+      };
+    }
+
+    if (!data || !data.success) {
+      const errorMsg = data?.error || 'Purchase failed';
+      const errorCode = data?.error_code || 'UNKNOWN_ERROR';
+      console.error('❌ buyItem failed:', { errorMsg, errorCode, data });
+      return { success: false, error: errorMsg, errorCode };
+    }
+
+    // Track gem purchase for event stats (if using gems)
+    if (currency === 'GEMS' && data.success) {
+      const profile = await fetchProfile(userId);
+      if (profile) {
+        const currentStats = profile.event_stats || { daily_games_played: 0, daily_wins: 0, new_player_login_days: 0, claimed_events: [] };
+        const updates: Partial<UserProfile> = {
+          event_stats: {
+            ...currentStats,
+            gems_purchased: (currentStats.gems_purchased || 0) + price,
+            ready_to_claim: [
+              ...checkEventMilestones({ ...currentStats, gems_purchased: (currentStats.gems_purchased || 0) + price }, 0, profile.last_daily_claim),
+              ...(currentStats.ready_to_claim || [])
+            ]
+          }
+        };
+        await updateProfileSettings(userId, updates);
+      }
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('❌ buyItem exception:', e);
+    return { 
+      success: false, 
+      error: e.message || 'Purchase failed', 
+      errorCode: 'EXCEPTION' 
     };
-  } else {
-    // Deduct from coins (gold_balance) when currency is GOLD
-    updates.coins = (profile.coins || 0) - price;
   }
-
-  if (type === 'SLEEVE') updates.unlocked_sleeves = Array.from(new Set([...(profile.unlocked_sleeves || []), itemName]));
-  if (type === 'AVATAR') updates.unlocked_avatars = Array.from(new Set([...(profile.unlocked_avatars || []), itemName]));
-  if (type === 'BOARD') updates.unlocked_boards = Array.from(new Set([...(profile.unlocked_boards || []), itemName]));
-  
-  if (type === 'ITEM') {
-    const inv = profile.inventory || { items: {}, active_boosters: {} };
-    const itemDef = ITEM_REGISTRY[itemName];
-    
-    // Handle bundles
-    if (itemName === 'BOOSTER_PACK_XP') {
-      inv.items['XP_2X_30M'] = (inv.items['XP_2X_30M'] || 0) + 1;
-      inv.items['XP_2X_10M'] = (inv.items['XP_2X_10M'] || 0) + 2;
-    } else if (itemName === 'BOOSTER_PACK_GOLD') {
-      inv.items['GOLD_2X_30M'] = (inv.items['GOLD_2X_30M'] || 0) + 1;
-      inv.items['GOLD_2X_10M'] = (inv.items['GOLD_2X_10M'] || 0) + 2;
-    } else {
-      // Regular single item
-      inv.items[itemName] = (inv.items[itemName] || 0) + 1;
-    }
-    updates.inventory = { ...inv };
-  }
-
-  await updateProfileSettings(userId, updates);
-  return true;
 };
 
 export const grantItem = async (userId: string, itemId: string, quantity: number = 1) => {
