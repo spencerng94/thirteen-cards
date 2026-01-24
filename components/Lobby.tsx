@@ -566,6 +566,7 @@ function LobbyComponent({
   const [hasLoaded, setHasLoaded] = useState(false); // Track if we've received at least one response
   const isFetchingRef = useRef(false); // Prevent multiple simultaneous fetches
   const hasInitialFetched = useRef(false); // Track if initial fetch has been called - prevents duplicate mount fetches
+  const initialFetchDone = useRef(false); // Consolidated flag to ensure refreshRooms() is only called once on mount
   
   // Single source of truth for tab navigation - use initialTab prop if provided
   const [activeTab, setActiveTab] = useState<'PUBLIC' | 'CREATE' | 'LOCAL'>(initialTab);
