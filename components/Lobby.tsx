@@ -213,6 +213,7 @@ interface PublicTabProps {
   isRefreshing: boolean;
   refreshRooms: () => void;
   socketConnected: boolean;
+  forceRefresh: () => void; // Add forceRefresh function prop
 }
 
 const PublicTabContentComponent: React.FC<PublicTabProps> = ({ 
@@ -223,7 +224,8 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   remoteEmotes,
   isRefreshing,
   refreshRooms,
-  socketConnected
+  socketConnected,
+  forceRefresh
 }) => {
   // Debug: Log when publicRooms or isRefreshing changes
   useEffect(() => {
@@ -274,13 +276,23 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
             <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">Public Matches</span>
             <span className="text-[9px] sm:text-[10px] font-semibold text-white/40 uppercase tracking-wider mt-0.5">{publicRooms.length} {publicRooms.length === 1 ? 'room' : 'rooms'} available</span>
           </div>
+          <div className="flex items-center gap-2">
+            {/* Force Refresh button - bypasses all guards for testing */}
+            <button 
+              onClick={forceRefresh}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center transition-all duration-200 active:scale-90 hover:bg-red-500/30 hover:border-red-500/50 text-red-400"
+              title="Force Refresh (bypasses guards)"
+            >
+              <span className="text-xs font-black">⚡</span>
+            </button>
           <button 
             onClick={refreshRooms} 
-            disabled={isRefreshing || (!socketConnected && !socket?.connected)} 
-            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all duration-200 active:scale-90 ${isRefreshing || (!socketConnected && !socket?.connected) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:border-yellow-500/30 hover:text-yellow-400'}`}
+              disabled={isRefreshing || (!socketConnected && !socket?.connected)} 
+              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center transition-all duration-200 active:scale-90 ${isRefreshing || (!socketConnected && !socket?.connected) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:border-yellow-500/30 hover:text-yellow-400'}`}
           >
             <div className={isRefreshing ? 'animate-spin' : ''}><RecycleIcon /></div>
           </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
@@ -312,30 +324,30 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
                   <div 
                     key={roomKey}
                     onClick={() => joinRoom(roomId)}
-                    className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="relative">
-                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                          <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
-                        </div>
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
+                  className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="relative">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
                       </div>
-                      <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
-                        <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
-                      </div>
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
-                        <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{roomId || 'N/A'}</span>
-                      </div>
-                    </div>
-                    <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
+                    <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
+                      <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
                     </div>
                   </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
+                      <div className="flex items-center gap-2">
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
+                        <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{roomId || 'N/A'}</span>
+                      </div>
+                  </div>
+                  <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
+                  </div>
+                </div>
                 );
               })}
             </div>
@@ -904,6 +916,35 @@ function LobbyComponent({
     }, 5000);
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
+  // Force Refresh function - bypasses all guards for testing
+  const forceRefresh = useCallback(() => {
+    console.log('🔧 Lobby: Force Refresh clicked - bypassing all guards', {
+      socketId: socket?.id,
+      socketConnected: socket?.connected,
+      isFetchingRef: isFetchingRef.current,
+      isRefreshing
+    });
+    
+    if (socket?.connected) {
+      // Reset fetch lock to bypass guards
+      isFetchingRef.current = false;
+      setIsRefreshing(true);
+      socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+      console.log('🔧 Lobby: Force Refresh - emitted GET_PUBLIC_ROOMS');
+      
+      // Fail-safe timeout
+      setTimeout(() => {
+        if (isFetchingRef.current && isMounted.current) {
+          console.warn('⚠️ Lobby: Force Refresh timeout - server did not respond within 5 seconds');
+          isFetchingRef.current = false;
+          setIsRefreshing(false);
+        }
+      }, 5000);
+    } else {
+      console.warn('🔧 Lobby: Force Refresh - socket not connected');
+    }
+  }, [socket, isRefreshing]);
+
   // Register socket listener - always register when socket exists
   useEffect(() => {
     if (!socket) return;
@@ -960,7 +1001,7 @@ function LobbyComponent({
       // Use setTimeout to ensure it happens after setPublicRooms is committed
       setTimeout(() => {
         if (isMounted.current) {
-          setIsRefreshing(false);
+      setIsRefreshing(false);
           console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
         }
       }, 0);
@@ -1168,7 +1209,7 @@ function LobbyComponent({
           name: playerName, 
           avatar: playerAvatar,
           playerId: myId,
-          isPublic,
+          isPublic: Boolean(isPublic), // CRITICAL: Explicitly set as boolean to ensure server receives correct value
           roomName: roomNameInput.trim() || `${playerName.toUpperCase()}'S MATCH`,
           turnTimer: hookedTimer,
           selected_sleeve_id: selected_sleeve_id
@@ -1262,6 +1303,12 @@ function LobbyComponent({
     const targetCode = code || roomIdInput.trim().toUpperCase();
     if (!targetCode) return;
     
+    console.log('🎮 Lobby: joinRoom called with room ID:', targetCode, {
+      fromUI: code ? 'direct' : 'input',
+      socketId: socket?.id,
+      socketConnected: socket?.connected
+    });
+    
     // Ensure socket is connected before emitting
     if (!socket.connected) {
       connectSocket();
@@ -1272,6 +1319,7 @@ function LobbyComponent({
       
       socket.once('connect', () => {
         // clearTimeout(timeout); // Commented out - timeout disabled
+        console.log('🎮 Lobby: Socket connected, emitting JOIN_ROOM for:', targetCode);
         socket.emit(SocketEvents.JOIN_ROOM, { 
           roomId: targetCode, 
           name: playerName, 
@@ -1287,6 +1335,7 @@ function LobbyComponent({
       });
     } else {
       // Socket is already connected, emit immediately
+      console.log('🎮 Lobby: Socket already connected, emitting JOIN_ROOM for:', targetCode);
       socket.emit(SocketEvents.JOIN_ROOM, { 
         roomId: targetCode, 
         name: playerName, 
@@ -1589,6 +1638,7 @@ function LobbyComponent({
                       isRefreshing={isRefreshing}
                       refreshRooms={refreshRooms}
                       socketConnected={socketConnected}
+                      forceRefresh={forceRefresh}
                                 />
                       )
                     )}
