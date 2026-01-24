@@ -329,7 +329,7 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
                       <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
-                        <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{room.id || (room as any).roomId || 'N/A'}</span>
+                        <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{roomId || 'N/A'}</span>
                       </div>
                     </div>
                     <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
