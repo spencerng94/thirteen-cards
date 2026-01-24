@@ -225,31 +225,10 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
   refreshRooms,
   socketConnected
 }) => {
-  // Track minimum search time to prevent flicker
-  const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
-  const [showSearching, setShowSearching] = useState(false);
-  
-  // Debug: Log when publicRooms changes
+  // Debug: Log when publicRooms or isRefreshing changes
   useEffect(() => {
-    console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms.map(r => r.id));
-  }, [publicRooms]);
-  
-  // Track search start time when isRefreshing becomes true
-  useEffect(() => {
-    if (isRefreshing) {
-      setSearchStartTime(Date.now());
-      setShowSearching(true);
-    } else if (searchStartTime !== null) {
-      // Ensure "Searching..." shows for at least 400ms max (reduced from 1000ms for snappier UI)
-      const elapsed = Date.now() - searchStartTime;
-      const remaining = Math.max(0, 400 - elapsed);
-      const timeout = setTimeout(() => {
-        setShowSearching(false);
-        setSearchStartTime(null);
-      }, remaining);
-      return () => clearTimeout(timeout);
-    }
-  }, [isRefreshing, searchStartTime]);
+    console.log('📋 PublicTabContent: publicRooms updated', publicRooms.length, 'rooms', publicRooms.map(r => r.id), 'isRefreshing:', isRefreshing);
+  }, [publicRooms, isRefreshing]);
 
   // CRITICAL DEBUG: Log on every render to confirm props are being received
   console.log("DEBUG: PublicTabContent received rooms:", publicRooms.length, {
@@ -305,7 +284,7 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          {isRefreshing && publicRooms.length === 0 ? (
+          {isRefreshing ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
               <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
@@ -940,9 +919,43 @@ function LobbyComponent({
     };
   }, [socket]); // Re-register when socket changes
 
-  // CRITICAL: Fetch rooms when switching to PUBLIC tab
+  // CONSOLIDATED: Single useEffect for all on-mount fetch logic
+  // This ensures refreshRooms() is only called once when component first loads
+  useEffect(() => {
+    // Only run on initial mount (when activeTab is PUBLIC and socket is ready)
+    if (initialFetchDone.current) return;
+    
+    const isSocketReady = socket?.connected || socketConnected;
+    
+    // Conditions for initial fetch:
+    // 1. We're on PUBLIC tab
+    // 2. Socket is ready
+    // 3. We don't have rooms data yet
+    // 4. We're not already fetching
+    if (activeTab === 'PUBLIC' && isSocketReady && publicRooms.length === 0 && !isFetchingRef.current) {
+      console.log('📋 Lobby: Initial mount fetch - PUBLIC tab, socket ready, no rooms');
+      initialFetchDone.current = true;
+      hasInitialFetched.current = true;
+      
+      if (socket?.connected) {
+        isFetchingRef.current = true;
+        setIsRefreshing(true);
+        // Small delay to ensure listener is registered
+        setTimeout(() => {
+          if (socket?.connected) {
+            socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+          }
+        }, 0);
+      }
+    }
+  }, [activeTab, socketConnected, socket, publicRooms.length]); // Run when these change, but initialFetchDone prevents duplicate calls
+
+  // CRITICAL: Fetch rooms when switching to PUBLIC tab (after initial mount)
   // Only fetch if we don't already have rooms data (prevents redundant network traffic)
   useEffect(() => {
+    // Skip if initial fetch hasn't been done yet (let the consolidated effect handle it)
+    if (!initialFetchDone.current) return;
+    
     // CRITICAL: Check socket.connected directly as fallback
     const isSocketReady = socket?.connected || socketConnected;
     
@@ -971,33 +984,6 @@ function LobbyComponent({
       }
     }
   }, [activeTab, socketConnected, socket, publicRooms.length]);
-
-  // Auto-sync: Trigger refreshRooms() once if socket.connected is true but publicRooms.length is 0
-  // CRITICAL: Only run once on mount using hasInitialFetched
-  useEffect(() => {
-    if (socket?.connected && publicRooms.length === 0 && !isFetchingRef.current && activeTab === 'PUBLIC' && !hasInitialFetched.current) {
-      console.log('📋 Lobby: Auto-syncing public rooms (socket connected but no rooms) - initial fetch');
-      hasInitialFetched.current = true;
-      refreshRooms();
-    }
-  }, [socket?.connected, publicRooms.length, activeTab, refreshRooms]);
-
-  // Force refresh on mount if socket is already connected and we're on PUBLIC tab
-  // This catches the case where the socket connected before the component mounted
-  // CRITICAL: Only run once using hasInitialFetched to prevent duplicate requests
-  useEffect(() => {
-    if (activeTab === 'PUBLIC' && socket?.connected && !socketConnected && !hasInitialFetched.current) {
-      // Small delay to ensure state is settled and avoid race conditions
-      const timeoutId = setTimeout(() => {
-        console.log('📋 Lobby: Force refresh on mount - socket already connected but state not synced');
-        if (socket?.connected && !hasInitialFetched.current) {
-          hasInitialFetched.current = true;
-          socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-        }
-      }, 100);
-      return () => clearTimeout(timeoutId);
-    }
-  }, []); // Empty deps - only run on mount
 
   // Separate effect to refresh when exiting a game
   useEffect(() => {
