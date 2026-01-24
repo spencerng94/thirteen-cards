@@ -622,8 +622,10 @@ function LobbyComponent({
       // CRITICAL: If socket is already connected and we're on PUBLIC tab, emit immediately
       // This prevents race condition where state hasn't updated yet
       // Note: Listener registration happens in separate useEffect, so we use a small delay
-      if (activeTab === 'PUBLIC' && !isFetchingRef.current) {
+      // CRITICAL: Only run once using hasInitialFetchRef to prevent duplicate requests
+      if (activeTab === 'PUBLIC' && !isFetchingRef.current && !hasInitialFetchRef.current) {
         console.log('📡 Lobby: Socket connected on mount, immediately fetching public rooms');
+        hasInitialFetchRef.current = true;
         isFetchingRef.current = true;
         setIsRefreshing(true);
         // Small delay to ensure listener is registered (listener useEffect runs first)
