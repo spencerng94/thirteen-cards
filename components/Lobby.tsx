@@ -293,45 +293,45 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
           ) : (
             /* Only show room list or "No matches" if NOT refreshing */
             publicRooms.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
-                  <span className="text-3xl sm:text-4xl">🃏</span>
-                </div>
-                <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
-                <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
+            <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
+                <span className="text-3xl sm:text-4xl">🃏</span>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">No matches found</p>
+              <p className="text-[9px] sm:text-[10px] font-medium text-white/40 mt-2">Create your own room to get started!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {publicRooms && publicRooms.length > 0 && publicRooms.map(room => (
-                  <div 
+                <div 
                     key={room.id || room.roomId || `room-${room.name}-${room.hostName}`} 
-                    onClick={() => joinRoom(room.id)}
-                    className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="relative">
-                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                          <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
-                        </div>
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
+                  onClick={() => joinRoom(room.id)}
+                  className="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border-2 border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 hover:bg-gradient-to-br hover:from-yellow-500/10 hover:to-pink-500/10 hover:border-yellow-500/40 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300 cursor-pointer shadow-lg flex flex-col gap-4 sm:gap-5"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="relative">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes} size="sm" />
                       </div>
-                      <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
-                        <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
-                      </div>
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
-                      <div className="flex items-center gap-2">
-                      <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
-                        <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{room.id}</span>
-                      </div>
-                    </div>
-                    <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
+                    <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/40 px-3 py-1.5 rounded-full shadow-lg">
+                      <span className="text-[9px] sm:text-[10px] font-black text-yellow-400 font-mono">{room.playerCount}/4</span>
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">{room.name}</span>
+                      <div className="flex items-center gap-2">
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-white/50 uppercase tracking-wider">Host: {room.hostName}</span>
+                        <span className="text-[9px] sm:text-[10px] font-mono font-black text-yellow-400/80 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">{room.id}</span>
+                      </div>
+                  </div>
+                  <div className="absolute bottom-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300 shadow-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/></svg>
+                  </div>
+                </div>
+              ))}
+            </div>
             )
           )}
         </div>
@@ -341,15 +341,20 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
 };
 
 // Wrap PublicTabContent in memo to prevent unnecessary re-renders
-// But ensure isRefreshing and publicRooms are in the comparison
+// CRITICAL: Make comparison MORE sensitive - return FALSE (trigger re-render) if any critical prop changes
 const PublicTabContent = memo(PublicTabContentComponent, (prevProps, nextProps) => {
-  // Re-render if critical props change
-  return (
-    prevProps.isRefreshing === nextProps.isRefreshing &&
-    prevProps.publicRooms.length === nextProps.publicRooms.length &&
-    prevProps.socketConnected === nextProps.socketConnected &&
-    prevProps.roomIdInput === nextProps.roomIdInput
-  );
+  // Return FALSE (trigger re-render) if any of these change:
+  // - isRefreshing changes
+  // - publicRooms.length changes
+  // - socketConnected changes
+  // - roomIdInput changes
+  if (prevProps.isRefreshing !== nextProps.isRefreshing) return false;
+  if (prevProps.publicRooms.length !== nextProps.publicRooms.length) return false;
+  if (prevProps.socketConnected !== nextProps.socketConnected) return false;
+  if (prevProps.roomIdInput !== nextProps.roomIdInput) return false;
+  
+  // Return TRUE (skip re-render) only if all critical props are the same
+  return true;
 });
 
 
@@ -581,7 +586,7 @@ function LobbyComponent({
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false); // Track if we've received at least one response
   const isFetchingRef = useRef(false); // Prevent multiple simultaneous fetches
-  const hasInitialFetched = useRef(false); // Track if initial fetch has been called - prevents duplicate mount fetches
+  const isMounted = useRef(true); // Track if component is mounted
   const initialFetchDone = useRef(false); // Consolidated flag to ensure refreshRooms() is only called once on mount
   
   // Single source of truth for tab navigation - use initialTab prop if provided
@@ -882,16 +887,13 @@ function LobbyComponent({
       socketConnected,
       socketConnectedDirect: socket?.connected
     });
+    
+    // CRITICAL: setIsRefreshing(true) must be called immediately
     isFetchingRef.current = true;
     setIsRefreshing(true);
-    socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
     
-    // CRITICAL: Add small delay before setting isRefreshing to false
-    // This prevents "No matches found" flicker if server responds too instantly with empty list
-    setTimeout(() => {
-      // Only set to false if we haven't received data yet (handled in listener)
-      // This is a safety timeout in case listener doesn't fire
-    }, 500);
+    // Emit the request
+    socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Register socket listener - always register when socket exists
@@ -917,17 +919,19 @@ function LobbyComponent({
       const uniqueRooms = deduplicateRooms(roomsArray);
       console.log('📋 Lobby: Received public rooms list', uniqueRooms.length, 'rooms', uniqueRooms.map((r: any) => r.id));
       
-      // CRITICAL: Set all state updates first, then setIsRefreshing(false) LAST
-      // This ensures all room data is committed before the loading spinner is hidden
+      // CRITICAL: Ensure setIsRefreshing(false) is called regardless of rooms.length
+      // Wrap state updates to ensure correct order: setPublicRooms first, then setIsRefreshing(false)
       setPublicRooms(uniqueRooms);
       setHasLoaded(true);
       isFetchingRef.current = false;
       
-      // CRITICAL: setIsRefreshing(false) must be the very last state update
-      // Use setTimeout to ensure it happens after all other state updates are committed
+      // CRITICAL: setIsRefreshing(false) must ALWAYS be called, regardless of whether rooms.length is 0 or more
+      // Use setTimeout to ensure it happens after setPublicRooms is committed
       setTimeout(() => {
-        setIsRefreshing(false);
-        console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
+        if (isMounted.current) {
+      setIsRefreshing(false);
+          console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
+        }
       }, 0);
     };
     
@@ -942,8 +946,11 @@ function LobbyComponent({
   }, [socket]); // Re-register when socket changes
 
   // CONSOLIDATED: Single useEffect for all on-mount fetch logic
-  // This ensures refreshRooms() is only called once when component first loads
+  // This ensures refreshRooms() is only called once when component mounts AND socket is connected
   useEffect(() => {
+    // Only run if component is mounted
+    if (!isMounted.current) return;
+    
     // Only run on initial mount (when activeTab is PUBLIC and socket is ready)
     if (initialFetchDone.current) return;
     
@@ -952,60 +959,22 @@ function LobbyComponent({
     // Conditions for initial fetch:
     // 1. We're on PUBLIC tab
     // 2. Socket is ready
-    // 3. We don't have rooms data yet
-    // 4. We're not already fetching
-    if (activeTab === 'PUBLIC' && isSocketReady && publicRooms.length === 0 && !isFetchingRef.current) {
-      console.log('📋 Lobby: Initial mount fetch - PUBLIC tab, socket ready, no rooms');
+    // 3. We're not already fetching
+    if (activeTab === 'PUBLIC' && isSocketReady && !isFetchingRef.current) {
+      console.log('📋 Lobby: Initial mount fetch - PUBLIC tab, socket ready');
       initialFetchDone.current = true;
-      hasInitialFetched.current = true;
       
-      if (socket?.connected) {
-        isFetchingRef.current = true;
-        setIsRefreshing(true);
-        // Small delay to ensure listener is registered
-        setTimeout(() => {
-          if (socket?.connected) {
-            socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-          }
-        }, 0);
-      }
+      // Trigger refreshRooms exactly once
+      refreshRooms();
     }
-  }, [activeTab, socketConnected, socket, publicRooms.length]); // Run when these change, but initialFetchDone prevents duplicate calls
+  }, [activeTab, socketConnected, socket, refreshRooms]); // Run when these change, but initialFetchDone prevents duplicate calls
 
-  // CRITICAL: Fetch rooms when switching to PUBLIC tab (after initial mount)
-  // Only fetch if we don't already have rooms data (prevents redundant network traffic)
+  // Cleanup: Mark component as unmounted
   useEffect(() => {
-    // Skip if initial fetch hasn't been done yet (let the consolidated effect handle it)
-    if (!initialFetchDone.current) return;
-    
-    // CRITICAL: Check socket.connected directly as fallback
-    const isSocketReady = socket?.connected || socketConnected;
-    
-    // Only fetch if:
-    // 1. We're on PUBLIC tab
-    // 2. Socket is ready
-    // 3. We don't have rooms data yet (prevents flash and redundant fetches)
-    // 4. We're not already fetching
-    if (activeTab === 'PUBLIC' && isSocketReady && publicRooms.length === 0 && !isFetchingRef.current) {
-      console.log('📋 Lobby: PUBLIC tab active, socket connected, no rooms - fetching', {
-        activeTab,
-        socketConnected,
-        socketReady: socket?.connected,
-        publicRoomsLength: publicRooms.length
-      });
-      
-      if (socket?.connected) {
-        isFetchingRef.current = true;
-        setIsRefreshing(true);
-        // Small delay to ensure listener is registered (though it should already be)
-        setTimeout(() => {
-          if (socket?.connected) {
-            socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-          }
-        }, 0);
-      }
-    }
-  }, [activeTab, socketConnected, socket, publicRooms.length]);
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   // Separate effect to refresh when exiting a game
   useEffect(() => {
