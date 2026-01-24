@@ -555,37 +555,62 @@ const broadcastState = async (roomId: string) => {
   }
 };
 
-const getPublicRoomsList = async () => {
-  // Use the getPublicRooms function for consistency
-  const publicRooms = await getPublicRooms();
-  
-  // Deduplicate by room ID before enhancing
-  const uniqueRooms = Array.from(
-    new Map(publicRooms.map(room => [room.id, room])).values()
-  );
-  console.log(`📋 getPublicRoomsList: ${publicRooms.length} rooms before dedup, ${uniqueRooms.length} after`);
-  
-  // Enhance with host information for compatibility
-  const enhancedRooms = await Promise.all(uniqueRooms.map(async (room) => {
-    const fullRoom = await fetchRoom(room.id);
-    return {
-      id: room.id,
-      name: room.name,
-      playerCount: room.playerCount,
-      turnTimer: room.turnTimer,
-      hostName: fullRoom?.players.find(p => p.isHost)?.name || 'Unknown',
-      hostAvatar: fullRoom?.players.find(p => p.isHost)?.avatar || ':smile:'
-    };
-  }));
-  
-  // Final deduplication pass on enhanced rooms
-  const finalRooms = Array.from(
-    new Map(enhancedRooms.map(room => [room.id, room])).values()
-  );
-  console.log(`📋 getPublicRoomsList: Returning ${finalRooms.length} unique enhanced rooms`);
-  console.log("📋 Broadcasting Rooms:", finalRooms.length);
-  
-  return finalRooms;
+const getPublicRoomsList = async (): Promise<Array<{ id: string; name: string; playerCount: number; turnTimer: number; hostName: string; hostAvatar: string }>> => {
+  try {
+    // Use the getPublicRooms function for consistency
+    const publicRooms = await getPublicRooms();
+    
+    // CRITICAL: Ensure publicRooms is an array
+    if (!Array.isArray(publicRooms)) {
+      console.error('❌ getPublicRoomsList: getPublicRooms returned non-array:', typeof publicRooms, publicRooms);
+      return [];
+    }
+    
+    // Deduplicate by room ID before enhancing
+    const uniqueRooms = Array.from(
+      new Map(publicRooms.map(room => [room.id, room])).values()
+    );
+    console.log(`📋 getPublicRoomsList: ${publicRooms.length} rooms before dedup, ${uniqueRooms.length} after`);
+    
+    // Enhance with host information for compatibility
+    const enhancedRooms = await Promise.all(uniqueRooms.map(async (room) => {
+      try {
+        const fullRoom = await fetchRoom(room.id);
+        return {
+          id: room.id,
+          name: room.name,
+          playerCount: room.playerCount,
+          turnTimer: room.turnTimer,
+          hostName: fullRoom?.players.find(p => p.isHost)?.name || 'Unknown',
+          hostAvatar: fullRoom?.players.find(p => p.isHost)?.avatar || ':smile:'
+        };
+      } catch (error) {
+        console.error(`❌ getPublicRoomsList: Error fetching room ${room.id}:`, error);
+        // Return room without host info if fetch fails
+        return {
+          id: room.id,
+          name: room.name,
+          playerCount: room.playerCount,
+          turnTimer: room.turnTimer,
+          hostName: 'Unknown',
+          hostAvatar: ':smile:'
+        };
+      }
+    }));
+    
+    // Final deduplication pass on enhanced rooms
+    const finalRooms = Array.from(
+      new Map(enhancedRooms.map(room => [room.id, room])).values()
+    );
+    console.log(`📋 getPublicRoomsList: Returning ${finalRooms.length} unique enhanced rooms`);
+    console.log("📋 Broadcasting Rooms:", finalRooms.length);
+    
+    // CRITICAL: Ensure we always return an array, even if empty
+    return Array.isArray(finalRooms) ? finalRooms : [];
+  } catch (error) {
+    console.error('❌ getPublicRoomsList: Error:', error);
+    return []; // Always return an array, even on error
+  }
 };
 
 const broadcastPublicLobbies = async () => {
@@ -1139,11 +1164,13 @@ io.on('connection', (socket: Socket) => {
 
   // Send initial public rooms list automatically on connection
   getPublicRoomsList().then(roomsList => {
-    console.log("📋 Broadcasting Rooms:", roomsList.length);
-    socket.emit('public_rooms_list', roomsList);
+    // CRITICAL: Ensure roomsList is always an array before emitting
+    const safeRoomsList = Array.isArray(roomsList) ? roomsList : [];
+    console.log("📋 Broadcasting Rooms:", safeRoomsList.length);
+    socket.emit('public_rooms_list', safeRoomsList);
   }).catch(error => {
     console.error('❌ Error sending initial public rooms list:', error);
-    socket.emit('public_rooms_list', []);
+    socket.emit('public_rooms_list', []); // Always emit empty array on error
   });
 
   socket.on('create_room', async (data, callback) => {
@@ -2228,9 +2255,15 @@ io.on('connection', (socket: Socket) => {
       console.log(`📋 DEBUG: Sample room isPublic values:`, lobbyRooms.slice(0, 3).map(r => ({ id: r.id, isPublic: r.isPublic, type: typeof r.isPublic })));
       
       const roomsList = await getPublicRoomsList();
-      console.log(`📋 Found ${roomsList.length} public rooms after getPublicRoomsList()`);
-      console.log("📋 Broadcasting Rooms:", roomsList.length);
-      socket.emit('public_rooms_list', roomsList);
+      
+      // CRITICAL: Ensure roomsList is always an array before emitting
+      const safeRoomsList = Array.isArray(roomsList) ? roomsList : [];
+      
+      console.log(`📋 Found ${safeRoomsList.length} public rooms after getPublicRoomsList()`);
+      console.log("📋 Broadcasting Rooms:", safeRoomsList.length);
+      
+      // CRITICAL: Always emit an array, never an object or Map
+      socket.emit('public_rooms_list', safeRoomsList);
     } catch (error) {
       console.error('❌ get_public_rooms: Error fetching public rooms:', error);
       socket.emit('public_rooms_list', []);

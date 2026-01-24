@@ -899,8 +899,18 @@ function LobbyComponent({
   useEffect(() => {
     if (!socket) return;
     
-    const handleRoomsList = (list: PublicRoom[]) => {
-      console.log('📋 Lobby: Received public rooms list', list.length, 'rooms', list.map(r => r.id));
+    const handleRoomsList = (list: any) => {
+      // CRITICAL: Defensive check - ensure data is actually an array before mapping
+      if (!Array.isArray(list)) {
+        console.error("❌ Lobby: Received invalid room list format:", list, typeof list);
+        setPublicRooms([]);
+        setIsRefreshing(false);
+        setHasLoaded(true);
+        isFetchingRef.current = false;
+        return;
+      }
+      
+      console.log('📋 Lobby: Received public rooms list', list.length, 'rooms', list.map((r: any) => r.id));
       // DEBUG: Log exactly what the server is returning
       console.log('📋 Lobby: [DEBUG] Server returned:', JSON.stringify(list, null, 2));
       // Deduplicate before setting state to prevent infinite duplicates
