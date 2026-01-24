@@ -99,6 +99,13 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     const handlePresenceUpdate = (data: { onlineUserIds: string[]; presence: Array<{ userId: string; status: 'online' | 'in_game'; roomId?: string }> }) => {
       const { onlineUserIds, presence } = data;
       
+      console.log('📡 Received ONLINE_USERS_UPDATE:', { 
+        onlineCount: onlineUserIds.length, 
+        presenceCount: presence.length,
+        onlineUserIds: onlineUserIds.slice(0, 5), // Log first 5
+        friendIds: friends.map(f => f.friend?.id).filter(Boolean).slice(0, 5) // Log first 5 friend IDs
+      });
+      
       // Update online friends set
       setOnlineFriends(new Set(onlineUserIds));
       
@@ -115,7 +122,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     return () => {
       socket.off('ONLINE_USERS_UPDATE', handlePresenceUpdate);
     };
-  }, [socket, isGuest]);
+  }, [socket, isGuest, friends]);
 
   const loadFriends = async () => {
     if (!profile || isGuest) return;
@@ -1246,7 +1253,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <CopyUsername username={friend.username} className="text-base sm:text-lg" />
+                              <CopyUsername username={friend.username} discriminator={friend.discriminator} className="text-base sm:text-lg" />
                               <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
                                 Lv {friendLevel}
                               </span>

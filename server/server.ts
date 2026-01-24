@@ -1314,6 +1314,9 @@ globalThis.__SOCKET_HANDLERS_REGISTERED__ = true;
 io.on('connection', (socket: Socket) => {
   console.log('🚀 SOCKET CONNECTED:', socket.id);
   
+  // Send initial presence update immediately (not throttled)
+  doBroadcast();
+  
   // ============================================================================
   // ROOM MANAGEMENT - Using Supabase
   // ============================================================================
