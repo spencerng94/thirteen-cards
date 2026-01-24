@@ -243,7 +243,7 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   });
 
   return (
-    <div key={`public-content-${isRefreshing}-${publicRooms.length}`} className="h-full flex flex-col space-y-6 sm:space-y-8">
+    <div className="h-full flex flex-col space-y-6 sm:space-y-8">
       <div className="space-y-3">
         <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Join with Room Code</label>
         <div className="flex items-stretch gap-2 sm:gap-3 bg-gradient-to-br from-black/60 to-black/40 p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] border-2 border-white/10 shadow-inner focus-within:border-yellow-500/50 focus-within:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300">
@@ -298,15 +298,15 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-          {/* RE-RENDER TRIGGER: Use hasLoadedOnce to ensure "No matches" shows after first fetch */}
-          {(isRefreshing && !hasLoadedOnce) ? (
+          {/* SIMPLIFIED: Show spinner only when refreshing, show "No matches" only after first load completes */}
+          {isRefreshing ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
               <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60">Searching...</p>
             </div>
           ) : (
-            /* Only show room list or "No matches" if NOT refreshing OR if we've loaded at least once */
-            publicRooms.length === 0 ? (
+            /* Show room list or "No matches" only if we've loaded at least once */
+            (!hasLoadedOnce || publicRooms.length === 0) ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center mb-4 sm:mb-6 bg-white/[0.02]">
                 <span className="text-3xl sm:text-4xl">🃏</span>
@@ -361,40 +361,9 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
   );
 };
 
-// Wrap PublicTabContent in memo to prevent unnecessary re-renders
-// CRITICAL: Make comparison MORE sensitive - return FALSE (trigger re-render) if any critical prop changes
-const PublicTabContent = memo(PublicTabContentComponent, (prevProps, nextProps) => {
-  // Return FALSE (trigger re-render) if any of these change:
-  // - isRefreshing changes (CRITICAL: must re-render when loading state changes)
-  // - publicRooms.length changes
-  // - socketConnected changes
-  // - roomIdInput changes
-  // - hasLoadedOnce changes (CRITICAL: must re-render when first load completes)
-  // - publicRooms array reference changes (deep comparison)
-  if (prevProps.isRefreshing !== nextProps.isRefreshing) {
-    console.log('🔄 PublicTabContent: isRefreshing changed', { prev: prevProps.isRefreshing, next: nextProps.isRefreshing });
-    return false;
-  }
-  if (prevProps.hasLoadedOnce !== nextProps.hasLoadedOnce) {
-    console.log('🔄 PublicTabContent: hasLoadedOnce changed', { prev: prevProps.hasLoadedOnce, next: nextProps.hasLoadedOnce });
-    return false;
-  }
-  if (prevProps.publicRooms.length !== nextProps.publicRooms.length) {
-    console.log('🔄 PublicTabContent: publicRooms.length changed', { prev: prevProps.publicRooms.length, next: nextProps.publicRooms.length });
-    return false;
-  }
-  if (prevProps.socketConnected !== nextProps.socketConnected) return false;
-  if (prevProps.roomIdInput !== nextProps.roomIdInput) return false;
-  
-  // Deep comparison: check if publicRooms array reference changed
-  if (prevProps.publicRooms !== nextProps.publicRooms) {
-    console.log('🔄 PublicTabContent: publicRooms reference changed');
-    return false;
-  }
-  
-  // Return TRUE (skip re-render) only if all critical props are the same
-  return true;
-});
+// REMOVED React.memo - PublicTabContent must always re-render when props change
+// This component depends on async socket events and loading flags
+const PublicTabContent = PublicTabContentComponent;
 
 
 interface LocalTabProps {
@@ -1660,7 +1629,6 @@ function LobbyComponent({
                         </div>
                       ) : (
                     <PublicTabContent
-                          key={`public-tab-${publicRooms.length}-${isRefreshing}-${socketConnected}`}
                       roomIdInput={roomIdInput}
                       setRoomIdInput={setRoomIdInput}
                       joinRoom={joinRoom}
@@ -1671,7 +1639,7 @@ function LobbyComponent({
                       socketConnected={socketConnected}
                       forceRefresh={forceRefresh}
                       hasLoadedOnce={hasLoadedOnce.current}
-                                />
+                    />
                       )
                     )}
                             </div>
