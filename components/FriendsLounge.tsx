@@ -7,6 +7,7 @@ import { parseUsername } from '../utils/username';
 import { socket, connectSocket } from '../services/socket';
 import { SocketEvents } from '../types';
 import { supabase } from '../src/lib/supabase';
+import { Toast } from './Toast';
 
 // Default avatar icon component for when avatar_url is null
 const DefaultAvatarIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -270,14 +271,13 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         const errorMsg = 'Profile not found. Please initialize your profile first.';
         console.error('❌ Profile missing:', { profile });
         setError(errorMsg);
-        if (typeof alert !== 'undefined') {
-          alert(`PROFILE ERROR: ${errorMsg}\n\nYour profile must exist in the profiles table to add friends.`);
-        }
+        setToast({ message: errorMsg, type: 'error' });
+        setTimeout(() => setToast(null), 3000);
         setSendingRequests(prev => {
-          const next = new Set(prev);
-          next.delete(friendId);
-          return next;
-        });
+            const next = new Set(prev);
+            next.delete(friendId);
+            return next;
+          });
         return;
       }
       
@@ -336,9 +336,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         setToast({ message: errorMsg, type: 'error' });
         setTimeout(() => setToast(null), 3000);
         
-        if (typeof alert !== 'undefined') {
-          alert(`INSERT ERROR (${insertError.code}): ${errorMsg}\n\nCode: ${insertError.code}\nMessage: ${insertError.message}\nDetails: ${insertError.details || 'N/A'}`);
-        }
+        // Error already shown via toast
       } else {
         // SUCCESS: No error from Supabase
         console.log('✅ Friend request inserted successfully!');
@@ -362,9 +360,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       setToast({ message: errorMsg, type: 'error' });
       setTimeout(() => setToast(null), 3000);
       
-      if (typeof alert !== 'undefined') {
-        alert(`UNEXPECTED ERROR: ${errorMsg}\n\n${e.stack || 'No stack trace'}`);
-      }
+      // Error already shown via toast
     } finally {
       // Remove from sending state
       setSendingRequests(prev => {
@@ -492,9 +488,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         console.error('❌ Profile missing:', { profile });
         const errorMsg = 'Profile not found. Please initialize your profile first.';
         setError(errorMsg);
-        if (typeof alert !== 'undefined') {
-          alert(`PROFILE ERROR: ${errorMsg}\n\nYour profile must exist in the profiles table to add friends.`);
-        }
+        setToast({ message: errorMsg, type: 'error' });
+        setTimeout(() => setToast(null), 3000);
         setLoading(false);
         return;
       }
@@ -535,9 +530,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         const errorMsg = 'Invalid sender UUID format.';
         console.error('❌ Invalid sender UUID:', myUuid);
         setError(errorMsg);
-        if (typeof alert !== 'undefined') {
-          alert(`UUID VALIDATION ERROR: ${errorMsg}\n\nSender UUID: ${myUuid}`);
-        }
+        setToast({ message: errorMsg, type: 'error' });
+        setTimeout(() => setToast(null), 3000);
         setLoading(false);
         return;
       }
@@ -546,9 +540,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         const errorMsg = 'Invalid receiver UUID format.';
         console.error('❌ Invalid receiver UUID:', targetUserId);
         setError(errorMsg);
-        if (typeof alert !== 'undefined') {
-          alert(`UUID VALIDATION ERROR: ${errorMsg}\n\nReceiver UUID: ${targetUserId}`);
-        }
+        setToast({ message: errorMsg, type: 'error' });
+        setTimeout(() => setToast(null), 3000);
         setLoading(false);
         return;
       }
@@ -616,9 +609,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         setTimeout(() => setToast(null), 3000);
         
         // Show alert on iOS for debugging
-        if (typeof alert !== 'undefined') {
-          alert(`INSERT ERROR (${insertError.code}): ${errorMsg}\n\nCode: ${insertError.code}\nMessage: ${insertError.message}\nDetails: ${insertError.details || 'N/A'}`);
-        }
+        // Error already shown via toast
         
         setLoading(false);
         return;
@@ -649,9 +640,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       setToast({ message: errorMsg, type: 'error' });
       setTimeout(() => setToast(null), 3000);
       
-      if (typeof alert !== 'undefined') {
-        alert(`UNEXPECTED ERROR: ${errorMsg}\n\n${e.stack || 'No stack trace'}`);
-      }
+      // Error already shown via toast
     } finally {
       // Always clear loading state
       setLoading(false);
@@ -894,25 +883,25 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
             <div className="space-y-3">
               {activeTab === 'friends' && (
                 <>
-                  {loading && friends.length === 0 ? (
-                    <div className="text-center py-12 text-white/50">Loading friends...</div>
-                  ) : friends.length === 0 ? (
-                    <div className="text-center py-12">
-                      <p className="text-white/50 text-sm mb-4">No friends yet</p>
-                      <p className="text-white/30 text-xs">Search for users to add as friends</p>
-                    </div>
-                  ) : (
-                    friends.map((friendship) => {
-                      const friend = friendship.friend;
-                      if (!friend) return null;
-                      const friendLevel = calculateLevel(friend.xp || 0);
+              {loading && friends.length === 0 ? (
+                <div className="text-center py-12 text-white/50">Loading friends...</div>
+              ) : friends.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-white/50 text-sm mb-4">No friends yet</p>
+                  <p className="text-white/30 text-xs">Search for users to add as friends</p>
+                </div>
+              ) : (
+                friends.map((friendship) => {
+                  const friend = friendship.friend;
+                  if (!friend) return null;
+                  const friendLevel = calculateLevel(friend.xp || 0);
                       const isOnline = onlineFriends.has(friend.id);
-                      
-                      return (
-                        <div
-                          key={friendship.id}
-                          className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
-                        >
+                  
+                  return (
+                    <div
+                      key={friendship.id}
+                      className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
+                    >
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-4 flex-1 min-w-0">
                               <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
@@ -1048,31 +1037,31 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                           className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
                         >
                           <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
-                                {friend.avatar_url ? (
-                                  <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
-                                ) : (
-                                  <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <CopyUsername username={friend.username} className="text-base sm:text-lg" />
-                                  <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
-                                    Lv {friendLevel}
-                                  </span>
-                                </div>
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                            {friend.avatar_url ? (
+                              <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
+                            ) : (
+                              <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <CopyUsername username={friend.username} className="text-base sm:text-lg" />
+                              <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
+                                Lv {friendLevel}
+                              </span>
+                            </div>
                                 <p className="text-xs text-yellow-400/70 mt-1">Request pending...</p>
                               </div>
                             </div>
                             <div className="px-3 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-bold uppercase tracking-wide">
                               Pending
                             </div>
-                          </div>
-                        </div>
-                      );
-                    })
+                      </div>
+                    </div>
+                  );
+                })
                   )}
                 </>
               )}

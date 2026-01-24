@@ -3,7 +3,7 @@ import { UserProfile } from '../types';
 import { CurrencyIcon } from './CurrencyIcon';
 import { GemPurchaseCelebration } from './GemPurchaseCelebration';
 import { processGemTransaction, fetchGemTransactions, GemTransaction, handleGemPurchase, fetchProfile } from '../services/supabase';
-import { Toast } from './Toast';
+import Toast from './Toast';
 import { audioService } from '../services/audio';
 import { useBilling } from './BillingProvider';
 import { Capacitor } from '@capacitor/core';
