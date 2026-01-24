@@ -56,9 +56,9 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
       >
         <defs>
           <linearGradient id="thirteenGoldGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#fbbf24" />
-            <stop offset="50%" stopColor="#d97706" />
-            <stop offset="100%" stopColor="#b45309" />
+            <stop offset="0%" stopColor="#eab308" stopOpacity="1" />
+            <stop offset="50%" stopColor="#fbbf24" stopOpacity="1" />
+            <stop offset="100%" stopColor="#eab308" stopOpacity="1" />
           </linearGradient>
           <linearGradient id="goldMetallicPremium" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#1a0f00" />
@@ -171,6 +171,18 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
             <feComposite in="glowColor" in2="blur" operator="in" result="glow" />
             <feMerge>
               <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          
+          {/* Stronger filter for THIRTEEN text to ensure visibility */}
+          <filter id="thirteenTextFilter" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur" />
+            <feFlood floodColor="#fbbf24" floodOpacity="0.3" result="glowColor" />
+            <feComposite in="glowColor" in2="blur" operator="in" result="glow" />
+            <feGaussianBlur in="glow" stdDeviation="3" result="softGlow" />
+            <feMerge>
+              <feMergeNode in="softGlow" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
@@ -337,6 +349,24 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               />
             </g>
 
+            {/* THIRTEEN text - fully opaque with shadow and gradient */}
+            {/* Shadow layer for depth */}
+            <text 
+              x="512.5" 
+              y="851" 
+              textAnchor="middle" 
+              fontSize="145" 
+              fontWeight="900" 
+              textLength="880"
+              lengthAdjust="spacing"
+              fontFamily="'Cinzel', serif"
+              fill="#000000"
+              opacity="0.8"
+              fillOpacity="1"
+            >
+              THIRTEEN
+            </text>
+            {/* Main text with fully opaque gradient - matching app's gold color scheme (yellow-500) */}
             <text 
               x="512" 
               y="850" 
@@ -347,16 +377,15 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', className = '
               lengthAdjust="spacing"
               fontFamily="'Cinzel', serif"
               fill="url(#thirteenGoldGradient)"
-              filter="url(#goldBloomPremium)"
-              stroke="rgba(0,0,0,0.6)"
-              strokeWidth="0.8"
+              stroke="#000000"
+              strokeWidth="2.5"
+              opacity="1"
+              fillOpacity="1"
               style={{ 
                 textTransform: 'uppercase', 
                 paintOrder: 'stroke fill', 
                 letterSpacing: '0.18em',
-                WebkitTextFillColor: 'transparent',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text'
+                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 20px rgba(234, 179, 8, 0.4))'
               }}
             >
               THIRTEEN

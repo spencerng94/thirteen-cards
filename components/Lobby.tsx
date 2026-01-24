@@ -8,7 +8,6 @@ import { Toast } from './Toast';
 import { localDiscoveryService } from '../services/localDiscovery';
 import { containsProfanity } from '../utils/wordFilter';
 import { useLobbySettings } from '../hooks/useLobbySettings';
-import { UserBar } from './UserBar';
 
 interface PublicRoom {
   id: string;
@@ -43,17 +42,17 @@ const MAX_PLAYERS = 4;
 
 const BackgroundWrapperComponent: React.FC<{ children: React.ReactNode; theme: BackgroundTheme }> = ({ children, theme }) => {
   return (
-    <div className="min-h-[100dvh] w-full relative flex flex-col items-center justify-start p-4 sm:p-8" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="h-screen w-full relative flex flex-col overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {/* Fixed background that extends beyond viewport to prevent black space on overscroll */}
         <div className="fixed top-[-200px] left-0 right-0 bottom-[-200px] w-full">
-          <BoardSurface themeId={theme} />
-          <div className="absolute inset-0 opacity-[0.04] pointer-events-none z-10" style={{ 
-              backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.1) 1.5px, transparent 1.5px)`, 
-              backgroundSize: '80px 80px' 
-          }}></div>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,_rgba(0,0,0,0.6)_100%)] pointer-events-none z-[11]"></div>
+        <BoardSurface themeId={theme} />
+        <div className="absolute inset-0 opacity-[0.04] pointer-events-none z-10" style={{ 
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.1) 1.5px, transparent 1.5px)`, 
+            backgroundSize: '80px 80px' 
+        }}></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,_rgba(0,0,0,0.6)_100%)] pointer-events-none z-[11]"></div>
         </div>
-        <div className="relative z-20 w-full flex flex-col items-center">
+        <div className="relative z-20 w-full flex flex-col flex-1 min-h-0 px-4 sm:px-8 py-4 sm:py-8">
         {children}
         </div>
     </div>
@@ -80,6 +79,7 @@ const PlayerSlot = memo(({ index, player, isHost, myId, remoteEmotes, onRemoveBo
     const isMe = player.id === myId;
     const currentPlayer = gameState?.players?.find(p => p.id === player.id);
     const currentDifficulty = currentPlayer?.difficulty || player.difficulty || 'MEDIUM';
+    const displayRemoteEmotes = remoteEmotes || [];
     
     return (
       <div className="player-slot transition-all duration-200 ease-in-out">
@@ -344,7 +344,7 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
                   <div className="flex justify-between items-start">
                     <div className="relative">
                       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-black/60 to-black/40 border-2 border-white/10 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <VisualEmote trigger={room.hostAvatar} remoteEmotes={displayRemoteEmotes} size="sm" />
+                        <VisualEmote trigger={room.hostAvatar} remoteEmotes={remoteEmotes || []} size="sm" />
                       </div>
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black shadow-lg animate-pulse"></div>
                     </div>
@@ -1558,21 +1558,8 @@ function LobbyComponent({
     <React.Fragment key={activeTab}>
     <>
       <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
-      <div className="lobby-viewport" key="lobby-viewport">
+      <div className="lobby-viewport flex-1 min-h-0 overflow-hidden flex flex-col h-full" key="lobby-viewport">
         
-        {/* UserBar - Profile Icon in top-right corner */}
-        {onOpenHub && (
-          <div className="fixed top-[calc(env(safe-area-inset-top)+1.5rem)] sm:top-[calc(env(safe-area-inset-top)+2rem)] right-4 sm:right-8 z-[90] animate-in slide-in-from-right-2 fade-in duration-500 pointer-events-none">
-            <UserBar 
-              profile={profile || null} 
-              isGuest={isGuest} 
-              avatar={playerAvatar} 
-              remoteEmotes={displayRemoteEmotes} 
-              onClick={(tab) => onOpenHub?.(tab as 'PROFILE' | 'INVENTORY' | 'LEVEL_REWARDS')} 
-              className="pointer-events-auto" 
-            />
-          </div>
-        )}
         
         {errorToast.show && (
           <Toast
@@ -1614,9 +1601,9 @@ function LobbyComponent({
         )}
 
         {!gameState ? (
-          <div className="w-full space-y-6 sm:space-y-8 flex flex-col items-center">
+          <div className="w-full max-w-4xl mx-auto flex flex-col flex-1 min-h-0">
             {/* Static Header - Always Visible, Outside Animated Container */}
-            <div className="flex flex-col items-center text-center space-y-3 sm:space-y-4 mb-2 sm:mb-4" style={{ opacity: 1, visibility: 'visible' }}>
+            <div className="flex flex-col items-center text-center space-y-3 sm:space-y-4 mb-2 sm:mb-4 flex-shrink-0" style={{ opacity: 1, visibility: 'visible', paddingTop: 'max(env(safe-area-inset-top, 0px), 1rem)' }}>
               <div className="relative inline-block max-w-full overflow-visible">
                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 via-pink-500/20 to-yellow-500/20 blur-[100px] rounded-full animate-pulse"></div>
                 <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white uppercase italic tracking-tighter drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)] font-serif relative z-10 leading-none px-4">
@@ -1635,9 +1622,9 @@ function LobbyComponent({
             </div>
 
             {/* Animated Content Area - Only Tab Content is Animated */}
-            <div className="w-full animate-in fade-in zoom-in-95 duration-400">
-            <GlassPanel className="w-full flex flex-col min-h-[500px] sm:min-h-[600px]">
-              <nav className="tab-switcher p-4 sm:p-6 border-b border-white/10 bg-gradient-to-r from-white/[0.03] via-transparent to-white/[0.03] flex justify-center">
+            <div className="w-full flex-1 flex flex-col min-h-0 animate-in fade-in zoom-in-95 duration-400">
+            <GlassPanel className="w-full flex flex-col flex-1 min-h-0">
+              <nav className="tab-switcher p-4 sm:p-6 border-b border-white/10 bg-gradient-to-r from-white/[0.03] via-transparent to-white/[0.03] flex justify-center flex-shrink-0">
                     <div className="bg-black/60 backdrop-blur-sm p-1.5 rounded-[2.5rem] flex relative w-full max-w-2xl shadow-inner border border-white/10 overflow-hidden">
                         <div 
                           className={`
@@ -1694,7 +1681,7 @@ function LobbyComponent({
               </nav>
 
                 {/* Subpage Description Subheader */}
-                <div className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-white/5">
+                <div className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-white/5 flex-shrink-0">
                     <p className="text-[10px] sm:text-xs text-zinc-400 text-center font-medium leading-relaxed">
                   {activeTab === 'PUBLIC' && 'Connect to global arenas or use a lobby code.'}
                   {activeTab === 'CREATE' && 'Host your own table for public or private play.'}
@@ -1702,9 +1689,9 @@ function LobbyComponent({
                     </p>
                 </div>
 
-              <main className="tab-area flex-1 p-4 sm:p-6 sm:p-8 overflow-hidden flex flex-col">
+              <main className="tab-area flex-1 p-4 sm:p-6 sm:p-8 overflow-hidden flex flex-col min-h-0">
                 {/* Tab Content - Smooth Transitions */}
-                <div className="tab-content flex-1 overflow-hidden relative">
+                <div className="tab-content flex-1 overflow-hidden relative min-h-0">
                   {/* Public Tab */}
                   <div 
                     className={`absolute inset-0 overflow-y-auto transition-all duration-300 ease-in-out ${
@@ -1735,15 +1722,16 @@ function LobbyComponent({
 
                   {/* Create Tab */}
                   <div 
-                    className={`absolute inset-0 overflow-y-auto transition-all duration-200 ease-in-out ${
+                    className={`absolute inset-0 transition-all duration-200 ease-in-out flex flex-col ${
                       activeTab === 'CREATE' 
                         ? 'opacity-100 translate-y-0 z-10 pointer-events-auto' 
                         : 'opacity-0 pointer-events-none translate-y-2 z-0'
                     }`}
-                    style={{ paddingTop: '1rem', paddingBottom: '2rem', touchAction: 'pan-y' }}
+                    style={{ touchAction: 'pan-y' }}
                   >
                     {activeTab === 'CREATE' && (
-                        <div className="h-full flex flex-col space-y-6 sm:space-y-8 max-w-xl mx-auto w-full py-4 sm:py-6 pb-8 sm:pb-10" style={{ touchAction: 'pan-y' }}>
+                        <div className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full p-4 sm:p-6 sm:p-8 h-full" style={{ touchAction: 'pan-y', display: 'flex' }}>
+                          <div className="flex flex-col space-y-5 sm:space-y-6 flex-1 overflow-y-auto min-h-0 pb-6" style={{ touchAction: 'pan-y' }}>
                         <div className="space-y-3" style={{ position: 'relative', zIndex: 10000, pointerEvents: 'auto' }}>
                           <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
                           <input 
@@ -1790,7 +1778,7 @@ function LobbyComponent({
                           />
                         </div>
 
-                        <div className="bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 space-y-6 sm:space-y-8" style={{ position: 'relative', zIndex: 10000, pointerEvents: 'auto' }}>
+                        <div className="bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 space-y-5 sm:space-y-6" style={{ position: 'relative', zIndex: 10000, pointerEvents: 'auto' }}>
                           <div className="flex items-center justify-between">
                             <div className="flex flex-col gap-1">
                               <span className="text-sm font-black text-white uppercase tracking-wider">Public Room</span>
@@ -1940,7 +1928,9 @@ function LobbyComponent({
                             </div>
                           </div>
                         </div>
+                          </div>
 
+                        <div className="flex-shrink-0 pt-5 sm:pt-6 pb-6">
                         <button
                           id="create-room-btn"
                           type="button"
@@ -1986,7 +1976,7 @@ function LobbyComponent({
                               }
                             });
                           }}
-                          className={`w-full py-5 sm:py-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-200 active:scale-95 relative overflow-hidden group ${isCreatingRoom || !socketConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`w-full py-4 sm:py-5 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-emerald-500 text-white font-black uppercase tracking-wider text-sm sm:text-base shadow-[0_10px_40px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_50px_rgba(16,185,129,0.4)] transition-all duration-200 active:scale-95 relative overflow-hidden group ${isCreatingRoom || !socketConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
                           style={{ 
                             position: 'relative', 
                             zIndex: 10001, 
@@ -2010,7 +2000,8 @@ function LobbyComponent({
                             )}
                           </span>
                         </button>
-                      </div>
+                        </div>
+                        </div>
                     )}
                             </div>
 
@@ -2046,7 +2037,7 @@ function LobbyComponent({
             </GlassPanel>
             </div>
 
-            <div className="w-full max-w-xl mt-4 sm:mt-6 mb-4 sm:mb-6" style={{ position: 'relative', zIndex: 20 }}>
+            <div className="w-full max-w-xl mt-4 sm:mt-6 flex-shrink-0" style={{ position: 'relative', zIndex: 20, paddingBottom: 'env(safe-area-inset-bottom, 0px)', marginBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
                 <button
                     onClick={onBack!}
                     className="w-full py-4 sm:py-5 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 hover:border-white/20 hover:bg-white/10 text-white font-black uppercase tracking-wider text-xs sm:text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 shadow-lg"
