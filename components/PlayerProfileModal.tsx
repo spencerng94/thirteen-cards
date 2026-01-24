@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, Emote } from '../types';
-import { fetchProfile, addFriend, getFriends, calculateLevel, fetchEmotes } from '../services/supabase';
+import { fetchProfile, addFriend, getFriends, getPendingRequests, calculateLevel, fetchEmotes } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 import { getAvatarName } from '../services/supabase';
 
@@ -30,6 +30,8 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [addingFriend, setAddingFriend] = useState(false);
   const [isFriend, setIsFriend] = useState(false);
+  const [pendingSent, setPendingSent] = useState(false);
+  const [pendingReceived, setPendingReceived] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
 
@@ -65,11 +67,23 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
         
         if (profile) {
           setPlayerProfile(profile);
-          // Check if already friends
+          // Check friendship status (accepted, pending sent, pending received)
           try {
             const friends = await getFriends(currentUserId);
             const friendIds = friends.map(f => f.friend_id);
             setIsFriend(friendIds.includes(playerId));
+            
+            // Check for pending requests
+            if (!isFriend) {
+              const { sent, received } = await getPendingRequests(currentUserId);
+              // Check if we sent a request to this player
+              const sentToPlayer = sent.some(f => (f.receiver_id || f.friend_id) === playerId);
+              setPendingSent(sentToPlayer);
+              
+              // Check if they sent a request to us
+              const receivedFromPlayer = received.some(f => (f.sender_id || f.user_id) === playerId);
+              setPendingReceived(receivedFromPlayer);
+            }
           } catch (friendError) {
             console.warn('Error checking friends list:', friendError);
             // Don't set error for friend check failure - it's not critical
@@ -104,19 +118,20 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   }, [playerId, currentUserId]);
 
   const handleAddFriend = async () => {
-    if (!playerProfile || isFriend || addingFriend || playerId === 'guest' || playerId === currentUserId) return; // Self-check
+    if (!playerProfile || isFriend || pendingSent || addingFriend || playerId === 'guest' || playerId === currentUserId) return; // Self-check
     
     setAddingFriend(true);
     setError(null);
     try {
-      const success = await addFriend(currentUserId, playerId);
-      if (success) {
-        setIsFriend(true);
+      const result = await addFriend(currentUserId, playerId);
+      if (result.success) {
+        // Set pending sent status (not isFriend - that's only for accepted friendships)
+        setPendingSent(true);
         if (onRefreshProfile) {
           onRefreshProfile();
         }
       } else {
-        setError('Unable to add friend. You may already be friends or the friend limit has been reached.');
+        setError(result.error || 'Unable to add friend. You may already be friends or the friend limit has been reached.');
       }
     } catch (e: any) {
       setError(e.message || 'Failed to add friend');
@@ -228,8 +243,21 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
               </div>
             </div>
 
-            {/* Add Friend Button */}
-            {!isFriend && (
+            {/* Friend Status Button */}
+            {isFriend ? (
+              <div className="w-full py-3 px-6 bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-bold rounded-xl text-center flex items-center justify-center gap-2">
+                <span>✓</span>
+                <span>Friends</span>
+              </div>
+            ) : pendingSent ? (
+              <div className="w-full py-3 px-6 bg-yellow-600/30 border border-yellow-500/50 text-yellow-300 font-bold rounded-xl text-center">
+                Request Sent
+              </div>
+            ) : pendingReceived ? (
+              <div className="w-full py-3 px-6 bg-blue-600/30 border border-blue-500/50 text-blue-300 font-bold rounded-xl text-center">
+                Request Received
+              </div>
+            ) : (
               <button
                 onClick={handleAddFriend}
                 disabled={addingFriend}
@@ -237,12 +265,6 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
               >
                 {addingFriend ? 'Adding...' : 'Add Friend'}
               </button>
-            )}
-
-            {isFriend && (
-              <div className="w-full py-3 px-6 bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-bold rounded-xl text-center">
-                ✓ Friends
-              </div>
             )}
 
             {/* Mute/Unmute Button */}
