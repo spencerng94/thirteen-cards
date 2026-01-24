@@ -615,7 +615,10 @@ const getPublicRoomsList = async (): Promise<Array<{ id: string; name: string; p
 
 const broadcastPublicLobbies = async () => {
   const roomsList = await getPublicRoomsList();
-  io.emit('public_rooms_list', roomsList);
+  // CRITICAL: Ensure roomsList is always an array before broadcasting
+  const safeRoomsList = Array.isArray(roomsList) ? roomsList : [];
+  console.log("📋 Broadcasting Rooms:", safeRoomsList.length);
+  io.emit('public_rooms_list', safeRoomsList);
 };
 
 const startTurnTimer = async (roomId: string) => {
