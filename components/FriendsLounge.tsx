@@ -1106,67 +1106,66 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   const friend = friendship.friend;
                   if (!friend) return null;
                   const friendLevel = calculateLevel(friend.xp || 0);
-                      const isOnline = onlineFriends.has(friend.id);
+                    const isOnline = onlineFriends.has(friend.id);
                   
                   return (
                     <div
                       key={friendship.id}
                       className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
                     >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
-                                {friend.avatar_url ? (
-                                  <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
-                                ) : (
-                                  <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-                                )}
-                                {/* Online indicator */}
-                                {isOnline && (
-                                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-[#0a0a0a] rounded-full"></div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <CopyUsername username={friend.username} className="text-base sm:text-lg" />
-                                  <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
-                                    Lv {friendLevel}
-                                  </span>
-                                  {isOnline && (
-                                    <span className="text-xs font-semibold text-green-400 bg-green-500/20 px-2 py-0.5 rounded-full">
-                                      Online
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-white/50 mt-1">
-                                  {friend.wins || 0} wins • {friend.games_played || 0} games
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {currentRoomId && (
-                                <button
-                                  onClick={() => handleInviteFriend(friend.id)}
-                                  className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all"
-                                  title="Invite to Game"
-                                >
-                                  Invite
-                                </button>
+                        <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                            {friend.avatar_url ? (
+                              <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
+                            ) : (
+                              <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                            )}
+                              {/* Online indicator */}
+                              {isOnline && (
+                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-[#0a0a0a] rounded-full"></div>
                               )}
-                              <button
-                                onClick={() => handleRemoveFriend(friend.id)}
-                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all"
-                              >
-                                Remove
-                              </button>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <CopyUsername username={friend.username} className="text-base sm:text-lg" />
+                              <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
+                                Lv {friendLevel}
+                              </span>
+                                {isOnline && (
+                                  <span className="text-xs font-semibold text-green-400 bg-green-500/20 px-2 py-0.5 rounded-full">
+                                    Online
+                                  </span>
+                                )}
                             </div>
+                            <p className="text-xs text-white/50 mt-1">
+                              {friend.wins || 0} wins • {friend.games_played || 0} games
+                            </p>
                           </div>
                         </div>
-                      );
-                    })
-                  )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {currentRoomId && (
+                              <button
+                                onClick={() => handleInviteFriend(friend.id)}
+                                className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all"
+                                title="Invite to Game"
+                              >
+                                Invite
+                              </button>
+                            )}
+                        <button
+                          onClick={() => handleRemoveFriend(friend.id)}
+                              className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                      </div>
+                    );
+                  })}
                 </>
-              )}
+              ) : null}
               
               {activeTab === 'received' && (
                 <>
@@ -1230,9 +1229,9 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                             </div>
                           </div>
                         </div>
-                      );
-                    })
-                  )}
+                  );
+                })
+              )}
                 </>
               )}
               
@@ -1243,7 +1242,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   ) : pendingSent.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-white/50 text-sm">No pending sent requests</p>
-                    </div>
+            </div>
                   ) : (
                     pendingSent.map((request) => {
                       const friend = request.friend;
@@ -1262,15 +1261,15 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                               <span className="text-xl sm:text-2xl">{friend.avatar_url}</span>
                             ) : (
                               <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-                            )}
-                          </div>
+          )}
+        </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <CopyUsername username={friend.username} className="text-base sm:text-lg" />
                               <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
                                 Lv {friendLevel}
                               </span>
-                            </div>
+      </div>
                                 <p className="text-xs text-yellow-400/70 mt-1">Request pending...</p>
                               </div>
                             </div>
