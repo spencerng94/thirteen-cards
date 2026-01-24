@@ -879,17 +879,14 @@ function LobbyComponent({
       setIsRefreshing(false);
       return;
     }
-    // Prevent multiple simultaneous fetches
-    if (isFetchingRef.current) {
-      console.log('📋 Lobby: Already fetching rooms, skipping duplicate request');
-      return;
-    }
+    
     console.log('🔄 Lobby: Refreshing public rooms list...', {
       socketConnected,
       socketConnectedDirect: socket?.connected
     });
     
-    // CRITICAL: setIsRefreshing(true) must be called immediately
+    // CRITICAL: setIsRefreshing(true) only happens immediately before emit
+    // Remove the isFetchingRef guard that was blocking initial mount fetch
     isFetchingRef.current = true;
     setIsRefreshing(true);
     
@@ -897,14 +894,14 @@ function LobbyComponent({
     console.log('📡 Lobby: Emitting GET_PUBLIC_ROOMS event');
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
     
-    // Safety timeout: If server doesn't respond within 10 seconds, clear loading state
+    // Fail-safe timeout: If server doesn't respond within 5 seconds, clear loading state
     setTimeout(() => {
       if (isFetchingRef.current && isMounted.current) {
-        console.warn('⚠️ Lobby: Safety timeout - server did not respond within 10 seconds, clearing loading state');
+        console.warn('⚠️ Lobby: Fail-safe timeout - server did not respond within 5 seconds, clearing loading state');
         isFetchingRef.current = false;
         setIsRefreshing(false);
       }
-    }, 10000);
+    }, 5000);
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Register socket listener - always register when socket exists
@@ -913,6 +910,7 @@ function LobbyComponent({
     
     const handleRoomsList = (data: any) => {
       console.log('📋 Lobby: handleRoomsList received data:', {
+        socketId: socket.id,
         type: typeof data,
         isArray: Array.isArray(data),
         dataLength: Array.isArray(data) ? data.length : 'N/A',
@@ -992,32 +990,37 @@ function LobbyComponent({
     // Conditions for initial fetch:
     // 1. We're on PUBLIC tab
     // 2. Socket is ready
-    // 3. We're not already fetching
-    if (activeTab === 'PUBLIC' && isSocketReady && !isFetchingRef.current) {
+    // 3. Remove the isFetchingRef guard that was blocking initial mount fetch
+    if (activeTab === 'PUBLIC' && isSocketReady) {
       console.log('📋 Lobby: Initial mount fetch - PUBLIC tab, socket ready');
       initialFetchDone.current = true;
       
-      // CRITICAL: If socket is already connected on mount, immediately emit GET_PUBLIC_ROOMS
-      if (socket?.connected) {
-        console.log('📋 Lobby: Socket already connected on mount, immediately emitting GET_PUBLIC_ROOMS');
+      // CRITICAL: Delay emit by 100ms to ensure PUBLIC_ROOMS_LIST listener is fully registered
+      // The listener useEffect (line 911) runs first, but we need a small delay to guarantee registration
+      setTimeout(() => {
+        if (!isMounted.current || !socket?.connected) {
+          console.warn('⚠️ Lobby: Socket disconnected during delay, aborting fetch');
+          return;
+        }
+        
+        console.log('📋 Lobby: Delayed emit - ensuring listener is registered first');
+        // CRITICAL: setIsRefreshing(true) only happens immediately before emit
         isFetchingRef.current = true;
         setIsRefreshing(true);
+        
         socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
         
-        // Safety timeout: If server doesn't respond within 10 seconds, clear loading state
+        // Fail-safe timeout: If server doesn't respond within 5 seconds, clear loading state
         setTimeout(() => {
           if (isFetchingRef.current && isMounted.current) {
-            console.warn('⚠️ Lobby: Safety timeout - server did not respond within 10 seconds, clearing loading state');
+            console.warn('⚠️ Lobby: Fail-safe timeout - server did not respond within 5 seconds, clearing loading state');
             isFetchingRef.current = false;
             setIsRefreshing(false);
           }
-        }, 10000);
-      } else {
-        // Trigger refreshRooms which will handle the emit
-        refreshRooms();
-      }
+        }, 5000);
+      }, 100);
     }
-  }, [activeTab, socketConnected, socket, refreshRooms]); // Run when these change, but initialFetchDone prevents duplicate calls
+  }, [activeTab, socketConnected, socket]); // Run when these change, but initialFetchDone prevents duplicate calls
 
   // Cleanup: Mark component as unmounted
   useEffect(() => {
