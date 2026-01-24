@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { UserProfile } from '../types';
-import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship, getPendingRequests, acceptFriend } from '../services/supabase';
+import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship, getPendingRequests, acceptFriend, declineFriend } from '../services/supabase';
 import { calculateLevel } from '../services/supabase';
 import { CopyUsername } from './CopyUsername';
 import { parseUsername } from '../utils/username';
@@ -126,10 +126,9 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                 const senderName = parseUsername(senderProfile.username || '', senderProfile.discriminator).full;
                 setNewRequestNotification({ id: payload.new.id, senderName });
                 
-                // Auto-switch to "Requests" tab if not already there
-                if (activeTab !== 'received') {
-                  setActiveTab('received');
-                }
+                // Show toast notification
+                setToast({ message: `New friend request from ${senderName}!`, type: 'info' });
+                setTimeout(() => setToast(null), 5000);
                 
                 // Reload pending requests
                 await loadPendingRequests();
@@ -378,8 +377,29 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       await loadFriends();
       await loadPendingRequests();
       setError(null);
+      setToast({ message: 'Friend request accepted!', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
     } catch (e: any) {
-      setError(e.message || 'Failed to accept friend request');
+      const errorMsg = e.message || 'Failed to accept friend request';
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const handleDeclineRequest = async (senderId: string) => {
+    if (!profile || isGuest) return;
+    try {
+      await declineFriend(profile.id, senderId);
+      await loadPendingRequests();
+      setError(null);
+      setToast({ message: 'Friend request declined', type: 'info' });
+      setTimeout(() => setToast(null), 3000);
+    } catch (e: any) {
+      const errorMsg = e.message || 'Failed to decline friend request';
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -883,15 +903,91 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
             <div className="space-y-3">
               {activeTab === 'friends' && (
                 <>
-              {loading && friends.length === 0 ? (
+                  {/* Pending Requests Section - At the top of Friends list */}
+                  {pendingReceived.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-bold text-white uppercase tracking-wide">Pending Requests</h3>
+                        <span className="text-xs text-white/50 bg-blue-500/20 px-2 py-1 rounded-full">
+                          {pendingReceived.length}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {pendingReceived.map((request) => {
+                          const sender = request.friend;
+                          if (!sender) return null;
+                          const senderLevel = calculateLevel(sender.xp || 0);
+                          
+                          return (
+                            <div
+                              key={request.id}
+                              className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
+                            >
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
+                                    {sender.avatar_url ? (
+                                      <span className="text-xl sm:text-2xl">{sender.avatar_url}</span>
+                                    ) : (
+                                      <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <CopyUsername username={sender.username} discriminator={sender.discriminator} className="text-base sm:text-lg" />
+                                      <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
+                                        Lv {senderLevel}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-white/50 mt-1">Wants to be friends</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    onClick={() => handleAcceptRequest(sender.id)}
+                                    className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all active:scale-95 flex items-center gap-1.5"
+                                    title="Accept"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Accept
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeclineRequest(sender.id)}
+                                    className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all active:scale-95 flex items-center gap-1.5"
+                                    title="Decline"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    Decline
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Friends List */}
+              {loading && friends.length === 0 && pendingReceived.length === 0 ? (
                 <div className="text-center py-12 text-white/50">Loading friends...</div>
-              ) : friends.length === 0 ? (
+              ) : friends.length === 0 && pendingReceived.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-white/50 text-sm mb-4">No friends yet</p>
                   <p className="text-white/30 text-xs">Search for users to add as friends</p>
                 </div>
-              ) : (
-                friends.map((friendship) => {
+              ) : friends.length > 0 ? (
+                <>
+                  {pendingReceived.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-lg font-bold text-white uppercase tracking-wide mb-3">Friends</h3>
+                    </div>
+                  )}
+                  {friends.map((friendship) => {
                   const friend = friendship.friend;
                   if (!friend) return null;
                   const friendLevel = calculateLevel(friend.xp || 0);
@@ -987,7 +1083,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <CopyUsername username={sender.username} className="text-base sm:text-lg" />
+                                  <CopyUsername username={sender.username} discriminator={sender.discriminator} className="text-base sm:text-lg" />
                                   <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
                                     Lv {senderLevel}
                                   </span>
@@ -998,14 +1094,22 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                             <div className="flex items-center gap-2 shrink-0">
                               <button
                                 onClick={() => handleAcceptRequest(sender.id)}
-                                className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all"
+                                className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all active:scale-95 flex items-center gap-1.5"
+                                title="Accept"
                               >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                </svg>
                                 Accept
                               </button>
                               <button
-                                onClick={() => handleRemoveFriend(sender.id)}
-                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all"
+                                onClick={() => handleDeclineRequest(sender.id)}
+                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all active:scale-95 flex items-center gap-1.5"
+                                title="Decline"
                               >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
                                 Decline
                               </button>
                             </div>

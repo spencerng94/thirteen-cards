@@ -2021,7 +2021,9 @@ export const getPendingRequests = async (userId: string): Promise<{ sent: Friend
     
     if (sentError) throw sentError;
     
-    // Get received requests (pending)
+    // Get received requests (pending) with sender profile join
+    // Note: sender_id references auth.users, but we need profiles data
+    // So we'll use a manual join by fetching profiles separately
     const { data: receivedRequests, error: receivedError } = await supabase
       .from('friendships')
       .select('*')
@@ -2031,6 +2033,17 @@ export const getPendingRequests = async (userId: string): Promise<{ sent: Friend
     
     if (receivedError) throw receivedError;
     
+    // Fetch sender profiles for received requests
+    const receivedSenderIds = (receivedRequests || []).map(f => f.sender_id).filter(Boolean);
+    const { data: receivedProfiles } = receivedSenderIds.length > 0
+      ? await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', receivedSenderIds)
+      : { data: [] };
+    
+    const receivedProfileMap = new Map((receivedProfiles || []).map(p => [p.id, p]));
+    
     // Fetch profiles for sent requests
     const sentFriendIds = (sentRequests || []).map(f => f.friend_id);
     const { data: sentProfiles } = await supabase
@@ -2038,15 +2051,7 @@ export const getPendingRequests = async (userId: string): Promise<{ sent: Friend
       .select('*')
       .in('id', sentFriendIds);
     
-    // Fetch profiles for received requests (sender profiles)
-    const receivedSenderIds = (receivedRequests || []).map(f => f.sender_id || f.user_id);
-    const { data: receivedProfiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', receivedSenderIds);
-    
     const sentProfileMap = new Map((sentProfiles || []).map(p => [p.id, p]));
-    const receivedProfileMap = new Map((receivedProfiles || []).map(p => [p.id, p]));
     
     return {
       sent: (sentRequests || []).map((f: any) => {
@@ -2057,7 +2062,7 @@ export const getPendingRequests = async (userId: string): Promise<{ sent: Friend
         };
       }) as Friendship[],
       received: (receivedRequests || []).map((f: any) => {
-        const senderProfile = receivedProfileMap.get(f.sender_id || f.user_id);
+        const senderProfile = receivedProfileMap.get(f.sender_id);
         return {
           ...f,
           friend: senderProfile ? { ...senderProfile, gems: senderProfile.gems ?? 0, turn_timer_setting: senderProfile.turn_timer_setting ?? 0 } as UserProfile : undefined
@@ -2248,24 +2253,44 @@ export const acceptFriend = async (userId: string, friendId: string): Promise<bo
 /**
  * Remove a friend (removes bidirectional friendship)
  */
+/**
+ * Decline a friend request (delete the pending request)
+ */
+export const declineFriend = async (userId: string, senderId: string): Promise<boolean> => {
+  if (!supabaseAnonKey || userId === 'guest' || senderId === 'guest') return false;
+  
+  try {
+    // Delete the pending request where we are the receiver
+    const { error } = await supabase
+      .from('friendships')
+      .delete()
+      .eq('sender_id', senderId)
+      .eq('receiver_id', userId)
+      .eq('status', 'pending');
+    
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error declining friend request:', e);
+    return false;
+  }
+};
+
+/**
+ * Remove a friend (removes bidirectional friendship)
+ */
 export const removeFriend = async (userId: string, friendId: string): Promise<boolean> => {
   if (!supabaseAnonKey || userId === 'guest' || friendId === 'guest') return false;
   
   try {
-    // Delete both directions of the friendship
-    const { error: error1 } = await supabase
+    // Delete both directions of the friendship (accepted friendships)
+    // Use OR to delete both sender->receiver and receiver->sender relationships
+    const { error } = await supabase
       .from('friendships')
       .delete()
-      .eq('user_id', userId)
-      .eq('friend_id', friendId);
+      .or(`and(sender_id.eq.${userId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${userId})`);
     
-    const { error: error2 } = await supabase
-      .from('friendships')
-      .delete()
-      .eq('user_id', friendId)
-      .eq('friend_id', userId);
-    
-    if (error1 || error2) throw error1 || error2;
+    if (error) throw error;
     return true;
   } catch (e) {
     console.error('Error removing friend:', e);
