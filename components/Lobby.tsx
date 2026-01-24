@@ -298,6 +298,8 @@ const PublicTabContentComponent: React.FC<PublicTabProps> = ({
         <div className="flex-1 overflow-y-auto pr-2 sm:pr-4 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           {/* EXACTLY THREE STATES: LOADING, EMPTY, ROOMS - NO GUARDS, NO NULL RETURNS */}
           {(() => {
+            console.log("✅ FINAL RENDER PATH HIT - PublicTabContent render", { isRefreshing, roomCount: publicRooms.length });
+            
             if (isRefreshing) {
               return (
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
