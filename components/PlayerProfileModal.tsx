@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { UserProfile, Emote } from '../types';
 import { fetchProfile, addFriend, getFriends, getPendingRequests, calculateLevel, fetchEmotes } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
-import { getAvatarName } from '../services/supabase';
 
 interface PlayerProfileModalProps {
   playerId: string;
@@ -150,6 +149,11 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   const games = playerProfile?.games_played || 0;
   const currentStreak = playerProfile?.current_streak || 0;
   const longestStreak = playerProfile?.longest_streak || 0;
+  
+  // Calculate account age in days
+  const accountAgeDays = playerProfile && (playerProfile as any).created_at
+    ? Math.floor((Date.now() - new Date((playerProfile as any).created_at).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
 
   const content = (
     <div 
@@ -204,12 +208,16 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                 <div className="w-full h-full rounded-full border-2 border-white/20 bg-black/40 flex items-center justify-center overflow-hidden">
                   <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" />
                 </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-xs font-black px-3 py-1 rounded-full border-2 border-black shadow-lg">
-                  Lv. {level}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 text-black text-[10px] font-black px-2.5 py-1 rounded-full border-2 border-yellow-300/50 shadow-[0_4px_12px_rgba(234,179,8,0.4)] backdrop-blur-sm">
+                  <span className="text-[9px] opacity-80">LV</span> {level}
                 </div>
               </div>
               <h2 className="text-2xl font-black text-white mb-1">{playerName}</h2>
-              <p className="text-sm text-white/60">{getAvatarName(playerAvatar, remoteEmotes)}</p>
+              {accountAgeDays !== null && (
+                <p className="text-xs text-white/50">
+                  Account age: {accountAgeDays} {accountAgeDays === 1 ? 'day' : 'days'}
+                </p>
+              )}
             </div>
 
             {/* Stats */}
