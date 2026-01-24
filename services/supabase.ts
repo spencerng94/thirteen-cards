@@ -1180,6 +1180,89 @@ export const buyItem = async (
   }
 };
 
+export const claimEvent = async (
+  userId: string,
+  eventId: string,
+  rewardType: 'XP' | 'GOLD' | 'GEMS' | 'SLEEVE' | 'BOOSTER',
+  rewardValue: string | number,
+  isGuest: boolean = false
+): Promise<{ success: boolean; error?: string; errorCode?: string }> => {
+  // Handle guest users (local storage only)
+  if (isGuest || userId === 'guest') {
+    const profile = fetchGuestProfile();
+    if (!profile) {
+      return { success: false, error: 'Profile not found', errorCode: 'USER_NOT_FOUND' };
+    }
+
+    // Check if already claimed
+    const isClaimed = profile.event_stats?.claimed_events?.includes(eventId);
+    if (isClaimed) {
+      return { success: false, error: 'Event already claimed', errorCode: 'ALREADY_CLAIMED' };
+    }
+
+    // Update guest profile locally
+    const updates: Partial<UserProfile> = {
+      event_stats: {
+        ...(profile.event_stats || {} as any),
+        claimed_events: [...(profile.event_stats?.claimed_events || []), eventId],
+        ready_to_claim: (profile.event_stats?.ready_to_claim || []).filter(id => id !== eventId)
+      }
+    };
+
+    if (rewardType === 'XP') {
+      updates.xp = (profile.xp || 0) + (rewardValue as number);
+    } else if (rewardType === 'GOLD') {
+      updates.coins = (profile.coins || 0) + (rewardValue as number);
+    } else if (rewardType === 'GEMS') {
+      updates.gems = (profile.gems || 0) + (rewardValue as number);
+    } else if (rewardType === 'SLEEVE') {
+      updates.unlocked_sleeves = Array.from(new Set([...(profile.unlocked_sleeves || []), rewardValue as string]));
+    }
+
+    await updateProfileSettings(userId, updates);
+    return { success: true };
+  }
+
+  // Use atomic RPC function for authenticated users
+  if (!supabaseAnonKey) {
+    return { success: false, error: 'Supabase not configured', errorCode: 'CONFIG_ERROR' };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('claim_event', {
+      user_id: userId,
+      event_id: eventId,
+      reward_type: rewardType,
+      reward_value: String(rewardValue)
+    });
+
+    if (error) {
+      console.error('❌ claimEvent RPC error:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Claim failed', 
+        errorCode: error.code || 'RPC_ERROR' 
+      };
+    }
+
+    if (!data || !data.success) {
+      const errorMsg = data?.error || 'Claim failed';
+      const errorCode = data?.error_code || 'UNKNOWN_ERROR';
+      console.error('❌ claimEvent failed:', { errorMsg, errorCode, data });
+      return { success: false, error: errorMsg, errorCode };
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('❌ claimEvent exception:', e);
+    return { 
+      success: false, 
+      error: e.message || 'Claim failed', 
+      errorCode: 'EXCEPTION' 
+    };
+  }
+};
+
 export const grantItem = async (userId: string, itemId: string, quantity: number = 1) => {
   const profile = userId === 'guest' ? fetchGuestProfile() : await fetchProfile(userId);
   if (!profile) return;

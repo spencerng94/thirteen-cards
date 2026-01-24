@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, BackgroundTheme } from '../types';
 import { CardCoverStyle, Card } from './Card';
-import { updateProfileSettings, grantItem } from '../services/supabase';
+import { claimEvent, grantItem, updateProfileSettings } from '../services/supabase';
 import { audioService } from '../services/audio';
 import { getWeeklyChallenges, getTimeUntilReset, Challenge } from '../constants/ChallengePool';
 import { ITEM_REGISTRY } from '../constants/ItemRegistry';
@@ -165,30 +165,58 @@ export const EventsModal: React.FC<EventsModalProps> = ({ onClose, profile, onRe
   const handleClaim = async (event: GameEvent) => {
     const isClaimed = profile.event_stats?.claimed_events?.includes(event.id);
     if (isClaimed) return;
-    audioService.playPurchase();
     
-    let updates: Partial<UserProfile> = {
-      event_stats: {
-        ...(profile.event_stats || {} as any),
-        claimed_events: [...(profile.event_stats?.claimed_events || []), event.id],
-        ready_to_claim: (profile.event_stats?.ready_to_claim || []).filter(id => id !== event.id)
+    // Handle BOOSTER type rewards separately (uses grantItem)
+    if (event.reward.type === 'BOOSTER') {
+      try {
+        await grantItem(profile.id, event.reward.value as string);
+        // Still need to mark event as claimed
+        const updates: Partial<UserProfile> = {
+          event_stats: {
+            ...(profile.event_stats || {} as any),
+            claimed_events: [...(profile.event_stats?.claimed_events || []), event.id],
+            ready_to_claim: (profile.event_stats?.ready_to_claim || []).filter(id => id !== event.id)
+          }
+        };
+        await updateProfileSettings(profile.id || 'guest', updates);
+        audioService.playPurchase();
+        onRefreshProfile();
+        setNotification(`CLAIMED: ${event.reward.value}`);
+        setTimeout(() => setNotification(null), 3000);
+      } catch (e) {
+        console.error('❌ Failed to claim booster reward:', e);
+        setNotification('Failed to claim reward');
+        setTimeout(() => setNotification(null), 3000);
       }
-    };
-
-    if (event.reward.type === 'XP') updates.xp = (profile.xp || 0) + (event.reward.value as number);
-    else if (event.reward.type === 'GOLD') updates.coins = (profile.coins || 0) + (event.reward.value as number);
-    else if (event.reward.type === 'SLEEVE') {
-      updates.unlocked_sleeves = Array.from(new Set([...(profile.unlocked_sleeves || []), event.reward.value as string]));
-    } else {
-      await grantItem(profile.id, event.reward.value as string);
+      return;
     }
 
+    // Use atomic claimEvent function for XP, GOLD, GEMS, SLEEVE
     try {
-      await updateProfileSettings(profile.id || 'guest', updates);
+      const result = await claimEvent(
+        profile.id || 'guest',
+        event.id,
+        event.reward.type,
+        event.reward.value,
+        !!isGuest
+      );
+
+      if (!result.success) {
+        console.error('❌ Claim failed:', { error: result.error, errorCode: result.errorCode, eventId: event.id });
+        setNotification(result.error || 'Failed to claim reward');
+        setTimeout(() => setNotification(null), 3000);
+        return;
+      }
+
+      audioService.playPurchase();
       onRefreshProfile();
       setNotification(`CLAIMED: ${event.reward.value}`);
       setTimeout(() => setNotification(null), 3000);
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error('❌ Claim exception:', e);
+      setNotification('Failed to claim reward');
+      setTimeout(() => setNotification(null), 3000);
+    }
   };
 
   const renderEventItem = (event: GameEvent) => {
