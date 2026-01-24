@@ -215,7 +215,7 @@ interface PublicTabProps {
   socketConnected: boolean;
 }
 
-const PublicTabContent: React.FC<PublicTabProps> = ({ 
+const PublicTabContentComponent: React.FC<PublicTabProps> = ({ 
   roomIdInput, 
   setRoomIdInput, 
   joinRoom, 
@@ -239,7 +239,7 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
   });
 
   return (
-    <div className="h-full flex flex-col space-y-6 sm:space-y-8">
+    <div key={isRefreshing ? 'loading' : 'idle'} className="h-full flex flex-col space-y-6 sm:space-y-8">
       <div className="space-y-3">
         <label className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white/50 px-2">Join with Room Code</label>
         <div className="flex items-stretch gap-2 sm:gap-3 bg-gradient-to-br from-black/60 to-black/40 p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] border-2 border-white/10 shadow-inner focus-within:border-yellow-500/50 focus-within:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all duration-300">
@@ -329,12 +329,25 @@ const PublicTabContent: React.FC<PublicTabProps> = ({
                 </div>
               ))}
             </div>
+            )
           )}
         </div>
       </div>
     </div>
   );
 };
+
+// Wrap PublicTabContent in memo to prevent unnecessary re-renders
+// But ensure isRefreshing and publicRooms are in the comparison
+const PublicTabContent = memo(PublicTabContentComponent, (prevProps, nextProps) => {
+  // Re-render if critical props change
+  return (
+    prevProps.isRefreshing === nextProps.isRefreshing &&
+    prevProps.publicRooms.length === nextProps.publicRooms.length &&
+    prevProps.socketConnected === nextProps.socketConnected &&
+    prevProps.roomIdInput === nextProps.roomIdInput
+  );
+});
 
 
 interface LocalTabProps {
@@ -901,13 +914,18 @@ function LobbyComponent({
       const uniqueRooms = deduplicateRooms(roomsArray);
       console.log('📋 Lobby: Received public rooms list', uniqueRooms.length, 'rooms', uniqueRooms.map((r: any) => r.id));
       
-      // Always ensure we reach these lines to kill the loading spinner
+      // CRITICAL: Set all state updates first, then setIsRefreshing(false) LAST
+      // This ensures all room data is committed before the loading spinner is hidden
       setPublicRooms(uniqueRooms);
-      setIsRefreshing(false);
       setHasLoaded(true);
       isFetchingRef.current = false;
       
-      console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
+      // CRITICAL: setIsRefreshing(false) must be the very last state update
+      // Use setTimeout to ensure it happens after all other state updates are committed
+      setTimeout(() => {
+        setIsRefreshing(false);
+        console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
+      }, 0);
     };
     
     // Remove any existing listeners first to prevent duplicates
