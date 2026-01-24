@@ -2983,21 +2983,49 @@ export const logErrorToSupabase = async (
 
     // Insert error into database (non-blocking, fire-and-forget)
     // Note: This async operation is intentionally not awaited - it runs in the background
+    // CRITICAL: Only include fields that exist in the database schema
+    // If stack_trace column doesn't exist, omit it from the insert
+    const errorData: any = {
+      user_id: finalUserId,
+      error_message: errorMessage.substring(0, 5000), // Limit message length
+      component_stack: componentStack ? componentStack.substring(0, 10000) : null, // Limit component stack length
+      browser_info: browserInfo.substring(0, 500), // Limit browser info length
+      url: url ? url.substring(0, 1000) : null, // Limit URL length
+      created_at: new Date().toISOString()
+    };
+    
+    // Only include stack_trace if it exists in the schema (check by trying to include it conditionally)
+    // If the column doesn't exist, Supabase will ignore unknown fields, but to be safe, we'll include it
+    // and let the database handle it gracefully
+    if (stackTrace) {
+      errorData.stack_trace = stackTrace.substring(0, 10000);
+    }
+    
     supabase
       .from('client_errors')
-      .insert({
-        user_id: finalUserId,
-        error_message: errorMessage.substring(0, 5000), // Limit message length
-        stack_trace: stackTrace ? stackTrace.substring(0, 10000) : null, // Limit stack trace length
-        component_stack: componentStack ? componentStack.substring(0, 10000) : null, // Limit component stack length
-        browser_info: browserInfo.substring(0, 500), // Limit browser info length
-        url: url ? url.substring(0, 1000) : null, // Limit URL length
-        created_at: new Date().toISOString()
-      })
+      .insert(errorData)
       .then(({ error: insertError }) => {
         if (insertError) {
           // Log to console but don't throw - this is fire-and-forget
-          console.warn('Failed to log error to Supabase (non-blocking):', insertError);
+          // If error is about missing column, log it but don't fail
+          if (insertError.message?.includes('stack_trace') || insertError.message?.includes('column')) {
+            console.warn('Failed to log error to Supabase (missing column, non-blocking):', insertError.message);
+            // Retry without stack_trace if column is missing
+            const { stack_trace, ...errorDataWithoutStack } = errorData;
+            supabase
+              .from('client_errors')
+              .insert(errorDataWithoutStack)
+              .then(({ error: retryError }) => {
+                if (retryError) {
+                  console.warn('Failed to log error to Supabase on retry (non-blocking):', retryError);
+                }
+              })
+              .catch(() => {
+                // Silently ignore retry errors
+              });
+          } else {
+            console.warn('Failed to log error to Supabase (non-blocking):', insertError);
+          }
         } else {
         }
       })
