@@ -8,6 +8,9 @@ import { socket, connectSocket } from '../services/socket';
 import { SocketEvents } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { Toast } from './Toast';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { Capacitor } from '@capacitor/core';
 
 // Default avatar icon component for when avatar_url is null
 const DefaultAvatarIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -32,6 +35,9 @@ interface FriendsLoungeProps {
   profile: UserProfile | null;
   onRefreshProfile: () => void;
   isGuest?: boolean;
+  onPendingCountChange?: (count: number) => void;
+  onInviteFriend?: (friendId: string) => void;
+  currentRoomId?: string;
 }
 
 export const FriendsLounge: React.FC<FriendsLoungeProps> = ({ 
@@ -40,7 +46,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
   onRefreshProfile, 
   isGuest,
   onInviteFriend,
-  currentRoomId
+  currentRoomId,
+  onPendingCountChange
 }) => {
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [pendingSent, setPendingSent] = useState<Friendship[]>([]);
@@ -56,6 +63,14 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
   const [newRequestNotification, setNewRequestNotification] = useState<{ id: string; senderName: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const subscriptionRef = useRef<any>(null);
+  
+  // Track pending count for badge
+  const pendingCount = pendingReceived.length;
+  
+  // Notify parent of pending count changes
+  useEffect(() => {
+    onPendingCountChange?.(pendingCount);
+  }, [pendingCount, onPendingCountChange]);
 
   useEffect(() => {
     if (profile && !isGuest) {
@@ -370,8 +385,20 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     }
   };
 
+  // Haptic feedback helper
+  const triggerHaptic = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await Haptics.impact({ style: ImpactStyle.Light });
+      } catch (e) {
+        // Haptics not available, ignore
+      }
+    }
+  };
+
   const handleAcceptRequest = async (friendId: string) => {
     if (!profile || isGuest) return;
+    await triggerHaptic();
     try {
       await acceptFriend(profile.id, friendId);
       await loadFriends();
@@ -389,6 +416,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
 
   const handleDeclineRequest = async (senderId: string) => {
     if (!profile || isGuest) return;
+    await triggerHaptic();
     try {
       await declineFriend(profile.id, senderId);
       await loadPendingRequests();
@@ -912,17 +940,26 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                           {pendingReceived.length}
                         </span>
                       </div>
-                      <div className="space-y-2">
-                        {pendingReceived.map((request) => {
-                          const sender = request.friend;
-                          if (!sender) return null;
-                          const senderLevel = calculateLevel(sender.xp || 0);
-                          
-                          return (
-                            <div
-                              key={request.id}
-                              className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
-                            >
+                      <motion.div 
+                        className="space-y-2"
+                        layout
+                      >
+                        <AnimatePresence mode="popLayout">
+                          {pendingReceived.map((request) => {
+                            const sender = request.friend;
+                            if (!sender) return null;
+                            const senderLevel = calculateLevel(sender.xp || 0);
+                            
+                            return (
+                              <motion.div
+                                key={request.id}
+                                layout
+                                initial={{ opacity: 0, x: 100, height: 0 }}
+                                animate={{ opacity: 1, x: 0, height: 'auto' }}
+                                exit={{ opacity: 0, x: -100, height: 0 }}
+                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:border-white/20 overflow-hidden"
+                              >
                               <div className="flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-4 flex-1 min-w-0">
                                   <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0">
@@ -965,10 +1002,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                                   </button>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                              </motion.div>
+                            );
+                          })}
+                        </AnimatePresence>
+                      </motion.div>
                     </div>
                   )}
                   

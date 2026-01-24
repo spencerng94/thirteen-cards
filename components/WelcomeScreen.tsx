@@ -32,6 +32,7 @@ interface WelcomeScreenProps {
   onOpenStore: (tab?: 'SLEEVES' | 'EMOTES' | 'BOARDS' | 'GEMS') => void;
   onOpenGemPacks: () => void;
   onOpenFriends: () => void;
+  pendingFriendRequestsCount?: number;
   onOpenLocal?: () => void;
   playerName: string;
   setPlayerName: (name: string) => void;
@@ -403,7 +404,7 @@ const LuxuryButton: React.FC<{
 };
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
-  onStart, onSignOut, profile, onRefreshProfile, onRetryProfileFetch, profileFetchError, isSyncingData = false, onOpenHub, onOpenStore, onOpenGemPacks, onOpenFriends, onOpenLocal,
+  onStart, onSignOut, profile, onRefreshProfile, onRetryProfileFetch, profileFetchError, isSyncingData = false, onOpenHub, onOpenStore, onOpenGemPacks, onOpenFriends, onOpenLocal, pendingFriendRequestsCount = 0,
   playerName, setPlayerName, playerAvatar, setPlayerAvatar,
   cardCoverStyle, setCardCoverStyle, aiDifficulty, setAiDifficulty,
   quickFinish, setQuickFinish, soundEnabled, setSoundEnabled,
@@ -1373,6 +1374,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             <div className="relative z-10 group-hover:rotate-6 group-hover:scale-110 transition-transform duration-300">
               <FriendsCardIcon />
             </div>
+            {/* Notification Badge */}
+            {pendingFriendRequestsCount > 0 && (
+              <div className="absolute -top-1 -right-1 z-20 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] font-black rounded-full border-2 border-black/20 shadow-[0_2px_8px_rgba(220,38,38,0.6)] animate-[badgePulse_2s_ease-in-out_infinite]">
+                {pendingFriendRequestsCount > 9 ? '9+' : pendingFriendRequestsCount}
+              </div>
+            )}
           </button>
           <span className="text-[10px] sm:text-[11px] font-black uppercase text-blue-400 tracking-wider drop-shadow-[0_2px_8px_rgba(59,130,246,0.4)]">FRIENDS</span>
         </div>
@@ -1484,6 +1491,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         @keyframes shimmer {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
+        }
+        @keyframes badgePulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.15); opacity: 0.9; }
         }
       `}} />
     </div>

@@ -177,6 +177,7 @@ const AppContent: React.FC = () => {
   const [gemPacksOpen, setGemPacksOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
+  const [pendingFriendRequestsCount, setPendingFriendRequestsCount] = useState(0);
   const [gameInvite, setGameInvite] = useState<{ roomId: string; inviterName: string; inviterId: string } | null>(null);
   const [storeTab, setStoreTab] = useState<'SLEEVES' | 'EMOTES' | 'BOARDS'>('SLEEVES');
   
@@ -1928,6 +1929,7 @@ const AppContent: React.FC = () => {
           onOpenLocal={handleOpenLocal}
           onLinkAccount={handleLinkAccount}
           isModalOpen={isModalOpen}
+          pendingFriendRequestsCount={pendingFriendRequestsCount}
         />
       )}
       {/* DETERMINISTIC RENDER: Single source of truth based on gameState.status */}
@@ -2199,9 +2201,10 @@ const AppContent: React.FC = () => {
           onRefreshProfile={handleRefreshProfile} 
           isGuest={isGuest}
           currentRoomId={mpGameState?.roomId || undefined}
-          onInviteFriend={(roomId) => {
+          onInviteFriend={(friendId) => {
             // Optional callback when friend is invited
           }}
+          onPendingCountChange={setPendingFriendRequestsCount}
         />
       )}
       
