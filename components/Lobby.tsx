@@ -589,7 +589,6 @@ function LobbyComponent({
   const [hasLoaded, setHasLoaded] = useState(false); // Track if we've received at least one response
   const [isInitialLoading, setIsInitialLoading] = useState(true); // Track initial loading state for App.tsx sync
   const hasLoadedOnce = useRef(false); // Track if we've received at least one response (even if empty)
-  const isFetchingRef = useRef(false); // Prevent multiple simultaneous fetches
   const isMounted = useRef(true); // Track if component is mounted
   const initialFetchDone = useRef(false); // Consolidated flag to ensure refreshRooms() is only called once on mount
   const listenerRegisteredRef = useRef(false); // Track if listener is registered
@@ -625,7 +624,7 @@ function LobbyComponent({
     const handleRoomsList = (data: any) => {
       // LISTENER RESET: setIsRefreshing(false) is the VERY FIRST line executed
       setIsRefreshing(false);
-      isFetchingRef.current = false;
+      setIsFetching(false);
       
       console.log('📋 Lobby: handleRoomsList received data:', {
         socketId: socket.id,
@@ -690,7 +689,7 @@ function LobbyComponent({
       
       console.log('📋 Lobby: Performing initial fetch');
       initialFetchDone.current = true;
-      isFetchingRef.current = true;
+      setIsFetching(true);
       setIsRefreshing(true);
       socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
       console.log('📡 Lobby: Emitted GET_PUBLIC_ROOMS (initial fetch)');
@@ -742,6 +741,7 @@ function LobbyComponent({
   const [localRoomCode, setLocalRoomCode] = useState<string>('');
   const [isHostingLocal, setIsHostingLocal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(true); // Start as true to show loading until first response
+  const [isFetching, setIsFetching] = useState(false); // Track fetching state with useState to trigger re-renders
   const [syncTimer, setSyncTimer] = useState(0);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
@@ -970,33 +970,40 @@ function LobbyComponent({
         socketConnectedDirect: socket?.connected
       });
       setIsRefreshing(false);
+      setIsFetching(false);
       return;
     }
     
-    // GUARD: Prevent duplicate simultaneous fetches
-    if (isFetchingRef.current) {
-      console.log('📋 Lobby: Already fetching, skipping duplicate request');
-      return;
-    }
-    
-    console.log('🔄 Lobby: Refreshing public rooms list...');
-    
-    // AUTHORITATIVE: Set loading state immediately before emit
-    isFetchingRef.current = true;
-    setIsRefreshing(true);
-    
-    // SINGLE EMIT PATH: Only one place emits GET_PUBLIC_ROOMS
-    console.log('📡 Lobby: Emitting GET_PUBLIC_ROOMS event');
-    socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
-    
-    // Fail-safe timeout: If server doesn't respond within 5 seconds, clear loading state
-    setTimeout(() => {
-      if (isFetchingRef.current && isMounted.current) {
-        console.warn('⚠️ Lobby: Fail-safe timeout - server did not respond within 5 seconds');
-        isFetchingRef.current = false;
-        setIsRefreshing(false);
+    // GUARD: Prevent duplicate simultaneous fetches - check state and update atomically
+    setIsFetching(prev => {
+      if (prev) {
+        console.log('📋 Lobby: Already fetching, skipping duplicate request');
+        return prev;
       }
-    }, 5000);
+      
+      console.log('🔄 Lobby: Refreshing public rooms list...');
+      
+      // AUTHORITATIVE: Set loading state immediately before emit
+      setIsRefreshing(true);
+      
+      // SINGLE EMIT PATH: Only one place emits GET_PUBLIC_ROOMS
+      console.log('📡 Lobby: Emitting GET_PUBLIC_ROOMS event');
+      socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
+      
+      // Fail-safe timeout: If server doesn't respond within 5 seconds, clear loading state
+      setTimeout(() => {
+        setIsFetching(current => {
+          if (current && isMounted.current) {
+            console.warn('⚠️ Lobby: Fail-safe timeout - server did not respond within 5 seconds');
+            setIsRefreshing(false);
+            return false;
+          }
+          return current;
+        });
+      }, 5000);
+      
+      return true;
+    });
   }, [socketConnected, socket]);
 
   // Force Refresh function - bypasses guards for testing
@@ -1018,19 +1025,21 @@ function LobbyComponent({
     }
     
     // Reset fetch lock and emit
-    isFetchingRef.current = false; // Reset to allow emit
+    setIsFetching(true);
     setIsRefreshing(true);
-    isFetchingRef.current = true;
     socket.emit(SocketEvents.GET_PUBLIC_ROOMS);
     console.log('🔧 Lobby: Force Refresh - emitted GET_PUBLIC_ROOMS');
     
     // Fail-safe timeout
     setTimeout(() => {
-      if (isFetchingRef.current && isMounted.current) {
-        console.warn('⚠️ Lobby: Force Refresh timeout - server did not respond within 5 seconds');
-        isFetchingRef.current = false;
-        setIsRefreshing(false);
-      }
+      setIsFetching(current => {
+        if (current && isMounted.current) {
+          console.warn('⚠️ Lobby: Force Refresh timeout - server did not respond within 5 seconds');
+          setIsRefreshing(false);
+          return false;
+        }
+        return current;
+      });
     }, 5000);
   }, [socket]);
 
