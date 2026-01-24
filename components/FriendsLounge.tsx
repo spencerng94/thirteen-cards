@@ -1282,6 +1282,12 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
           onClose={() => setToast(null)}
         />
       )}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes badgePulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.15); opacity: 0.9; }
+        }
+      `}} />
     </div>
   );
 };
