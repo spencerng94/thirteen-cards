@@ -1665,6 +1665,7 @@ function LobbyComponent({
                       refreshRooms={refreshRooms}
                       socketConnected={socketConnected}
                       forceRefresh={forceRefresh}
+                      hasLoadedOnce={hasLoadedOnce.current}
                                 />
                       )
                     )}
