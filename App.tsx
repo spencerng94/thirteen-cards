@@ -41,6 +41,7 @@ import { Toast } from './components/Toast';
 import { AccountMigrationSuccessModal } from './components/AccountMigrationSuccessModal';
 import { adService } from './services/adService';
 import { LoadingScreen } from './components/LoadingScreen';
+import { LoadingOverlay } from './components/LoadingOverlay';
 import { BillingProvider } from './components/BillingProvider';
 import { EULAAcceptanceModal } from './components/EULAAcceptanceModal';
 
@@ -213,6 +214,8 @@ const AppContent: React.FC = () => {
   const [mpMyHand, setMpMyHand] = useState<Card[]>([]);
   const [isLobbyReady, setIsLobbyReady] = useState(false); // Track when Lobby has finished initial fetch
   const [isLobbyInitialized, setIsLobbyInitialized] = useState(false); // Track when Lobby has initialized and is ready to show
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
+  const loadingStartTimeRef = useRef<number | null>(null);
   
   // Reset isLobbyReady when switching away from LOBBY view
   useEffect(() => {
@@ -376,25 +379,34 @@ const AppContent: React.FC = () => {
     if (isBot) {
       if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
       aiThinkingTimerRef.current = setTimeout(() => {
-        const botHand = spOpponentHands[currentPlayerId!];
-        if (!botHand) return;
-        const move = findBestMove(botHand, spGameState.currentPlayPile, !!spGameState.isFirstTurnOfGame, aiDifficulty);
-        if (move) {
-          handleLocalPlay(currentPlayerId!, move);
-        } else {
-          if (spGameState.currentPlayPile.length > 0) {
-            handleLocalPass(currentPlayerId!);
-          } else {
-            const sorted = sortCards(botHand);
-            handleLocalPlay(currentPlayerId!, [sorted[0]]);
+        // Re-read state from the setter to get latest values (avoid stale closure)
+        setSpGameState(prevState => {
+          if (!prevState || prevState.status !== GameStatus.PLAYING || prevState.currentPlayerId !== currentPlayerId) {
+            // State changed, bot is no longer current player - don't make move
+            return prevState;
           }
-        }
+          const botHand = spOpponentHands[currentPlayerId!];
+          if (!botHand || botHand.length === 0) return prevState;
+          const move = findBestMove(botHand, prevState.currentPlayPile, !!prevState.isFirstTurnOfGame, aiDifficulty);
+          // Schedule the move outside the state setter to avoid nested updates
+          if (move) {
+            setTimeout(() => handleLocalPlay(currentPlayerId!, move), 0);
+          } else {
+            if (prevState.currentPlayPile.length > 0) {
+              setTimeout(() => handleLocalPass(currentPlayerId!), 0);
+            } else {
+              const sorted = sortCards(botHand);
+              setTimeout(() => handleLocalPlay(currentPlayerId!, [sorted[0]]), 0);
+            }
+          }
+          return prevState; // Don't modify state here, just trigger the move
+        });
       }, 1000 + Math.random() * 1000);
     }
     return () => {
       if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
     };
-  }, [spGameState?.currentPlayerId, spGameState?.status, spGameState?.currentPlayPile?.length, gameMode, spOpponentHands, aiDifficulty]);
+  }, [spGameState?.currentPlayerId, spGameState?.status, JSON.stringify(spGameState?.currentPlayPile), gameMode, spOpponentHands, aiDifficulty]);
 
   // Initialize AdMob with iOS ATT support
   // This hook handles platform detection and ATT permission request automatically
@@ -1595,6 +1607,31 @@ const AppContent: React.FC = () => {
   // TEMPORARILY FORCE isAppReady to true to bypass loading screen for ghost DOM testing
   const isAppReady = true; // isInitialized && (session ? !!profile : true);
   
+  // Loading overlay logic with 500ms delay to avoid flash
+  useEffect(() => {
+    const shouldShowLoading = (!isAppReady && view !== 'LOBBY') || 
+                              (view === 'LOBBY' && !isLobbyInitialized && gameMode === 'MULTI_PLAYER') || 
+                              isSyncingData;
+    
+    if (shouldShowLoading) {
+      // Start timer if not already started
+      if (loadingStartTimeRef.current === null) {
+        loadingStartTimeRef.current = Date.now();
+        // Show overlay after 500ms delay
+        const timer = setTimeout(() => {
+          if (loadingStartTimeRef.current !== null) {
+            setShowLoadingOverlay(true);
+          }
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    } else {
+      // Reset timer when loading is done
+      loadingStartTimeRef.current = null;
+      setShowLoadingOverlay(false);
+    }
+  }, [isAppReady, view, isLobbyInitialized, gameMode, isSyncingData]);
+  
   // Splash Screen Logic: Hide native splash screen only after app is ready
   // This ensures seamless transition from native splash to app content (no white flash)
   // Includes 5-second timeout fallback to prevent users from being stuck
@@ -1843,7 +1880,22 @@ const AppContent: React.FC = () => {
       profile={profile}
       onGemsUpdate={handleGemsUpdate}
     >
-    <div className="min-h-[100dvh] bg-black bg-fixed bg-cover text-white font-sans selection:bg-yellow-500 selection:text-black pt-[env(safe-area-inset-top)]">
+    <div 
+      className="bg-black bg-fixed bg-cover text-white font-sans selection:bg-yellow-500 selection:text-black" 
+      style={{ 
+        minHeight: '100dvh',
+        // Extend background to cover safe areas with negative margins
+        marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))',
+        marginBottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
+        marginLeft: 'calc(-1 * env(safe-area-inset-left, 0px))',
+        marginRight: 'calc(-1 * env(safe-area-inset-right, 0px))',
+        // Add padding for content to respect safe areas
+        paddingTop: 'env(safe-area-inset-top, 0px)', 
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)', 
+        paddingLeft: 'env(safe-area-inset-left, 0px)', 
+        paddingRight: 'env(safe-area-inset-right, 0px)'
+      }}
+    >
       {isTransitioning && <GameEndTransition />}
       {view === 'WELCOME' && (
         <WelcomeScreen 
@@ -2179,23 +2231,17 @@ const AppContent: React.FC = () => {
         />
       )}
       
-      {/* OVERLAY PATTERN: LoadingScreen as conditional overlay instead of early return */}
-      {/* Show loading overlay if: session loading, syncing data, or LOBBY not initialized */}
-      {((!isAppReady && view !== 'LOBBY') || (view === 'LOBBY' && !isLobbyInitialized && gameMode === 'MULTI_PLAYER') || isSyncingData) && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex items-center justify-center">
-          <LoadingScreen
-            status={
-              view === 'LOBBY' && !isLobbyInitialized 
-                ? "Synchronizing Lobby..." 
-                : isRedirecting 
-                  ? "Connecting to provider..." 
-                  : "Verifying session..."
-            }
-            showGuestButton={!isRedirecting && view !== 'LOBBY'}
-            onEnterGuest={handlePlayAsGuest}
-          />
-        </div>
-      )}
+      {/* Modern Loading Overlay with smooth transitions */}
+      <LoadingOverlay
+        isVisible={showLoadingOverlay}
+        status={
+          view === 'LOBBY' && !isLobbyInitialized 
+            ? "Synchronizing Lobby" 
+            : isRedirecting 
+              ? "Connecting to provider" 
+              : "Verifying session"
+        }
+      />
     </div>
     </BillingProvider>
   );

@@ -3082,13 +3082,14 @@ if (!process.env.SERVER_STARTED) {
   process.env.SERVER_STARTED = "true";
   
   try {
-    httpServer.listen(PORT, () => {
+    httpServer.listen(Number(PORT), '0.0.0.0', () => {
       console.log("🚀 SERVER LISTENING", {
         pid: process.pid,
         port: PORT,
+        host: '0.0.0.0',
         timestamp: new Date().toISOString(),
       });
-      console.log(`📡 Socket.io server ready for connections`);
+      console.log(`📡 Socket.io server ready for connections on 0.0.0.0:${PORT}`);
     });
   } catch (err) {
     console.error("FATAL SERVER START ERROR:", err);

@@ -42,7 +42,7 @@ const MAX_PLAYERS = 4;
 
 const BackgroundWrapperComponent: React.FC<{ children: React.ReactNode; theme: BackgroundTheme }> = ({ children, theme }) => {
   return (
-    <div className="h-screen w-full relative flex flex-col overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="h-screen w-full relative flex flex-col overflow-hidden">
         {/* Fixed background that extends beyond viewport to prevent black space on overscroll */}
         <div className="fixed top-[-200px] left-0 right-0 bottom-[-200px] w-full">
         <BoardSurface themeId={theme} />
@@ -52,7 +52,7 @@ const BackgroundWrapperComponent: React.FC<{ children: React.ReactNode; theme: B
         }}></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,_rgba(0,0,0,0.6)_100%)] pointer-events-none z-[11]"></div>
         </div>
-        <div className="relative z-20 w-full flex flex-col flex-1 min-h-0 px-4 sm:px-8 py-4 sm:py-8">
+        <div className="relative z-20 w-full flex flex-col flex-1 min-h-0 px-4 sm:px-8" style={{ paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 1rem)', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.5rem)' }}>
         {children}
         </div>
     </div>
@@ -1311,7 +1311,8 @@ function LobbyComponent({
           roomName: roomSettings.roomName,
           playerName: roomSettings.name,
           playerId: roomSettings.playerId,
-          socketConnected: socket.connected
+          socketConnected: socket.connected,
+          socketId: socket.id || 'not connected'
         });
         
         socket.emit(SocketEvents.CREATE_ROOM, roomSettings, (response: any) => {
@@ -1558,7 +1559,7 @@ function LobbyComponent({
     <React.Fragment key={activeTab}>
     <>
       <BackgroundWrapper theme={backgroundTheme} key="lobby-main-container">
-      <div className="lobby-viewport flex-1 min-h-0 overflow-hidden flex flex-col h-full" key="lobby-viewport">
+      <div className="lobby-viewport flex-1 min-h-0 overflow-y-auto flex flex-col h-full" key="lobby-viewport" style={{ WebkitOverflowScrolling: 'touch' }}>
         
         
         {errorToast.show && (
@@ -1603,7 +1604,7 @@ function LobbyComponent({
         {!gameState ? (
           <div className="w-full max-w-4xl mx-auto flex flex-col flex-1 min-h-0">
             {/* Static Header - Always Visible, Outside Animated Container */}
-            <div className="flex flex-col items-center text-center space-y-3 sm:space-y-4 mb-2 sm:mb-4 flex-shrink-0" style={{ opacity: 1, visibility: 'visible', paddingTop: 'max(env(safe-area-inset-top, 0px), 1rem)' }}>
+            <div className="flex flex-col items-center text-center space-y-3 sm:space-y-4 mb-2 sm:mb-4 flex-shrink-0" style={{ opacity: 1, visibility: 'visible', paddingTop: '0.5rem' }}>
               <div className="relative inline-block max-w-full overflow-visible">
                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 via-pink-500/20 to-yellow-500/20 blur-[100px] rounded-full animate-pulse"></div>
                 <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white uppercase italic tracking-tighter drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)] font-serif relative z-10 leading-none px-4">
@@ -1722,16 +1723,16 @@ function LobbyComponent({
 
                   {/* Create Tab */}
                   <div 
-                    className={`absolute inset-0 transition-all duration-200 ease-in-out flex flex-col ${
+                    className={`absolute inset-0 overflow-y-auto transition-all duration-200 ease-in-out flex flex-col ${
                       activeTab === 'CREATE' 
                         ? 'opacity-100 translate-y-0 z-10 pointer-events-auto' 
                         : 'opacity-0 pointer-events-none translate-y-2 z-0'
                     }`}
-                    style={{ touchAction: 'pan-y' }}
+                    style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
                   >
                     {activeTab === 'CREATE' && (
-                        <div className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full p-4 sm:p-6 sm:p-8 h-full" style={{ touchAction: 'pan-y', display: 'flex' }}>
-                          <div className="flex flex-col space-y-5 sm:space-y-6 flex-1 overflow-y-auto min-h-0 pb-6" style={{ touchAction: 'pan-y' }}>
+                        <div className="w-full max-w-xl mx-auto p-4 sm:p-6 sm:p-8 flex flex-col gap-6 pb-8" style={{ touchAction: 'pan-y' }}>
+                          <div className="flex flex-col space-y-5 sm:space-y-6" style={{ touchAction: 'pan-y' }}>
                         <div className="space-y-3" style={{ position: 'relative', zIndex: 10000, pointerEvents: 'auto' }}>
                           <label className="text-xs sm:text-sm font-black uppercase tracking-wider text-white/60 block px-2">Room Name</label>
                           <input 
@@ -2037,7 +2038,7 @@ function LobbyComponent({
             </GlassPanel>
             </div>
 
-            <div className="w-full max-w-xl mt-4 sm:mt-6 flex-shrink-0" style={{ position: 'relative', zIndex: 20, paddingBottom: 'env(safe-area-inset-bottom, 0px)', marginBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="w-full max-w-xl mt-4 sm:mt-6 flex-shrink-0" style={{ position: 'relative', zIndex: 20 }}>
                 <button
                     onClick={onBack!}
                     className="w-full py-4 sm:py-5 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 hover:border-white/20 hover:bg-white/10 text-white font-black uppercase tracking-wider text-xs sm:text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 shadow-lg"
@@ -2048,117 +2049,106 @@ function LobbyComponent({
             </div>
           </div>
         ) : (
-          <div className="w-full max-w-4xl space-y-8 animate-in fade-in zoom-in-95 duration-400">
-            <div className="flex flex-col items-center text-center">
-              <div className="bg-emerald-500/10 border border-emerald-500/30 px-8 py-2 rounded-full mb-6">
-                <span className="text-[10px] font-black uppercase tracking-[0.8em] text-emerald-500 animate-pulse">DEPLOYMENT STANDBY</span>
-              </div>
-              <h1 className="text-4xl sm:text-6xl font-black text-white uppercase italic tracking-tighter drop-shadow-2xl font-serif mb-4">
+          <div className="w-full max-w-4xl space-y-4 animate-in fade-in zoom-in-95 duration-400" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1rem)' }}>
+            <div className="flex flex-col items-center text-center mb-2">
+              <h1 className="text-3xl sm:text-4xl font-black text-white uppercase italic tracking-tighter drop-shadow-2xl font-serif mb-2">
                 {gameState.roomName}
               </h1>
               {/* Private/Public Match Indicator - Always show, default to private if undefined */}
-              <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full border-2 backdrop-blur-sm ${gameState.isPublic === true ? 'bg-cyan-500/20 border-cyan-500/60 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-amber-500/20 border-amber-500/60 shadow-[0_0_20px_rgba(234,179,8,0.3)]'}`}>
+              <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border-2 backdrop-blur-sm ${gameState.isPublic === true ? 'bg-cyan-500/20 border-cyan-500/60 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-amber-500/20 border-amber-500/60 shadow-[0_0_20px_rgba(234,179,8,0.3)]'}`}>
                 {gameState.isPublic === true ? (
                   <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-300">
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                       <circle cx="9" cy="7" r="4"></circle>
                       <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                       <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                     </svg>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-cyan-300">PUBLIC MATCH</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-cyan-300">PUBLIC MATCH</span>
                   </>
                 ) : (
                   <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-300">
                       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                       <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-300">PRIVATE MATCH</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-300">PRIVATE MATCH</span>
                   </>
                 )}
-              </div>
             </div>
+                    </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-4 space-y-6">
-                  <GlassPanel className="p-8 space-y-8">
-                    <div className="flex flex-col items-center text-center space-y-2">
-                        <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.5em]">Sector Key</span>
-                        <div className="text-5xl font-serif font-black text-yellow-500 tracking-[0.2em] drop-shadow-[0_0_15px_rgba(234,179,8,0.4)]">{gameState.roomId}</div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-4 space-y-4">
+                  <GlassPanel className="p-5 sm:p-6 space-y-4">
+                    <div className="flex flex-col items-center text-center space-y-1 relative">
+                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.5em]">Room Code</span>
+                        <div className="flex items-center justify-center gap-2 relative">
+                            <div className="text-4xl font-serif font-black text-yellow-500 tracking-[0.2em] drop-shadow-[0_0_15px_rgba(234,179,8,0.4)]">{gameState.roomId}</div>
+                    <button 
+                                onClick={async () => {
+                                    if (!gameState?.roomId) {
+                                        setToast({ show: true, message: 'Cannot copy invite - no room ID', type: 'error' });
+                                        return;
+                                    }
+                                    
+                                    const inviteUrl = `${window.location.origin}/game/${gameState.roomId}`;
+                                    
+                                    try {
+                                        // Try modern clipboard API first
+                                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                                            await navigator.clipboard.writeText(inviteUrl);
+                                            setToast({ show: true, message: 'Invite link copied to clipboard!', type: 'success' });
+                                        } else {
+                                            // Fallback for older browsers
+                                            const textArea = document.createElement('textarea');
+                                            textArea.value = inviteUrl;
+                                            textArea.style.position = 'fixed';
+                                            textArea.style.left = '-999999px';
+                                            textArea.style.top = '-999999px';
+                                            document.body.appendChild(textArea);
+                                            textArea.focus();
+                                            textArea.select();
+                                            try {
+                                                document.execCommand('copy');
+                                                setToast({ show: true, message: 'Invite link copied to clipboard!', type: 'success' });
+                                            } catch (err) {
+                                                setToast({ show: true, message: 'Failed to copy invite link', type: 'error' });
+                                            }
+                                            document.body.removeChild(textArea);
+                                        }
+                                    } catch (err) {
+                                        setToast({ show: true, message: 'Failed to copy invite link', type: 'error' });
+                                    }
+                                }}
+                                className="p-2 rounded-lg transition-all duration-200 active:scale-95 border-2 cursor-pointer bg-white/[0.03] border-white/5 text-white/60 hover:text-white hover:bg-white/10"
+                                title="Copy invite link"
+                            >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                        </div>
                     </div>
 
                     <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
 
-                    <button 
-                        onClick={async () => {
-                            if (!gameState?.roomId) {
-                                setToast({ show: true, message: 'Cannot copy invite - no room ID', type: 'error' });
-                                return;
-                            }
-                            
-                            const inviteUrl = `${window.location.origin}/game/${gameState.roomId}`;
-                            
-                            try {
-                                // Try modern clipboard API first
-                                if (navigator.clipboard && navigator.clipboard.writeText) {
-                                    await navigator.clipboard.writeText(inviteUrl);
-                                    setToast({ show: true, message: 'Invite link copied to clipboard!', type: 'success' });
-                                } else {
-                                    // Fallback for older browsers
-                                    const textArea = document.createElement('textarea');
-                                    textArea.value = inviteUrl;
-                                    textArea.style.position = 'fixed';
-                                    textArea.style.left = '-999999px';
-                                    textArea.style.top = '-999999px';
-                                    document.body.appendChild(textArea);
-                                    textArea.focus();
-                                    textArea.select();
-                                    try {
-                                        document.execCommand('copy');
-                                        setToast({ show: true, message: 'Invite link copied to clipboard!', type: 'success' });
-                                    } catch (err) {
-                                        setToast({ show: true, message: 'Failed to copy invite link', type: 'error' });
-                                    }
-                                    document.body.removeChild(textArea);
-                                }
-                            } catch (err) {
-                                setToast({ show: true, message: 'Failed to copy invite link', type: 'error' });
-                            }
-                        }}
-                        className="w-full py-5 rounded-2xl transition-all duration-200 flex items-center justify-center gap-4 active:scale-95 border-2 cursor-pointer bg-white/[0.03] border-white/5 text-white/60 hover:text-white hover:bg-white/10"
-                    >
-                        <span className="text-[10px] font-black uppercase tracking-widest">DISTRIBUTE INVITE</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    </button>
-
-                    <div className="bg-black/40 p-5 rounded-2xl border border-white/5">
+                    <div className="bg-black/40 p-3 rounded-xl border border-white/5">
                         <div className="flex justify-between items-center mb-1">
-                             <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Occupancy</span>
-                             <span className="text-[10px] font-black text-yellow-500">{gameState.players.length}/4</span>
+                             <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Players</span>
+                             <span className="text-[9px] font-black text-yellow-500">{gameState.players.length}/4</span>
                         </div>
                         <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                             <div className="h-full bg-yellow-500 transition-all duration-500" style={{ width: `${(gameState.players.length / 4) * 100}%` }}></div>
                         </div>
                     </div>
                   </GlassPanel>
-
-                  <LuxuryActionTile 
-                    onClick={onBack!} 
-                    label="CLOSE LOBBY" 
-                    sublabel="Terminate Session" 
-                    variant="rose"
-                    className="w-full"
-                    icon={<span className="text-xl">🛑</span>}
-                  />
               </div>
 
-              <div className="lg:col-span-8 space-y-6">
-                <GlassPanel className="p-8 sm:p-10">
+              <div className="lg:col-span-8 space-y-4">
+                <GlassPanel className="p-5 sm:p-6">
                     {/* CRITICAL: Use gameState from props directly - NO local state for players */}
                     {/* Render 4 distinct slots using Array.from pattern - force direct access to gameState.players */}
                     {/* Use stable index-based keys to prevent React from unmounting/remounting on player changes */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                         {/* CRITICAL: Map exactly 4 slots, using gameState.players directly from props */}
                         {Array.from({ length: 4 }).map((_, i) => {
                             // CRITICAL: Use gameState from props - NO local state
@@ -2183,13 +2173,13 @@ function LobbyComponent({
                                         </div>
                     
 
-                    <div className="mt-12">
+                    <div className="mt-6">
                         {isHost ? (
                             <button 
                                 onClick={startGame}
                                 disabled={!gameState?.players || gameState.players.length < 2}
                                 className={`
-                                    w-full py-8 rounded-[2.5rem] font-black uppercase tracking-[0.5em] text-sm transition-all duration-300 shadow-[0_30px_80px_rgba(0,0,0,0.6)] group relative overflow-hidden active:scale-95
+                                    w-full py-5 rounded-2xl font-black uppercase tracking-[0.4em] text-xs sm:text-sm transition-all duration-300 shadow-[0_20px_60px_rgba(0,0,0,0.6)] group relative overflow-hidden active:scale-95
                                     ${!gameState?.players || gameState.players.length < 2 ? 'bg-white/5 text-white/20 grayscale pointer-events-none' : 'bg-gradient-to-r from-emerald-700 via-green-500 to-emerald-700 text-white hover:scale-[1.01]'}
                                 `}
                             >
@@ -2203,18 +2193,29 @@ function LobbyComponent({
                                 </span>
                             </button>
                         ) : (
-                            <div className="w-full py-8 rounded-[2.5rem] bg-black/40 border-2 border-white/5 flex flex-col items-center justify-center gap-3">
+                            <div className="w-full py-5 rounded-2xl bg-black/40 border-2 border-white/5 flex flex-col items-center justify-center gap-2">
                                 <div className="flex gap-2">
                                     <div className="w-2 h-2 rounded-full bg-yellow-500 animate-bounce [animation-delay:-0.3s]"></div>
                                     <div className="w-2 h-2 rounded-full bg-yellow-500 animate-bounce [animation-delay:-0.15s]"></div>
                                     <div className="w-2 h-2 rounded-full bg-yellow-500 animate-bounce"></div>
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-[0.8em] text-white/20">Waiting for Host Activation</span>
+                                <span className="text-[9px] font-black uppercase tracking-[0.7em] text-white/20">Waiting for Host Activation</span>
                             </div>
                         )}
                     </div>
                 </GlassPanel>
               </div>
+            </div>
+
+            <div className="w-full max-w-4xl">
+              <LuxuryActionTile 
+                onClick={onBack!} 
+                label="CLOSE LOBBY" 
+                sublabel="Terminate Session" 
+                variant="rose"
+                className="w-full"
+                icon={<span className="text-xl">🛑</span>}
+              />
             </div>
             
             {gameState && !gameState.players.find(p => p.id === myId) && syncTimer > 2 && (

@@ -1414,15 +1414,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <BrandLogo size="lg" />
             </div>
           </div>
-          <div className="flex flex-col items-center gap-2.5 animate-in slide-in-from-top-4 fade-in duration-700 delay-300">
-            <div className="flex items-center gap-3 px-5 py-2 rounded-full bg-gradient-to-r from-red-950/50 via-red-900/40 to-red-950/50 backdrop-blur-md border border-red-500/30 shadow-[0_0_30px_rgba(239,68,68,0.4)]">
-              <div className="relative flex items-center justify-center">
-                <span className="absolute w-2.5 h-2.5 rounded-full bg-red-500 animate-ping opacity-75"></span>
-                <span className="relative w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_12px_#ef4444]"></span>
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-red-400 whitespace-nowrap">BETA PHASE: ACTIVE TESTING</span>
-            </div>
-          </div>
         </div>
 
         {/* Premium Main Container */}

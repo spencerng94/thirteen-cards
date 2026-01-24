@@ -25,6 +25,8 @@ html {
   -webkit-overflow-scrolling: touch;
   /* Prevent white space on overscroll */
   -webkit-touch-callout: none;
+  /* Extend background to cover overscroll areas */
+  background-attachment: fixed;
 }
 
 /* Body styles to prevent white space on overscroll but allow scrolling */
@@ -34,11 +36,8 @@ body {
   margin: 0;
   padding: 0;
   background-color: #000000;
-  /* Apply safe area padding to prevent content from being cut off */
-  padding-top: var(--safe-area-inset-top);
-  padding-right: var(--safe-area-inset-right);
-  padding-bottom: var(--safe-area-inset-bottom);
-  padding-left: var(--safe-area-inset-left);
+  /* Don't apply safe area padding here - let App container handle it */
+  /* This prevents double padding and black space at top */
   /* Prevent iOS rubber-band scrolling - KEY FIX for white space */
   overscroll-behavior: none;
   overscroll-behavior-y: none;
@@ -55,6 +54,8 @@ body {
   /* Allow scrolling */
   overflow-x: hidden;
   overflow-y: auto;
+  /* Extend background to cover overscroll areas */
+  background-attachment: fixed;
 }
 
 /* Root container should allow scrolling */
@@ -70,6 +71,11 @@ body {
   overscroll-behavior-x: none;
   /* Ensure black background during overscroll */
   position: relative;
+  /* Extend background to cover safe areas - no padding here */
+  margin: 0;
+  padding: 0;
+  /* Extend background beyond viewport to cover overscroll */
+  background-attachment: fixed;
 }
 
 /* Prevent white space on overscroll for all elements, but allow normal scrolling */
@@ -92,4 +98,18 @@ body {
   overscroll-behavior: none;
   overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent dead black space on overscroll by extending background */
+html::before,
+body::before {
+  content: '';
+  position: fixed;
+  top: -100vh;
+  left: 0;
+  right: 0;
+  bottom: -100vh;
+  background-color: #000000;
+  z-index: -1;
+  pointer-events: none;
 }

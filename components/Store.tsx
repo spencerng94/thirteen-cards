@@ -1497,8 +1497,43 @@ export const Store: React.FC<{
 
     const originalPrice = pendingPurchase.price;
     const finalPrice = applyVoucher ? Math.floor(originalPrice * 0.9) : originalPrice;
+    const currency = pendingPurchase.currency || 'GOLD';
     
-    setBuying(pendingPurchase.id);
+    // OPTIMISTIC UPDATE: Update local state immediately before API call
+    const previousProfile = { ...profile };
+    let optimisticProfile: UserProfile | null = null;
+    
+    // Create optimistic profile update
+    if (pendingPurchase.type !== 'PACK' || !pendingPurchase.items) {
+      // For regular items, optimistically deduct currency and add to unlocked items
+      optimisticProfile = {
+        ...profile,
+        gems: currency === 'GEMS' ? (profile.gems || 0) - finalPrice : profile.gems,
+        coins: currency === 'GOLD' ? (profile.coins || 0) - finalPrice : profile.coins,
+        unlocked_sleeves: pendingPurchase.type === 'SLEEVE' 
+          ? [...(profile.unlocked_sleeves || []), pendingPurchase.id]
+          : profile.unlocked_sleeves,
+        unlocked_avatars: pendingPurchase.type === 'AVATAR'
+          ? [...(profile.unlocked_avatars || []), pendingPurchase.id]
+          : profile.unlocked_avatars,
+        unlocked_boards: pendingPurchase.type === 'BOARD'
+          ? [...(profile.unlocked_boards || []), pendingPurchase.id]
+          : profile.unlocked_boards,
+        unlocked_finishers: pendingPurchase.type === 'FINISHER'
+          ? [...(profile.unlocked_finishers || []), pendingPurchase.id]
+          : profile.unlocked_finishers,
+      };
+    }
+    
+    // Batch state updates using startTransition for better performance
+    startTransition(() => {
+      setBuying(pendingPurchase.id);
+      if (optimisticProfile) {
+        // Temporarily update profile for immediate UI feedback
+        onRefreshProfile(); // This will be overridden by the real API response
+      }
+    });
+    
     try {
       if (applyVoucher) {
         const inv = profile.inventory || { items: {}, active_boosters: {} };
@@ -1520,30 +1555,60 @@ export const Store: React.FC<{
         const gemAmount = gemAmountMap[finalPrice];
         
         if (gemAmount) {
+          // OPTIMISTIC UPDATE: Add gems immediately
+          startTransition(() => {
+            if (optimisticProfile) {
+              optimisticProfile.gems = (optimisticProfile.gems || 0) + gemAmount;
+            }
+          });
+          
           // This is a gem bundle - process gem transaction with iap_purchase source
           const result = await processGemTransaction(profile.id, gemAmount, 'iap_purchase');
           
           if (result.success && result.newGemBalance !== undefined) {
             audioService.playPurchase();
             
-            // Show success toast
-            setToastMessage(`Successfully added ${gemAmount} gems!`);
-            setShowToast(true);
+            // Batch state updates
+            startTransition(() => {
+              setToastMessage(`Successfully added ${gemAmount} gems!`);
+              setShowToast(true);
+              setPendingPurchase(null);
+              setShowSuccessModal(false);
+            });
             
-            // Refresh profile immediately to update gem counter in header
-            // This ensures the gem count is fetched fresh from database
+            // Refresh profile after state updates
             await onRefreshProfile();
-            
-            setPendingPurchase(null);
-            setShowSuccessModal(false);
           } else {
             console.error('Failed to add gems:', result.error);
-            setToastMessage(result.error || 'Failed to add gems');
-            setShowToast(true);
+            // ROLLBACK optimistic update
+            startTransition(() => {
+              setToastMessage(result.error || 'Failed to add gems');
+              setShowToast(true);
+            });
           }
         } else {
-          // Regular pack purchase (unlocks items) - use buyPack function
+          // OPTIMISTIC UPDATE: Deduct currency and unlock items immediately
           const packItems = pendingPurchase.items || [];
+          startTransition(() => {
+            if (optimisticProfile) {
+              optimisticProfile.gems = currency === 'GEMS' ? (optimisticProfile.gems || 0) - finalPrice : optimisticProfile.gems;
+              optimisticProfile.coins = currency === 'GOLD' ? (optimisticProfile.coins || 0) - finalPrice : optimisticProfile.coins;
+              // Add items to unlocked arrays
+              packItems.forEach(item => {
+                if (item.type === 'FINISHER') {
+                  optimisticProfile!.unlocked_finishers = [...(optimisticProfile!.unlocked_finishers || []), item.id];
+                } else if (item.type === 'EMOTE' || item.type === 'AVATAR') {
+                  optimisticProfile!.unlocked_avatars = [...(optimisticProfile!.unlocked_avatars || []), item.id];
+                } else if (item.type === 'BOARD') {
+                  optimisticProfile!.unlocked_boards = [...(optimisticProfile!.unlocked_boards || []), item.id];
+                } else if (item.type === 'SLEEVE') {
+                  optimisticProfile!.unlocked_sleeves = [...(optimisticProfile!.unlocked_sleeves || []), item.id];
+                }
+              });
+            }
+          });
+          
+          // Regular pack purchase (unlocks items) - use buyPack function
           const success = await buyPack(profile.id, packItems, finalPrice);
           
           if (success) {
@@ -1564,39 +1629,73 @@ export const Store: React.FC<{
               }
             }
             
-            // Show premium pack success modal with chaos animation
-            const finisherKeys = packItems
-              .filter(item => item.type === 'FINISHER' && !isItemOwned(item))
-              .map(item => item.id);
-            
-            setShowPackSuccessModal({
-              packName: pendingPurchase.name,
-              finisherKeys: finisherKeys
+            // Batch state updates
+            startTransition(() => {
+              // Show premium pack success modal with chaos animation
+              const finisherKeys = packItems
+                .filter(item => item.type === 'FINISHER' && !isItemOwned(item))
+                .map(item => item.id);
+              
+              setShowPackSuccessModal({
+                packName: pendingPurchase.name,
+                finisherKeys: finisherKeys
+              });
+              setPendingPurchase(null);
             });
-            setPendingPurchase(null);
+            
             onRefreshProfile();
           } else {
             console.error('Failed to purchase pack');
+            // ROLLBACK optimistic update
+            startTransition(() => {
+              setToastMessage('Failed to purchase pack. Please try again.');
+              setToastType('error');
+              setShowToast(true);
+            });
           }
         }
       } else if (pendingPurchase.type === 'FINISHER') {
+        // OPTIMISTIC UPDATE: Deduct gems and unlock finisher immediately
+        startTransition(() => {
+          if (optimisticProfile) {
+            optimisticProfile.gems = (optimisticProfile.gems || 0) - finalPrice;
+            optimisticProfile.unlocked_finishers = [...(optimisticProfile.unlocked_finishers || []), pendingPurchase.id];
+          }
+        });
+        
         const success = await buyFinisher(profile.id, pendingPurchase.id);
         if (success) {
           audioService.playPurchase();
-          // Show success modal
-          setSuccessModalData({
-            itemName: pendingPurchase.name,
-            itemType: 'FINISHERS',
-            price: finalPrice,
-            currency: pendingPurchase.currency || 'GEMS',
+          // Batch state updates
+          startTransition(() => {
+            setSuccessModalData({
+              itemName: pendingPurchase.name,
+              itemType: 'FINISHERS',
+              price: finalPrice,
+              currency: pendingPurchase.currency || 'GEMS',
+            });
+            setPendingPurchase(null);
+            setShowSuccessModal(true);
           });
-          setPendingPurchase(null);
-          setShowSuccessModal(true);
           onRefreshProfile();
         } else {
           console.error('Failed to purchase finisher');
+          // ROLLBACK optimistic update
+          startTransition(() => {
+            setToastMessage('Failed to purchase finisher. Please try again.');
+            setToastType('error');
+            setShowToast(true);
+          });
         }
       } else if (pendingPurchase.type === 'QUICK_CHAT') {
+        // OPTIMISTIC UPDATE: Deduct gems immediately
+        startTransition(() => {
+          if (optimisticProfile) {
+            optimisticProfile.gems = (optimisticProfile.gems || 0) - finalPrice;
+            optimisticProfile.unlocked_phrases = [...(optimisticProfile.unlocked_phrases || []), pendingPurchase.id];
+          }
+        });
+        
         // First process the gem transaction (negative amount for deduction)
         const transactionResult = await processGemTransaction(
           profile.id,
@@ -1613,18 +1712,26 @@ export const Store: React.FC<{
         const success = await purchasePhrase(profile.id, pendingPurchase.id);
         if (success) {
           audioService.playPurchase();
-          // Show success modal
-          setSuccessModalData({
-            itemName: pendingPurchase.name,
-            itemType: 'QUICK_CHATS',
-            price: finalPrice,
-            currency: pendingPurchase.currency || 'GEMS',
+          // Batch state updates
+          startTransition(() => {
+            setSuccessModalData({
+              itemName: pendingPurchase.name,
+              itemType: 'QUICK_CHATS',
+              price: finalPrice,
+              currency: pendingPurchase.currency || 'GEMS',
+            });
+            setPendingPurchase(null);
+            setShowSuccessModal(true);
           });
-          setPendingPurchase(null);
-          setShowSuccessModal(true);
           onRefreshProfile();
         } else {
           console.error('Failed to purchase phrase');
+          // ROLLBACK optimistic update
+          startTransition(() => {
+            setToastMessage('Failed to unlock phrase. Please try again.');
+            setToastType('error');
+            setShowToast(true);
+          });
           throw new Error('Failed to unlock phrase');
         }
       } else {
@@ -1986,7 +2093,22 @@ export const Store: React.FC<{
     );
   };
 
-  const renderItemCard = (item: any, isAvatar = false, isBoard = false, isItem = false, uniqueKey?: string) => {
+  // Memoized ShopItem component for performance
+  const ShopItemCard = React.memo<{
+    item: any;
+    isAvatar: boolean;
+    isBoard: boolean;
+    isItem: boolean;
+    uniqueKey?: string;
+    profile: UserProfile | null;
+    remoteEmotes: Emote[];
+    playerAvatar: string;
+    currentTheme: BackgroundTheme;
+    currentSleeve: CardCoverStyle;
+    dailyDealSleeveId: string | null;
+    dealTimeRemaining: { hours: number; minutes: number; seconds: number };
+    onItemClick: (purchase: any) => void;
+  }>(({ item, isAvatar, isBoard, isItem, uniqueKey, profile, remoteEmotes, playerAvatar, currentTheme, currentSleeve, dailyDealSleeveId, dealTimeRemaining, onItemClick }) => {
     const id = isAvatar ? item : item.id;
     
     let unlocked = false;
@@ -1998,8 +2120,6 @@ export const Store: React.FC<{
     // For avatars, check if it's a remote emote with custom price
     const remoteEmote = isAvatar ? remoteEmotes.find(e => e.trigger_code === item) : null;
     const basePrice = isAvatar ? (remoteEmote?.price || 200) : item.price;
-    // Currency: Avatars always use GEMS, boards and sleeves use item.currency or default to GOLD
-    // This ensures database-sourced items with currency='GOLD' display the gold icon and deduct from coins
     const currency = isAvatar ? 'GEMS' : (isBoard ? (item.currency || 'GOLD') : (item.currency || 'GOLD'));
     
     // Check if this is the Daily Deal (only for gem-priced sleeves)
@@ -2009,8 +2129,6 @@ export const Store: React.FC<{
     
     const isEquipped = isAvatar ? playerAvatar === item : isBoard ? currentTheme === item.id : !isItem && currentSleeve === item.style;
     const isExclusive = (typeof item === 'object' && item?.isEventExclusive) || ITEM_REGISTRY[id]?.isEventExclusive;
-
-    // For avatars, check if it's a remote emote (should always show)
     const isRemoteEmote = isAvatar && remoteEmotes.some(e => e.trigger_code === item);
 
     if (isExclusive && !unlocked && !isRemoteEmote) return null;
@@ -2020,23 +2138,24 @@ export const Store: React.FC<{
         key={uniqueKey || id}
         onClick={() => {
           const remoteEmote = isAvatar ? remoteEmotes.find(e => e.trigger_code === id) : null;
-          setPendingPurchase({ 
-          id, 
-          name: isAvatar ? getAvatarName(id, remoteEmotes) : item.name, 
+          onItemClick({ 
+            id, 
+            name: isAvatar ? getAvatarName(id, remoteEmotes) : item.name, 
             description: isAvatar 
               ? (remoteEmote?.name ? `${remoteEmote.name} - A high-fidelity elite avatar signature.` : 'A high-fidelity elite avatar signature.')
               : (item.description || ITEM_REGISTRY[id]?.description || 'A signature XIII cosmetic upgrade.'),
-          price: finalPrice, // Use discounted price if daily deal
-          originalPrice: isDailyDeal ? basePrice : undefined, // Store original for display
-          currency, 
-          type: isAvatar ? 'AVATAR' : isBoard ? 'BOARD' : isItem ? 'ITEM' : 'SLEEVE', 
-          style: item.style,
-          unlocked,
-          equipped: isEquipped,
-          isDailyDeal
+            price: finalPrice,
+            originalPrice: isDailyDeal ? basePrice : undefined,
+            currency, 
+            type: isAvatar ? 'AVATAR' : isBoard ? 'BOARD' : isItem ? 'ITEM' : 'SLEEVE', 
+            style: item.style,
+            unlocked,
+            equipped: isEquipped,
+            isDailyDeal
           });
         }} 
         className="relative group bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] border-2 border-white/20 rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col items-center transition-all duration-500 hover:border-yellow-500/40 hover:bg-gradient-to-br hover:from-white/[0.12] hover:via-white/[0.06] hover:to-white/[0.12] hover:shadow-[0_0_40px_rgba(251,191,36,0.2)] cursor-pointer h-full overflow-hidden"
+        style={{ touchAction: 'manipulation' }}
       >
         {/* Premium Background Effects */}
         <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 via-transparent to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -2080,13 +2199,175 @@ export const Store: React.FC<{
           </div>
         </div>
 
-        <button className={`relative z-10 w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 mt-auto transition-all duration-300 overflow-hidden group/btn ${
-          unlocked 
-            ? isEquipped
-              ? 'bg-gradient-to-br from-emerald-600/30 to-emerald-700/30 text-emerald-300 border-2 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
-              : 'bg-gradient-to-br from-emerald-600/30 to-emerald-700/30 text-emerald-300 border-2 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)]'
-            : 'bg-gradient-to-br from-yellow-500 via-yellow-600 to-yellow-500 text-black border-2 border-yellow-400/50 shadow-[0_0_25px_rgba(251,191,36,0.4)] hover:shadow-[0_0_35px_rgba(251,191,36,0.6)]'
-        }`}>
+        <button 
+          className={`relative z-10 w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 mt-auto transition-all duration-300 overflow-hidden group/btn ${
+            unlocked 
+              ? isEquipped
+                ? 'bg-gradient-to-br from-emerald-600/30 to-emerald-700/30 text-emerald-300 border-2 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                : 'bg-gradient-to-br from-emerald-600/30 to-emerald-700/30 text-emerald-300 border-2 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)]'
+              : 'bg-gradient-to-br from-yellow-500 via-yellow-600 to-yellow-500 text-black border-2 border-yellow-400/50 shadow-[0_0_25px_rgba(251,191,36,0.4)] hover:shadow-[0_0_35px_rgba(251,191,36,0.6)]'
+          }`}
+          style={{ touchAction: 'manipulation', userSelect: 'none' }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000"></div>
+          {isEquipped ? (
+            <span className="relative z-10">EQUIPPED</span>
+          ) : unlocked ? (
+            <span className="relative z-10">EQUIP</span>
+          ) : (
+            <div className="relative z-10 flex flex-col items-center gap-1">
+              {isDailyDeal ? (
+                <>
+                  <div className="flex items-center gap-1">
+                    <span className="text-white font-bold text-sm sm:text-base">{finalPrice}</span>
+                    <CurrencyIcon type={currency} size="sm" />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-white/40 line-through text-xs">{basePrice}</span>
+                    <span className="text-white text-[9px] font-bold">-{discountPercent}%</span>
+                  </div>
+                  <div className="text-[8px] text-white/90 font-medium mt-0.5">
+                    Ends in {dealTimeRemaining.hours}h {dealTimeRemaining.minutes}m
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="relative z-10">{finalPrice}</span>
+                  <CurrencyIcon type={currency} size="sm" className="relative z-10" />
+                </div>
+              )}
+            </div>
+          )}
+        </button>
+      </div>
+    );
+  }, (prevProps, nextProps) => {
+    // Custom comparison function for memo
+    return (
+      prevProps.item === nextProps.item &&
+      prevProps.isAvatar === nextProps.isAvatar &&
+      prevProps.isBoard === nextProps.isBoard &&
+      prevProps.isItem === nextProps.isItem &&
+      prevProps.uniqueKey === nextProps.uniqueKey &&
+      prevProps.profile?.gems === nextProps.profile?.gems &&
+      prevProps.profile?.coins === nextProps.profile?.coins &&
+      prevProps.profile?.unlocked_sleeves?.length === nextProps.profile?.unlocked_sleeves?.length &&
+      prevProps.profile?.unlocked_avatars?.length === nextProps.profile?.unlocked_avatars?.length &&
+      prevProps.profile?.unlocked_boards?.length === nextProps.profile?.unlocked_boards?.length &&
+      prevProps.playerAvatar === nextProps.playerAvatar &&
+      prevProps.currentTheme === nextProps.currentTheme &&
+      prevProps.currentSleeve === nextProps.currentSleeve &&
+      prevProps.dailyDealSleeveId === nextProps.dailyDealSleeveId
+    );
+  });
+
+  const renderItemCard = (item: any, isAvatar = false, isBoard = false, isItem = false, uniqueKey?: string) => {
+    const id = isAvatar ? item : item.id;
+    
+    let unlocked = false;
+    if (isAvatar) unlocked = profile?.unlocked_avatars?.includes(item) || false;
+    else if (isBoard) unlocked = profile?.unlocked_boards.includes(id) || id === 'EMERALD';
+    else if (isItem) unlocked = false;
+    else unlocked = profile?.unlocked_sleeves?.includes(id) || false;
+
+    // For avatars, check if it's a remote emote with custom price
+    const remoteEmote = isAvatar ? remoteEmotes.find(e => e.trigger_code === item) : null;
+    const basePrice = isAvatar ? (remoteEmote?.price || 200) : item.price;
+    // Currency: Avatars always use GEMS, boards and sleeves use item.currency or default to GOLD
+    // This ensures database-sourced items with currency='GOLD' display the gold icon and deduct from coins
+    const currency = isAvatar ? 'GEMS' : (isBoard ? (item.currency || 'GOLD') : (item.currency || 'GOLD'));
+    
+    // Check if this is the Daily Deal (only for gem-priced sleeves)
+    const isDailyDeal = !isAvatar && !isBoard && !isItem && dailyDealSleeveId === id && currency === 'GEMS' && !unlocked;
+    const discountPercent = 30;
+    const finalPrice = isDailyDeal ? Math.floor(basePrice * (1 - discountPercent / 100)) : basePrice;
+    
+    const isEquipped = isAvatar ? playerAvatar === item : isBoard ? currentTheme === item.id : !isItem && currentSleeve === item.style;
+    const isExclusive = (typeof item === 'object' && item?.isEventExclusive) || ITEM_REGISTRY[id]?.isEventExclusive;
+
+    // For avatars, check if it's a remote emote (should always show)
+    const isRemoteEmote = isAvatar && remoteEmotes.some(e => e.trigger_code === item);
+
+    if (isExclusive && !unlocked && !isRemoteEmote) return null;
+
+    return (
+      <div 
+        key={uniqueKey || id}
+        onClick={() => {
+          const remoteEmote = isAvatar ? remoteEmotes.find(e => e.trigger_code === id) : null;
+          startTransition(() => {
+            setPendingPurchase({ 
+              id, 
+              name: isAvatar ? getAvatarName(id, remoteEmotes) : item.name, 
+              description: isAvatar 
+                ? (remoteEmote?.name ? `${remoteEmote.name} - A high-fidelity elite avatar signature.` : 'A high-fidelity elite avatar signature.')
+                : (item.description || ITEM_REGISTRY[id]?.description || 'A signature XIII cosmetic upgrade.'),
+              price: finalPrice, // Use discounted price if daily deal
+              originalPrice: isDailyDeal ? basePrice : undefined, // Store original for display
+              currency, 
+              type: isAvatar ? 'AVATAR' : isBoard ? 'BOARD' : isItem ? 'ITEM' : 'SLEEVE', 
+              style: item.style,
+              unlocked,
+              equipped: isEquipped,
+              isDailyDeal
+            });
+          });
+        }} 
+        className="relative group bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-white/[0.08] border-2 border-white/20 rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col items-center transition-all duration-500 hover:border-yellow-500/40 hover:bg-gradient-to-br hover:from-white/[0.12] hover:via-white/[0.06] hover:to-white/[0.12] hover:shadow-[0_0_40px_rgba(251,191,36,0.2)] cursor-pointer h-full overflow-hidden"
+        style={{ touchAction: 'manipulation' }}
+      >
+        {/* Premium Background Effects */}
+        <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 via-transparent to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.05)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="absolute -inset-10 bg-gradient-to-br from-yellow-500/10 via-transparent to-pink-500/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+        
+        <div className="relative z-10 flex flex-col items-center gap-2 sm:gap-3 mb-3 sm:mb-4 w-full">
+          {isAvatar ? (
+            <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center group/avatar">
+              <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/20 via-transparent to-pink-500/20 rounded-3xl blur-xl opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500"></div>
+              <VisualEmote trigger={item} remoteEmotes={remoteEmotes} size="lg" useLazyLoading={true} />
+            </div>
+          ) : isBoard ? (
+            <div className="relative w-full group/board">
+              <div className="absolute -inset-2 bg-gradient-to-br from-yellow-500/20 via-transparent to-pink-500/20 rounded-3xl blur-xl opacity-0 group-hover/board:opacity-100 transition-opacity duration-500"></div>
+              <div className="relative w-full h-[140px] sm:h-[160px] md:h-[180px]">
+                <BoardPreview themeId={item.id} unlocked={unlocked} active={isEquipped} hideActiveMarker className="w-full h-full" />
+              </div>
+            </div>
+          ) : isItem ? (
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 bg-gradient-to-br from-black/60 to-black/40 rounded-3xl flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.6)] border-2 border-white/10 group-hover:scale-110 group-hover:border-white/20 transition-all duration-500">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent rounded-3xl"></div>
+              <div className="relative z-10">{getItemIcon(id, item.type)}</div>
+            </div>
+          ) : (
+            <div className="relative group/card">
+              <div className="absolute -inset-2 bg-gradient-to-br from-yellow-500/20 via-transparent to-pink-500/20 rounded-2xl blur-xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-500"></div>
+              <Card faceDown coverStyle={item.style} className="!w-24 !h-36 sm:!w-28 sm:!h-40 shadow-[0_8px_32px_rgba(0,0,0,0.8)] group-hover:scale-110 transition-transform duration-500" />
+            </div>
+          )}
+          
+          <div className="flex flex-col items-center text-center px-2">
+            <span className="text-xs sm:text-sm font-bold text-white/90 uppercase tracking-wide drop-shadow-md">
+              {isAvatar ? getAvatarName(item, remoteEmotes) : item.name}
+            </span>
+            {isItem && (
+              <span className="text-[9px] sm:text-[10px] text-white/50 uppercase mt-1 font-medium line-clamp-2 leading-tight">
+                {item.description}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <button 
+          className={`relative z-10 w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 mt-auto transition-all duration-300 overflow-hidden group/btn ${
+            unlocked 
+              ? isEquipped
+                ? 'bg-gradient-to-br from-emerald-600/30 to-emerald-700/30 text-emerald-300 border-2 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                : 'bg-gradient-to-br from-emerald-600/30 to-emerald-700/30 text-emerald-300 border-2 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)]'
+              : 'bg-gradient-to-br from-yellow-500 via-yellow-600 to-yellow-500 text-black border-2 border-yellow-400/50 shadow-[0_0_25px_rgba(251,191,36,0.4)] hover:shadow-[0_0_35px_rgba(251,191,36,0.6)]'
+          }`}
+          style={{ touchAction: 'manipulation', userSelect: 'none' }}
+        >
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000"></div>
           {isEquipped ? (
             <span className="relative z-10">EQUIPPED</span>
@@ -2455,14 +2736,21 @@ export const Store: React.FC<{
                   }
                 }}
                 disabled={pendingPurchase.equipped || buying === pendingPurchase.id} 
-                className={`py-3 md:py-4 lg:py-5 rounded-xl text-sm md:text-base lg:text-lg font-bold uppercase tracking-wide transition-transform duration-150 active:scale-95 ${
+                className={`py-3 md:py-4 lg:py-5 rounded-xl text-sm md:text-base lg:text-lg font-bold uppercase tracking-wide transition-transform duration-150 active:scale-95 relative ${
                   pendingPurchase.equipped 
                     ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/10' 
                     : 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black border border-yellow-400/50 shadow-[0_0_20px_rgba(251,191,36,0.4)] hover:shadow-[0_0_30px_rgba(251,191,36,0.6)]'
                 }`}
                 style={{ userSelect: 'none', touchAction: 'manipulation' }}
               >
-                {pendingPurchase.equipped ? 'EQUIPPED' : pendingPurchase.unlocked ? 'EQUIP' : 'Confirm'}
+                {buying === pendingPurchase.id ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+                    <span>Processing...</span>
+                  </span>
+                ) : (
+                  <span>{pendingPurchase.equipped ? 'EQUIPPED' : pendingPurchase.unlocked ? 'EQUIP' : 'Confirm'}</span>
+                )}
               </button>
             </div>
           </div>
@@ -3019,21 +3307,21 @@ export const Store: React.FC<{
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+                transition={{ duration: 0.2 }}
                 style={{
                   transform: 'translateZ(0)',
                   willChange: 'opacity',
                 }}
               >
-                <ShopSkeleton density={density} count={density === 1 ? 6 : density === 2 ? 8 : 9} />
+                <ShopSkeleton density={density === 1 ? 1 : density === 2 ? 2 : 3} count={density === 1 ? 6 : density === 2 ? 8 : 8} />
               </motion.div>
             ) : (
               <motion.div
                 key="content"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
                 className={`grid gap-3 sm:gap-4 md:gap-5 pb-8 auto-rows-fr ${
                   density === 1 ? 'grid-cols-1' :
                   density === 2 ? 'grid-cols-2' :
@@ -3041,7 +3329,7 @@ export const Store: React.FC<{
                 }`}
                 style={{
                   transform: 'translateZ(0)',
-                  willChange: 'opacity',
+                  willChange: 'opacity, transform',
                 }}
               >
                 {tabItems.length === 0 ? (
@@ -3056,12 +3344,18 @@ export const Store: React.FC<{
                                        activeTab === 'QUICK_CHATS' ? `chat-${(item as ChatPreset).id}-${idx}` :
                                        `sleeve-${item.id || item}-${idx}`;
                       
-                      if (activeTab === 'EMOTES') return renderItemCard(item, true, false, false, uniqueKey);
-                      if (activeTab === 'BOARDS') return renderItemCard(item, false, true, false, uniqueKey);
-                      if (activeTab === 'ITEMS') return renderItemCard(item, false, false, true, uniqueKey);
+                      const handleItemClick = (purchase: any) => {
+                        startTransition(() => {
+                          setPendingPurchase(purchase);
+                        });
+                      };
+                      
+                      if (activeTab === 'EMOTES') return <ShopItemCard key={uniqueKey || item} item={item} isAvatar={true} isBoard={false} isItem={false} uniqueKey={uniqueKey} profile={profile} remoteEmotes={remoteEmotes} playerAvatar={playerAvatar} currentTheme={currentTheme} currentSleeve={currentSleeve} dailyDealSleeveId={dailyDealSleeveId} dealTimeRemaining={dealTimeRemaining} onItemClick={handleItemClick} />;
+                      if (activeTab === 'BOARDS') return <ShopItemCard key={uniqueKey || item.id} item={item} isAvatar={false} isBoard={true} isItem={false} uniqueKey={uniqueKey} profile={profile} remoteEmotes={remoteEmotes} playerAvatar={playerAvatar} currentTheme={currentTheme} currentSleeve={currentSleeve} dailyDealSleeveId={dailyDealSleeveId} dealTimeRemaining={dealTimeRemaining} onItemClick={handleItemClick} />;
+                      if (activeTab === 'ITEMS') return <ShopItemCard key={uniqueKey || item.id} item={item} isAvatar={false} isBoard={false} isItem={true} uniqueKey={uniqueKey} profile={profile} remoteEmotes={remoteEmotes} playerAvatar={playerAvatar} currentTheme={currentTheme} currentSleeve={currentSleeve} dailyDealSleeveId={dailyDealSleeveId} dealTimeRemaining={dealTimeRemaining} onItemClick={handleItemClick} />;
                       if (activeTab === 'FINISHERS') return renderFinisherCard(item as Finisher, uniqueKey);
                       if (activeTab === 'QUICK_CHATS') return renderQuickChatCard(item as ChatPreset, uniqueKey);
-                      return renderItemCard(item, false, false, false, uniqueKey);
+                      return <ShopItemCard key={uniqueKey || item.id} item={item} isAvatar={false} isBoard={false} isItem={false} uniqueKey={uniqueKey} profile={profile} remoteEmotes={remoteEmotes} playerAvatar={playerAvatar} currentTheme={currentTheme} currentSleeve={currentSleeve} dailyDealSleeveId={dailyDealSleeveId} dealTimeRemaining={dealTimeRemaining} onItemClick={handleItemClick} />;
                     } catch (error) {
                       console.error('Error rendering item:', item, error);
                       return null;

@@ -31,12 +31,17 @@ const getSocketUrl = (): string => {
   
   // Use environment-based URL for web
   if (typeof window !== 'undefined') {
-    const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    const hostname = window.location.hostname;
+    const isProduction = hostname !== 'localhost' && hostname !== '127.0.0.1';
+    
     if (isProduction) {
-      return getEnv('VITE_PROD_SERVER_URL') || 'https://your-prod-server.com';
+      return getEnv('VITE_PROD_SERVER_URL') || `http://${hostname}:3001`;
     }
-    // For development, use localhost on port 3001 (socket server port)
-    return window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'http://localhost:3001';
+    
+    // Dynamic socket URL based on hostname
+    return hostname === 'localhost' || hostname === '127.0.0.1'
+      ? 'http://localhost:3001'
+      : `http://${hostname}:3001`;
   }
   
   return 'http://localhost:3001'; // Use localhost for development (socket server port)
@@ -44,9 +49,11 @@ const getSocketUrl = (): string => {
 
 const SERVER_URL = getSocketUrl();
 
-// For development, use localhost:3001 directly
-const SOCKET_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-  ? 'http://localhost:3001' 
+// Dynamic socket URL - use hostname from window.location
+const SOCKET_URL = typeof window !== 'undefined'
+  ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:3001'
+      : `http://${window.location.hostname}:3001`)
   : SERVER_URL;
 
 // CRITICAL: Export a single shared socket instance
@@ -54,6 +61,7 @@ const SOCKET_URL = typeof window !== 'undefined' && window.location.hostname ===
 // If different instances were created, the server might not have "authenticated" the Lobby's socket yet
 export const socket: Socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
+  forceNew: true,
   reconnectionAttempts: 5,
   timeout: 10000,
 });
