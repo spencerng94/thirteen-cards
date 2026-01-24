@@ -1330,7 +1330,7 @@ function LobbyComponent({
       });
       
       socket.once('connect_error', () => {
-        clearTimeout(timeout);
+        // clearTimeout(timeout); // Commented out - timeout disabled
         setErrorToast({ show: true, message: 'Unable to connect to server. Please check your connection and try again.' });
       });
     } else {
