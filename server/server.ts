@@ -2302,10 +2302,14 @@ io.on('connection', (socket: Socket) => {
     console.log('📋 GET_PUBLIC_ROOMS: Requested');
     console.log('📋 Rooms Map size:', rooms.size);
     
+    // CRITICAL: Initialize empty array at the very start - ensure we always emit an array
+    let safeRoomsList: Array<any> = [];
+    
     // Rate limit check
     const rateLimitResult = checkRateLimit(socket.id, 'get_public_rooms');
     if (!rateLimitResult.allowed) {
       socket.emit('error', 'Rate limit exceeded. Please wait before requesting room list again.');
+      socket.emit('public_rooms_list', []); // Always emit empty array, never object
       return;
     }
     
@@ -2327,7 +2331,6 @@ io.on('connection', (socket: Socket) => {
       
       // CRITICAL: Ensure roomsList is always an array before emitting
       // Explicitly convert to array - handle null, undefined, objects, Maps, etc.
-      let safeRoomsList: Array<any> = [];
       if (Array.isArray(roomsList)) {
         safeRoomsList = roomsList;
       } else if (roomsList && typeof roomsList === 'object') {
@@ -2336,8 +2339,9 @@ io.on('connection', (socket: Socket) => {
         if (roomsListAny instanceof Map) {
           safeRoomsList = Array.from(roomsListAny.values());
         } else if (roomsListAny.constructor === Object) {
-          // Plain object - convert to array
+          // Plain object - convert to array using Object.values
           safeRoomsList = Object.values(roomsListAny);
+          console.warn('⚠️ get_public_rooms: Converted object to array using Object.values:', safeRoomsList.length, 'items');
         } else {
           // Unknown object type - log and use empty array
           console.error('❌ get_public_rooms: roomsList is an object but not a Map or plain object:', roomsList);
@@ -2360,7 +2364,9 @@ io.on('connection', (socket: Socket) => {
       console.log("📋 Broadcasting Rooms Type:", Array.isArray(safeRoomsList) ? 'Array' : typeof safeRoomsList);
       
       // CRITICAL: Always emit an array, never an object or Map
-      socket.emit('public_rooms_list', safeRoomsList);
+      // Use Object.values() as final safety net if somehow still an object
+      const finalArray = Array.isArray(safeRoomsList) ? safeRoomsList : Object.values(safeRoomsList || {});
+      socket.emit('public_rooms_list', finalArray);
     } catch (error) {
       console.error('❌ get_public_rooms: Error fetching public rooms:', error);
       socket.emit('public_rooms_list', []);
