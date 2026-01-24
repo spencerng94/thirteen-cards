@@ -899,8 +899,10 @@ function LobbyComponent({
   }, [socketConnected, socket]); // Include socketConnected and socket in dependencies
 
   // Register socket listener - always register when socket exists
-  // CRITICAL: Define handleRoomsList outside useEffect so it can be used in useCallback
-  const handleRoomsList = useCallback((data: any) => {
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleRoomsList = (data: any) => {
       let roomsArray: any[] = [];
       
       if (Array.isArray(data)) {
@@ -926,7 +928,7 @@ function LobbyComponent({
       isFetchingRef.current = false;
       
       console.log("📋 Lobby: Fetch complete, isRefreshing set to false", { roomCount: uniqueRooms.length, hasLoaded: true });
-    }, []);
+    };
     
     // Remove any existing listeners first to prevent duplicates
     socket.off(SocketEvents.PUBLIC_ROOMS_LIST, handleRoomsList);
