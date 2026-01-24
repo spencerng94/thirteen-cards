@@ -1506,6 +1506,7 @@ export const Store: React.FC<{
     // Create optimistic profile update
     if (pendingPurchase.type !== 'PACK' || !pendingPurchase.items) {
       // For regular items, optimistically deduct currency and add to unlocked items
+      const inv = profile.inventory || { items: {}, active_boosters: {} };
       optimisticProfile = {
         ...profile,
         gems: currency === 'GEMS' ? (profile.gems || 0) - finalPrice : profile.gems,
@@ -1522,6 +1523,16 @@ export const Store: React.FC<{
         unlocked_finishers: pendingPurchase.type === 'FINISHER'
           ? [...(profile.unlocked_finishers || []), pendingPurchase.id]
           : profile.unlocked_finishers,
+        // Handle ITEM type purchases - update inventory optimistically
+        inventory: pendingPurchase.type === 'ITEM' 
+          ? {
+              ...inv,
+              items: {
+                ...inv.items,
+                [pendingPurchase.id]: (inv.items[pendingPurchase.id] || 0) + 1
+              }
+            }
+          : profile.inventory,
       };
     }
     
@@ -1752,7 +1763,12 @@ export const Store: React.FC<{
         });
         setPendingPurchase(null);
         setShowSuccessModal(true);
-        onRefreshProfile();
+        
+        // Refresh profile to ensure inventory is updated
+        // Add small delay to ensure database write has completed
+        setTimeout(() => {
+          onRefreshProfile();
+        }, 300);
       }
     } catch (err) { console.error(err); } finally { setBuying(null); }
   };
