@@ -190,21 +190,6 @@ const AppContent: React.FC = () => {
       prevViewRef.current = view;
     }
   }, [view]);
-  
-  // Track Lobby mount/unmount (only when in MULTI_PLAYER mode)
-  const roomId = currentGameState?.roomId || urlRoomCode;
-  useEffect(() => {
-    if (gameMode === 'MULTI_PLAYER') {
-      if (!lobbyMountRef.current) {
-        lobbyMountRef.current = true;
-        console.log('🏗️ Lobby: MOUNTED', { roomId, hasGameState: !!currentGameState });
-      }
-      return () => {
-        lobbyMountRef.current = false;
-        console.log('🏗️ Lobby: UNMOUNTED', { roomId });
-      };
-    }
-  }, [gameMode, roomId, !!currentGameState]);
   const [hubState, setHubState] = useState<{ open: boolean, tab: HubTab }>({ open: false, tab: 'PROFILE' });
   const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
@@ -1731,6 +1716,22 @@ const AppContent: React.FC = () => {
   // CRITICAL: Get current gameState and roomId for render decision
   const currentGameState = gameMode === 'MULTI_PLAYER' ? mpGameState : spGameState;
   const currentRoomId = currentGameState?.roomId;
+  
+  // Track Lobby mount/unmount (only when in MULTI_PLAYER mode)
+  // Must be after currentGameState is defined
+  useEffect(() => {
+    if (gameMode === 'MULTI_PLAYER') {
+      const roomId = currentGameState?.roomId || urlRoomCode;
+      if (!lobbyMountRef.current) {
+        lobbyMountRef.current = true;
+        console.log('🏗️ Lobby: MOUNTED', { roomId, hasGameState: !!currentGameState });
+      }
+      return () => {
+        lobbyMountRef.current = false;
+        console.log('🏗️ Lobby: UNMOUNTED', { roomId });
+      };
+    }
+  }, [gameMode, currentGameState?.roomId, !!currentGameState, urlRoomCode]);
   
   // DETERMINISTIC RENDER DECISION: Use gameState.status as single source of truth
   // Only log when state actually changes (not on every render)
