@@ -101,19 +101,31 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     if (!socket || isGuest || !profile) return;
 
     const requestInitialStatuses = () => {
-      socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
-        if (response?.statuses) {
-          setFriendStatuses(response.statuses);
-          // Also update presence map
-          const presenceMap = new Map<string, { status: 'online' | 'in_game'; roomId?: string }>();
-          Object.entries(response.statuses).forEach(([userId, status]) => {
-            if (status !== 'offline') {
+      // Wait a bit to ensure authentication has completed
+      setTimeout(() => {
+        socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
+          if (response?.statuses) {
+            // Filter statuses to only include friends
+            const friendIds = new Set(friends.map(f => f.friend_id));
+            const filteredStatuses: Record<string, 'online' | 'in_game'> = {};
+            Object.entries(response.statuses).forEach(([userId, status]) => {
+              if (friendIds.has(userId)) {
+                filteredStatuses[userId] = status;
+              }
+            });
+            
+            setFriendStatuses(filteredStatuses);
+            // Also update presence map
+            const presenceMap = new Map<string, { status: 'online' | 'in_game'; roomId?: string }>();
+            Object.entries(filteredStatuses).forEach(([userId, status]) => {
               presenceMap.set(userId, { status });
-            }
-          });
-          setFriendPresence(presenceMap);
-        }
-      });
+            });
+            setFriendPresence(presenceMap);
+            
+            console.log('📋 Initial statuses received:', Object.keys(filteredStatuses).length, 'friends online');
+          }
+        });
+      }, 500); // Small delay to ensure authentication completes
     };
 
     if (socket.connected) {
@@ -121,7 +133,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     } else {
       socket.once('connect', requestInitialStatuses);
     }
-  }, [socket, isGuest, profile]);
+  }, [socket, isGuest, profile, friends]);
 
   // Listen for differential status changes
   useEffect(() => {

@@ -1462,10 +1462,48 @@ io.on('connection', (socket: Socket) => {
   });
   
   // Get initial statuses for all online users
-  socket.on('get_initial_statuses', (callback) => {
+  socket.on('get_initial_statuses', async (callback) => {
+    const playerId = socketToPlayerId[socket.id];
+    
+    // If user is not authenticated, return empty statuses
+    if (!playerId || playerId === 'guest') {
+      const emptyStatuses: Record<string, 'online' | 'in_game'> = {};
+      if (callback && typeof callback === 'function') {
+        callback({ statuses: emptyStatuses });
+      } else {
+        socket.emit('initial_statuses', { statuses: emptyStatuses });
+      }
+      return;
+    }
+    
+    // Get user's friends from database
+    let friendIds: string[] = [];
+    if (supabase) {
+      try {
+        // Get friendships where user is sender or receiver and status is accepted
+        const { data: friendships, error } = await supabase
+          .from('friendships')
+          .select('sender_id, receiver_id')
+          .or(`sender_id.eq.${playerId},receiver_id.eq.${playerId}`)
+          .eq('status', 'accepted');
+        
+        if (!error && friendships) {
+          friendIds = friendships.map(f => 
+            f.sender_id === playerId ? f.receiver_id : f.sender_id
+          );
+        }
+      } catch (error) {
+        console.error('Error fetching friends for initial statuses:', error);
+      }
+    }
+    
+    // Only return statuses for friends who are online
     const statuses: Record<string, 'online' | 'in_game'> = {};
-    onlineUsers.forEach((presence, userId) => {
-      statuses[userId] = presence.status === 'in_game' ? 'in_game' : 'online';
+    friendIds.forEach(friendId => {
+      const presence = onlineUsers.get(friendId);
+      if (presence) {
+        statuses[friendId] = presence.status === 'in_game' ? 'in_game' : 'online';
+      }
     });
     
     if (callback && typeof callback === 'function') {
@@ -1474,7 +1512,7 @@ io.on('connection', (socket: Socket) => {
       socket.emit('initial_statuses', { statuses });
     }
     
-    console.log(`📋 Sent initial statuses to ${socket.id}: ${Object.keys(statuses).length} users`);
+    console.log(`📋 Sent initial statuses to ${socket.id} (${playerId}): ${Object.keys(statuses).length} friends online out of ${friendIds.length} total friends`);
   });
 
   // Create private lobby and invite friend
