@@ -1052,18 +1052,18 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     return;
   }
   
-  // PREVENT COMPONENT CRASH (Fix Supabase 400): The profile update is still sending 'level' which causes a 400 error
-  // In the function that saves user settings/profile, add destructuring to remove level
-  const { level, id, created_at, updated_at, discriminator, ...dataToSave } = cleanData;
+  // FIX THE 400 ERROR (Blocked field 'level'): Locate the function that updates the user profile
+  // Immediately before the 'supabase.from("profiles").update(updates)' call, add destructuring to remove level
+  const { level, id, created_at, updated_at, discriminator, ...cleanUpdates } = cleanData;
   
-  // Then pass 'dataToSave' to the supabase update call. This ensures subsequent React logic isn't interrupted by an unhandled error.
-  const { error } = await supabase.from('profiles').update(dataToSave).eq('id', userId);
+  // Use 'cleanUpdates' in the update call. This error is causing the component to re-render/crash, which triggers the listener cleanup.
+  const { error } = await supabase.from('profiles').update(cleanUpdates).eq('id', userId);
   
   if (error) {
     console.error('Error updating profile settings:', error);
     if (error.message?.includes('level')) {
       console.error('❌ CRITICAL: Level field error detected! This should not happen.');
-      console.error('❌ dataToSave keys:', Object.keys(dataToSave));
+      console.error('❌ cleanUpdates keys:', Object.keys(cleanUpdates));
     }
     // Don't throw - let the caller handle the error if needed
   }

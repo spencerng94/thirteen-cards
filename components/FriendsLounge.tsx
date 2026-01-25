@@ -143,13 +143,15 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         // f.friend?.id is the friend's user ID, f.friend_id is the same thing
         return f.friend?.id || f.friend_id;
       }).filter(Boolean);
-      console.log("📡 EMITTING request_initial_statuses for IDs:", friendIds);
+      // EXPLICIT EMIT LOGGING: Ensure 'request_initial_statuses' is emitted ONLY after authentication is successful
+      console.log("📡 EMIT: request_initial_statuses with IDs: " + friendIds.join(', '));
       // Use 'get_initial_statuses' to match server handler (server listens for 'get_initial_statuses')
       socket.emit('get_initial_statuses', friendIds);
     }
   }, [socket, isSocketAuthenticated, friends.length]);
 
-  // STABLE LISTENERS: Use refs to prevent cleanup on re-renders
+  // PERSISTENT LISTENERS: Use refs to track if listeners are already registered
+  const listenersRegistered = useRef<boolean>(false);
   const hasRequestedStatusRef = useRef<boolean>(false);
   const isAuthenticatedRef = useRef<boolean>(false);
   const handleInitialStatusesEventRef = useRef<((data: { statuses?: Record<string, 'online' | 'in_game'> } | Record<string, 'online' | 'in_game'>) => void) | null>(null);
@@ -161,10 +163,10 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     if (!socket || isGuest || !profile) return;
 
     // INITIAL STATUS FETCH: Add a 'socket.on("initial_statuses", (data) => { ... })' listener
-    // STABLE LISTENERS: Set up listener once and persist - use ref to avoid cleanup on re-renders
+    // PERSISTENT LISTENERS: Wrap socket.on listeners in a condition to prevent cleanup on re-renders
     const setupInitialStatusesListener = () => {
-      // Only set up if not already set up
-      if (handleInitialStatusesEventRef.current) {
+      // PERSISTENT LISTENERS: Use ref to track if listeners are already registered
+      if (listenersRegistered.current || handleInitialStatusesEventRef.current) {
         return; // Already registered
       }
       
@@ -185,8 +187,12 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         }
       };
       
-      socket.on('initial_statuses', handleInitialStatusesEventRef.current);
-      console.log('✅ Registered initial_statuses event listener');
+      // PERSISTENT LISTENERS: Wrap socket.on listeners in a condition
+      if (!listenersRegistered.current) {
+        socket.on('initial_statuses', handleInitialStatusesEventRef.current);
+        listenersRegistered.current = true;
+        console.log('✅ Registered initial_statuses event listener');
+      }
     };
 
     // SEQUENTIAL AUTHENTICATION: Wait for auth_ready event (fires after userId is mapped in onlineUsers Map)
@@ -349,12 +355,12 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
   }, [socket, isGuest, profile?.id]); // STABLE LISTENERS: DO NOT include 'friends' to prevent cleanup on re-renders
 
   // GLOBAL STATUS LISTENER: Ensure there is a 'socket.on("USER_STATUS_CHANGE", ...)' listener that is active as soon as the app mounts
-  // STABLE LISTENERS: Set up once and persist - use ref to avoid cleanup on re-renders
+  // PERSISTENT LISTENERS: Set up once and persist - use ref to avoid cleanup on re-renders
   useEffect(() => {
     if (!socket || isGuest) return;
 
-    // Only set up if not already set up
-    if (handleStatusChangeRef.current) {
+    // PERSISTENT LISTENERS: Wrap socket.on listeners in a condition to prevent cleanup on re-renders
+    if (listenersRegistered.current && handleStatusChangeRef.current) {
       return; // Already registered
     }
 
@@ -392,19 +398,20 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       });
     };
 
-    // Register the listener immediately
-    socket.on(SocketEvents.USER_STATUS_CHANGE, handleStatusChangeRef.current);
-    console.log('✅ Registered USER_STATUS_CHANGE listener');
+    // PERSISTENT LISTENERS: Wrap socket.on listeners in a condition
+    if (!listenersRegistered.current) {
+      socket.on(SocketEvents.USER_STATUS_CHANGE, handleStatusChangeRef.current);
+      listenersRegistered.current = true;
+      console.log('✅ Registered USER_STATUS_CHANGE listener');
+    }
 
-    // STABLE LISTENERS: Cleanup only on unmount, not on re-renders
+    // PERSISTENT LISTENERS: Cleanup only on unmount, not on re-renders
     return () => {
-      if (handleStatusChangeRef.current) {
-        socket.off(SocketEvents.USER_STATUS_CHANGE, handleStatusChangeRef.current);
-        handleStatusChangeRef.current = null;
-        console.log('🧹 Removed USER_STATUS_CHANGE listener (unmount only)');
-      }
+      // Only cleanup on actual unmount, not on re-renders
+      // The listenersRegistered ref prevents re-registration, so we don't need to cleanup here
+      // unless the component is actually unmounting
     };
-  }, [socket, isGuest]); // STABLE LISTENERS: DO NOT include other dependencies to prevent cleanup on re-renders
+  }, [socket, isGuest]); // PERSISTENT LISTENERS: DO NOT include other dependencies to prevent cleanup on re-renders
 
 
   const loadPendingRequests = async () => {
