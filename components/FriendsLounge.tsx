@@ -325,7 +325,20 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       // Don't request statuses yet - wait for authenticated_success
     };
 
+    // HANDLE RECONNECTS: Add a listener for 'connect' that re-triggers authentication
+    const handleReconnect = () => {
+      if (profile?.id) {
+        console.log("🔄 Socket reconnected, re-authenticating user...");
+        socket.emit('authenticate_user', { userId: profile.id });
+        // Reset the request ref so we fetch statuses again for the new socket ID
+        hasRequestedStatusRef.current = false;
+        // Re-setup listeners
+        setupInitialStatusesListener();
+      }
+    };
+    
     socket.on('connect', handleConnect);
+    socket.on('connect', handleReconnect);
     
     // Set up initial_statuses listener if socket is already connected
     if (socket.connected) {
@@ -341,6 +354,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     return () => {
       console.log('🧹 Cleaning up status request listeners (unmount only)');
       socket.off('connect', handleConnect);
+      socket.off('connect', handleReconnect);
       socket.off(SocketEvents.AUTH_READY, handleAuthReady);
       socket.off(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
       if (handleInitialStatusesEventRef.current) {
@@ -1509,15 +1523,14 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   const friendLevel = calculateLevel(friend.xp || 0);
                   
                   // UI MAPPING: In the Friend item render, ensure 'isOnline' is calculated correctly
-                  // UI CHECK: In the rendering part of the friend list, make sure the dot turns green if the status is 'online'
-                  const status = friendStatuses[friend.id];
-                  // Handle both string 'online' and boolean true (if it somehow gets through)
-                  const isOnline = status === 'online' || (status !== undefined && status !== 'offline' && status !== null && status !== 'in_game');
-                  const presence = friendPresence.get(friend.id);
-                  const isInGame = status === 'in_game' || presence?.status === 'in_game';
+                  // Use friendship.friend_id to check status (this is the friend's user ID)
+                  const friendStatus = friendStatuses[friendship.friend_id] || friendStatuses[friend.id];
+                  const isOnline = friendStatus === 'online';
+                  const presence = friendPresence.get(friendship.friend_id) || friendPresence.get(friend.id);
+                  const isInGame = friendStatus === 'in_game' || presence?.status === 'in_game';
                   
                   // ONLINE STATUS RENDER: Log the status for each friend
-                  console.log(`Rendering Friend [${friend.id}]: Status from friendStatuses[${friend.id}] is [${status}] (isOnline: ${isOnline}, isInGame: ${isInGame})`);
+                  console.log(`Rendering Friend [${friend.id}]: Status from friendStatuses[${friendship.friend_id}] is [${friendStatus}] (isOnline: ${isOnline}, isInGame: ${isInGame})`);
                   console.log(`Rendering Friend [${friend.id}]: Full friendStatuses object:`, friendStatuses);
                   
                   return (
@@ -1527,34 +1540,35 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                     >
                         <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div 
-                              className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400/70 transition-colors"
-                              onClick={() => {
-                                const parsedName = parseUsername(friend.username, friend.discriminator);
-                                setSelectedProfile({
-                                  id: friend.id,
-                                  name: parsedName.full,
-                                  avatar: friend.avatar_url || ''
-                                });
-                              }}
-                            >
-                            {friend.avatar_url ? (
-                              <VisualEmote 
-                                trigger={friend.avatar_url} 
-                                remoteEmotes={remoteEmotes} 
-                                size="sm"
-                                className="w-full h-full"
-                              />
-                            ) : (
-                              <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
-                            )}
-                              {/* Online indicator */}
-                              {isOnline && (
-                                <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 border-2 border-[#0a0a0a] rounded-full ${
-                                  isInGame ? 'bg-yellow-500' : 'bg-green-500'
-                                }`}></div>
-                            )}
-                          </div>
+                            {/* ADD THE STATUS DOT TO THE UI: Status indicator next to the avatar */}
+                            <div className="relative">
+                              <div 
+                                className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-500/50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400/70 transition-colors"
+                                onClick={() => {
+                                  const parsedName = parseUsername(friend.username, friend.discriminator);
+                                  setSelectedProfile({
+                                    id: friend.id,
+                                    name: parsedName.full,
+                                    avatar: friend.avatar_url || ''
+                                  });
+                                }}
+                              >
+                                {friend.avatar_url ? (
+                                  <VisualEmote 
+                                    trigger={friend.avatar_url} 
+                                    remoteEmotes={remoteEmotes} 
+                                    size="sm"
+                                    className="w-full h-full"
+                                  />
+                                ) : (
+                                  <DefaultAvatarIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400/70" />
+                                )}
+                              </div>
+                              <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${
+                                friendStatuses[friendship.friend_id] === 'online' ? 'bg-green-500' : 
+                                friendStatuses[friendship.friend_id] === 'in_game' ? 'bg-blue-500' : 'bg-slate-500'
+                              }`} />
+                            </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <CopyUsername username={friend.username} discriminator={friend.discriminator} className="text-base sm:text-lg" />
@@ -1577,27 +1591,24 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                           </div>
                         </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {/* Online status indicator - green circle if online, gray if offline */}
-                            {isOnline ? (
-                              <div className={`w-3 h-3 rounded-full ${
-                                isInGame ? 'bg-yellow-500' : 'bg-green-500'
-                              }`} title={isInGame ? 'Playing...' : 'Online'}></div>
-                            ) : (
-                              <div className="w-3 h-3 rounded-full border-2 border-white/20" title="Offline"></div>
-                            )}
-                            
-                            {/* Invite button - opens Create Lobby modal */}
-                            <button
-                              onClick={() => {
-                                setSelectedFriendForInvite(friend);
-                                setShowCreateLobbyModal(true);
-                              }}
-                              disabled={!isOnline}
-                              className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={isOnline ? "Invite to Game" : "Friend is offline"}
-                            >
-                              Invite
-                            </button>
+                            {/* INVITE BUTTON LOGIC: Ensure the 'Invite' button is enabled only when 'online' and NOT 'in_game' */}
+                            {(() => {
+                              const friendStatus = friendStatuses[friendship.friend_id] || friendStatuses[friend.id];
+                              const canInvite = friendStatus === 'online';
+                              return (
+                                <button
+                                  onClick={() => {
+                                    setSelectedFriendForInvite(friend);
+                                    setShowCreateLobbyModal(true);
+                                  }}
+                                  disabled={!canInvite}
+                                  className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title={canInvite ? "Invite to Game" : friendStatus === 'in_game' ? "Friend is in a game" : "Friend is offline"}
+                                >
+                                  Invite
+                                </button>
+                              );
+                            })()}
                       </div>
                     </div>
                       </div>

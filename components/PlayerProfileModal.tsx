@@ -150,6 +150,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   const level = playerProfile ? calculateLevel(playerProfile.xp) : 1;
   const wins = playerProfile?.wins || 0;
   const games = playerProfile?.games_played || 0;
+  const winRate = games > 0 ? ((wins / games) * 100).toFixed(1) : '0.0';
   const currentStreak = playerProfile?.current_streak || 0;
   const longestStreak = playerProfile?.longest_streak || 0;
   
@@ -164,15 +165,15 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className="bg-black/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300 relative"
+        className="bg-black/80 backdrop-blur-3xl border border-white/10 rounded-xl p-3 max-w-[280px] w-full shadow-2xl animate-in zoom-in-95 duration-300 relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all duration-200"
+          className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all duration-200"
         >
-          <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -206,55 +207,52 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
         ) : (
           <>
             {/* Header */}
-            <div className="flex flex-col items-center mb-8">
-              <div className="relative w-24 h-24 mb-4">
+            <div className="flex flex-col items-center mb-3">
+              <div className="relative w-12 h-12 mb-1.5">
                 <div className="w-full h-full rounded-full border-2 border-white/20 bg-black/40 flex items-center justify-center overflow-hidden">
-                  <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" />
+                  <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="sm" />
                 </div>
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 text-black text-[10px] font-black px-2.5 py-1 rounded-full border-2 border-yellow-300/50 shadow-[0_4px_12px_rgba(234,179,8,0.4)] backdrop-blur-sm">
-                  <span className="text-[9px] opacity-80">LV</span> {level}
+                <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 text-black text-[6px] font-black px-1 py-0.5 rounded-full border-2 border-yellow-300/50 shadow-[0_2px_4px_rgba(234,179,8,0.4)] backdrop-blur-sm">
+                  <span className="text-[5px] opacity-80">LV</span> {level}
                 </div>
               </div>
-              <h2 className="text-2xl font-black text-white mb-1">{playerName}</h2>
+              <h2 className="text-sm font-black text-white mb-0.5">{playerName}</h2>
               {accountAgeDays !== null && (
-                <p className="text-xs text-white/50">
+                <p className="text-[8px] text-white/50">
                   Account age: {accountAgeDays} {accountAgeDays === 1 ? 'day' : 'days'}
                 </p>
               )}
             </div>
 
             {/* Stats */}
-            <div className="space-y-4 mb-8">
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5 mb-3">
+              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
+                <div className="grid grid-cols-3 gap-1.5">
                   <div className="text-center">
-                    <p className="text-[10px] text-white/60 uppercase tracking-wider mb-1">Wins</p>
-                    <p className="text-2xl font-black text-emerald-400">{wins}</p>
+                    <p className="text-[7px] text-white/60 uppercase tracking-wider mb-0.5">Wins</p>
+                    <p className="text-base font-black text-emerald-400">{wins}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] text-white/60 uppercase tracking-wider mb-1">Games</p>
-                    <p className="text-2xl font-black text-white">{games}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <p className="text-[10px] text-white/60 uppercase tracking-wider mb-1">Current Streak</p>
-                    <p className="text-2xl font-black text-yellow-400">{currentStreak}</p>
+                    <p className="text-[7px] text-white/60 uppercase tracking-wider mb-0.5">Games</p>
+                    <p className="text-base font-black text-white">{games}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] text-white/60 uppercase tracking-wider mb-1">Longest Streak</p>
-                    <p className="text-2xl font-black text-white">{longestStreak}</p>
+                    <p className="text-[7px] text-white/60 uppercase tracking-wider mb-0.5">Win Rate</p>
+                    <p className="text-base font-black text-blue-400">{winRate}%</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                <div className="text-center">
-                  <p className="text-[10px] text-white/60 uppercase tracking-wider mb-1">Total XP</p>
-                  <p className="text-2xl font-black text-yellow-500">{playerProfile.xp.toLocaleString()}</p>
+              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="text-center">
+                    <p className="text-[7px] text-white/60 uppercase tracking-wider mb-0.5">Current Streak</p>
+                    <p className="text-base font-black text-yellow-400">{currentStreak}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[7px] text-white/60 uppercase tracking-wider mb-0.5">Longest Streak</p>
+                    <p className="text-base font-black text-white">{longestStreak}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -262,7 +260,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
             {/* Friend Status Button */}
             {isFriend ? (
               <>
-                <div className="w-full py-3 px-6 bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-bold rounded-xl text-center flex items-center justify-center gap-2 mb-3">
+                <div className="w-full py-1.5 px-3 bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-bold rounded-lg text-center flex items-center justify-center gap-1.5 mb-1.5 text-xs">
                   <span>✓</span>
                   <span>Friends</span>
                 </div>
@@ -282,24 +280,24 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                     }
                   }}
                   disabled={removingFriend}
-                  className="w-full py-3 px-6 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 font-bold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-1.5 px-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 font-bold rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   {removingFriend ? 'Removing...' : 'Remove Friend'}
                 </button>
               </>
             ) : pendingSent ? (
-              <div className="w-full py-3 px-6 bg-yellow-600/30 border border-yellow-500/50 text-yellow-300 font-bold rounded-xl text-center">
+              <div className="w-full py-1.5 px-3 bg-yellow-600/30 border border-yellow-500/50 text-yellow-300 font-bold rounded-lg text-center text-xs">
                 Request Sent
               </div>
             ) : pendingReceived ? (
-              <div className="w-full py-3 px-6 bg-blue-600/30 border border-blue-500/50 text-blue-300 font-bold rounded-xl text-center">
+              <div className="w-full py-1.5 px-3 bg-blue-600/30 border border-blue-500/50 text-blue-300 font-bold rounded-lg text-center text-xs">
                 Request Received
               </div>
             ) : (
               <button
                 onClick={handleAddFriend}
                 disabled={addingFriend}
-                className="w-full py-3 px-6 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-emerald-500/50"
+                className="w-full py-1.5 px-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-emerald-500/50 text-xs"
               >
                 {addingFriend ? 'Adding...' : 'Add Friend'}
               </button>
@@ -309,7 +307,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
             {onToggleMute && playerId !== currentUserId && playerId !== 'guest' && (
               <button
                 onClick={() => onToggleMute(playerId)}
-                className={`w-full py-3 px-6 font-bold rounded-xl transition-all duration-300 shadow-lg mt-3 flex items-center justify-center gap-2 ${
+                className={`w-full py-1.5 px-3 font-bold rounded-lg transition-all duration-300 shadow-lg mt-1.5 flex items-center justify-center gap-1.5 text-xs ${
                   isMuted
                     ? 'bg-red-600/90 hover:bg-red-700 text-white border-2 border-red-500/50 hover:shadow-red-500/50'
                     : 'bg-white/10 hover:bg-white/20 text-white/90 border-2 border-white/20 hover:border-white/30'
@@ -317,7 +315,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
               >
                 {isMuted ? (
                   <>
-                    <span className="text-lg">🔇</span>
+                    <span className="text-sm">🔇</span>
                     <span>Unmute Player</span>
                   </>
                 ) : (
@@ -329,7 +327,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
             )}
 
             {isMuted && (
-              <div className="w-full py-2 px-6 bg-red-600/20 border border-red-500/30 text-red-300 text-sm font-semibold rounded-xl text-center mt-2 flex items-center justify-center gap-2">
+              <div className="w-full py-1.5 px-4 bg-red-600/20 border border-red-500/30 text-red-300 text-xs font-semibold rounded-lg text-center mt-2 flex items-center justify-center gap-2">
                 <span>🔇</span>
                 <span>This player is muted</span>
               </div>
