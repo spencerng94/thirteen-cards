@@ -116,12 +116,47 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
 
     let hasRequested = false; // Prevent duplicate requests
     let isAuthenticated = false;
+    let handleInitialStatusesEventRef: ((data: { statuses: Record<string, 'online' | 'in_game'> }) => void) | null = null;
+
+    // INITIAL STATUS FETCH: Add a 'socket.on("initial_statuses", (data) => { ... })' listener
+    // This listener should be set up once and persist
+    const setupInitialStatusesListener = () => {
+      if (handleInitialStatusesEventRef) {
+        socket.off('initial_statuses', handleInitialStatusesEventRef);
+      }
+      
+      handleInitialStatusesEventRef = (data: { statuses: Record<string, 'online' | 'in_game'> }) => {
+        console.log('📥 Received initial_statuses event (raw data):', data);
+        console.log('📥 Statuses object keys:', Object.keys(data.statuses || {}));
+        console.log('📥 Statuses object values:', Object.entries(data.statuses || {}));
+        
+        // IMPORTANT: Log the 'data' received. If the server sends an object like { "083b...": "online" }, make sure you convert that to the proper state
+        if (data?.statuses) {
+          const updatedStatuses: Record<string, 'online' | 'offline' | 'in_game'> = {};
+          Object.entries(data.statuses).forEach(([userId, status]) => {
+            // Convert status to proper format - ensure it's a string
+            updatedStatuses[userId] = (typeof status === 'string' ? status : (status ? 'online' : 'offline')) as 'online' | 'offline' | 'in_game';
+          });
+          
+          setFriendStatuses(prev => {
+            const merged = { ...prev, ...updatedStatuses };
+            console.log('📋 Updated friendStatuses from initial_statuses event:', merged);
+            return merged;
+          });
+        }
+      };
+      
+      socket.on('initial_statuses', handleInitialStatusesEventRef);
+      console.log('✅ Registered initial_statuses event listener');
+    };
 
     // SEQUENTIAL AUTHENTICATION: Wait for auth_ready event (fires after userId is mapped in onlineUsers Map)
     const handleAuthReady = (data: { userId: string }) => {
       if (data.userId === profile.id) {
         isAuthenticated = true;
         console.log('✅ Auth ready confirmed - userId is mapped in server, can now request initial statuses');
+        // Set up the listener before requesting
+        setupInitialStatusesListener();
         // Trigger status request if socket is connected
         if (socket.connected && !hasRequested) {
           requestInitialStatuses();
@@ -133,6 +168,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     const handleAuthenticatedSuccess = (data: { userId: string }) => {
       if (data.userId === profile.id && !isAuthenticated) {
         console.log('✅ Authentication success received (fallback)');
+        // Set up the listener
+        setupInitialStatusesListener();
         // Wait a bit for auth_ready, but if it doesn't come, proceed anyway
         setTimeout(() => {
           if (!isAuthenticated && socket.connected && !hasRequested) {
@@ -180,16 +217,6 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         console.warn('⚠️ No friend IDs to send - friends list may be empty or friend_id is missing');
         console.warn('⚠️ Friends array:', friends);
       }
-      
-      // REQUEST_INITIAL_STATUSES LOGGING: Add listener for 'initial_statuses' event to log raw data
-      const handleInitialStatuses = (data: { statuses: Record<string, 'online' | 'in_game'> }) => {
-        console.log('📥 Received initial_statuses event (raw data):', data);
-        console.log('📥 Statuses object keys:', Object.keys(data.statuses || {}));
-        console.log('📥 Statuses object values:', Object.entries(data.statuses || {}));
-      };
-      
-      // Listen for the event (in addition to callback)
-      socket.once('initial_statuses', handleInitialStatuses);
       
       socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
         console.log('📥 Received initial_statuses callback (raw response):', response);
@@ -275,18 +302,29 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       console.log('⏳ Socket not connected yet, waiting for connect event...');
     }
     
+    // Set up initial_statuses listener if socket is already connected
+    if (socket.connected) {
+      setupInitialStatusesListener();
+    } else {
+      socket.once('connect', () => {
+        setupInitialStatusesListener();
+      });
+    }
+    
     // Cleanup: remove listeners on unmount
     return () => {
       socket.off('connect', handleConnect);
       socket.off(SocketEvents.AUTH_READY, handleAuthReady);
       socket.off(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
-      socket.off('initial_statuses'); // Clean up the initial_statuses listener
+      if (handleInitialStatusesEventRef) {
+        socket.off('initial_statuses', handleInitialStatusesEventRef);
+      }
       hasRequested = false;
       isAuthenticated = false;
     };
   }, [socket, isGuest, profile?.id]); // FIX: Removed 'friends' from dependency array to prevent infinite loop
 
-  // Listen for differential status changes
+  // GLOBAL STATUS LISTENER: Ensure there is a 'socket.on("USER_STATUS_CHANGE", ...)' listener that is active as soon as the app mounts
   useEffect(() => {
     if (!socket || isGuest) return;
 
@@ -295,33 +333,45 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       
       console.log(`📡 USER_STATUS_CHANGE received: userId=${userId}, status=${status}, roomId=${roomId}`);
       
-      // STATUS STATE UPDATE: Ensure status is correctly updated as a string
-      // Check if 'status' is a string ('online') or a boolean. The UI expects string.
+      // ADD DEBUG TOAST: Temporarily add a toast when USER_STATUS_CHANGE is received
+      setToast({ 
+        message: `Status change: ${userId} is now ${status}`, 
+        type: 'info' 
+      });
+      setTimeout(() => setToast(null), 3000);
+      
+      // STATUS STATE UPDATE: Ensure status is correctly updated
+      // When this event fires, it should update the 'statuses' state
+      // Convert status to proper format: 'online' | 'offline' | 'in_game'
       const statusString = typeof status === 'string' ? status : (status ? 'online' : 'offline');
       
       // Update only this specific friend's status (differential update)
       setFriendStatuses(prev => {
         const updated = { ...prev, [userId]: statusString as 'online' | 'offline' | 'in_game' };
         console.log(`📋 Updated friendStatuses for ${userId}:`, updated[userId]);
+        console.log(`📋 Full friendStatuses state:`, updated);
         return updated;
       });
 
       // Update presence map
       setFriendPresence(prev => {
         const updated = new Map(prev);
-        if (status === 'offline') {
+        if (status === 'offline' || statusString === 'offline') {
           updated.delete(userId);
         } else {
-          updated.set(userId, { status, roomId });
+          updated.set(userId, { status: statusString as 'online' | 'in_game', roomId });
         }
         return updated;
       });
     };
 
+    // Register the listener immediately
     socket.on(SocketEvents.USER_STATUS_CHANGE, handleStatusChange);
+    console.log('✅ Registered USER_STATUS_CHANGE listener');
 
     return () => {
       socket.off(SocketEvents.USER_STATUS_CHANGE, handleStatusChange);
+      console.log('🧹 Removed USER_STATUS_CHANGE listener');
     };
   }, [socket, isGuest]);
 
@@ -1420,13 +1470,19 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   const friend = friendship.friend;
                   if (!friend) return null;
                   const friendLevel = calculateLevel(friend.xp || 0);
-                  const friendStatus = friendStatuses[friend.id] || 'offline';
-                  const isOnline = friendStatus === 'online' || friendStatus === 'in_game';
+                  
+                  // UI RENDER CHECK: Ensure the 'isOnline' prop is being pulled from the 'statuses' object using the friend's ID
+                  // Check both string and boolean formats for compatibility
+                  const friendStatus = friendStatuses[friend.id];
+                  // Convert to boolean: if status is 'online' or 'in_game', friend is online
+                  // Handle both string and boolean/truthy formats
+                  const isOnline = friendStatus === 'online' || friendStatus === 'in_game' || (friendStatus && friendStatus !== 'offline');
                   const presence = friendPresence.get(friend.id);
                   const isInGame = friendStatus === 'in_game' || presence?.status === 'in_game';
                   
                   // ONLINE STATUS RENDER: Log the status for each friend
-                  console.log(`Rendering Friend [${friend.id}]: Status is [${friendStatus}] (isOnline: ${isOnline}, isInGame: ${isInGame})`);
+                  console.log(`Rendering Friend [${friend.id}]: Status from friendStatuses[${friend.id}] is [${friendStatus}] (isOnline: ${isOnline}, isInGame: ${isInGame})`);
+                  console.log(`Rendering Friend [${friend.id}]: Full friendStatuses object:`, friendStatuses);
                   
                   return (
                     <div
