@@ -1052,46 +1052,17 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     return;
   }
   
-  // PROFILE UPDATE SANITIZATION: Explicitly strip 'level' and other non-schema fields before update
-  // This prevents 400 errors from protected fields that are calculated by the database
-  const { level, id, created_at, updated_at, discriminator, ...cleanProfileData } = cleanData;
+  // DATA CLEANUP (Fix Supabase 400): Immediately before the update call, destructure to remove 'level'
+  // This stops the 400 error by ensuring only valid schema fields are sent
+  const { level, id, created_at, updated_at, discriminator, ...validUpdates } = cleanData;
   
-  // FIX THE SUPABASE 400 (CRITICAL): Globally intercept any profile updates and delete 'level' before sending to Supabase
-  // This error is likely what's breaking the 'Remove' function's completion
-  const dataToUpdate: any = { ...cleanProfileData };
-  
-  // Explicitly delete level field - do this multiple times to be absolutely sure
-  delete dataToUpdate.level;
-  if ('level' in dataToUpdate) {
-    console.warn('⚠️ Level field still present after deletion, removing again');
-    delete dataToUpdate.level;
-  }
-  
-  // Final safety check: iterate through all keys and remove level if it exists
-  Object.keys(dataToUpdate).forEach(key => {
-    if (key === 'level') {
-      console.warn(`⚠️ Found 'level' key in dataToUpdate, removing: ${key}`);
-      delete dataToUpdate[key];
-    }
-  });
-  
-  // PROFILE UPDATE SANITIZATION: Use .update() with dataToUpdate containing only schema fields
-  // This prevents 400 errors from protected fields that are calculated by the database
-  // Use .update() with .eq('id', userId) to ensure we only update existing records
-  
-  // FIX THE SUPABASE 400 (CRITICAL): Final global check - ensure level is never sent
-  if ('level' in dataToUpdate) {
-    console.error('❌ CRITICAL: Level field detected in dataToUpdate before Supabase call! Removing...');
-    delete dataToUpdate.level;
-  }
-  
-  const { error } = await supabase.from('profiles').update(dataToUpdate).eq('id', userId);
+  const { error } = await supabase.from('profiles').update(validUpdates).eq('id', userId);
   
   if (error) {
     console.error('Error updating profile settings:', error);
     if (error.message?.includes('level')) {
       console.error('❌ CRITICAL: Level field error detected! This should not happen.');
-      console.error('❌ dataToUpdate keys:', Object.keys(dataToUpdate));
+      console.error('❌ validUpdates keys:', Object.keys(validUpdates));
     }
     // Don't throw - let the caller handle the error if needed
   }
