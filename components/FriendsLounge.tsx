@@ -134,28 +134,20 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     friendsRef.current = friends;
   }, [friends]);
 
-  // FORCE INITIAL STATUS REQUEST: Trigger specifically when friends are loaded AND socket is authenticated
+  // THE TRIGGER: Only run if we have a socket, we are authenticated, and we actually have friends to check
   useEffect(() => {
-    if (isSocketAuthenticated && friends.length > 0 && socket && socket.connected && !hasRequestedStatusRef.current) {
-      // Use friend_id from the friendship object (the ID of the friend, not the friendship record)
-      const friendIds = friends.map(f => f.friend_id).filter(Boolean);
-      console.log("📡 EMITTING request_initial_statuses for:", friendIds);
-      hasRequestedStatusRef.current = true; // Prevent duplicate requests
-      socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
-        console.log('📥 Received initial_statuses callback from force emit:', response);
-        if (response?.statuses) {
-          setFriendStatuses(prev => {
-            const updated = { ...prev };
-            Object.entries(response.statuses).forEach(([userId, status]) => {
-              updated[userId] = status as 'online' | 'offline' | 'in_game';
-            });
-            console.log('📋 Updated friendStatuses from force emit:', updated);
-            return updated;
-          });
-        }
-      });
+    // Only run if we have a socket, we are authenticated, and we actually have friends to check
+    if (socket && isSocketAuthenticated && friends.length > 0) {
+      // Use friend.id from the friend object (friendship.friend.id) - the user's ID, not the friendship ID
+      const friendIds = friends.map(f => {
+        // f.friend?.id is the friend's user ID, f.friend_id is the same thing
+        return f.friend?.id || f.friend_id;
+      }).filter(Boolean);
+      console.log("📡 EMITTING request_initial_statuses for IDs:", friendIds);
+      // Use 'get_initial_statuses' to match server handler (server listens for 'get_initial_statuses')
+      socket.emit('get_initial_statuses', friendIds);
     }
-  }, [isSocketAuthenticated, friends.length, socket]);
+  }, [socket, isSocketAuthenticated, friends.length]);
 
   // STABLE LISTENERS: Use refs to prevent cleanup on re-renders
   const hasRequestedStatusRef = useRef<boolean>(false);
@@ -176,24 +168,20 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         return; // Already registered
       }
       
-      // ROBUST LISTENER: Ensure the 'initial_statuses' listener uses a functional update to prevent state being overwritten
+      // DATA HANDLING: Ensure the 'initial_statuses' listener updates the state correctly
       handleInitialStatusesEventRef.current = (data: { statuses?: Record<string, 'online' | 'in_game'> } | Record<string, 'online' | 'in_game'>) => {
+        console.log("📋 RECEIVED initial_statuses from server:", data);
         // Handle both formats: { statuses: {...} } or direct { userId: 'online' }
         const statuses = 'statuses' in data ? data.statuses : (data as Record<string, 'online' | 'in_game'>);
-        console.log("🔥 DATA ARRIVED AT CLIENT:", data);
-        console.log("📋 RECEIVED STATUSES FROM SERVER:", statuses);
         
         if (statuses && typeof statuses === 'object') {
-          // ROBUST LISTENER: Use functional update to prevent state being overwritten
-          setFriendStatuses(prev => {
-            const updated = { ...prev };
-            Object.entries(statuses).forEach(([userId, status]) => {
-              updated[userId] = status as 'online' | 'offline' | 'in_game';
-            });
-            return updated;
-          });
+          // Update state directly with the received data
+          setFriendStatuses(statuses as Record<string, 'online' | 'offline' | 'in_game'>);
+        } else if (data && typeof data === 'object') {
+          // If data is already in the correct format, use it directly
+          setFriendStatuses(data as Record<string, 'online' | 'offline' | 'in_game'>);
         } else {
-          console.warn('⚠️ initial_statuses event received but no statuses in data:', data);
+          console.warn('⚠️ initial_statuses event received but no valid data:', data);
         }
       };
       

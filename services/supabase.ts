@@ -1063,7 +1063,7 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     console.error('Error updating profile settings:', error);
     if (error.message?.includes('level')) {
       console.error('❌ CRITICAL: Level field error detected! This should not happen.');
-      console.error('❌ validUpdates keys:', Object.keys(validUpdates));
+      console.error('❌ dataToSave keys:', Object.keys(dataToSave));
     }
     // Don't throw - let the caller handle the error if needed
   }
