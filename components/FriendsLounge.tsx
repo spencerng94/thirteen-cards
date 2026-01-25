@@ -136,7 +136,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
 
   // THE AUTOMATIC REQUEST: Add a useEffect that triggers as soon as we have all the pieces
   useEffect(() => {
-    if (socket && isSocketAuthenticated && friends.length > 0) {
+    if (socket && isSocketAuthenticated && friends.length > 0 && !hasRequestedStatusRef.current) {
       // Use friend.id from the friend object (friendship.friend.id) - the user's ID, not the friendship ID
       // Map to get friend IDs: f.friend?.id is the friend's user ID, f.friend_id is the same
       const friendIds = friends.map(f => {
@@ -144,8 +144,15 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         return f.friend?.id || f.friend_id;
       }).filter(Boolean);
       console.log("🚀 TRIGGERING STATUS REQUEST for IDs:", friendIds);
-      // Use 'get_initial_statuses' to match server handler (server listens for 'get_initial_statuses')
-      socket.emit('get_initial_statuses', friendIds);
+      hasRequestedStatusRef.current = true;
+      
+      // Use callback pattern - server will fetch friends from database and return statuses
+      socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses?: Record<string, 'online' | 'in_game'> }) => {
+        console.log('📥 Received initial_statuses callback from automatic request:', response);
+        if (response?.statuses) {
+          setFriendStatuses(prev => ({ ...prev, ...response.statuses }));
+        }
+      });
     }
   }, [socket, isSocketAuthenticated, friends.length]);
 
@@ -813,9 +820,15 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     }
     
     const friend = friends.find(f => f.friend_id === friendId);
-    if (!friend || !friend.friend) return;
+    if (!friend || !friend.friend) {
+      setError('Friend not found');
+      return;
+    }
     
     const inviterName = parseUsername(profile.username || '', profile.discriminator).full;
+    
+    console.log(`📨 Sending game invite to friend ${friendId} for room ${currentRoomId}`);
+    console.log(`📨 Inviter name: ${inviterName}`);
     
     // Emit invite to server
     socket.emit(SocketEvents.SEND_GAME_INVITE, {
@@ -823,6 +836,24 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       roomId: currentRoomId,
       inviterName
     });
+    
+    // Listen for error response
+    const errorHandler = (error: { message?: string }) => {
+      console.error(`❌ Failed to send invite:`, error);
+      setError(error.message || 'Failed to send invite. Friend may not be online.');
+      setToast({ message: error.message || 'Failed to send invite', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      socket.off('error', errorHandler);
+    };
+    
+    socket.once('error', errorHandler);
+    
+    // Show success message after a short delay (if no error)
+    setTimeout(() => {
+      socket.off('error', errorHandler);
+      setToast({ message: `Invite sent to ${friend.friend?.username || 'friend'}`, type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+    }, 500);
     
     if (onInviteFriend) {
       onInviteFriend(currentRoomId);
@@ -1558,7 +1589,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                                   });
                                 }}
                               >
-                                {friend.avatar_url ? (
+                                {friend.avatar_url && friend.avatar_url.startsWith(':') && friend.avatar_url.endsWith(':') ? (
                                   <VisualEmote 
                                     trigger={friend.avatar_url} 
                                     remoteEmotes={remoteEmotes} 
@@ -1576,7 +1607,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                             </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <CopyUsername username={friend.username} discriminator={friend.discriminator} className="text-base sm:text-lg" />
+                              <CopyUsername 
+                                username={friend.username || 'AGENT'} 
+                                discriminator={friend.discriminator && /^\d{4}$/.test(friend.discriminator) ? friend.discriminator : undefined} 
+                                className="text-base sm:text-lg" 
+                              />
                               <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
                                 Lv {friendLevel}
                               </span>

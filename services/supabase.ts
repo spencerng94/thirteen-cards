@@ -2160,7 +2160,7 @@ export const getFriends = async (userId: string): Promise<Friendship[]> => {
     const uniqueFriendIds = Array.from(new Set(friendIds));
     console.log(`📋 Unique friend IDs to fetch:`, uniqueFriendIds);
     
-    // Fetch the friend profiles
+    // Fetch the friend profiles - explicitly select discriminator and avatar_url
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('*')
@@ -2173,11 +2173,32 @@ export const getFriends = async (userId: string): Promise<Friendship[]> => {
     
     console.log(`📋 Fetched ${profiles?.length || 0} friend profiles`);
     
+    // Log discriminator and avatar values for debugging
+    if (profiles) {
+      profiles.forEach((p: any) => {
+        console.log(`📋 Profile ${p.id}: discriminator="${p.discriminator || 'MISSING'}", avatar_url="${p.avatar_url || 'MISSING'}"`);
+      });
+    }
+    
     // Map friendships with their friend profiles
-    const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
     const result = friendships.map((f: any) => {
       const friendId = f.sender_id === userId ? f.receiver_id : f.sender_id;
-      const friendProfile = profileMap.get(friendId);
+      const friendProfile = profileMap.get(friendId) as any;
+      
+      // Ensure discriminator and avatar_url are properly set
+      if (friendProfile) {
+        // Validate discriminator - if missing or invalid, log warning
+        if (!friendProfile.discriminator || !/^\d{4}$/.test(friendProfile.discriminator)) {
+          console.warn(`⚠️ Friend ${friendId} has invalid discriminator: "${friendProfile.discriminator}"`);
+        }
+        
+        // Validate avatar_url - if it's not a valid emote code, log warning
+        if (friendProfile.avatar_url && !friendProfile.avatar_url.startsWith(':') && !friendProfile.avatar_url.endsWith(':')) {
+          console.warn(`⚠️ Friend ${friendId} has invalid avatar_url format: "${friendProfile.avatar_url}" (expected format: :emote_code:)`);
+        }
+      }
+      
       return {
         ...f,
         friend_id: friendId, // Add friend_id for backward compatibility

@@ -1416,21 +1416,28 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     
+    console.log(`📨 Attempting to send game invite from ${senderId} to ${receiverId} for room ${roomId}`);
+    console.log(`📊 Current onlineUsers map size: ${onlineUsers.size}`);
+    console.log(`📊 Online user IDs:`, Array.from(onlineUsers.keys()));
+    
     // Find the receiver's socketId from onlineUsers map
     const friendPresence = onlineUsers.get(receiverId);
     
     if (!friendPresence) {
-      socket.emit('error', { message: 'Friend is not online' });
+      console.error(`❌ Friend ${receiverId} is not in onlineUsers map`);
+      console.error(`❌ Available online user IDs:`, Array.from(onlineUsers.keys()));
+      socket.emit('error', { message: `Friend is not online. Friend ID: ${receiverId}` });
       return;
     }
+    
+    console.log(`✅ Found friend ${receiverId} in onlineUsers map, socketId: ${friendPresence.socketId}`);
     
     // Get room name and settings
     const lobby = activeLobbies.get(roomId);
     const room = await fetchRoom(roomId);
     const lobbyName = lobby?.lobbyName || room?.roomName || 'Game';
 
-    // Send invite to receiver using their specific socketId
-    io.to(friendPresence.socketId).emit('receive_game_invite', {
+    const inviteData = {
       roomId,
       inviterName,
       inviterId: senderId,
@@ -1439,9 +1446,14 @@ io.on('connection', (socket: Socket) => {
         lobbyName: lobby.lobbyName,
         turnTimer: lobby.turnTimer
       } : undefined
-    });
+    };
+
+    // Send invite to receiver using their specific socketId
+    io.to(friendPresence.socketId).emit('receive_game_invite', inviteData);
     
     console.log(`📨 Game invite sent from ${senderId} to ${receiverId} for room ${roomId}`);
+    console.log(`📨 Invite data:`, inviteData);
+    console.log(`📨 Sent to socketId: ${friendPresence.socketId}`);
   });
 
   // Accept invite
