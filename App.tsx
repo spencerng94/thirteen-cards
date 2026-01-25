@@ -456,17 +456,45 @@ const AppContent: React.FC = () => {
   }, [gameMode, myPlayerId, view]);
 
   // Authenticate user when socket connects and we have a profile
+  // SEQUENTIAL AUTHENTICATION: Wait for authentication success before requesting statuses
   useEffect(() => {
     if (!socket || isGuest || !sessionUserId) return;
 
+    let isAuthenticated = false;
+
     const authenticate = () => {
-      if (socket.connected && sessionUserId) {
-        socket.emit(SocketEvents.AUTHENTICATE_USER, { userId: sessionUserId });
-        console.log('✅ Emitted authenticate_user for:', sessionUserId);
-      } else {
+      if (!socket.connected || !sessionUserId) {
         console.warn('⚠️ Socket not connected when trying to authenticate:', { connected: socket.connected, sessionUserId });
+        return;
+      }
+
+      if (isAuthenticated) {
+        console.log('✅ Already authenticated, skipping...');
+        return;
+      }
+
+      console.log('🔐 Emitting authenticate_user for:', sessionUserId);
+      
+      // Emit authentication and wait for acknowledgement
+      socket.emit(SocketEvents.AUTHENTICATE_USER, { userId: sessionUserId }, (response: { success: boolean; userId?: string; error?: string }) => {
+        if (response?.success) {
+          isAuthenticated = true;
+          console.log('✅ Authentication successful for:', sessionUserId);
+        } else {
+          console.error('❌ Authentication failed:', response?.error);
+        }
+      });
+    };
+
+    // Listen for authenticated_success event (fallback if callback not supported)
+    const handleAuthenticatedSuccess = (data: { userId: string }) => {
+      if (data.userId === sessionUserId) {
+        isAuthenticated = true;
+        console.log('✅ Received authenticated_success event for:', sessionUserId);
       }
     };
+
+    socket.on(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
 
     if (socket.connected) {
       authenticate();
@@ -480,6 +508,7 @@ const AppContent: React.FC = () => {
 
     return () => {
       socket.off('connect', authenticate);
+      socket.off(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
     };
   }, [socket, isGuest, sessionUserId]);
 

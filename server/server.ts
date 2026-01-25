@@ -1353,14 +1353,34 @@ io.on('connection', (socket: Socket) => {
   // ============================================================================
   
   // Authenticate user and mark as online when they connect
-  socket.on('authenticate_user', (data: { userId: string }) => {
+  socket.on('authenticate_user', (data: { userId: string }, callback) => {
     const { userId } = data;
+    
+    // Debug log
+    console.log(`🔐 User [${userId}] authenticated on socket [${socket.id}]`);
+    
     if (userId && userId !== 'guest') {
       // Map socket to userId for presence tracking
       socketToPlayerId[socket.id] = userId;
-      // Mark user as online
+      
+      // Mark user as online - this will broadcast USER_STATUS_CHANGE to all clients
+      // updateUserPresence internally calls emitUserStatusChange, so the broadcast happens automatically
       updateUserPresence(userId, socket.id, 'online');
+      
       console.log(`✅ User ${userId} authenticated and marked as online`);
+      console.log(`📊 Online users count: ${onlineUsers.size}`);
+      
+      // Send acknowledgement to client that authentication succeeded
+      if (callback && typeof callback === 'function') {
+        callback({ success: true, userId });
+      } else {
+        socket.emit('authenticated_success', { userId });
+      }
+    } else {
+      console.warn(`⚠️ Invalid authentication attempt: userId=${userId}, socketId=${socket.id}`);
+      if (callback && typeof callback === 'function') {
+        callback({ success: false, error: 'Invalid userId' });
+      }
     }
   });
   

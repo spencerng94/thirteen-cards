@@ -96,18 +96,35 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     };
   }, [profile, isGuest]);
 
-  // Request initial statuses on mount - ONLY after socket is connected
+  // Request initial statuses on mount - ONLY after socket is connected AND authenticated
   useEffect(() => {
     if (!socket || isGuest || !profile) return;
 
     let hasRequested = false; // Prevent duplicate requests
+    let isAuthenticated = false;
 
-    // Always wait for the 'connect' event to ensure the pipe is open
-    // Do NOT call GET_INITIAL_STATUSES until socket.on("connect") fires
-    const handleConnect = () => {
+    // SEQUENTIAL AUTHENTICATION: Wait for authenticated_success before requesting statuses
+    const handleAuthenticatedSuccess = (data: { userId: string }) => {
+      if (data.userId === profile.id) {
+        isAuthenticated = true;
+        console.log('✅ Authentication confirmed, can now request initial statuses');
+        // Trigger status request if socket is connected
+        if (socket.connected && !hasRequested) {
+          requestInitialStatuses();
+        }
+      }
+    };
+
+    const requestInitialStatuses = () => {
       // Verify socket is actually connected before requesting
       if (!socket.connected) {
-        console.warn('⚠️ Socket connect event fired but socket.connected is false');
+        console.warn('⚠️ Socket not connected when requesting initial statuses');
+        return;
+      }
+
+      // Verify authentication completed
+      if (!isAuthenticated) {
+        console.warn('⚠️ Not authenticated yet, cannot request initial statuses');
         return;
       }
       
@@ -118,67 +135,71 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       }
       
       hasRequested = true;
-      console.log('✅ Socket connected, requesting initial statuses...');
+      console.log('📡 Requesting initial statuses for', friends.length, 'friends');
       
-      // Wait a bit to ensure authentication has completed
-      setTimeout(() => {
-        // Verify connection is still active before emitting
-        if (!socket.connected) {
-          console.warn('⚠️ Socket disconnected before requesting initial statuses');
-          hasRequested = false; // Allow retry on next connect
-          return;
+      socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
+        if (response?.statuses) {
+          // Filter statuses to only include friends
+          const friendIds = new Set(friends.map(f => f.friend_id));
+          const filteredStatuses: Record<string, 'online' | 'in_game'> = {};
+          Object.entries(response.statuses).forEach(([userId, status]) => {
+            if (friendIds.has(userId)) {
+              filteredStatuses[userId] = status;
+            }
+          });
+          
+          setFriendStatuses(filteredStatuses);
+          // Also update presence map
+          const presenceMap = new Map<string, { status: 'online' | 'in_game'; roomId?: string }>();
+          Object.entries(filteredStatuses).forEach(([userId, status]) => {
+            presenceMap.set(userId, { status });
+          });
+          setFriendPresence(presenceMap);
+          
+          console.log('📋 Initial statuses received:', Object.keys(filteredStatuses).length, 'friends online out of', friends.length, 'total friends');
+          console.log('📋 Friend IDs:', Array.from(friendIds));
+          console.log('📋 Online friend IDs:', Object.keys(filteredStatuses));
+        } else {
+          console.warn('⚠️ No statuses in response:', response);
         }
-        
-        console.log('📡 Requesting initial statuses for', friends.length, 'friends');
-        socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
-          if (response?.statuses) {
-            // Filter statuses to only include friends
-            const friendIds = new Set(friends.map(f => f.friend_id));
-            const filteredStatuses: Record<string, 'online' | 'in_game'> = {};
-            Object.entries(response.statuses).forEach(([userId, status]) => {
-              if (friendIds.has(userId)) {
-                filteredStatuses[userId] = status;
-              }
-            });
-            
-            setFriendStatuses(filteredStatuses);
-            // Also update presence map
-            const presenceMap = new Map<string, { status: 'online' | 'in_game'; roomId?: string }>();
-            Object.entries(filteredStatuses).forEach(([userId, status]) => {
-              presenceMap.set(userId, { status });
-            });
-            setFriendPresence(presenceMap);
-            
-            console.log('📋 Initial statuses received:', Object.keys(filteredStatuses).length, 'friends online out of', friends.length, 'total friends');
-            console.log('📋 Friend IDs:', Array.from(friendIds));
-            console.log('📋 Online friend IDs:', Object.keys(filteredStatuses));
-          } else {
-            console.warn('⚠️ No statuses in response:', response);
-          }
-        });
-      }, 1000); // Delay to ensure authentication completes
+      });
     };
 
-    // Wrap the initial status request in socket.on("connect") block
-    // This ensures it only fires when the pipe is open
+    // Listen for authenticated_success event
+    socket.on(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
+
+    // Wait for socket connection AND authentication before requesting statuses
+    const handleConnect = () => {
+      if (!socket.connected) {
+        console.warn('⚠️ Socket connect event fired but socket.connected is false');
+        return;
+      }
+      
+      console.log('✅ Socket connected, waiting for authentication...');
+      // Don't request statuses yet - wait for authenticated_success
+    };
+
     socket.on('connect', handleConnect);
     
-    // If socket is already connected, the 'connect' event won't fire again
-    // So we need to manually trigger it, but only after registering the listener
+    // If socket is already connected, check if we're authenticated
     if (socket.connected) {
-      console.log('📡 Socket already connected, triggering connect handler...');
-      // Use setTimeout to ensure the listener is registered first
+      console.log('📡 Socket already connected, checking authentication status...');
+      // Give a small delay to allow authentication to complete
       setTimeout(() => {
-        handleConnect();
-      }, 0);
+        if (isAuthenticated && !hasRequested) {
+          requestInitialStatuses();
+        }
+      }, 500);
     } else {
       console.log('⏳ Socket not connected yet, waiting for connect event...');
     }
     
-    // Cleanup: remove listener on unmount
+    // Cleanup: remove listeners on unmount
     return () => {
       socket.off('connect', handleConnect);
+      socket.off(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
       hasRequested = false;
+      isAuthenticated = false;
     };
   }, [socket, isGuest, profile, friends]);
 

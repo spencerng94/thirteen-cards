@@ -1047,10 +1047,14 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     return;
   }
   
-  // PROFILE UPDATE SANITIZATION: Use .update() with cleanData containing only schema fields
+  // PROFILE UPDATE SANITIZATION: Explicitly strip 'level' and other non-schema fields before update
+  // This prevents 400 errors from protected fields that are calculated by the database
+  const { level, id, created_at, updated_at, discriminator, ...cleanProfileData } = cleanData;
+  
+  // PROFILE UPDATE SANITIZATION: Use .update() with cleanProfileData containing only schema fields
   // This prevents 400 errors from protected fields that are calculated by the database
   // Use .update() with .eq('id', userId) to ensure we only update existing records
-  const { error } = await supabase.from('profiles').update(cleanData).eq('id', userId);
+  const { error } = await supabase.from('profiles').update(cleanProfileData).eq('id', userId);
   
   if (error) {
     console.error('Error updating profile settings:', error);
