@@ -1094,6 +1094,13 @@ const AppContent: React.FC = () => {
          localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: state.roomId, playerId: myPlayerId, timestamp: Date.now() }));
       }
       
+      // CRITICAL: Set gameMode to MULTI_PLAYER when receiving game_state for a multiplayer room
+      // This ensures the Lobby component renders (it only renders when gameMode === 'MULTI_PLAYER')
+      if (state.roomId && state.roomId !== 'LOCAL' && gameMode !== 'MULTI_PLAYER') {
+        console.log('📡 App.tsx: Setting gameMode to MULTI_PLAYER for room:', state.roomId);
+        setGameMode('MULTI_PLAYER');
+      }
+      
       // IDEMPOTENT VIEW TRANSITIONS: Only set view if it's actually changing
       // Use gameState.status as the single source of truth, not view state
       if (state.status === GameStatus.LOBBY) {
@@ -2311,11 +2318,16 @@ const AppContent: React.FC = () => {
           onAccept={() => {
             // Navigate to the room
             if (gameInvite) {
+              // CRITICAL: Set gameMode to MULTI_PLAYER before navigating to LOBBY
+              // The Lobby component only renders when gameMode === 'MULTI_PLAYER'
+              setGameMode('MULTI_PLAYER');
+              
               // Emit accept with inviterId for notification
               socket.emit(SocketEvents.ACCEPT_INVITE, { roomId: gameInvite.roomId, inviterId: gameInvite.inviterId });
               
               // Join the room immediately with player data
               if (socket.connected && gameInvite.roomId && myPlayerId) {
+                console.log(`📨 Accepting invite and joining room: ${gameInvite.roomId}`);
                 socket.emit(SocketEvents.JOIN_ROOM, {
                   roomId: gameInvite.roomId,
                   name: playerName,

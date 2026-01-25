@@ -866,29 +866,49 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     if (!profile || isGuest) return;
     setLoading(true);
     try {
+      console.log(`🗑️ Removing friend: ${friendId}`);
       const success = await removeFriend(profile.id, friendId);
       if (success) {
         // FIX REMOVE FRIEND: Update local state immediately to remove friend from UI
-        setFriends(prev => prev.filter(f => f.friend_id !== friendId));
+        // Check both friend_id and friend.id to ensure we remove the correct friend
+        setFriends(prev => {
+          const filtered = prev.filter(f => {
+            const fId = f.friend?.id || f.friend_id;
+            return fId !== friendId;
+          });
+          console.log(`✅ Removed friend from local state. Before: ${prev.length}, After: ${filtered.length}`);
+          return filtered;
+        });
+        
         // Also remove from status tracking
         setFriendStatuses(prev => {
           const updated = { ...prev };
           delete updated[friendId];
           return updated;
         });
+        
         setFriendPresence(prev => {
           const updated = new Map(prev);
           updated.delete(friendId);
           return updated;
         });
+        
+        // Reload friends list to ensure consistency with database
+        await loadFriends();
+        setToast({ message: 'Friend removed successfully', type: 'success' });
+        setTimeout(() => setToast(null), 3000);
         console.log('✅ Friend removed successfully');
       } else {
         console.error('❌ Failed to remove friend');
+        setError('Failed to remove friend');
+        setToast({ message: 'Failed to remove friend', type: 'error' });
+        setTimeout(() => setToast(null), 3000);
       }
-      // Optionally reload to ensure consistency
-      // await loadFriends();
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error removing friend:', e);
+      setError(e.message || 'Failed to remove friend');
+      setToast({ message: e.message || 'Failed to remove friend', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setLoading(false);
     }
@@ -1968,9 +1988,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
           currentUserId={profile.id}
           onClose={() => setSelectedProfile(null)}
           onRefreshProfile={onRefreshProfile}
-          onFriendRemoved={() => {
-            loadFriends();
-            setSelectedProfile(null);
+          onFriendRemoved={async () => {
+            if (selectedProfile) {
+              await handleRemoveFriend(selectedProfile.id);
+              setSelectedProfile(null);
+            }
           }}
         />
       )}

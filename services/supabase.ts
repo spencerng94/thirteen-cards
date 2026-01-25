@@ -2517,33 +2517,47 @@ export const removeFriend = async (userId: string, friendId: string): Promise<bo
   if (!supabaseAnonKey || userId === 'guest' || friendId === 'guest') return false;
   
   try {
+    console.log(`🗑️ removeFriend: Deleting friendship between ${userId} and ${friendId}`);
+    
     // FIX REMOVE FRIEND (Bi-directional Delete): Delete ALL rows involving these two IDs
     // SQL equivalent: DELETE FROM friendships WHERE (sender_id = myId AND receiver_id = friendId) OR (sender_id = friendId AND receiver_id = myId);
+    // Also need to check status = 'accepted' to only delete accepted friendships
     
     // First, try deleting where userId is sender and friendId is receiver
-    const { error: error1 } = await supabase
+    const { data: data1, error: error1 } = await supabase
       .from('friendships')
       .delete()
       .eq('sender_id', userId)
-      .eq('receiver_id', friendId);
+      .eq('receiver_id', friendId)
+      .eq('status', 'accepted')
+      .select();
+    
+    console.log(`🗑️ Delete query 1 (${userId} -> ${friendId}):`, { data: data1, error: error1 });
     
     // Then, try deleting where friendId is sender and userId is receiver
-    const { error: error2 } = await supabase
+    const { data: data2, error: error2 } = await supabase
       .from('friendships')
       .delete()
       .eq('sender_id', friendId)
-      .eq('receiver_id', userId);
+      .eq('receiver_id', userId)
+      .eq('status', 'accepted')
+      .select();
+    
+    console.log(`🗑️ Delete query 2 (${friendId} -> ${userId}):`, { data: data2, error: error2 });
     
     if (error1 || error2) {
-      console.error('Error removing friend (direction 1):', error1);
-      console.error('Error removing friend (direction 2):', error2);
+      console.error('❌ Error removing friend (direction 1):', error1);
+      console.error('❌ Error removing friend (direction 2):', error2);
       throw error1 || error2;
     }
     
-    console.log(`✅ Successfully removed friendship between ${userId} and ${friendId}`);
-    return true;
-  } catch (e) {
-    console.error('Error removing friend:', e);
+    const deletedCount = (data1?.length || 0) + (data2?.length || 0);
+    console.log(`✅ Successfully removed friendship between ${userId} and ${friendId}. Deleted ${deletedCount} row(s)`);
+    
+    return deletedCount > 0;
+  } catch (e: any) {
+    console.error('❌ Error removing friend:', e);
+    console.error('❌ Error details:', e.message, e.code, e.details);
     return false;
   }
 };
