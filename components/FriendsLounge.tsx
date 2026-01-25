@@ -94,10 +94,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       const friendsList = await getFriends(profile.id);
       setFriends(friendsList);
       
-      // TRIGGER STATUS REQUEST: Once friends are successfully loaded, request statuses if socket is connected and authenticated
-      if (socket && socket.connected && isSocketAuthenticated && friendsList.length > 0) {
+      // MOVE EMIT OUT OF RENDER: Only emit once friends are loaded AND authenticated AND not already requested
+      if (socket && socket.connected && isSocketAuthenticated && friendsList.length > 0 && !hasRequestedStatusRef.current) {
         const friendIds = friendsList.map(f => f.friend_id).filter(Boolean);
         console.log("📡 Force emitting request_initial_statuses for:", friendIds);
+        hasRequestedStatusRef.current = true; // Mark as requested to prevent duplicates
         socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
           console.log('📥 Received initial_statuses callback after friends loaded:', response);
           if (response?.statuses) {
@@ -133,25 +134,30 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     friendsRef.current = friends;
   }, [friends]);
 
+  // STABLE LISTENERS: Use refs to prevent cleanup on re-renders
+  const hasRequestedStatusRef = useRef<boolean>(false);
+  const isAuthenticatedRef = useRef<boolean>(false);
+  const handleInitialStatusesEventRef = useRef<((data: { statuses?: Record<string, 'online' | 'in_game'> } | Record<string, 'online' | 'in_game'>) => void) | null>(null);
+  const handleStatusChangeRef = useRef<((data: { userId: string; status: 'online' | 'offline' | 'in_game'; roomId?: string }) => void) | null>(null);
+
   // Request initial statuses on mount - ONLY after socket is connected AND authenticated
+  // STABLE LISTENERS: DO NOT include 'friends' in dependency array to prevent cleanup on re-renders
   useEffect(() => {
     if (!socket || isGuest || !profile) return;
 
-    let hasRequested = false; // Prevent duplicate requests
-    let isAuthenticated = false;
-    let handleInitialStatusesEventRef: ((data: { statuses: Record<string, 'online' | 'in_game'> }) => void) | null = null;
-
     // INITIAL STATUS FETCH: Add a 'socket.on("initial_statuses", (data) => { ... })' listener
-    // This listener should be set up once and persist
+    // STABLE LISTENERS: Set up listener once and persist - use ref to avoid cleanup on re-renders
     const setupInitialStatusesListener = () => {
-      if (handleInitialStatusesEventRef) {
-        socket.off('initial_statuses', handleInitialStatusesEventRef);
+      // Only set up if not already set up
+      if (handleInitialStatusesEventRef.current) {
+        return; // Already registered
       }
       
       // ROBUST LISTENER: Ensure the 'initial_statuses' listener uses a functional update to prevent state being overwritten
-      handleInitialStatusesEventRef = (data: { statuses?: Record<string, 'online' | 'in_game'> } | Record<string, 'online' | 'in_game'>) => {
+      handleInitialStatusesEventRef.current = (data: { statuses?: Record<string, 'online' | 'in_game'> } | Record<string, 'online' | 'in_game'>) => {
         // Handle both formats: { statuses: {...} } or direct { userId: 'online' }
         const statuses = 'statuses' in data ? data.statuses : (data as Record<string, 'online' | 'in_game'>);
+        console.log("🔥 DATA ARRIVED AT CLIENT:", data);
         console.log("📋 RECEIVED STATUSES FROM SERVER:", statuses);
         
         if (statuses && typeof statuses === 'object') {
@@ -168,65 +174,42 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         }
       };
       
-      socket.on('initial_statuses', handleInitialStatusesEventRef);
+      socket.on('initial_statuses', handleInitialStatusesEventRef.current);
       console.log('✅ Registered initial_statuses event listener');
     };
 
     // SEQUENTIAL AUTHENTICATION: Wait for auth_ready event (fires after userId is mapped in onlineUsers Map)
     const handleAuthReady = (data: { userId: string }) => {
       if (data.userId === profile.id) {
-        isAuthenticated = true;
+        isAuthenticatedRef.current = true;
         setIsSocketAuthenticated(true); // Update state for loadFriends callback
         console.log('✅ Auth ready confirmed - userId is mapped in server, can now request initial statuses');
         // Set up the listener before requesting
         setupInitialStatusesListener();
         
-        // FORCE EMIT ON AUTH: Explicitly call request_initial_statuses with friendIds
-        if (socket.connected && !hasRequested) {
-          // Get friend IDs immediately - use ref to get current friends
-          const friendIds = friendsRef.current.map(f => f.friend_id).filter(Boolean);
-          console.log(`📡 Emitting request_initial_statuses for IDs: [${friendIds.join(', ')}]`);
-          
-          // Emit directly with friend IDs
-          socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
-            console.log('📥 Received initial_statuses callback in auth_ready:', response);
-            if (response?.statuses) {
-              // FIX THE LISTENER STATE: Use functional update to avoid stale closures
-              setFriendStatuses(prev => {
-                const updated = { ...prev };
-                Object.entries(response.statuses).forEach(([userId, status]) => {
-                  updated[userId] = status as 'online' | 'offline' | 'in_game';
-                });
-                console.log('📋 Updated friendStatuses from auth_ready callback:', updated);
-                return updated;
-              });
-            }
-          });
-          
-          hasRequested = true;
-        }
+        // MOVE EMIT OUT OF RENDER: Only emit if friends are loaded AND authenticated AND not already requested
+        // This will be triggered from loadFriends callback instead
       }
     };
     
     // Also listen for authenticated_success as fallback
     const handleAuthenticatedSuccess = (data: { userId: string }) => {
-      if (data.userId === profile.id && !isAuthenticated) {
+      if (data.userId === profile.id && !isAuthenticatedRef.current) {
         console.log('✅ Authentication success received (fallback)');
+        isAuthenticatedRef.current = true;
         setIsSocketAuthenticated(true); // Update state for loadFriends callback
         // Set up the listener
         setupInitialStatusesListener();
-        // Wait a bit for auth_ready, but if it doesn't come, proceed anyway
-        setTimeout(() => {
-          if (!isAuthenticated && socket.connected && !hasRequested) {
-            console.log('⏳ Auth ready not received, proceeding with status request...');
-            isAuthenticated = true;
-            requestInitialStatuses();
-          }
-        }, 500);
       }
     };
 
     const requestInitialStatuses = () => {
+      // MOVE EMIT OUT OF RENDER: Add check to prevent multiple emits
+      if (hasRequestedStatusRef.current) {
+        console.log('📋 Initial statuses already requested, skipping...');
+        return;
+      }
+      
       // Verify socket is actually connected before requesting
       if (!socket.connected) {
         console.warn('⚠️ Socket not connected when requesting initial statuses');
@@ -234,18 +217,12 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       }
 
       // Verify authentication completed
-      if (!isAuthenticated) {
+      if (!isAuthenticatedRef.current) {
         console.warn('⚠️ Not authenticated yet, cannot request initial statuses');
         return;
       }
       
-      // Prevent duplicate requests
-      if (hasRequested) {
-        console.log('📋 Initial statuses already requested, skipping...');
-        return;
-      }
-      
-      hasRequested = true;
+      hasRequestedStatusRef.current = true;
       console.log('📡 Requesting initial statuses for', friendsRef.current.length, 'friends');
       
       // Get friend IDs to send to server - ensure we include all friend IDs
@@ -334,19 +311,6 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
 
     socket.on('connect', handleConnect);
     
-    // If socket is already connected, check if we're authenticated
-    if (socket.connected) {
-      console.log('📡 Socket already connected, checking authentication status...');
-      // Give a small delay to allow authentication to complete
-      setTimeout(() => {
-        if (isAuthenticated && !hasRequested) {
-          requestInitialStatuses();
-        }
-      }, 500);
-    } else {
-      console.log('⏳ Socket not connected yet, waiting for connect event...');
-    }
-    
     // Set up initial_statuses listener if socket is already connected
     if (socket.connected) {
       setupInitialStatusesListener();
@@ -356,29 +320,38 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       });
     }
     
-    // CLEANUP: Ensure 'socket.off' is called for these listeners in the useEffect cleanup to prevent multiple listeners from stacking up and causing memory leaks
+    // STABLE LISTENERS: Cleanup only on unmount, not on re-renders
+    // This prevents listeners from being removed immediately after registration
     return () => {
-      console.log('🧹 Cleaning up status request listeners');
+      console.log('🧹 Cleaning up status request listeners (unmount only)');
       socket.off('connect', handleConnect);
       socket.off(SocketEvents.AUTH_READY, handleAuthReady);
       socket.off(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
-      if (handleInitialStatusesEventRef) {
-        socket.off('initial_statuses', handleInitialStatusesEventRef);
+      if (handleInitialStatusesEventRef.current) {
+        socket.off('initial_statuses', handleInitialStatusesEventRef.current);
+        handleInitialStatusesEventRef.current = null;
         console.log('🧹 Removed initial_statuses listener');
       }
-      hasRequested = false;
-      isAuthenticated = false;
+      hasRequestedStatusRef.current = false;
+      isAuthenticatedRef.current = false;
     };
-  }, [socket, isGuest, profile?.id]); // Use friendsRef to avoid dependency on friends array
+  }, [socket, isGuest, profile?.id]); // STABLE LISTENERS: DO NOT include 'friends' to prevent cleanup on re-renders
 
   // GLOBAL STATUS LISTENER: Ensure there is a 'socket.on("USER_STATUS_CHANGE", ...)' listener that is active as soon as the app mounts
+  // STABLE LISTENERS: Set up once and persist - use ref to avoid cleanup on re-renders
   useEffect(() => {
     if (!socket || isGuest) return;
 
+    // Only set up if not already set up
+    if (handleStatusChangeRef.current) {
+      return; // Already registered
+    }
+
     // FIX THE LISTENER STATE: Use functional update to avoid stale closures
-    const handleStatusChange = (data: { userId: string; status: 'online' | 'offline' | 'in_game'; roomId?: string }) => {
+    handleStatusChangeRef.current = (data: { userId: string; status: 'online' | 'offline' | 'in_game'; roomId?: string }) => {
       const { userId, status, roomId } = data;
       
+      console.log("🔥 STATUS CHANGE RECEIVED:", userId, status);
       console.log(`📡 Status Change: ${userId} is now ${status}`);
       
       // ADD DEBUG TOAST: Temporarily add a toast when USER_STATUS_CHANGE is received
@@ -389,12 +362,6 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       setTimeout(() => setToast(null), 3000);
       
       // FIX THE LISTENER STATE: Use functional update to avoid stale closures
-      // socket.on('USER_STATUS_CHANGE', ({ userId, status }) => {
-      //   setFriendStatuses(prev => ({
-      //     ...prev,
-      //     [userId]: status
-      //   }));
-      // });
       setFriendStatuses(prev => {
         const updated = { ...prev, [userId]: status };
         console.log(`📋 Updated friendStatuses for ${userId}:`, updated[userId]);
@@ -415,14 +382,18 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     };
 
     // Register the listener immediately
-    socket.on(SocketEvents.USER_STATUS_CHANGE, handleStatusChange);
+    socket.on(SocketEvents.USER_STATUS_CHANGE, handleStatusChangeRef.current);
     console.log('✅ Registered USER_STATUS_CHANGE listener');
 
+    // STABLE LISTENERS: Cleanup only on unmount, not on re-renders
     return () => {
-      socket.off(SocketEvents.USER_STATUS_CHANGE, handleStatusChange);
-      console.log('🧹 Removed USER_STATUS_CHANGE listener');
+      if (handleStatusChangeRef.current) {
+        socket.off(SocketEvents.USER_STATUS_CHANGE, handleStatusChangeRef.current);
+        handleStatusChangeRef.current = null;
+        console.log('🧹 Removed USER_STATUS_CHANGE listener (unmount only)');
+      }
     };
-  }, [socket, isGuest]);
+  }, [socket, isGuest]); // STABLE LISTENERS: DO NOT include other dependencies to prevent cleanup on re-renders
 
 
   const loadPendingRequests = async () => {
