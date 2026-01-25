@@ -168,14 +168,31 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       
       // Get friend IDs to send to server - ensure we include all friend IDs
       const friendIds = new Set(friends.map(f => f.friend_id).filter(Boolean));
-      console.log('📡 Socket Status Request: Sending IDs', Array.from(friendIds));
+      const friendIdsArray = Array.from(friendIds);
+      
+      // REQUEST_INITIAL_STATUSES LOGGING: Log each friend ID being requested
+      friendIdsArray.forEach(friendId => {
+        console.log(`📡 Emitting request_initial_statuses for: [${friendId}]`);
+      });
+      console.log('📡 Socket Status Request: Sending IDs', friendIdsArray);
       
       if (friendIds.size === 0) {
         console.warn('⚠️ No friend IDs to send - friends list may be empty or friend_id is missing');
         console.warn('⚠️ Friends array:', friends);
       }
       
+      // REQUEST_INITIAL_STATUSES LOGGING: Add listener for 'initial_statuses' event to log raw data
+      const handleInitialStatuses = (data: { statuses: Record<string, 'online' | 'in_game'> }) => {
+        console.log('📥 Received initial_statuses event (raw data):', data);
+        console.log('📥 Statuses object keys:', Object.keys(data.statuses || {}));
+        console.log('📥 Statuses object values:', Object.entries(data.statuses || {}));
+      };
+      
+      // Listen for the event (in addition to callback)
+      socket.once('initial_statuses', handleInitialStatuses);
+      
       socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
+        console.log('📥 Received initial_statuses callback (raw response):', response);
         if (response?.statuses) {
           // Filter statuses to only include friends
           const filteredStatuses: Record<string, 'online' | 'in_game'> = {};
@@ -198,7 +215,18 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
             }
           }
           
-          setFriendStatuses(filteredStatuses);
+          // STATUS STATE UPDATE: Ensure status is correctly updated
+          // Status should be a string ('online' | 'offline' | 'in_game'), not boolean
+          setFriendStatuses(prev => {
+            const updated = { ...prev };
+            Object.entries(filteredStatuses).forEach(([userId, status]) => {
+              // Ensure status is a string, not boolean
+              updated[userId] = status as 'online' | 'offline' | 'in_game';
+            });
+            console.log('📋 Updated friendStatuses state:', updated);
+            return updated;
+          });
+          
           // Also update presence map
           const presenceMap = new Map<string, { status: 'online' | 'in_game'; roomId?: string }>();
           Object.entries(filteredStatuses).forEach(([userId, status]) => {
@@ -226,6 +254,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         return;
       }
       
+      // TEST BOTH SIDES: Log socket ID when connected
+      console.log(`✅ Socket connected, Socket ID is: [${socket.id}]`);
       console.log('✅ Socket connected, waiting for authentication...');
       // Don't request statuses yet - wait for authenticated_success
     };
@@ -250,6 +280,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       socket.off('connect', handleConnect);
       socket.off(SocketEvents.AUTH_READY, handleAuthReady);
       socket.off(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
+      socket.off('initial_statuses'); // Clean up the initial_statuses listener
       hasRequested = false;
       isAuthenticated = false;
     };
@@ -262,11 +293,18 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     const handleStatusChange = (data: { userId: string; status: 'online' | 'offline' | 'in_game'; roomId?: string }) => {
       const { userId, status, roomId } = data;
       
+      console.log(`📡 USER_STATUS_CHANGE received: userId=${userId}, status=${status}, roomId=${roomId}`);
+      
+      // STATUS STATE UPDATE: Ensure status is correctly updated as a string
+      // Check if 'status' is a string ('online') or a boolean. The UI expects string.
+      const statusString = typeof status === 'string' ? status : (status ? 'online' : 'offline');
+      
       // Update only this specific friend's status (differential update)
-      setFriendStatuses(prev => ({
-        ...prev,
-        [userId]: status
-      }));
+      setFriendStatuses(prev => {
+        const updated = { ...prev, [userId]: statusString as 'online' | 'offline' | 'in_game' };
+        console.log(`📋 Updated friendStatuses for ${userId}:`, updated[userId]);
+        return updated;
+      });
 
       // Update presence map
       setFriendPresence(prev => {

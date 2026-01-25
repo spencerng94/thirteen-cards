@@ -475,6 +475,10 @@ const AppContent: React.FC = () => {
 
       console.log('🔐 Emitting authenticate_user for:', sessionUserId);
       
+      // TEST BOTH SIDES: Log socket ID for debugging
+      console.log(`🔐 My Socket ID is: [${socket.id}]`);
+      console.log(`🔐 My User ID is: [${sessionUserId}]`);
+      
       // Emit authentication and wait for acknowledgement
       socket.emit(SocketEvents.AUTHENTICATE_USER, { userId: sessionUserId }, (response: { success: boolean; userId?: string; error?: string }) => {
         if (response?.success) {

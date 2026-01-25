@@ -1497,13 +1497,11 @@ io.on('connection', (socket: Socket) => {
   socket.on('get_initial_statuses', async (callback) => {
     const playerId = socketToPlayerId[socket.id];
     
-    // SERVER-SIDE LOGGING: Show the onlineUsers Map
-    console.log('📊 Online Users Map:', Array.from(onlineUsers.entries()).map(([id, presence]) => ({
-      userId: id,
-      socketId: presence.socketId,
-      status: presence.status,
-      roomId: presence.roomId
-    })));
+    // SERVER-SIDE VERIFICATION: Log current online map and requested IDs
+    const currentOnlineKeys = Array.from(onlineUsers.keys());
+    console.log('📊 Current Online Map:', currentOnlineKeys);
+    console.log(`📊 Online Users Count: ${onlineUsers.size}`);
+    console.log(`📊 Requesting player ID: ${playerId}`);
     
     // If user is not authenticated, return empty statuses
     if (!playerId || playerId === 'guest') {
@@ -1547,6 +1545,10 @@ io.on('connection', (socket: Socket) => {
       console.warn('⚠️ Supabase client not available for fetching friends');
     }
     
+    // SERVER-SIDE VERIFICATION: Log the requested IDs being checked
+    console.log('📊 Checking status for requested IDs:', friendIds);
+    console.log('📊 Online Users Map keys:', Array.from(onlineUsers.keys()));
+    
     // SERVER-SIDE CHECK: Loop through the provided IDs and check the 'onlineUsers' map for each one
     // If the map contains the ID, mark them as 'online'
     const statuses: Record<string, 'online' | 'in_game'> = {};
@@ -1558,6 +1560,7 @@ io.on('connection', (socket: Socket) => {
         console.log(`✅ Friend ${friendId} is ${statuses[friendId]} (socketId: ${presence.socketId})`);
       } else {
         console.log(`❌ Friend ${friendId} is NOT in onlineUsers Map`);
+        console.log(`❌ Available online user IDs:`, Array.from(onlineUsers.keys()));
       }
     });
     
