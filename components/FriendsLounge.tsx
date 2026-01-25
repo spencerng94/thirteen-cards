@@ -867,21 +867,26 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
    */
   const searchByDiscriminator = async (handle: string): Promise<UserProfile | null> => {
     try {
-      // Split handle into username and discriminator
-      const parts = handle.split('#');
-      if (parts.length !== 2) {
+      // ROBUST SPLITTING: Update the handle parsing logic to handle spaces and the '#' better
+      const fullHandle = handle.trim();
+      const lastHashIndex = fullHandle.lastIndexOf('#');
+      
+      if (lastHashIndex === -1) {
         return null;
       }
       
-      const username = parts[0].trim();
-      const discriminator = parts[1].trim();
+      const username = fullHandle.substring(0, lastHashIndex).trim();
+      const discriminator = fullHandle.substring(lastHashIndex + 1).trim();
       
       // Validate discriminator is 4 digits
       if (!/^\d{4}$/.test(discriminator)) {
         return null;
       }
       
-      // Query profiles table for BOTH username and discriminator
+      // UI FEEDBACK: Add console.log so we can see exactly what the app is sending to Supabase
+      console.log("🔍 Searching for:", { username, discriminator });
+      
+      // CASE-INSENSITIVE SEARCH: Change the query to use .ilike() instead of .eq() for the username
       const { data, error } = await supabase
         .from('profiles')
         .select('*')

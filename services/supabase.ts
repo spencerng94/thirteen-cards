@@ -2591,40 +2591,32 @@ export const getUserByHandle = async (handle: string): Promise<UserProfile | nul
   if (!supabaseAnonKey || !handle.trim()) return null;
   
   try {
-    // Normalize handle: trim and handle both combined and separate formats
-    const trimmedHandle = handle.trim();
+    // ROBUST SPLITTING: Update the handle parsing logic to handle spaces and the '#' better
+    const fullHandle = handle.trim();
+    const lastHashIndex = fullHandle.lastIndexOf('#');
     
-    // Check if handle contains a discriminator (Name#0000 format)
-    const hasDiscriminator = trimmedHandle.includes('#');
-    
-    if (!hasDiscriminator) {
+    if (lastHashIndex === -1) {
       // Without discriminator, we can't do an exact match
       return null;
     }
     
-    const parts = trimmedHandle.split('#');
-    if (parts.length !== 2) {
-      return null;
-    }
-    
-    // Normalize name part: trim and convert to uppercase to match database format
-    const namePart = parts[0].trim().toUpperCase();
-    const discriminatorPart = parts[1].trim();
+    const usernamePart = fullHandle.substring(0, lastHashIndex).trim();
+    const discriminatorPart = fullHandle.substring(lastHashIndex + 1).trim();
     
     // Validate discriminator format (4 digits)
     if (!/^\d{4}$/.test(discriminatorPart)) {
       return null;
     }
     
-    // Construct the full handle in the format stored in database: "NAME#1234"
-    const fullHandle = `${namePart}#${discriminatorPart}`;
+    // UI FEEDBACK: Add console.log so we can see exactly what the app is sending to Supabase
+    console.log("🔍 Searching for:", { username: usernamePart, discriminator: discriminatorPart });
     
-    // Use case-insensitive search with ilike for exact match
-    // Database stores usernames as "NAME#1234" format
+    // CASE-INSENSITIVE SEARCH: Change the query to use .ilike() instead of .eq() for the username
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .ilike('username', fullHandle)
+      .ilike('username', usernamePart.trim())
+      .eq('discriminator', discriminatorPart.trim())
       .maybeSingle();
     
     if (error) {
@@ -2635,7 +2627,7 @@ export const getUserByHandle = async (handle: string): Promise<UserProfile | nul
     if (!data) {
       // Log for debugging - handle not found
       if (import.meta.env.DEV) {
-        console.log(`getUserByHandle: No user found for handle: ${fullHandle}`);
+        console.log(`getUserByHandle: No user found for handle: ${usernamePart}#${discriminatorPart}`);
       }
       return null;
     }
