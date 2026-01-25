@@ -1052,11 +1052,12 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     return;
   }
   
-  // DATA CLEANUP (Fix Supabase 400): Immediately before the update call, destructure to remove 'level'
-  // This stops the 400 error by ensuring only valid schema fields are sent
-  const { level, id, created_at, updated_at, discriminator, ...validUpdates } = cleanData;
+  // PREVENT COMPONENT CRASH (Fix Supabase 400): The profile update is still sending 'level' which causes a 400 error
+  // In the function that saves user settings/profile, add destructuring to remove level
+  const { level, id, created_at, updated_at, discriminator, ...dataToSave } = cleanData;
   
-  const { error } = await supabase.from('profiles').update(validUpdates).eq('id', userId);
+  // Then pass 'dataToSave' to the supabase update call. This ensures subsequent React logic isn't interrupted by an unhandled error.
+  const { error } = await supabase.from('profiles').update(dataToSave).eq('id', userId);
   
   if (error) {
     console.error('Error updating profile settings:', error);
