@@ -96,18 +96,39 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     };
   }, [profile, isGuest]);
 
-  // Request initial statuses on mount
+  // Request initial statuses on mount - ONLY after socket is connected
   useEffect(() => {
     if (!socket || isGuest || !profile) return;
 
-    const requestInitialStatuses = () => {
+    let hasRequested = false; // Prevent duplicate requests
+
+    // Always wait for the 'connect' event to ensure the pipe is open
+    // Do NOT call GET_INITIAL_STATUSES until socket.on("connect") fires
+    const handleConnect = () => {
+      // Verify socket is actually connected before requesting
       if (!socket.connected) {
-        console.warn('⚠️ Socket not connected when requesting initial statuses');
+        console.warn('⚠️ Socket connect event fired but socket.connected is false');
         return;
       }
       
+      // Prevent duplicate requests
+      if (hasRequested) {
+        console.log('📋 Initial statuses already requested, skipping...');
+        return;
+      }
+      
+      hasRequested = true;
+      console.log('✅ Socket connected, requesting initial statuses...');
+      
       // Wait a bit to ensure authentication has completed
       setTimeout(() => {
+        // Verify connection is still active before emitting
+        if (!socket.connected) {
+          console.warn('⚠️ Socket disconnected before requesting initial statuses');
+          hasRequested = false; // Allow retry on next connect
+          return;
+        }
+        
         console.log('📡 Requesting initial statuses for', friends.length, 'friends');
         socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
           if (response?.statuses) {
@@ -135,18 +156,30 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
             console.warn('⚠️ No statuses in response:', response);
           }
         });
-      }, 1000); // Increased delay to ensure authentication completes
+      }, 1000); // Delay to ensure authentication completes
     };
 
+    // Wrap the initial status request in socket.on("connect") block
+    // This ensures it only fires when the pipe is open
+    socket.on('connect', handleConnect);
+    
+    // If socket is already connected, the 'connect' event won't fire again
+    // So we need to manually trigger it, but only after registering the listener
     if (socket.connected) {
-      requestInitialStatuses();
+      console.log('📡 Socket already connected, triggering connect handler...');
+      // Use setTimeout to ensure the listener is registered first
+      setTimeout(() => {
+        handleConnect();
+      }, 0);
     } else {
-      console.log('⏳ Socket not connected yet, waiting for connect event before requesting statuses...');
-      socket.once('connect', () => {
-        console.log('✅ Socket connected, requesting initial statuses...');
-        requestInitialStatuses();
-      });
+      console.log('⏳ Socket not connected yet, waiting for connect event...');
     }
+    
+    // Cleanup: remove listener on unmount
+    return () => {
+      socket.off('connect', handleConnect);
+      hasRequested = false;
+    };
   }, [socket, isGuest, profile, friends]);
 
   // Listen for differential status changes

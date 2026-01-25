@@ -1015,14 +1015,31 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     }
   }
   
-  // Allow event_stats to be updated (used by recordGameResult and buyItem)
-  if ('event_stats' in updates) {
-    (safeUpdates as any).event_stats = (updates as any).event_stats;
+  // PROFILE UPDATE SANITIZATION: Build cleanData with ONLY schema fields that exist in the database
+  // Explicitly exclude all non-schema fields (level, id, created_at, updated_at, etc.)
+  // This prevents 400 'Bad Request' errors from fields that don't exist in the schema
+  const cleanData: any = {};
+  
+  // Only include fields from allowedFields that are in safeUpdates
+  for (const key of allowedFields) {
+    if (key in safeUpdates) {
+      cleanData[key] = (safeUpdates as any)[key];
+    }
   }
   
-  // PROFILE UPDATE SANITIZATION: Strip out protected/calculated fields (id, level, created_at) before calling .update()
-  // These fields are protected or calculated by the database and cause 400 'Bad Request' errors if sent
-  const { id, level, created_at, ...cleanData } = safeUpdates as any;
+  // Allow event_stats to be updated (used by recordGameResult and buyItem)
+  if ('event_stats' in updates) {
+    cleanData.event_stats = (updates as any).event_stats;
+  }
+  
+  // Explicitly ensure these non-schema fields are NOT included (double-check)
+  const nonSchemaFields = ['id', 'level', 'created_at', 'updated_at', 'discriminator'];
+  for (const key of nonSchemaFields) {
+    if (key in cleanData) {
+      console.warn(`Removing non-schema field from update: ${key}`);
+      delete cleanData[key];
+    }
+  }
   
   if (!supabaseAnonKey || userId === 'guest') {
     const local = fetchGuestProfile();
@@ -1030,7 +1047,7 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     return;
   }
   
-  // PROFILE UPDATE SANITIZATION: Use .update() instead of .upsert() and use cleanData (without id, level, created_at)
+  // PROFILE UPDATE SANITIZATION: Use .update() with cleanData containing only schema fields
   // This prevents 400 errors from protected fields that are calculated by the database
   // Use .update() with .eq('id', userId) to ensure we only update existing records
   const { error } = await supabase.from('profiles').update(cleanData).eq('id', userId);
