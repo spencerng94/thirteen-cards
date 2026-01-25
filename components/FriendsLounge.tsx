@@ -134,14 +134,18 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     friendsRef.current = friends;
   }, [friends]);
 
-  // FORCE THE SOCKET REQUEST: We need an explicit log and emit when friends are ready
+  // THE AUTOMATIC REQUEST: Add a useEffect that triggers as soon as we have all the pieces
   useEffect(() => {
     if (socket && isSocketAuthenticated && friends.length > 0) {
       // Use friend.id from the friend object (friendship.friend.id) - the user's ID, not the friendship ID
-      const ids = friends.map(f => f.friend?.id || f.friend_id).filter(Boolean);
-      console.log("🚀 TRIGGERING STATUS REQUEST for IDs:", ids);
+      // Map to get friend IDs: f.friend?.id is the friend's user ID, f.friend_id is the same
+      const friendIds = friends.map(f => {
+        // f is a Friendship object, f.friend is the UserProfile, f.friend.id is the friend's user ID
+        return f.friend?.id || f.friend_id;
+      }).filter(Boolean);
+      console.log("🚀 TRIGGERING STATUS REQUEST for IDs:", friendIds);
       // Use 'get_initial_statuses' to match server handler (server listens for 'get_initial_statuses')
-      socket.emit('get_initial_statuses', ids);
+      socket.emit('get_initial_statuses', friendIds);
     }
   }, [socket, isSocketAuthenticated, friends.length]);
 
@@ -165,18 +169,18 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         return; // Already registered
       }
       
-      // DATA HANDLING: Ensure the 'initial_statuses' listener updates the state correctly
+      // THE RESPONSE LISTENER: Ensure the 'initial_statuses' listener is updating the state correctly
       handleInitialStatusesEventRef.current = (data: { statuses?: Record<string, 'online' | 'in_game'> } | Record<string, 'online' | 'in_game'>) => {
         console.log("📋 RECEIVED initial_statuses from server:", data);
         // Handle both formats: { statuses: {...} } or direct { userId: 'online' }
         const statuses = 'statuses' in data ? data.statuses : (data as Record<string, 'online' | 'in_game'>);
         
         if (statuses && typeof statuses === 'object') {
-          // Update state directly with the received data
-          setFriendStatuses(statuses as Record<string, 'online' | 'offline' | 'in_game'>);
+          // Use functional update to merge with existing state
+          setFriendStatuses(prev => ({ ...prev, ...statuses }));
         } else if (data && typeof data === 'object') {
-          // If data is already in the correct format, use it directly
-          setFriendStatuses(data as Record<string, 'online' | 'offline' | 'in_game'>);
+          // If data is already in the correct format, merge it
+          setFriendStatuses(prev => ({ ...prev, ...(data as Record<string, 'online' | 'offline' | 'in_game'>) }));
         } else {
           console.warn('⚠️ initial_statuses event received but no valid data:', data);
         }
@@ -1505,9 +1509,10 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   const friendLevel = calculateLevel(friend.xp || 0);
                   
                   // UI MAPPING: In the Friend item render, ensure 'isOnline' is calculated correctly
-                  // VERIFY DATA MAPPING: Ensure the UI checks the 'friendStatuses' object for the string 'online'
+                  // UI CHECK: In the rendering part of the friend list, make sure the dot turns green if the status is 'online'
                   const status = friendStatuses[friend.id];
-                  const isOnline = friendStatuses[friend.id] === 'online';
+                  // Handle both string 'online' and boolean true (if it somehow gets through)
+                  const isOnline = status === 'online' || (status !== undefined && status !== 'offline' && status !== null && status !== 'in_game');
                   const presence = friendPresence.get(friend.id);
                   const isInGame = status === 'in_game' || presence?.status === 'in_game';
                   
