@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, Emote } from '../types';
-import { fetchProfile, addFriend, getFriends, getPendingRequests, calculateLevel, fetchEmotes } from '../services/supabase';
+import { fetchProfile, addFriend, getFriends, getPendingRequests, calculateLevel, fetchEmotes, removeFriend } from '../services/supabase';
 import { VisualEmote } from './VisualEmote';
 
 interface PlayerProfileModalProps {
@@ -13,6 +13,7 @@ interface PlayerProfileModalProps {
   onRefreshProfile?: () => void;
   isMuted?: boolean;
   onToggleMute?: (playerId: string) => void;
+  onFriendRemoved?: () => void; // Callback when friend is removed
 }
 
 export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
@@ -23,7 +24,8 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   onClose,
   onRefreshProfile,
   isMuted = false,
-  onToggleMute
+  onToggleMute,
+  onFriendRemoved
 }) => {
   const [playerProfile, setPlayerProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,6 +35,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   const [pendingReceived, setPendingReceived] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remoteEmotes, setRemoteEmotes] = useState<Emote[]>([]);
+  const [removingFriend, setRemovingFriend] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -258,10 +261,32 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
 
             {/* Friend Status Button */}
             {isFriend ? (
-              <div className="w-full py-3 px-6 bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-bold rounded-xl text-center flex items-center justify-center gap-2">
-                <span>✓</span>
-                <span>Friends</span>
-              </div>
+              <>
+                <div className="w-full py-3 px-6 bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-bold rounded-xl text-center flex items-center justify-center gap-2 mb-3">
+                  <span>✓</span>
+                  <span>Friends</span>
+                </div>
+                {/* Remove Friend Button */}
+                <button
+                  onClick={async () => {
+                    if (!currentUserId || currentUserId === 'guest' || playerId === 'guest') return;
+                    setRemovingFriend(true);
+                    try {
+                      await removeFriend(currentUserId, playerId);
+                      onFriendRemoved?.();
+                      onClose();
+                    } catch (err: any) {
+                      setError(err.message || 'Failed to remove friend');
+                    } finally {
+                      setRemovingFriend(false);
+                    }
+                  }}
+                  disabled={removingFriend}
+                  className="w-full py-3 px-6 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 font-bold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {removingFriend ? 'Removing...' : 'Remove Friend'}
+                </button>
+              </>
             ) : pendingSent ? (
               <div className="w-full py-3 px-6 bg-yellow-600/30 border border-yellow-500/50 text-yellow-300 font-bold rounded-xl text-center">
                 Request Sent

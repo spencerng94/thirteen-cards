@@ -13,6 +13,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Capacitor } from '@capacitor/core';
 import { VisualEmote } from './VisualEmote';
 import { PlayerProfileModal } from './PlayerProfileModal';
+import { CreateLobbyModal } from './CreateLobbyModal';
 
 // Default avatar icon component for when avatar_url is null
 const DefaultAvatarIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -62,13 +63,16 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [pendingRequests, setPendingRequests] = useState<Set<string>>(new Set());
   const [sendingRequests, setSendingRequests] = useState<Set<string>>(new Set()); // Track requests being sent
-  const [onlineFriends, setOnlineFriends] = useState<Set<string>>(new Set());
+  // Differential status tracking - only update individual friend statuses
+  const [friendStatuses, setFriendStatuses] = useState<Record<string, 'online' | 'offline' | 'in_game'>>({});
   const [friendPresence, setFriendPresence] = useState<Map<string, { status: 'online' | 'in_game'; roomId?: string }>>(new Map());
   const [activeTab, setActiveTab] = useState<'friends' | 'sent' | 'received'>('friends');
   const [newRequestNotification, setNewRequestNotification] = useState<{ id: string; senderName: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<{ id: string; name: string; avatar: string } | null>(null);
+  const [selectedFriendForInvite, setSelectedFriendForInvite] = useState<UserProfile | null>(null);
+  const [showCreateLobbyModal, setShowCreateLobbyModal] = useState(false);
   const subscriptionRef = useRef<any>(null);
   
   // Track pending count for badge
@@ -92,37 +96,64 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     };
   }, [profile, isGuest]);
 
-  // Listen for real-time presence updates
+  // Request initial statuses on mount
+  useEffect(() => {
+    if (!socket || isGuest || !profile) return;
+
+    const requestInitialStatuses = () => {
+      socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
+        if (response?.statuses) {
+          setFriendStatuses(response.statuses);
+          // Also update presence map
+          const presenceMap = new Map<string, { status: 'online' | 'in_game'; roomId?: string }>();
+          Object.entries(response.statuses).forEach(([userId, status]) => {
+            if (status !== 'offline') {
+              presenceMap.set(userId, { status });
+            }
+          });
+          setFriendPresence(presenceMap);
+        }
+      });
+    };
+
+    if (socket.connected) {
+      requestInitialStatuses();
+    } else {
+      socket.once('connect', requestInitialStatuses);
+    }
+  }, [socket, isGuest, profile]);
+
+  // Listen for differential status changes
   useEffect(() => {
     if (!socket || isGuest) return;
 
-    const handlePresenceUpdate = (data: { onlineUserIds: string[]; presence: Array<{ userId: string; status: 'online' | 'in_game'; roomId?: string }> }) => {
-      const { onlineUserIds, presence } = data;
+    const handleStatusChange = (data: { userId: string; status: 'online' | 'offline' | 'in_game'; roomId?: string }) => {
+      const { userId, status, roomId } = data;
       
-      console.log('📡 Received ONLINE_USERS_UPDATE:', { 
-        onlineCount: onlineUserIds.length, 
-        presenceCount: presence.length,
-        onlineUserIds: onlineUserIds.slice(0, 5), // Log first 5
-        friendIds: friends.map(f => f.friend?.id).filter(Boolean).slice(0, 5) // Log first 5 friend IDs
+      // Update only this specific friend's status (differential update)
+      setFriendStatuses(prev => ({
+        ...prev,
+        [userId]: status
+      }));
+
+      // Update presence map
+      setFriendPresence(prev => {
+        const updated = new Map(prev);
+        if (status === 'offline') {
+          updated.delete(userId);
+        } else {
+          updated.set(userId, { status, roomId });
+        }
+        return updated;
       });
-      
-      // Update online friends set
-      setOnlineFriends(new Set(onlineUserIds));
-      
-      // Update presence map with status and room info
-      const presenceMap = new Map<string, { status: 'online' | 'in_game'; roomId?: string }>();
-      presence.forEach(p => {
-        presenceMap.set(p.userId, { status: p.status, roomId: p.roomId });
-      });
-      setFriendPresence(presenceMap);
     };
 
-    socket.on('ONLINE_USERS_UPDATE', handlePresenceUpdate);
+    socket.on(SocketEvents.USER_STATUS_CHANGE, handleStatusChange);
 
     return () => {
-      socket.off('ONLINE_USERS_UPDATE', handlePresenceUpdate);
+      socket.off(SocketEvents.USER_STATUS_CHANGE, handleStatusChange);
     };
-  }, [socket, isGuest, friends]);
+  }, [socket, isGuest]);
 
   const loadFriends = async () => {
     if (!profile || isGuest) return;
@@ -1212,9 +1243,10 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   const friend = friendship.friend;
                   if (!friend) return null;
                   const friendLevel = calculateLevel(friend.xp || 0);
-                  const isOnline = onlineFriends.has(friend.id);
+                  const friendStatus = friendStatuses[friend.id] || 'offline';
+                  const isOnline = friendStatus === 'online' || friendStatus === 'in_game';
                   const presence = friendPresence.get(friend.id);
-                  const isInGame = presence?.status === 'in_game';
+                  const isInGame = friendStatus === 'in_game' || presence?.status === 'in_game';
                   
                   return (
                     <div
@@ -1273,21 +1305,27 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                           </div>
                         </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {currentRoomId && (
-                              <button
-                                onClick={() => handleInviteFriend(friend.id)}
-                                className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all"
-                                title="Invite to Game"
-                              >
-                                Invite
-                              </button>
+                            {/* Online status indicator - green circle if online, gray if offline */}
+                            {isOnline ? (
+                              <div className={`w-3 h-3 rounded-full ${
+                                isInGame ? 'bg-yellow-500' : 'bg-green-500'
+                              }`} title={isInGame ? 'Playing...' : 'Online'}></div>
+                            ) : (
+                              <div className="w-3 h-3 rounded-full border-2 border-white/20" title="Offline"></div>
                             )}
-                        <button
-                          onClick={() => handleRemoveFriend(friend.id)}
-                              className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-red-300 text-xs font-bold uppercase tracking-wide transition-all"
-                        >
-                          Remove
-                        </button>
+                            
+                            {/* Invite button - opens Create Lobby modal */}
+                            <button
+                              onClick={() => {
+                                setSelectedFriendForInvite(friend);
+                                setShowCreateLobbyModal(true);
+                              }}
+                              disabled={!isOnline}
+                              className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl text-green-300 text-xs font-bold uppercase tracking-wide transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={isOnline ? "Invite to Game" : "Friend is offline"}
+                            >
+                              Invite
+                            </button>
                       </div>
                     </div>
                       </div>
@@ -1589,6 +1627,39 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Player Profile Modal */}
+      {selectedProfile && profile && (
+        <PlayerProfileModal
+          playerId={selectedProfile.id}
+          playerName={selectedProfile.name}
+          playerAvatar={selectedProfile.avatar}
+          currentUserId={profile.id}
+          onClose={() => setSelectedProfile(null)}
+          onRefreshProfile={onRefreshProfile}
+          onFriendRemoved={() => {
+            loadFriends();
+            setSelectedProfile(null);
+          }}
+        />
+      )}
+
+      {/* Create Lobby Modal */}
+      {selectedFriendForInvite && (
+        <CreateLobbyModal
+          isOpen={showCreateLobbyModal}
+          friendName={parseUsername(selectedFriendForInvite.username, selectedFriendForInvite.discriminator).full}
+          friendId={selectedFriendForInvite.id}
+          onClose={() => {
+            setShowCreateLobbyModal(false);
+            setSelectedFriendForInvite(null);
+          }}
+          onLobbyCreated={(roomId) => {
+            // Navigate to lobby - this will be handled by App.tsx
+            window.location.href = `/game/${roomId}`;
+          }}
+        />
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `

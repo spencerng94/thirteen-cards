@@ -91,56 +91,36 @@ interface UserPresence {
 // Map of userId -> UserPresence
 const onlineUsers = new Map<string, UserPresence>();
 
-// Throttle broadcasts to avoid excessive network traffic
-let lastBroadcastTime = 0;
-const BROADCAST_THROTTLE_MS = 5000; // Broadcast every 5 seconds max
-let pendingBroadcastTimeout: NodeJS.Timeout | null = null;
+// Store active private lobbies (roomId -> lobby settings)
+interface ActiveLobby {
+  roomId: string;
+  lobbyName: string;
+  turnTimer: number;
+  hostId: string;
+  createdAt: number;
+}
 
-// Broadcast online users update to all connected clients (throttled)
-const broadcastOnlineUsersUpdate = () => {
-  const now = Date.now();
-  if (now - lastBroadcastTime < BROADCAST_THROTTLE_MS) {
-    // Schedule a delayed broadcast if one is already pending
-    if (!pendingBroadcastTimeout) {
-      pendingBroadcastTimeout = setTimeout(() => {
-        pendingBroadcastTimeout = null;
-        lastBroadcastTime = Date.now();
-        doBroadcast();
-      }, BROADCAST_THROTTLE_MS - (now - lastBroadcastTime));
-    }
-    return;
-  }
-  
-  lastBroadcastTime = now;
-  if (pendingBroadcastTimeout) {
-    clearTimeout(pendingBroadcastTimeout);
-    pendingBroadcastTimeout = null;
-  }
-  
-  doBroadcast();
-};
+const activeLobbies: Map<string, ActiveLobby> = new Map();
 
-// Actual broadcast function
-const doBroadcast = () => {
-  const onlineUserIds = Array.from(onlineUsers.keys());
-  const presenceData = Array.from(onlineUsers.entries()).map(([userId, presence]) => ({
+// Differential presence updates - emit individual status changes instead of full list
+const emitUserStatusChange = (userId: string, status: 'online' | 'offline' | 'in_game', roomId?: string) => {
+  if (!userId || userId === 'guest') return;
+  
+  // Emit to all connected clients
+  io.emit('USER_STATUS_CHANGE', {
     userId,
-    status: presence.status,
-    roomId: presence.roomId
-  }));
-  
-  io.emit('ONLINE_USERS_UPDATE', {
-    onlineUserIds,
-    presence: presenceData
+    status,
+    roomId
   });
   
-  console.log(`📡 Broadcasted online users update: ${onlineUserIds.length} users online`);
+  console.log(`📡 Emitted USER_STATUS_CHANGE: ${userId} -> ${status}`);
 };
 
 // Update user presence
 const updateUserPresence = (userId: string, socketId: string, status: 'online' | 'in_game', roomId?: string) => {
   if (!userId || userId === 'guest') return;
   
+  const wasOnline = onlineUsers.has(userId);
   onlineUsers.set(userId, {
     socketId,
     status,
@@ -148,17 +128,21 @@ const updateUserPresence = (userId: string, socketId: string, status: 'online' |
     lastUpdate: Date.now()
   });
   
-  broadcastOnlineUsersUpdate();
+  // Only emit if status changed or user just came online
+  if (!wasOnline || status === 'online' || status === 'in_game') {
+    emitUserStatusChange(userId, status, roomId);
+  }
 };
 
 // Remove user from presence
 const removeUserPresence = (userId: string) => {
   if (!userId || userId === 'guest') return;
   
-  onlineUsers.delete(userId);
-  broadcastOnlineUsersUpdate();
-  
-  console.log(`👋 User ${userId} removed from presence tracking`);
+  if (onlineUsers.has(userId)) {
+    onlineUsers.delete(userId);
+    emitUserStatusChange(userId, 'offline');
+    console.log(`👋 User ${userId} removed from presence tracking`);
+  }
 };
 
 // Import room functions, Map, and types from rooms.ts (hybrid: Map + Supabase)
@@ -1314,8 +1298,8 @@ globalThis.__SOCKET_HANDLERS_REGISTERED__ = true;
 io.on('connection', (socket: Socket) => {
   console.log('🚀 SOCKET CONNECTED:', socket.id);
   
-  // Send initial presence update immediately (not throttled)
-  doBroadcast();
+  // Note: User presence will be updated when they join a room or authenticate
+  // No need to broadcast here - individual status changes will be emitted
   
   // ============================================================================
   // ROOM MANAGEMENT - Using Supabase
@@ -1388,34 +1372,55 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     
-    // Find the receiver's socket
-    const receiverSocketId = Object.keys(socketToPlayerId).find(
-      sid => socketToPlayerId[sid] === receiverId
-    );
+    // Find the receiver's socketId from onlineUsers map
+    const friendPresence = onlineUsers.get(receiverId);
     
-    if (!receiverSocketId) {
+    if (!friendPresence) {
       socket.emit('error', { message: 'Friend is not online' });
       return;
     }
     
-    // Send invite to receiver
-    io.to(receiverSocketId).emit('receive_game_invite', {
+    // Get room name and settings
+    const lobby = activeLobbies.get(roomId);
+    const room = await fetchRoom(roomId);
+    const lobbyName = lobby?.lobbyName || room?.roomName || 'Game';
+
+    // Send invite to receiver using their specific socketId
+    io.to(friendPresence.socketId).emit('receive_game_invite', {
       roomId,
       inviterName,
-      inviterId: senderId
+      inviterId: senderId,
+      lobbyName,
+      settings: lobby ? {
+        lobbyName: lobby.lobbyName,
+        turnTimer: lobby.turnTimer
+      } : undefined
     });
     
     console.log(`📨 Game invite sent from ${senderId} to ${receiverId} for room ${roomId}`);
   });
 
   // Accept invite
-  socket.on('accept_invite', async (data: { roomId: string }) => {
-    const { roomId } = data;
+  socket.on('accept_invite', async (data: { roomId: string; inviterId?: string }) => {
+    const { roomId, inviterId } = data;
     const playerId = socketToPlayerId[socket.id];
     
     if (!playerId) {
       socket.emit('error', { message: 'You must be authenticated to accept invites' });
       return;
+    }
+    
+    // Notify inviter if provided
+    if (inviterId) {
+      const inviterPresence = onlineUsers.get(inviterId);
+      if (inviterPresence) {
+        io.to(inviterPresence.socketId).emit('invite_response', {
+          roomId,
+          receiverId: playerId,
+          accepted: true,
+          message: 'User accepted the invite'
+        });
+      }
     }
     
     // Join the room (this will trigger the join_room handler)
@@ -1424,10 +1429,117 @@ io.on('connection', (socket: Socket) => {
   });
 
   // Decline invite
-  socket.on('decline_invite', (data: { roomId: string }) => {
-    const { roomId } = data;
+  socket.on('decline_invite', (data: { roomId: string; inviterId?: string }) => {
+    const { roomId, inviterId } = data;
     const playerId = socketToPlayerId[socket.id];
+    
+    // If inviterId is provided, notify the sender
+    if (inviterId) {
+      const inviterPresence = onlineUsers.get(inviterId);
+      if (inviterPresence) {
+        io.to(inviterPresence.socketId).emit('invite_response', {
+          roomId,
+          receiverId: playerId,
+          accepted: false,
+          message: 'User declined the invite'
+        });
+      }
+    }
+    
     console.log(`❌ Player ${playerId} declined invite to room ${roomId}`);
+  });
+  
+  // Get initial statuses for all online users
+  socket.on('get_initial_statuses', (callback) => {
+    const statuses: Record<string, 'online' | 'in_game'> = {};
+    onlineUsers.forEach((presence, userId) => {
+      statuses[userId] = presence.status === 'in_game' ? 'in_game' : 'online';
+    });
+    
+    if (callback && typeof callback === 'function') {
+      callback({ statuses });
+    } else {
+      socket.emit('initial_statuses', { statuses });
+    }
+    
+    console.log(`📋 Sent initial statuses to ${socket.id}: ${Object.keys(statuses).length} users`);
+  });
+
+  // Create private lobby and invite friend
+  socket.on('create_private_lobby', async (data: { lobbyName: string; turnTimer: number; friendId: string }, callback) => {
+    const { lobbyName, turnTimer, friendId } = data;
+    const playerId = socketToPlayerId[socket.id];
+    
+    if (!playerId) {
+      if (callback) callback({ error: 'You must be authenticated to create a lobby' });
+      return;
+    }
+
+    try {
+      // Get player profile for name
+      let inviterName = 'Player';
+      if (supabase) {
+        const profile = await supabase
+          .from('profiles')
+          .select('username, discriminator')
+          .eq('id', playerId)
+          .single();
+
+        if (profile?.data) {
+          inviterName = `${profile.data.username}#${profile.data.discriminator}`;
+        }
+      }
+
+      const sanitizedName = inviterName.substring(0, 20);
+      const sanitizedAvatar = ':smile:'; // Default avatar
+      
+      const player: SimplePlayer = {
+        id: playerId,
+        name: sanitizedName,
+        avatar: sanitizedAvatar
+      };
+
+      const room = await createRoom(player, lobbyName.substring(0, 24), false, turnTimer / 1000); // turnTimer is in ms, createRoom expects seconds
+      const roomId = room.id;
+
+      // Store lobby settings
+      activeLobbies.set(roomId, {
+        roomId,
+        lobbyName: lobbyName.substring(0, 24),
+        turnTimer,
+        hostId: playerId,
+        createdAt: Date.now()
+      });
+
+      // Map socket identity
+      mapIdentity(socket, roomId, playerId);
+      socket.join(roomId);
+
+      // Send invite to friend using their socketId from onlineUsers
+      const friendPresence = onlineUsers.get(friendId);
+      if (friendPresence) {
+        io.to(friendPresence.socketId).emit('receive_game_invite', {
+          roomId,
+          inviterName: sanitizedName,
+          inviterId: playerId,
+          lobbyName: lobbyName,
+          settings: {
+            lobbyName: lobbyName.substring(0, 24),
+            turnTimer
+          }
+        });
+        console.log(`📨 Private lobby invite sent from ${playerId} to ${friendId} for room ${roomId}`);
+      } else {
+        console.warn(`⚠️ Friend ${friendId} is not online, cannot send invite`);
+        if (callback) callback({ error: 'Friend is not online' });
+        return;
+      }
+
+      if (callback) callback({ roomId });
+    } catch (error: any) {
+      console.error('❌ create_private_lobby error:', error);
+      if (callback) callback({ error: error.message || 'Failed to create private lobby' });
+    }
   });
 
   socket.on('create_room', async (data, callback) => {

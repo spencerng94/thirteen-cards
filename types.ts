@@ -72,6 +72,7 @@ export interface GameState {
   turnDuration?: number; 
   isPublic?: boolean;
   roomName?: string;
+  hostId?: string; // ID of the player who created the room
   speedBonuses?: Record<string, { gold: number; xp: number }>; // playerId -> speed bonus data
 }
 
@@ -100,7 +101,11 @@ export enum SocketEvents {
   SEND_GAME_INVITE = 'send_game_invite',
   RECEIVE_GAME_INVITE = 'receive_game_invite',
   DECLINE_INVITE = 'decline_invite',
-  ACCEPT_INVITE = 'accept_invite'
+  CREATE_PRIVATE_LOBBY = 'create_private_lobby',
+  ACCEPT_INVITE = 'accept_invite',
+  USER_STATUS_CHANGE = 'user_status_change',
+  GET_INITIAL_STATUSES = 'get_initial_statuses',
+  INVITE_RESPONSE = 'invite_response'
 }
 
 export type BackgroundTheme = 'CLASSIC_GREEN' | 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'OBSIDIAN_MADNESS' | 'GOLD_FLUX' | 'ZEN_POND' | 'LAS_VEGAS' | 'SHIBA' | 'JUST_A_GIRL';

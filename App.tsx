@@ -178,7 +178,7 @@ const AppContent: React.FC = () => {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [pendingFriendRequestsCount, setPendingFriendRequestsCount] = useState(0);
-  const [gameInvite, setGameInvite] = useState<{ roomId: string; inviterName: string; inviterId: string } | null>(null);
+  const [gameInvite, setGameInvite] = useState<{ roomId: string; inviterName: string; inviterId: string; lobbyName?: string } | null>(null);
   const [storeTab, setStoreTab] = useState<'SLEEVES' | 'EMOTES' | 'BOARDS'>('SLEEVES');
   
   const [playerName, setPlayerName] = useState('');
@@ -1185,14 +1185,25 @@ const AppContent: React.FC = () => {
     socket.on(SocketEvents.GAME_STATE, onGameState);
     socket.on(SocketEvents.PLAYER_HAND, onPlayerHand);
     socket.on(SocketEvents.ERROR, (m) => { if (m === 'Session Expired') localStorage.removeItem(SESSION_KEY); setError(m); setTimeout(() => setError(null), 3000); });
-    socket.on(SocketEvents.RECEIVE_GAME_INVITE, (data: { roomId: string; inviterName: string; inviterId: string }) => {
+    socket.on(SocketEvents.RECEIVE_GAME_INVITE, (data: { roomId: string; inviterName: string; inviterId: string; lobbyName?: string }) => {
       setGameInvite(data);
     });
+
+    // Listen for invite response (when someone declines our invite)
+    socket.on(SocketEvents.INVITE_RESPONSE, (data: { roomId: string; receiverId: string; accepted: boolean; message?: string }) => {
+      if (!data.accepted) {
+        // Show toast notification that invite was declined
+        console.log(`❌ Invite declined: ${data.message || 'User declined the invite'}`);
+        // You can add a toast notification here if needed
+      }
+    });
+
     return () => {
       socket.off(SocketEvents.GAME_STATE); 
       socket.off(SocketEvents.PLAYER_HAND); 
       socket.off(SocketEvents.ERROR);
       socket.off(SocketEvents.RECEIVE_GAME_INVITE);
+      socket.off(SocketEvents.INVITE_RESPONSE);
     };
   }, [view, gameMode, triggerMatchEndTransition, myPlayerId, mpGameState?.status, mpMyHand.length, isGuest, session?.user?.id, profile]);
 
@@ -2215,9 +2226,13 @@ const AppContent: React.FC = () => {
           isOpen={!!gameInvite}
           inviterName={gameInvite.inviterName}
           roomId={gameInvite.roomId}
+          lobbyName={gameInvite.lobbyName}
+          inviterId={gameInvite.inviterId}
           onAccept={() => {
             // Navigate to the room
             if (gameInvite) {
+              // Emit accept with inviterId for notification
+              socket.emit(SocketEvents.ACCEPT_INVITE, { roomId: gameInvite.roomId, inviterId: gameInvite.inviterId });
               setView('LOBBY');
               // The join_room will be handled by the accept_invite socket event
               setGameInvite(null);

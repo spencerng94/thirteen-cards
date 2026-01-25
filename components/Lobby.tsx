@@ -8,6 +8,7 @@ import { Toast } from './Toast';
 import { localDiscoveryService } from '../services/localDiscovery';
 import { containsProfanity } from '../utils/wordFilter';
 import { useLobbySettings } from '../hooks/useLobbySettings';
+import { InviteFriendsModal } from './InviteFriendsModal';
 
 interface PublicRoom {
   id: string;
@@ -71,10 +72,11 @@ interface PlayerSlotProps {
   onRemoveBot: (botId: string) => void;
   onUpdateDifficulty: (botId: string, difficulty: AiDifficulty) => void;
   onAddBot: () => void;
+  onInviteFriend?: () => void; // Callback to open invite friends modal
   gameState: GameState | null;
 }
 
-const PlayerSlot = memo(({ index, player, isHost, myId, remoteEmotes, onRemoveBot, onUpdateDifficulty, onAddBot, gameState }: PlayerSlotProps) => {
+const PlayerSlot = memo(({ index, player, isHost, myId, remoteEmotes, onRemoveBot, onUpdateDifficulty, onAddBot, onInviteFriend, gameState }: PlayerSlotProps) => {
   if (player) {
     const isMe = player.id === myId;
     const currentPlayer = gameState?.players?.find(p => p.id === player.id);
@@ -147,23 +149,39 @@ const PlayerSlot = memo(({ index, player, isHost, myId, remoteEmotes, onRemoveBo
   return (
     <div className="slot-empty min-h-[140px] transition-all duration-200 ease-in-out">
       {isHost && (gameState?.players?.length || 0) < 4 ? (
-        <button 
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onAddBot();
-          }}
-          disabled={(gameState?.players?.length || 0) >= 4}
-          className="flex items-center gap-5 p-5 rounded-[2.5rem] border-2 border-dashed border-white/5 bg-white/[0.01] hover:bg-white/[0.04] hover:border-yellow-500/40 transition-all duration-200 group w-full min-h-[140px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          <div className="w-16 h-16 rounded-[1.5rem] border-2 border-dashed border-white/10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 group-hover:border-yellow-500/40 group-hover:bg-yellow-500/5">
-            <span className="text-3xl font-black text-white/10 group-hover:text-yellow-500 transition-colors duration-200">+</span>
-          </div>
-          <div className="flex flex-col items-start text-left">
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 group-hover:text-white transition-colors duration-200">ADD CPU</span>
-            <span className="text-[7px] font-bold uppercase tracking-widest text-white/5 group-hover:text-yellow-500/40 mt-1 transition-colors duration-200">Slot {index + 1}</span>
-          </div>
-        </button>
+        <div className="flex flex-col gap-2 w-full">
+          <button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAddBot();
+            }}
+            disabled={(gameState?.players?.length || 0) >= 4}
+            className="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/[0.04] hover:border-yellow-500/40 transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-lg border border-white/10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 group-hover:border-yellow-500/40 group-hover:bg-yellow-500/5">
+              <span className="text-xl font-black text-white/10 group-hover:text-yellow-500 transition-colors duration-200">+</span>
+            </div>
+            <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20 group-hover:text-white transition-colors duration-200">ADD CPU</span>
+          </button>
+          {onInviteFriend && (
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onInviteFriend();
+              }}
+              className="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/[0.04] hover:border-green-500/40 transition-all duration-200 group cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-lg border border-white/10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 group-hover:border-green-500/40 group-hover:bg-green-500/5">
+                <svg className="w-5 h-5 text-white/10 group-hover:text-green-500 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20 group-hover:text-white transition-colors duration-200">INVITE FRIEND</span>
+            </button>
+          )}
+        </div>
       ) : (
         <div className="flex items-center gap-5 p-5 rounded-[2.5rem] border-2 border-dashed border-white/[0.03] bg-white/[0.01] opacity-20 min-h-[140px] w-full">
           <div className="w-16 h-16 rounded-[1.5rem] border-2 border-dashed border-white/10"></div>
@@ -596,6 +614,7 @@ function LobbyComponent({
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
+  const [showInviteFriendsModal, setShowInviteFriendsModal] = useState(false);
   // Use remoteEmotes from props, with fallback to empty array
   const displayRemoteEmotes = remoteEmotes || [];
   const [hasLoaded, setHasLoaded] = useState(false); // Track if we've received at least one response
@@ -1531,9 +1550,9 @@ function LobbyComponent({
   // Fallback: If hostId is "guest" and there's only one player, treat that player as host
   // Client-side safety net: If I am the only person in the room, I MUST be the host
   const humanPlayerCount = gameState?.players?.filter(p => !p.isBot).length || 0;
-  const isHost = gameState?.hostId === myId || 
+  const isHost: boolean = !!(gameState?.hostId === myId || 
     (gameState?.hostId === 'guest' && gameState?.players?.length === 1 && gameState?.players[0]?.id === myId) ||
-    (humanPlayerCount === 1 && gameState?.players?.some(p => p.id === myId && !p.isBot));
+    (humanPlayerCount === 1 && gameState?.players?.some(p => p.id === myId && !p.isBot)));
   
   // Debug: Log isHost status
   useEffect(() => {
@@ -2166,6 +2185,7 @@ function LobbyComponent({
                                     onRemoveBot={removeBot}
                                     onUpdateDifficulty={updateBotDifficulty}
                                     onAddBot={addBot}
+                                    onInviteFriend={gameState?.status === GameStatus.LOBBY && isHost ? () => setShowInviteFriendsModal(true) : undefined}
                                     gameState={gameState}
                                 />
                                                 );
@@ -2254,6 +2274,22 @@ function LobbyComponent({
         }
       `}} />
     </BackgroundWrapper>
+    {/* Invite Friends Modal */}
+    {showInviteFriendsModal && gameState && myId && !isGuest && (
+      <InviteFriendsModal
+        isOpen={showInviteFriendsModal}
+        roomId={gameState.roomId}
+        roomName={gameState.roomName}
+        currentUserId={myId}
+        onClose={() => setShowInviteFriendsModal(false)}
+        onInviteSent={() => {
+          setToast({ show: true, message: 'Invite sent!', type: 'success' });
+          setTimeout(() => setToast(null), 3000);
+        }}
+        remoteEmotes={displayRemoteEmotes}
+      />
+    )}
+
     {toast && toast.show && (
       <Toast 
         message={toast.message} 

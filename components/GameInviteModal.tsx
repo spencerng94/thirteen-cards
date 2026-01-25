@@ -7,6 +7,8 @@ interface GameInviteModalProps {
   isOpen: boolean;
   inviterName: string;
   roomId: string;
+  lobbyName?: string; // Optional lobby name
+  inviterId?: string; // Inviter's user ID for decline notification
   onAccept: () => void;
   onDecline: () => void;
 }
@@ -15,6 +17,8 @@ export const GameInviteModal: React.FC<GameInviteModalProps> = ({
   isOpen,
   inviterName,
   roomId,
+  lobbyName,
+  inviterId,
   onAccept,
   onDecline
 }) => {
@@ -25,8 +29,8 @@ export const GameInviteModal: React.FC<GameInviteModalProps> = ({
   };
 
   const handleDecline = () => {
-    // Emit decline event to server
-    socket.emit(SocketEvents.DECLINE_INVITE, { roomId });
+    // Emit decline event to server with inviterId for notification
+    socket.emit(SocketEvents.DECLINE_INVITE, { roomId, inviterId });
     onDecline();
   };
 
@@ -72,10 +76,16 @@ export const GameInviteModal: React.FC<GameInviteModalProps> = ({
                 </h2>
                 
                 {/* Message */}
-                <p className="text-white/90 text-lg mb-8">
+                <p className="text-white/90 text-lg mb-2">
                   <span className="font-bold text-blue-400">{inviterName}</span>
                   {' '}invited you to play!
                 </p>
+                {lobbyName && (
+                  <p className="text-white/60 text-sm mb-8">
+                    Lobby: <span className="font-semibold text-blue-300">{lobbyName}</span>
+                  </p>
+                )}
+                {!lobbyName && <div className="mb-8"></div>}
                 
                 {/* Buttons */}
                 <div className="flex gap-4">
