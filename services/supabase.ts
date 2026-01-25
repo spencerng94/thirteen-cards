@@ -1051,10 +1051,21 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
   // This prevents 400 errors from protected fields that are calculated by the database
   const { level, id, created_at, updated_at, discriminator, ...cleanProfileData } = cleanData;
   
-  // PROFILE UPDATE SANITIZATION: Use .update() with cleanProfileData containing only schema fields
+  // SANITIZE SUPABASE DATA: Explicitly delete 'level' key from the object before it hits Supabase
+  // This ensures no level field can slip through and cause 400 errors
+  const dataToUpdate = { ...cleanProfileData };
+  delete dataToUpdate.level;
+  
+  // Double-check: remove level if it somehow still exists
+  if ('level' in dataToUpdate) {
+    console.warn('⚠️ Level field still present after deletion, removing again');
+    delete dataToUpdate.level;
+  }
+  
+  // PROFILE UPDATE SANITIZATION: Use .update() with dataToUpdate containing only schema fields
   // This prevents 400 errors from protected fields that are calculated by the database
   // Use .update() with .eq('id', userId) to ensure we only update existing records
-  const { error } = await supabase.from('profiles').update(cleanProfileData).eq('id', userId);
+  const { error } = await supabase.from('profiles').update(dataToUpdate).eq('id', userId);
   
   if (error) {
     console.error('Error updating profile settings:', error);
@@ -2120,7 +2131,8 @@ export interface Friendship {
 export const getFriends = async (userId: string): Promise<Friendship[]> => {
   if (!supabaseAnonKey || userId === 'guest') return [];
   try {
-    // Get accepted friendships where user is either sender or receiver
+    // BI-DIRECTIONAL FETCH: Get accepted friendships where user is either sender OR receiver
+    // This ensures that regardless of who sent the request, the friend appears in the list
     const { data: friendships, error: friendshipsError } = await supabase
       .from('friendships')
       .select('*')
@@ -2128,25 +2140,45 @@ export const getFriends = async (userId: string): Promise<Friendship[]> => {
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .order('created_at', { ascending: false });
     
-    if (friendshipsError) throw friendshipsError;
-    if (!friendships || friendships.length === 0) return [];
+    if (friendshipsError) {
+      console.error('Error fetching friendships:', friendshipsError);
+      throw friendshipsError;
+    }
+    if (!friendships || friendships.length === 0) {
+      console.log(`📋 No friendships found for user ${userId}`);
+      return [];
+    }
     
-    // Determine friend IDs: if user is sender, friend is receiver; if user is receiver, friend is sender
+    console.log(`📋 Found ${friendships.length} accepted friendships for user ${userId}`);
+    
+    // JOIN LOGIC REFINEMENT: Determine friend IDs - pick the 'other' ID
+    // Logic: If 'sender_id' is me, get the profile of 'receiver_id'. If 'receiver_id' is me, get the profile of 'sender_id'.
     const friendIds = friendships.map((f: any) => {
-      return f.sender_id === userId ? f.receiver_id : f.sender_id;
+      const friendId = f.sender_id === userId ? f.receiver_id : f.sender_id;
+      console.log(`📋 Friendship: sender=${f.sender_id}, receiver=${f.receiver_id}, myId=${userId}, friendId=${friendId}`);
+      return friendId;
     });
+    
+    // Remove duplicates in case of any edge cases
+    const uniqueFriendIds = Array.from(new Set(friendIds));
+    console.log(`📋 Unique friend IDs to fetch:`, uniqueFriendIds);
     
     // Fetch the friend profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('*')
-      .in('id', friendIds);
+      .in('id', uniqueFriendIds);
     
-    if (profilesError) throw profilesError;
+    if (profilesError) {
+      console.error('Error fetching friend profiles:', profilesError);
+      throw profilesError;
+    }
+    
+    console.log(`📋 Fetched ${profiles?.length || 0} friend profiles`);
     
     // Map friendships with their friend profiles
     const profileMap = new Map((profiles || []).map(p => [p.id, p]));
-    return friendships.map((f: any) => {
+    const result = friendships.map((f: any) => {
       const friendId = f.sender_id === userId ? f.receiver_id : f.sender_id;
       const friendProfile = profileMap.get(friendId);
       return {
@@ -2155,6 +2187,9 @@ export const getFriends = async (userId: string): Promise<Friendship[]> => {
         friend: friendProfile ? { ...friendProfile, gems: friendProfile.gems ?? 0, turn_timer_setting: friendProfile.turn_timer_setting ?? 0 } as UserProfile : undefined
       };
     }) as Friendship[];
+    
+    console.log(`📋 Returning ${result.length} friendships with ${result.filter(f => f.friend).length} profiles`);
+    return result;
   } catch (e) {
     console.error('Error fetching friends:', e);
     return [];

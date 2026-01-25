@@ -107,7 +107,8 @@ export enum SocketEvents {
   GET_INITIAL_STATUSES = 'get_initial_statuses',
   INVITE_RESPONSE = 'invite_response',
   AUTHENTICATE_USER = 'authenticate_user',
-  AUTHENTICATED_SUCCESS = 'authenticated_success'
+  AUTHENTICATED_SUCCESS = 'authenticated_success',
+  AUTH_READY = 'auth_ready'
 }
 
 export type BackgroundTheme = 'CLASSIC_GREEN' | 'EMERALD' | 'CYBER_BLUE' | 'CRIMSON_VOID' | 'CYBERPUNK_NEON' | 'GOLDEN_EMPEROR' | 'LOTUS_FOREST' | 'CHRISTMAS_YULETIDE' | 'HIGH_ROLLER' | 'OBSIDIAN_MADNESS' | 'GOLD_FLUX' | 'ZEN_POND' | 'LAS_VEGAS' | 'SHIBA' | 'JUST_A_GIRL';

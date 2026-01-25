@@ -1367,8 +1367,15 @@ io.on('connection', (socket: Socket) => {
       // updateUserPresence internally calls emitUserStatusChange, so the broadcast happens automatically
       updateUserPresence(userId, socket.id, 'online');
       
+      // Verify userId is now in onlineUsers Map before sending acknowledgement
+      const isMapped = onlineUsers.has(userId);
       console.log(`✅ User ${userId} authenticated and marked as online`);
       console.log(`📊 Online users count: ${onlineUsers.size}`);
+      console.log(`🔍 User ${userId} mapped in onlineUsers: ${isMapped}`);
+      
+      if (!isMapped) {
+        console.error(`❌ ERROR: User ${userId} was not properly added to onlineUsers Map!`);
+      }
       
       // Send acknowledgement to client that authentication succeeded
       if (callback && typeof callback === 'function') {
@@ -1376,6 +1383,11 @@ io.on('connection', (socket: Socket) => {
       } else {
         socket.emit('authenticated_success', { userId });
       }
+      
+      // Emit 'auth_ready' event once userId is confirmed in onlineUsers Map
+      // This ensures the mapping is complete before clients request statuses
+      socket.emit('auth_ready', { userId });
+      console.log(`📡 Emitted auth_ready for user ${userId}`);
     } else {
       console.warn(`⚠️ Invalid authentication attempt: userId=${userId}, socketId=${socket.id}`);
       if (callback && typeof callback === 'function') {
@@ -1485,8 +1497,17 @@ io.on('connection', (socket: Socket) => {
   socket.on('get_initial_statuses', async (callback) => {
     const playerId = socketToPlayerId[socket.id];
     
+    // SERVER-SIDE LOGGING: Show the onlineUsers Map
+    console.log('📊 Online Users Map:', Array.from(onlineUsers.entries()).map(([id, presence]) => ({
+      userId: id,
+      socketId: presence.socketId,
+      status: presence.status,
+      roomId: presence.roomId
+    })));
+    
     // If user is not authenticated, return empty statuses
     if (!playerId || playerId === 'guest') {
+      console.warn(`⚠️ get_initial_statuses called by unauthenticated user: socketId=${socket.id}, playerId=${playerId}`);
       const emptyStatuses: Record<string, 'online' | 'in_game'> = {};
       if (callback && typeof callback === 'function') {
         callback({ statuses: emptyStatuses });
@@ -1496,11 +1517,12 @@ io.on('connection', (socket: Socket) => {
       return;
     }
     
-    // Get user's friends from database
+    // Get user's friends from database - BI-DIRECTIONAL FETCH
     let friendIds: string[] = [];
     if (supabase) {
       try {
-        // Get friendships where user is sender or receiver and status is accepted
+        // BI-DIRECTIONAL FETCH: Get friendships where user is sender OR receiver and status is accepted
+        // This ensures that regardless of who sent the request, the friend appears in the list
         const { data: friendships, error } = await supabase
           .from('friendships')
           .select('sender_id, receiver_id')
@@ -1508,23 +1530,40 @@ io.on('connection', (socket: Socket) => {
           .eq('status', 'accepted');
         
         if (!error && friendships) {
-          friendIds = friendships.map(f => 
-            f.sender_id === playerId ? f.receiver_id : f.sender_id
-          );
+          // JOIN LOGIC REFINEMENT: Pick the 'other' ID
+          // Logic: If 'sender_id' is me, get 'receiver_id'. If 'receiver_id' is me, get 'sender_id'.
+          friendIds = friendships.map(f => {
+            const friendId = f.sender_id === playerId ? f.receiver_id : f.sender_id;
+            return friendId;
+          });
+          console.log(`📋 Found ${friendIds.length} friends for user ${playerId}:`, friendIds);
+        } else {
+          console.error(`❌ Error fetching friends for ${playerId}:`, error);
         }
       } catch (error) {
         console.error('Error fetching friends for initial statuses:', error);
       }
+    } else {
+      console.warn('⚠️ Supabase client not available for fetching friends');
     }
     
-    // Only return statuses for friends who are online
+    // SERVER-SIDE CHECK: Loop through the provided IDs and check the 'onlineUsers' map for each one
+    // If the map contains the ID, mark them as 'online'
     const statuses: Record<string, 'online' | 'in_game'> = {};
     friendIds.forEach(friendId => {
       const presence = onlineUsers.get(friendId);
       if (presence) {
+        // Friend is online - mark them as 'online' or 'in_game' based on their status
         statuses[friendId] = presence.status === 'in_game' ? 'in_game' : 'online';
+        console.log(`✅ Friend ${friendId} is ${statuses[friendId]} (socketId: ${presence.socketId})`);
+      } else {
+        console.log(`❌ Friend ${friendId} is NOT in onlineUsers Map`);
       }
     });
+    
+    console.log(`📋 Status check for ${playerId}: ${Object.keys(statuses).length} friends online out of ${friendIds.length} total friends`);
+    console.log(`📋 Friend IDs being checked:`, friendIds);
+    console.log(`📋 Online friend IDs found:`, Object.keys(statuses));
     
     if (callback && typeof callback === 'function') {
       callback({ statuses });

@@ -103,15 +103,30 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     let hasRequested = false; // Prevent duplicate requests
     let isAuthenticated = false;
 
-    // SEQUENTIAL AUTHENTICATION: Wait for authenticated_success before requesting statuses
-    const handleAuthenticatedSuccess = (data: { userId: string }) => {
+    // SEQUENTIAL AUTHENTICATION: Wait for auth_ready event (fires after userId is mapped in onlineUsers Map)
+    const handleAuthReady = (data: { userId: string }) => {
       if (data.userId === profile.id) {
         isAuthenticated = true;
-        console.log('✅ Authentication confirmed, can now request initial statuses');
+        console.log('✅ Auth ready confirmed - userId is mapped in server, can now request initial statuses');
         // Trigger status request if socket is connected
         if (socket.connected && !hasRequested) {
           requestInitialStatuses();
         }
+      }
+    };
+    
+    // Also listen for authenticated_success as fallback
+    const handleAuthenticatedSuccess = (data: { userId: string }) => {
+      if (data.userId === profile.id && !isAuthenticated) {
+        console.log('✅ Authentication success received (fallback)');
+        // Wait a bit for auth_ready, but if it doesn't come, proceed anyway
+        setTimeout(() => {
+          if (!isAuthenticated && socket.connected && !hasRequested) {
+            console.log('⏳ Auth ready not received, proceeding with status request...');
+            isAuthenticated = true;
+            requestInitialStatuses();
+          }
+        }, 500);
       }
     };
 
@@ -137,16 +152,37 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       hasRequested = true;
       console.log('📡 Requesting initial statuses for', friends.length, 'friends');
       
+      // Get friend IDs to send to server - ensure we include all friend IDs
+      const friendIds = new Set(friends.map(f => f.friend_id).filter(Boolean));
+      console.log('📡 Socket Status Request: Sending IDs', Array.from(friendIds));
+      
+      if (friendIds.size === 0) {
+        console.warn('⚠️ No friend IDs to send - friends list may be empty or friend_id is missing');
+        console.warn('⚠️ Friends array:', friends);
+      }
+      
       socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
         if (response?.statuses) {
           // Filter statuses to only include friends
-          const friendIds = new Set(friends.map(f => f.friend_id));
           const filteredStatuses: Record<string, 'online' | 'in_game'> = {};
           Object.entries(response.statuses).forEach(([userId, status]) => {
             if (friendIds.has(userId)) {
               filteredStatuses[userId] = status;
             }
           });
+          
+          // FORCED BROADCAST: Log if count is 0
+          if (Object.keys(filteredStatuses).length === 0) {
+            console.warn('⚠️ FORCED BROADCAST: Initial statuses returned 0 friends online');
+            console.warn('⚠️ Friend IDs sent to server:', Array.from(friendIds));
+            console.warn('⚠️ Response statuses received:', response.statuses);
+            if (friendIds.size === 0) {
+              console.error('❌ ISSUE: friendIds is empty - the Supabase fetch may have failed');
+            } else {
+              console.warn('⚠️ friendIds is not empty, but no friends are showing as online');
+              console.warn('⚠️ This suggests the server may not have the friends in onlineUsers Map');
+            }
+          }
           
           setFriendStatuses(filteredStatuses);
           // Also update presence map
@@ -165,7 +201,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       });
     };
 
-    // Listen for authenticated_success event
+    // Listen for auth_ready event (primary) and authenticated_success (fallback)
+    socket.on(SocketEvents.AUTH_READY, handleAuthReady);
     socket.on(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
 
     // Wait for socket connection AND authentication before requesting statuses
@@ -197,6 +234,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     // Cleanup: remove listeners on unmount
     return () => {
       socket.off('connect', handleConnect);
+      socket.off(SocketEvents.AUTH_READY, handleAuthReady);
       socket.off(SocketEvents.AUTHENTICATED_SUCCESS, handleAuthenticatedSuccess);
       hasRequested = false;
       isAuthenticated = false;
