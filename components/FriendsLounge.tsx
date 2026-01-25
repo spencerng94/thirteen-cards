@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { UserProfile, Emote } from '../types';
 import { getFriends, addFriend, removeFriend, searchUsers, getUserByHandle, Friendship, getPendingRequests, acceptFriend, declineFriend, cancelSentRequest } from '../services/supabase';
 import { calculateLevel } from '../services/supabase';
@@ -83,6 +83,20 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     onPendingCountChange?.(pendingCount);
   }, [pendingCount, onPendingCountChange]);
 
+  // FIX THE INFINITE LOOP: Use useCallback for loadFriends to prevent unnecessary re-renders
+  const loadFriends = useCallback(async () => {
+    if (!profile || isGuest) return;
+    setLoading(true);
+    try {
+      const friendsList = await getFriends(profile.id);
+      setFriends(friendsList);
+    } catch (e) {
+      console.error('Error loading friends:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [profile?.id, isGuest]);
+
   useEffect(() => {
     if (profile && !isGuest) {
       loadFriends();
@@ -94,7 +108,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
         subscriptionRef.current.unsubscribe();
       }
     };
-  }, [profile, isGuest]);
+  }, [profile?.id, isGuest, loadFriends]);
 
   // Request initial statuses on mount - ONLY after socket is connected AND authenticated
   useEffect(() => {
@@ -239,7 +253,7 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       hasRequested = false;
       isAuthenticated = false;
     };
-  }, [socket, isGuest, profile, friends]);
+  }, [socket, isGuest, profile?.id]); // FIX: Removed 'friends' from dependency array to prevent infinite loop
 
   // Listen for differential status changes
   useEffect(() => {
@@ -273,18 +287,6 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     };
   }, [socket, isGuest]);
 
-  const loadFriends = async () => {
-    if (!profile || isGuest) return;
-    setLoading(true);
-    try {
-      const friendsList = await getFriends(profile.id);
-      setFriends(friendsList);
-    } catch (e) {
-      console.error('Error loading friends:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadPendingRequests = async () => {
     if (!profile || isGuest) return;
@@ -692,8 +694,27 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     if (!profile || isGuest) return;
     setLoading(true);
     try {
-      await removeFriend(profile.id, friendId);
-      await loadFriends();
+      const success = await removeFriend(profile.id, friendId);
+      if (success) {
+        // FIX REMOVE FRIEND: Update local state immediately to remove friend from UI
+        setFriends(prev => prev.filter(f => f.friend_id !== friendId));
+        // Also remove from status tracking
+        setFriendStatuses(prev => {
+          const updated = { ...prev };
+          delete updated[friendId];
+          return updated;
+        });
+        setFriendPresence(prev => {
+          const updated = new Map(prev);
+          updated.delete(friendId);
+          return updated;
+        });
+        console.log('✅ Friend removed successfully');
+      } else {
+        console.error('❌ Failed to remove friend');
+      }
+      // Optionally reload to ensure consistency
+      // await loadFriends();
     } catch (e) {
       console.error('Error removing friend:', e);
     } finally {
@@ -1365,6 +1386,9 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   const isOnline = friendStatus === 'online' || friendStatus === 'in_game';
                   const presence = friendPresence.get(friend.id);
                   const isInGame = friendStatus === 'in_game' || presence?.status === 'in_game';
+                  
+                  // ONLINE STATUS RENDER: Log the status for each friend
+                  console.log(`Rendering Friend [${friend.id}]: Status is [${friendStatus}] (isOnline: ${isOnline}, isInGame: ${isInGame})`);
                   
                   return (
                     <div

@@ -924,9 +924,14 @@ export const fetchProfile = async (userId: string, currentAvatar: string = ':coo
   // baseUsername should come from Google OAuth metadata (full_name, name, or display_name)
   const cleanBaseUsername = (baseUsername || 'AGENT').trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').substring(0, 20) || 'AGENT';
   const defaultProfile = await getDefaultProfile(userId, currentAvatar, cleanBaseUsername);
+  
+  // FIX THE SUPABASE 400: Strip level field from defaultProfile before upsert
+  const { level, ...profileWithoutLevel } = defaultProfile as any;
+  const cleanDefaultProfile = profileWithoutLevel;
+  
   // Save the new profile immediately for Google OAuth users
   // Attempt to upsert new user profile
-  const { data: upsertData, error: upsertError } = await supabase.from('profiles').upsert(defaultProfile, {
+  const { data: upsertData, error: upsertError } = await supabase.from('profiles').upsert(cleanDefaultProfile, {
     onConflict: 'id'
   });
   
@@ -1051,24 +1056,43 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
   // This prevents 400 errors from protected fields that are calculated by the database
   const { level, id, created_at, updated_at, discriminator, ...cleanProfileData } = cleanData;
   
-  // SANITIZE SUPABASE DATA: Explicitly delete 'level' key from the object before it hits Supabase
-  // This ensures no level field can slip through and cause 400 errors
-  const dataToUpdate = { ...cleanProfileData };
-  delete dataToUpdate.level;
+  // FIX THE SUPABASE 400 (CRITICAL): Globally intercept any profile updates and delete 'level' before sending to Supabase
+  // This error is likely what's breaking the 'Remove' function's completion
+  const dataToUpdate: any = { ...cleanProfileData };
   
-  // Double-check: remove level if it somehow still exists
+  // Explicitly delete level field - do this multiple times to be absolutely sure
+  delete dataToUpdate.level;
   if ('level' in dataToUpdate) {
     console.warn('⚠️ Level field still present after deletion, removing again');
     delete dataToUpdate.level;
   }
   
+  // Final safety check: iterate through all keys and remove level if it exists
+  Object.keys(dataToUpdate).forEach(key => {
+    if (key === 'level') {
+      console.warn(`⚠️ Found 'level' key in dataToUpdate, removing: ${key}`);
+      delete dataToUpdate[key];
+    }
+  });
+  
   // PROFILE UPDATE SANITIZATION: Use .update() with dataToUpdate containing only schema fields
   // This prevents 400 errors from protected fields that are calculated by the database
   // Use .update() with .eq('id', userId) to ensure we only update existing records
+  
+  // FIX THE SUPABASE 400 (CRITICAL): Final global check - ensure level is never sent
+  if ('level' in dataToUpdate) {
+    console.error('❌ CRITICAL: Level field detected in dataToUpdate before Supabase call! Removing...');
+    delete dataToUpdate.level;
+  }
+  
   const { error } = await supabase.from('profiles').update(dataToUpdate).eq('id', userId);
   
   if (error) {
     console.error('Error updating profile settings:', error);
+    if (error.message?.includes('level')) {
+      console.error('❌ CRITICAL: Level field error detected! This should not happen.');
+      console.error('❌ dataToUpdate keys:', Object.keys(dataToUpdate));
+    }
     // Don't throw - let the caller handle the error if needed
   }
 };
@@ -2499,14 +2523,30 @@ export const removeFriend = async (userId: string, friendId: string): Promise<bo
   if (!supabaseAnonKey || userId === 'guest' || friendId === 'guest') return false;
   
   try {
-    // Delete both directions of the friendship (accepted friendships)
-    // Use OR to delete both sender->receiver and receiver->sender relationships
-    const { error } = await supabase
+    // FIX REMOVE FRIEND (Bi-directional Delete): Delete ALL rows involving these two IDs
+    // SQL equivalent: DELETE FROM friendships WHERE (sender_id = myId AND receiver_id = friendId) OR (sender_id = friendId AND receiver_id = myId);
+    
+    // First, try deleting where userId is sender and friendId is receiver
+    const { error: error1 } = await supabase
       .from('friendships')
       .delete()
-      .or(`and(sender_id.eq.${userId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${userId})`);
+      .eq('sender_id', userId)
+      .eq('receiver_id', friendId);
     
-    if (error) throw error;
+    // Then, try deleting where friendId is sender and userId is receiver
+    const { error: error2 } = await supabase
+      .from('friendships')
+      .delete()
+      .eq('sender_id', friendId)
+      .eq('receiver_id', userId);
+    
+    if (error1 || error2) {
+      console.error('Error removing friend (direction 1):', error1);
+      console.error('Error removing friend (direction 2):', error2);
+      throw error1 || error2;
+    }
+    
+    console.log(`✅ Successfully removed friendship between ${userId} and ${friendId}`);
     return true;
   } catch (e) {
     console.error('Error removing friend:', e);
