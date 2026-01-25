@@ -101,8 +101,14 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     if (!socket || isGuest || !profile) return;
 
     const requestInitialStatuses = () => {
+      if (!socket.connected) {
+        console.warn('⚠️ Socket not connected when requesting initial statuses');
+        return;
+      }
+      
       // Wait a bit to ensure authentication has completed
       setTimeout(() => {
+        console.log('📡 Requesting initial statuses for', friends.length, 'friends');
         socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
           if (response?.statuses) {
             // Filter statuses to only include friends
@@ -122,16 +128,24 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
             });
             setFriendPresence(presenceMap);
             
-            console.log('📋 Initial statuses received:', Object.keys(filteredStatuses).length, 'friends online');
+            console.log('📋 Initial statuses received:', Object.keys(filteredStatuses).length, 'friends online out of', friends.length, 'total friends');
+            console.log('📋 Friend IDs:', Array.from(friendIds));
+            console.log('📋 Online friend IDs:', Object.keys(filteredStatuses));
+          } else {
+            console.warn('⚠️ No statuses in response:', response);
           }
         });
-      }, 500); // Small delay to ensure authentication completes
+      }, 1000); // Increased delay to ensure authentication completes
     };
 
     if (socket.connected) {
       requestInitialStatuses();
     } else {
-      socket.once('connect', requestInitialStatuses);
+      console.log('⏳ Socket not connected yet, waiting for connect event before requesting statuses...');
+      socket.once('connect', () => {
+        console.log('✅ Socket connected, requesting initial statuses...');
+        requestInitialStatuses();
+      });
     }
   }, [socket, isGuest, profile, friends]);
 

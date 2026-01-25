@@ -32,16 +32,20 @@ const getSocketUrl = (): string => {
   // Use environment-based URL for web
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
+    const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
     const isProduction = hostname !== 'localhost' && hostname !== '127.0.0.1';
     
     if (isProduction) {
-      return getEnv('VITE_PROD_SERVER_URL') || `http://${hostname}:3001`;
+      const prodUrl = getEnv('VITE_PROD_SERVER_URL');
+      if (prodUrl) return prodUrl;
+      // Use secure protocol if page is HTTPS
+      return `${protocol}://${hostname}:3001`;
     }
     
     // Dynamic socket URL based on hostname
     return hostname === 'localhost' || hostname === '127.0.0.1'
       ? 'http://localhost:3001'
-      : `http://${hostname}:3001`;
+      : `${protocol}://${hostname}:3001`;
   }
   
   return 'http://localhost:3001'; // Use localhost for development (socket server port)
@@ -49,11 +53,14 @@ const getSocketUrl = (): string => {
 
 const SERVER_URL = getSocketUrl();
 
-// Dynamic socket URL - use hostname from window.location
+// Dynamic socket URL - use hostname from window.location and match protocol
 const SOCKET_URL = typeof window !== 'undefined'
   ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? 'http://localhost:3001'
-      : `http://${window.location.hostname}:3001`)
+      : (() => {
+          const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+          return `${protocol}://${window.location.hostname}:3001`;
+        })())
   : SERVER_URL;
 
 // CRITICAL: Export a single shared socket instance

@@ -463,13 +463,19 @@ const AppContent: React.FC = () => {
       if (socket.connected && sessionUserId) {
         socket.emit(SocketEvents.AUTHENTICATE_USER, { userId: sessionUserId });
         console.log('✅ Emitted authenticate_user for:', sessionUserId);
+      } else {
+        console.warn('⚠️ Socket not connected when trying to authenticate:', { connected: socket.connected, sessionUserId });
       }
     };
 
     if (socket.connected) {
       authenticate();
     } else {
-      socket.once('connect', authenticate);
+      console.log('⏳ Socket not connected yet, waiting for connect event...');
+      socket.once('connect', () => {
+        console.log('✅ Socket connected, authenticating user...');
+        authenticate();
+      });
     }
 
     return () => {
