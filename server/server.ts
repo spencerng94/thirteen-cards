@@ -1449,11 +1449,22 @@ io.on('connection', (socket: Socket) => {
     };
 
     // Send invite to receiver using their specific socketId
+    console.log(`📨 Sending invite to socketId: ${friendPresence.socketId}`);
+    console.log(`📨 Invite data:`, JSON.stringify(inviteData, null, 2));
+    
+    // Emit to the specific socket
     io.to(friendPresence.socketId).emit('receive_game_invite', inviteData);
     
-    console.log(`📨 Game invite sent from ${senderId} to ${receiverId} for room ${roomId}`);
-    console.log(`📨 Invite data:`, inviteData);
-    console.log(`📨 Sent to socketId: ${friendPresence.socketId}`);
+    // Also try emitting to the socket directly as a fallback
+    const friendSocket = io.sockets.sockets.get(friendPresence.socketId);
+    if (friendSocket) {
+      friendSocket.emit('receive_game_invite', inviteData);
+      console.log(`📨 Also sent invite directly to socket ${friendPresence.socketId}`);
+    } else {
+      console.warn(`⚠️ Socket ${friendPresence.socketId} not found in io.sockets.sockets`);
+    }
+    
+    console.log(`✅ Game invite sent from ${senderId} to ${receiverId} for room ${roomId}`);
   });
 
   // Accept invite
@@ -1642,7 +1653,7 @@ io.on('connection', (socket: Socket) => {
       // Send invite to friend using their socketId from onlineUsers
       const friendPresence = onlineUsers.get(friendId);
       if (friendPresence) {
-        io.to(friendPresence.socketId).emit('receive_game_invite', {
+        const inviteData = {
           roomId,
           inviterName: sanitizedName,
           inviterId: playerId,
@@ -1651,10 +1662,28 @@ io.on('connection', (socket: Socket) => {
             lobbyName: lobbyName.substring(0, 24),
             turnTimer
           }
-        });
-        console.log(`📨 Private lobby invite sent from ${playerId} to ${friendId} for room ${roomId}`);
+        };
+        
+        console.log(`📨 Sending private lobby invite from ${playerId} to ${friendId} for room ${roomId}`);
+        console.log(`📨 Friend socketId: ${friendPresence.socketId}`);
+        console.log(`📨 Invite data:`, JSON.stringify(inviteData, null, 2));
+        
+        // Emit to the specific socket
+        io.to(friendPresence.socketId).emit('receive_game_invite', inviteData);
+        
+        // Also try emitting to the socket directly as a fallback
+        const friendSocket = io.sockets.sockets.get(friendPresence.socketId);
+        if (friendSocket) {
+          friendSocket.emit('receive_game_invite', inviteData);
+          console.log(`📨 Also sent invite directly to socket ${friendPresence.socketId}`);
+        } else {
+          console.warn(`⚠️ Socket ${friendPresence.socketId} not found in io.sockets.sockets`);
+        }
+        
+        console.log(`✅ Private lobby invite sent from ${playerId} to ${friendId} for room ${roomId}`);
       } else {
         console.warn(`⚠️ Friend ${friendId} is not online, cannot send invite`);
+        console.warn(`⚠️ Available online user IDs:`, Array.from(onlineUsers.keys()));
         if (callback) callback({ error: 'Friend is not online' });
         return;
       }

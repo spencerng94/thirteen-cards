@@ -1246,27 +1246,46 @@ const AppContent: React.FC = () => {
     socket.on(SocketEvents.GAME_STATE, onGameState);
     socket.on(SocketEvents.PLAYER_HAND, onPlayerHand);
     socket.on(SocketEvents.ERROR, (m) => { if (m === 'Session Expired') localStorage.removeItem(SESSION_KEY); setError(m); setTimeout(() => setError(null), 3000); });
-    socket.on(SocketEvents.RECEIVE_GAME_INVITE, (data: { roomId: string; inviterName: string; inviterId: string; lobbyName?: string }) => {
-      setGameInvite(data);
-    });
-
-    // Listen for invite response (when someone declines our invite)
-    socket.on(SocketEvents.INVITE_RESPONSE, (data: { roomId: string; receiverId: string; accepted: boolean; message?: string }) => {
-      if (!data.accepted) {
-        // Show toast notification that invite was declined
-        console.log(`❌ Invite declined: ${data.message || 'User declined the invite'}`);
-        // You can add a toast notification here if needed
-      }
-    });
 
     return () => {
       socket.off(SocketEvents.GAME_STATE); 
       socket.off(SocketEvents.PLAYER_HAND); 
       socket.off(SocketEvents.ERROR);
-      socket.off(SocketEvents.RECEIVE_GAME_INVITE);
-      socket.off(SocketEvents.INVITE_RESPONSE);
     };
   }, [view, gameMode, triggerMatchEndTransition, myPlayerId, mpGameState?.status, mpMyHand.length, isGuest, session?.user?.id, profile]);
+
+  // PERSISTENT INVITE LISTENER: Set up once and keep it active
+  useEffect(() => {
+    if (!socket || isGuest) return;
+
+    console.log('📨 Setting up persistent RECEIVE_GAME_INVITE listener');
+
+    const handleReceiveInvite = (data: { roomId: string; inviterName: string; inviterId: string; lobbyName?: string }) => {
+      console.log('📨 RECEIVED GAME INVITE:', data);
+      console.log('📨 Inviter:', data.inviterName);
+      console.log('📨 Room ID:', data.roomId);
+      console.log('📨 Lobby Name:', data.lobbyName);
+      console.log('📨 Inviter ID:', data.inviterId);
+      setGameInvite(data);
+    };
+
+    const handleInviteResponse = (data: { roomId: string; receiverId: string; accepted: boolean; message?: string }) => {
+      if (!data.accepted) {
+        // Show toast notification that invite was declined
+        console.log(`❌ Invite declined: ${data.message || 'User declined the invite'}`);
+        // You can add a toast notification here if needed
+      }
+    };
+
+    socket.on(SocketEvents.RECEIVE_GAME_INVITE, handleReceiveInvite);
+    socket.on(SocketEvents.INVITE_RESPONSE, handleInviteResponse);
+
+    return () => {
+      console.log('🧹 Cleaning up invite listeners');
+      socket.off(SocketEvents.RECEIVE_GAME_INVITE, handleReceiveInvite);
+      socket.off(SocketEvents.INVITE_RESPONSE, handleInviteResponse);
+    };
+  }, [socket, isGuest]);
 
   const handleLocalPass = (pid: string) => {
     setSpGameState(prev => {

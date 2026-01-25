@@ -96,8 +96,10 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
       
       // MOVE EMIT OUT OF RENDER: Only emit once friends are loaded AND authenticated AND not already requested
       if (socket && socket.connected && isSocketAuthenticated && friendsList.length > 0 && !hasRequestedStatusRef.current) {
-        const friendIds = friendsList.map(f => f.friend_id).filter(Boolean);
+        // Use friend.id consistently (from the UserProfile), fallback to friend_id
+        const friendIds = friendsList.map(f => f.friend?.id || f.friend_id).filter(Boolean);
         console.log("📡 Force emitting request_initial_statuses for:", friendIds);
+        console.log("📡 Friend details:", friendsList.map(f => ({ id: f.friend?.id || f.friend_id, username: f.friend?.username, discriminator: f.friend?.discriminator })));
         hasRequestedStatusRef.current = true; // Mark as requested to prevent duplicates
         socket.emit(SocketEvents.GET_INITIAL_STATUSES, (response: { statuses: Record<string, 'online' | 'in_game'> }) => {
           console.log('📥 Received initial_statuses callback after friends loaded:', response);
@@ -1394,7 +1396,11 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <CopyUsername username={user.username} className="text-base sm:text-lg" />
+                              <CopyUsername 
+                                username={user.username || 'AGENT'} 
+                                discriminator={user.discriminator && /^\d{4}$/.test(String(user.discriminator)) ? String(user.discriminator) : undefined} 
+                                className="text-base sm:text-lg" 
+                              />
                               <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
                                 Lv {userLevel}
                               </span>
@@ -1558,16 +1564,16 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   if (!friend) return null;
                   const friendLevel = calculateLevel(friend.xp || 0);
                   
-                  // UI MAPPING: In the Friend item render, ensure 'isOnline' is calculated correctly
-                  // Use friendship.friend_id to check status (this is the friend's user ID)
-                  const friendStatus = friendStatuses[friendship.friend_id] || friendStatuses[friend.id];
+                  // UI MAPPING: Use friend.id consistently (this is the friend's user ID from the profile)
+                  // Ensure we use the same ID that's used in the status request
+                  const friendId = friend.id || friendship.friend_id;
+                  const friendStatus = friendStatuses[friendId];
                   const isOnline = friendStatus === 'online';
-                  const presence = friendPresence.get(friendship.friend_id) || friendPresence.get(friend.id);
+                  const presence = friendPresence.get(friendId);
                   const isInGame = friendStatus === 'in_game' || presence?.status === 'in_game';
                   
                   // ONLINE STATUS RENDER: Log the status for each friend
-                  console.log(`Rendering Friend [${friend.id}]: Status from friendStatuses[${friendship.friend_id}] is [${friendStatus}] (isOnline: ${isOnline}, isInGame: ${isInGame})`);
-                  console.log(`Rendering Friend [${friend.id}]: Full friendStatuses object:`, friendStatuses);
+                  console.log(`Rendering Friend [${friendId}]: username="${friend.username}", discriminator="${friend.discriminator}", status=[${friendStatus}] (isOnline: ${isOnline})`);
                   
                   return (
                     <div
@@ -1601,15 +1607,15 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                                 )}
                               </div>
                               <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${
-                                friendStatuses[friendship.friend_id] === 'online' ? 'bg-green-500' : 
-                                friendStatuses[friendship.friend_id] === 'in_game' ? 'bg-blue-500' : 'bg-slate-500'
+                                friendStatus === 'online' ? 'bg-green-500' : 
+                                friendStatus === 'in_game' ? 'bg-blue-500' : 'bg-slate-500'
                               }`} />
                             </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <CopyUsername 
                                 username={friend.username || 'AGENT'} 
-                                discriminator={friend.discriminator && /^\d{4}$/.test(friend.discriminator) ? friend.discriminator : undefined} 
+                                discriminator={friend.discriminator && /^\d{4}$/.test(String(friend.discriminator)) ? String(friend.discriminator) : undefined} 
                                 className="text-base sm:text-lg" 
                               />
                               <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
@@ -1633,7 +1639,8 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                           <div className="flex items-center gap-2 shrink-0">
                             {/* INVITE BUTTON LOGIC: Ensure the 'Invite' button is enabled only when 'online' and NOT 'in_game' */}
                             {(() => {
-                              const friendStatus = friendStatuses[friendship.friend_id] || friendStatuses[friend.id];
+                              const friendId = friend.id || friendship.friend_id;
+                              const friendStatus = friendStatuses[friendId];
                               const canInvite = friendStatus === 'online';
                               return (
                                 <button
