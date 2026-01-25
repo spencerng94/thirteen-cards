@@ -1467,8 +1467,8 @@ io.on('connection', (socket: Socket) => {
       }
     }
     
-    // Join the room (this will trigger the join_room handler)
-    socket.emit('join_room', { roomId, playerId });
+    // The client will handle emitting join_room with full player data
+    // No need to emit anything from server - client handles join_room directly
     console.log(`✅ Player ${playerId} accepted invite to room ${roomId}`);
   });
 

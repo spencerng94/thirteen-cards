@@ -2294,8 +2294,19 @@ const AppContent: React.FC = () => {
             if (gameInvite) {
               // Emit accept with inviterId for notification
               socket.emit(SocketEvents.ACCEPT_INVITE, { roomId: gameInvite.roomId, inviterId: gameInvite.inviterId });
+              
+              // Join the room immediately with player data
+              if (socket.connected && gameInvite.roomId && myPlayerId) {
+                socket.emit(SocketEvents.JOIN_ROOM, {
+                  roomId: gameInvite.roomId,
+                  name: playerName,
+                  avatar: playerAvatar,
+                  playerId: myPlayerId,
+                  selected_sleeve_id: profile?.active_sleeve || profile?.equipped_sleeve || undefined
+                });
+              }
+              
               setView('LOBBY');
-              // The join_room will be handled by the accept_invite socket event
               setGameInvite(null);
             }
           }}
