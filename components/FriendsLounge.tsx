@@ -134,19 +134,14 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
     friendsRef.current = friends;
   }, [friends]);
 
-  // THE TRIGGER: Only run if we have a socket, we are authenticated, and we actually have friends to check
+  // FORCE THE SOCKET REQUEST: We need an explicit log and emit when friends are ready
   useEffect(() => {
-    // Only run if we have a socket, we are authenticated, and we actually have friends to check
     if (socket && isSocketAuthenticated && friends.length > 0) {
       // Use friend.id from the friend object (friendship.friend.id) - the user's ID, not the friendship ID
-      const friendIds = friends.map(f => {
-        // f.friend?.id is the friend's user ID, f.friend_id is the same thing
-        return f.friend?.id || f.friend_id;
-      }).filter(Boolean);
-      // EXPLICIT EMIT LOGGING: Ensure 'request_initial_statuses' is emitted ONLY after authentication is successful
-      console.log("📡 EMIT: request_initial_statuses with IDs: " + friendIds.join(', '));
+      const ids = friends.map(f => f.friend?.id || f.friend_id).filter(Boolean);
+      console.log("🚀 TRIGGERING STATUS REQUEST for IDs:", ids);
       // Use 'get_initial_statuses' to match server handler (server listens for 'get_initial_statuses')
-      socket.emit('get_initial_statuses', friendIds);
+      socket.emit('get_initial_statuses', ids);
     }
   }, [socket, isSocketAuthenticated, friends.length]);
 
@@ -1510,10 +1505,9 @@ export const FriendsLounge: React.FC<FriendsLoungeProps> = ({
                   const friendLevel = calculateLevel(friend.xp || 0);
                   
                   // UI MAPPING: In the Friend item render, ensure 'isOnline' is calculated correctly
-                  // ROBUST STATUS MAPPING: In the friend list rendering logic, ensure it handles both string and boolean
+                  // VERIFY DATA MAPPING: Ensure the UI checks the 'friendStatuses' object for the string 'online'
                   const status = friendStatuses[friend.id];
-                  // Handle both string 'online' and truthy values (including boolean true if it somehow gets through)
-                  const isOnline = status === 'online' || (status !== undefined && status !== 'offline' && status !== null);
+                  const isOnline = friendStatuses[friend.id] === 'online';
                   const presence = friendPresence.get(friend.id);
                   const isInGame = status === 'in_game' || presence?.status === 'in_game';
                   

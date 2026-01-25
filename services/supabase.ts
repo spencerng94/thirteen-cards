@@ -1038,7 +1038,8 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
   }
   
   // Explicitly ensure these non-schema fields are NOT included (double-check)
-  const nonSchemaFields = ['id', 'level', 'created_at', 'updated_at', 'discriminator'];
+  // FIX SUPABASE SCHEMA ERROR: Include 'unlocked_phrases' in the list of fields to remove
+  const nonSchemaFields = ['id', 'level', 'unlocked_phrases', 'created_at', 'updated_at', 'discriminator'];
   for (const key of nonSchemaFields) {
     if (key in cleanData) {
       console.warn(`Removing non-schema field from update: ${key}`);
@@ -1052,18 +1053,18 @@ export const updateProfileSettings = async (userId: string, updates: Partial<Use
     return;
   }
   
-  // FIX THE 400 ERROR (Blocked field 'level'): Locate the function that updates the user profile
-  // Immediately before the 'supabase.from("profiles").update(updates)' call, add destructuring to remove level
-  const { level, id, created_at, updated_at, discriminator, ...cleanUpdates } = cleanData;
+  // FIX SUPABASE SCHEMA ERROR (Immediate Priority): The 'profiles' table in Supabase is missing the 'unlocked_phrases' column
+  // BEFORE the update call, strip out both problematic fields: 'level' and 'unlocked_phrases'
+  const { level, unlocked_phrases, id, created_at, updated_at, discriminator, ...validData } = cleanData;
   
-  // Use 'cleanUpdates' in the update call. This error is causing the component to re-render/crash, which triggers the listener cleanup.
-  const { error } = await supabase.from('profiles').update(cleanUpdates).eq('id', userId);
+  // Use 'validData' in the update call. This will stop the 400 error and allow the rest of the component logic to run.
+  const { error } = await supabase.from('profiles').update(validData).eq('id', userId);
   
   if (error) {
     console.error('Error updating profile settings:', error);
     if (error.message?.includes('level')) {
       console.error('❌ CRITICAL: Level field error detected! This should not happen.');
-      console.error('❌ cleanUpdates keys:', Object.keys(cleanUpdates));
+      console.error('❌ validData keys:', Object.keys(validData));
     }
     // Don't throw - let the caller handle the error if needed
   }
