@@ -161,7 +161,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
 
   const content = (
     <div 
-      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-300"
+      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/30 backdrop-blur-lg p-4 animate-in fade-in duration-300"
       onClick={onClose}
     >
       <div 
@@ -207,18 +207,18 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
         ) : (
           <>
             {/* Header */}
-            <div className="flex flex-col items-center mb-3">
-              <div className="relative w-12 h-12 mb-1.5">
+            <div className="flex flex-col items-center mb-4">
+              <div className="relative w-24 h-24 mb-3">
                 <div className="w-full h-full rounded-full border-2 border-white/20 bg-black/40 flex items-center justify-center overflow-hidden">
-                  <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="sm" />
+                  <VisualEmote trigger={playerAvatar} remoteEmotes={remoteEmotes} size="xl" />
                 </div>
-                <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 text-black text-[6px] font-black px-1 py-0.5 rounded-full border-2 border-yellow-300/50 shadow-[0_2px_4px_rgba(234,179,8,0.4)] backdrop-blur-sm">
-                  <span className="text-[5px] opacity-80">LV</span> {level}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 text-black text-[10px] font-black px-2.5 py-1 rounded-full border-2 border-yellow-300/50 shadow-[0_4px_12px_rgba(234,179,8,0.4)] backdrop-blur-sm">
+                  {level}
                 </div>
               </div>
-              <h2 className="text-sm font-black text-white mb-0.5">{playerName}</h2>
+              <h2 className="text-base font-black text-white mb-0.5">{playerName}</h2>
               {accountAgeDays !== null && (
-                <p className="text-[8px] text-white/50">
+                <p className="text-[9px] text-white/50">
                   Account age: {accountAgeDays} {accountAgeDays === 1 ? 'day' : 'days'}
                 </p>
               )}
