@@ -455,6 +455,28 @@ const AppContent: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [gameMode, myPlayerId, view]);
 
+  // Authenticate user when socket connects and we have a profile
+  useEffect(() => {
+    if (!socket || isGuest || !sessionUserId) return;
+
+    const authenticate = () => {
+      if (socket.connected && sessionUserId) {
+        socket.emit(SocketEvents.AUTHENTICATE_USER, { userId: sessionUserId });
+        console.log('✅ Emitted authenticate_user for:', sessionUserId);
+      }
+    };
+
+    if (socket.connected) {
+      authenticate();
+    } else {
+      socket.once('connect', authenticate);
+    }
+
+    return () => {
+      socket.off('connect', authenticate);
+    };
+  }, [socket, isGuest, sessionUserId]);
+
   // SIMPLIFIED AUTH: SessionProvider handles all auth state
   // App.tsx just checks has_active_session flag and uses session from provider
 

@@ -1352,12 +1352,24 @@ io.on('connection', (socket: Socket) => {
   // FRIENDS & GAME INVITES
   // ============================================================================
   
+  // Authenticate user and mark as online when they connect
+  socket.on('authenticate_user', (data: { userId: string }) => {
+    const { userId } = data;
+    if (userId && userId !== 'guest') {
+      // Map socket to userId for presence tracking
+      socketToPlayerId[socket.id] = userId;
+      // Mark user as online
+      updateUserPresence(userId, socket.id, 'online');
+      console.log(`✅ User ${userId} authenticated and marked as online`);
+    }
+  });
+  
   // Get online friends
   socket.on('get_online_friends', (data: { friendIds: string[] }) => {
     const { friendIds } = data;
     const onlineFriendIds = friendIds.filter(friendId => {
-      // Check if friend is connected (in socketToPlayerId map)
-      return Object.values(socketToPlayerId).includes(friendId);
+      // Check if friend is in onlineUsers map
+      return onlineUsers.has(friendId);
     });
     socket.emit('online_friends', { friendIds: onlineFriendIds });
   });
